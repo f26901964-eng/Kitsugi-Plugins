@@ -10,7 +10,7 @@ Kitsugi uygulamasında eklentileri yükleyebilmek için aşağıdaki depo bağla
 
 ### 🔗 Depo Bağlantı Adresi (Repository URL)
 ```text
-https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/repo.json
+https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json
 ```
 
 ### 🛠️ Kurulum Adımları
