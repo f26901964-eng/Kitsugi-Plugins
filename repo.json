@@ -1,0 +1,8 @@
+{
+  "name": "⚡ Kitsugi Eklentileri (Resmi)",
+  "description": "230+ derlenmiş ve güncel Türkçe CloudStream eklenti deposu (+18 hariç).",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/plugins.json"
+  ]
+}
