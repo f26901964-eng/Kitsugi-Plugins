@@ -1,0 +1,202 @@
+[
+    {
+        "iconUrl": "https://anm.cx/favicon.ico",
+        "fileHash": "sha256-d97b2df10fec0664056934fb9ef649d7f8dc5205265101320228eea277a45135",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 35624,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "inatchii",
+            "JustRelaxable"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 25,
+        "internalName": "AnimeciX",
+        "description": "AnimeciX, animeleri keşfedebileceğiniz ve animeler hakkında her şeyi öğrenebileceğiniz bir paylaşım platformudur.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AnimeciX.cs3",
+        "name": "AnimeciX"
+    },
+    {
+        "fileHash": "sha256-6e098fcfb99cf397cc34d7cce442152ba7f638dce3c60c33f359ca872a8c0041",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 80403,
+        "status": 1,
+        "authors": [
+            "kerimmkirac",
+            "ByAyzen",
+            "keyiflerolsun"
+        ],
+        "version": 25,
+        "internalName": "Anizium",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizium.cs3",
+        "name": "Anizium",
+        "description": "Anizium ile dünyada ilk ve tek 4K Türkçe dublaj platformunda anime keyfini yaşa. En yeni animeleri İngilizce altyazı ve dublaj seçenekleriyle 1080p ve 4K kalitesinde HD izle.",
+        "iconUrl": "https://anizium.co/assets/images/logo.png",
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime"
+        ],
+        "language": "tr"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://filmmakinesi.tv&size=128",
+        "fileHash": "sha256-11c0370b9e102ab7441a83258cb2f019d96ff8af4422e455bea3473d1c5ae07e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 139977,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "kraptor",
+            "usdogu",
+            "nikyokki",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 73,
+        "internalName": "FilmMakinesi",
+        "description": "Film Makinesi, en yeni ve en güncel filmleri sitemizde full HD kalite farkı ile izleyebilirsiniz. HD film izle denildiğinde akla gelen en kaliteli film izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmMakinesi.cs3",
+        "name": "FilmMakinesi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?sz=128&domain=http://hdfilmcehennemi.nl",
+        "fileHash": "sha256-905948cab6959f5216634075ea06f1e0011a3871d296c8aefd876ee90e1b5b1a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 145425,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "kraptor",
+            "hexated",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 63,
+        "internalName": "HDFilmCehennemi",
+        "description": "HDFilmCehennemi - Türkiye'nin en hızlı hd film izleme sitesi. Tek ve gerçek HDFilmCehennemi sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmCehennemi.cs3",
+        "name": "HDFilmCehennemi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tranimeizle.live&sz=128",
+        "fileHash": "sha256-88a53181e121236b783ba70ca109ba2034a9b60cedf6bcfdba79c55129fe8494",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 118243,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "kraptor",
+            "byayzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 45,
+        "internalName": "TrAnimeIzle",
+        "description": "TrAnimeIzle anime arşivi: isim eşleştirmeli arama, ana sayfa kategorileri, detay + bölüm listesi, captcha (bot kontrolü) otomatik çözümü; tüm fansub/kalite kaynakları ve OpTraco/Hdvid/Hexload oynatıcı çözücüleri.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/TrAnimeIzle.cs3",
+        "name": "TrAnimeIzle"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.dizibox.live&size=128",
+        "fileHash": "sha256-a86b4ea45b3c8e574be8e6ee9a6db6216407ab7482a7d455e3c131c76b2296ee",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 136902,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "kraptor",
+            "kerimmkirac",
+            "ByAyzen",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 47,
+        "internalName": "DiziBox",
+        "description": "Yabancı Dizi izle, Tüm yabancı dizilerin yeni ve eski sezonlarını full hd izleyebileceğiniz elit site.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziBox.cs3",
+        "name": "DiziBox"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilmizle.to&sz=128",
+        "fileHash": "sha256-6f132c91864405add115a8bb00ec79d9fe1f4ba2d826cadaf11e77c4f2b7a976",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 61028,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 12,
+        "internalName": "HDFilmIzle",
+        "description": "Türkçe film ve dizi kataloğu.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmIzle.cs3",
+        "name": "HDFilmİzle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=anizm.net&sz=128",
+        "fileHash": "sha256-625102ba97e5457bc31424f6801f556fe7ec9e928857be3377a71f24c34f5a0a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 133008,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "hexated",
+            "byayzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 22,
+        "internalName": "Anizm",
+        "description": "Anizm (anizm.net / puffytr.com) anime arşivi: isim eşleştirmeli arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizm.cs3",
+        "name": "Anizm"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://dizipal1593.com&sz=%size%",
+        "fileHash": "sha256-d596a8343b7ba82dddd27cb141b37326c6e81f3addfa6ca2de61673df53fad9f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 49269,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "muratcesmecioglu"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 105,
+        "internalName": "DiziPal",
+        "description": "Dizipal (dizipal1593.com): Next.js sözleşmesine göre yeniden yazıldı — trend/yeni bölüm/kategori listeleri, arama, dizi & film detayı, bölüm kaynakları ve şifreli oynatıcı çözümü.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziPal.cs3",
+        "name": "DiziPal"
+    }
+]
