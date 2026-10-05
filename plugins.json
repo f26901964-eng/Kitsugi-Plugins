@@ -1,0 +1,3287 @@
+[
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.4kfilmizlesene.org&sz=%size%",
+        "fileHash": "sha256-627b9ee10ec0e6788501d42617eda06b7f590ea70ace403616f3c41778700b3c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 11825,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 6,
+        "internalName": "4KFilmIzlesene",
+        "description": "En yeni ve sorunsuz ⚡  Full HD Film izle keyfi her yerde sizinle ! 4K ve 1080p online film izleme farkıyla 4KFilmizlesene&amp;#039;nin Tadını Çıkart.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/4KFilmIzlesene.cs3",
+        "name": "4KFilmIzlesene"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=666filmizle.site&sz=%size%",
+        "fileHash": "sha256-67e1c3be1e544fae485397f19b9a2e24aa115aeefe77dacf04e5c5582c3475a6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 12144,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "AltiYuzAltmisAltiFilmIzle",
+        "description": "666FilmIzle - Türkçe Dublaj ve Altyazılı Film izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AltiYuzAltmisAltiFilmIzle.cs3",
+        "name": "AltiYuzAltmisAltiFilmIzle"
+    },
+    {
+        "fileHash": "sha256-57ab29e68b7e44673ece4049b15a20c064074560da56bdc4d4afac781f035275",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 77372,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 7,
+        "internalName": "AnimPow",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AnimPow.cs3",
+        "name": "AnimPow"
+    },
+    {
+        "iconUrl": "https://cdn-icons-png.flaticon.com/512/2281/2281832.png",
+        "fileHash": "sha256-434fe25b34a2d09fa4620822c8a9af800c022f7a9055ac738f7cb0e68a848d08",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 64548,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "caca1403"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie"
+        ],
+        "version": 48,
+        "internalName": "AnimeSiteleri",
+        "description": "Türkçe altyazılı ve dublajlı anime serilerini, filmlerini ve popüler sezon yapımlarını kategorize ederek sunan anime kaynak sağlayıcısı.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AnimeSiteleri.cs3",
+        "name": "AnimeSiteleri"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.animeworld.ac&size=128",
+        "fileHash": "sha256-7077b793fdb24734fd99b44d57b7e672a7f5a74dce787c42d054bec601fc841e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13393,
+        "status": 1,
+        "language": "it",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 5,
+        "internalName": "AnimeWorld",
+        "description": "Scopri il nostro Archivio di Anime in Streaming Sub ITA e ITA. Guarda in Streaming o effettua il Download di migliaia di serie animate sempre aggiornate e in alta qualità, disponibili su PC, console, tablet, smartphone ed altri dispositivi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AnimeWorld.cs3",
+        "name": "AnimeWorld"
+    },
+    {
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://animeyt.cc&size=128",
+        "fileHash": "sha256-b276a7a538632f3ad0db98f9b025ec7752c886c6265d58f9fab69a3051640f69",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 23172,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 6,
+        "internalName": "AnimeYTX",
+        "description": "Únete a la familia de AnimeYT.es y disfruta del anime online gratis. Disfruta con tus amigos del contenido más popular de la animación japonesa.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AnimeYTX.cs3",
+        "name": "AnimeYTX"
+    },
+    {
+        "iconUrl": "https://anm.cx/favicon.ico",
+        "fileHash": "sha256-b5677e95dd7326a40d6a73e375c881fb4f44e7715deeb11b81ea992ffaf8d569",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 24512,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "inatchii",
+            "JustRelaxable"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 21,
+        "internalName": "AnimeciX",
+        "description": "AnimeciX, animeleri keşfedebileceğiniz ve animeler hakkında her şeyi öğrenebileceğiniz bir paylaşım platformudur.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AnimeciX.cs3",
+        "name": "AnimeciX"
+    },
+    {
+        "fileHash": "sha256-221372bc17e3a7b96514ed9dbfe2d631027712970f7573ba29a43bd1c9ba2e4c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 52348,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 41,
+        "internalName": "Animeler",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Animeler.cs3",
+        "name": "Animeler"
+    },
+    {
+        "fileHash": "sha256-ff272f0caeb3ae79ded86e10826ff5e89f1b61f0227a45e14d825107b3be4cb9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 40161,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 4,
+        "internalName": "Animely",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Animely.cs3",
+        "name": "Animely"
+    },
+    {
+        "fileHash": "sha256-8ae8ce4c9e53f6c95530d0ffb8070c8469f4c1d8ea93247f2ef28d6dc7e351fb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 80371,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 25,
+        "internalName": "Anizium",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizium.cs3",
+        "name": "Anizium"
+    },
+    {
+        "fileHash": "sha256-3f658a334e3b2aa6a8b50b0455c27795015b95a4a69cba2e5bf38c00ff4eaa29",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16554,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Anizm",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Anizm.cs3",
+        "name": "Anizm"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=asyaanimeleri.top&sz=%size%",
+        "fileHash": "sha256-196202cef649bec332a27b38edbc9bac6cf578767decb12e15d55c722e84ed2a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 12654,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "AsyaAnimeleri",
+        "description": "Asya Animeleri - Anime izle, Donghua izle, Türkçe Altyazılı Anime izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AsyaAnimeleri.cs3",
+        "name": "AsyaAnimeleri"
+    },
+    {
+        "fileHash": "sha256-65e9260e4266b065895d6c5ff03ca8751021176cd20a2f031c8eb6d6cab12910",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 28598,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 22,
+        "internalName": "AsyaFanatiklerim",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AsyaFanatiklerim.cs3",
+        "name": "AsyaFanatiklerim"
+    },
+    {
+        "fileHash": "sha256-7b2d52d326c7cb8ac7b83c37729a05efc7656528b85e1ff512d5d1f0f918838b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 9859,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 2,
+        "internalName": "AsyaFilmIzlesene",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AsyaFilmIzlesene.cs3",
+        "name": "AsyaFilmIzlesene"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=asyawatch.com&sz=%size%",
+        "fileHash": "sha256-6888d19229f98c4687788fd6a4c6fc79b75780556960f7125fa2c3850b7b96e5",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 29126,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 6,
+        "internalName": "AsyaWatch",
+        "description": "Asyawatch",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AsyaWatch.cs3",
+        "name": "AsyaWatch"
+    },
+    {
+        "iconUrl": "https://basketballreplays.net/favicon.ico",
+        "fileHash": "sha256-d928baab007fafe1ccfd77899a5c7e511cbb9f3e7e250a6c117a2383465263e1",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14879,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 4,
+        "internalName": "BasketballReplays",
+        "description": "BA Replay full games online Free . Stream NBA Basketball replays full games. Spoiler Free , No Blackouts. No signup. Free Download High quality video in HD.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/BasketballReplays.cs3",
+        "name": "BasketballReplays"
+    },
+    {
+        "iconUrl": "https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?w=512&q=80",
+        "fileHash": "sha256-880a0b4bb86df52889fa4d90f78804cb1783524a9eb0f0a3585cf644cbda2c52",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 38600,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "caca1403"
+        ],
+        "tvTypes": [
+            "Documentary"
+        ],
+        "version": 60,
+        "internalName": "BelgeselProvider",
+        "description": "Doğa, tarih, uzay, bilim ve suç araştırma kategorilerindeki belgesel yayınlarını yüksek çözünürlükle sunan belgesel izleme kaynağı.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/BelgeselProvider.cs3",
+        "name": "BelgeselProvider"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=belgeselx.com&sz=%size%",
+        "fileHash": "sha256-11afcc524f9a2616d4d3e2b170f255d8f78a6ad50ce3ed0c585dcaf74b8d49db",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 31167,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "JustRelaxable"
+        ],
+        "tvTypes": [
+            "Documentary"
+        ],
+        "version": 17,
+        "internalName": "BelgeselX",
+        "description": "En yeni belgeseller, türkçe altyazılı yada dublaj olarak 1080p kalitesinde HD belgesel izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/BelgeselX.cs3",
+        "name": "BelgeselX"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tr.canlitv.team&sz=%size%",
+        "fileHash": "sha256-d4e8de61fd99275ecda7a2c1a53da5b1643cfa42e8f6bba0c32383b722de14db",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 20480,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "Adippe",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 10,
+        "internalName": "CanliTV",
+        "description": "Canlı TV",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/CanliTv.cs3",
+        "name": "CanliTV"
+    },
+    {
+        "iconUrl": "https://i.imgur.com/A87j6ue.png",
+        "fileHash": "sha256-923b66467d27e8ba138bbb199137bff12937e65a820a5437dab815506b88790d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 41687,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen",
+            "kraptor"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Cartoon"
+        ],
+        "version": 7,
+        "internalName": "CinemaCity",
+        "description": "Cinema City.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/CinemaCity.cs3",
+        "name": "CinemaCity"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=cizgimax.online&sz=%size%",
+        "fileHash": "sha256-03f8f6c63b88f23b62a434397562777594398e592da90d17be3f011432086294",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 36001,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Cartoon"
+        ],
+        "version": 16,
+        "internalName": "CizgiMax",
+        "description": "ÇizgiMax ile Çizgi Film izlemek artık daha kolay, donmadan full hd ve reklamsız bir sitedir, içerisinde 700 den fazla çizgi film olan, Bu site bu işi profesyonelce yapıyor.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/CizgiMax.cs3",
+        "name": "CizgiMax"
+    },
+    {
+        "fileHash": "sha256-a6f0c3712cc579492beaea7c4c5c01ffbdfc7f535d9288f19a8d9727d783f994",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 12115,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 3,
+        "internalName": "CizgiVeDizi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/CizgiVeDizi.cs3",
+        "name": "CizgiVeDizi"
+    },
+    {
+        "fileHash": "sha256-18411311aee65c24ce2fc15c2cbb363b90d7a3ea4be0f7f019f3fbe03bfa5b14",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 7107,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Cricify",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Cricify.cs3",
+        "name": "Cricify"
+    },
+    {
+        "iconUrl": "https://www.dmax.com.tr/favicon.ico",
+        "fileHash": "sha256-0fb59c74ae28e2117bc43652828dc1c987ef1043fbc634dd0156d935ede7b964",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13243,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 2,
+        "internalName": "DMax",
+        "description": "DMAX dizi ve programlarını takip etmek için ziyaret edin. DMAX dizi ve programlarını tek parça ve hd kalitesiyle izleyin.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DMax.cs3",
+        "name": "DMax"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.dailymotion.com&sz=%size%",
+        "jarFileSize": 51133,
+        "fileHash": "sha256-1d0df4cbfa031b95c522ddaf10b4ba4d69d6c24ba1b11009b50123e9d2a8b833",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 12094,
+        "status": 1,
+        "authors": [
+            "Luna712"
+        ],
+        "tvTypes": [
+            "Others"
+        ],
+        "version": 4,
+        "internalName": "DailymotionProvider",
+        "jarUrl": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DailymotionProvider.jar",
+        "description": "Watch content from Dailymotion",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DailymotionProvider.cs3",
+        "name": "DailymotionProvider",
+        "jarHash": "sha256-9d3dcc90add8381bd1bd3d8bc8112d8237edef2c91635f2bf872c3ad2a1bb66d"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=ddizi.im&sz=%size%",
+        "fileHash": "sha256-47e75d5eb583ed98fb54324a73028da5f35775e910f3e6a5e78cd00effa786a9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 20110,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "yunus60",
+            "GitLatte",
+            "patr0nq"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 22,
+        "internalName": "DDizi",
+        "description": "Ddizi, dizi izle, dizi seyret, ddizi.im - Güncel ve eski dizileri en iyi görüntü kalitesiyle bulabileceğiniz dizi izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Ddizi.cs3",
+        "name": "Ddizi"
+    },
+    {
+        "fileHash": "sha256-3ef24a02d63c5d5aab53a20a4d2435221d45790c8c75005c6ab17ca2cca40a29",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 25718,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 20,
+        "internalName": "DiziAsia",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziAsia.cs3",
+        "name": "DiziAsia"
+    },
+    {
+        "fileHash": "sha256-4368a98b141603d9db6f80cdf3f68f9a6b365b23a9c733d6fbed55f9ef43993a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 39796,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 27,
+        "internalName": "DiziAsya",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziAsya.cs3",
+        "name": "DiziAsya"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.dizibox.live&sz=%size%",
+        "fileHash": "sha256-0d568891f9b4cc480dfa257e28ef096d3c6620d920ed1f7fc1c6f4d5da56805e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 21202,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 23,
+        "internalName": "DiziBox",
+        "description": "Yabancı Dizi izle, Tüm yabancı dizilerin yeni ve eski sezonlarını full hd izleyebileceğiniz elit site.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DiziBox.cs3",
+        "name": "DiziBox"
+    },
+    {
+        "fileHash": "sha256-0909b046ced602df5d59d4d469a87acb3481f68b34fb461f1828d1546a6fda6c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 76756,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 22,
+        "internalName": "DiziFilmORG",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziFilmORG.cs3",
+        "name": "DiziFilmORG"
+    },
+    {
+        "iconUrl": "https://cdn-icons-png.flaticon.com/512/3163/3163478.png",
+        "fileHash": "sha256-fc45d560ff3e0aa8eebe6515c541b985ba6cf36bcb87e70f6dca3098d4a7aa58",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 244520,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "caca1403"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime",
+            "AsianDrama",
+            "Cartoon"
+        ],
+        "version": 126,
+        "internalName": "DiziFilmSiteleri",
+        "description": "Yerli ve yabancı film arşivleri ile popüler dizi platformlarına erişim sağlayan, gelişmiş oynatıcı ve içerik filtreleme destekli medya eklentisi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziFilmSiteleri.cs3",
+        "name": "DiziFilmSiteleri"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=dizigom1.co&sz=%size%",
+        "fileHash": "sha256-73ef868d26525574e98ab7a8191b0af197166c99332f53bcb9f27197fa55c454",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 18049,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 10,
+        "internalName": "DiziGom",
+        "description": "Türkçe altyazılı yabancı dizi izle, Tüm yabancı, kore, netflix dizilerin yeni ve eski sezonlarını orijinal dilinde dizigom1 alt yazılı film izleyebilir, sadece türkçe altyazılı en iyi yabancı diziler ve filmler hakkında yorum yapabilirsiniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziGom.cs3",
+        "name": "DiziGom"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://dizikorea.vip&sz=%size%",
+        "fileHash": "sha256-017c1656d2f4719ca673d2f266602a1c85c5e6c3dd2933978d84b1491e57ca2e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22751,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 31,
+        "internalName": "DiziKorea",
+        "description": "En Güncel Kore Dizileri izleme Sitesi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziKorea.cs3",
+        "name": "DiziKorea"
+    },
+    {
+        "fileHash": "sha256-4028b03eb80e9b60183f45401b49d5c253162e11dd279747b98e4ba5dbff5ea3",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 82740,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 58,
+        "internalName": "DiziLife",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziLife.cs3",
+        "name": "DiziLife"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=dizimag.net&sz=%size%",
+        "fileHash": "sha256-b30d21c0cc313da6d1644634cc2b373656be742acdaf659caf0645f244b89d6c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 26512,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 18,
+        "internalName": "DiziMag",
+        "description": "En son çıkan yabancı dizi ve filmleri DiziMag farkıyla full hd 1080p kalitede izle. Dizimag Geniş ve güncel arşiviyle dizi ve filmlerin tadını çıkartın.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DiziMag.cs3",
+        "name": "DiziMag"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.dizimom.plus&sz=%size%",
+        "fileHash": "sha256-cd05d57b2dbfca7ff9b57eb24081ff6f75837008c56d8e2bd5b6c0a98ec024e9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 34841,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 54,
+        "internalName": "DiziMom",
+        "description": "Binlerce yerli yabancı dizi arşivi, tüm sezonlar, kesintisiz bölümler. Sadece dizi izle, Dizimom heryerde seninle!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziMom.cs3",
+        "name": "DiziMom"
+    },
+    {
+        "iconUrl": "https://dizipal1563.com/assets/favicon/favicon-32x32.png?v=3",
+        "fileHash": "sha256-d620d13a2b02a269527d101bf77e9d50899e79f9fdc8e3fd2ea255515a85c7d7",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 27098,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "muratcesmecioglu"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 114,
+        "internalName": "DiziPal",
+        "description": "en yeni dizileri güvenli ve hızlı şekilde sunar.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziPal.cs3",
+        "name": "DiziPal"
+    },
+    {
+        "iconUrl": "https://chessplyimages.cfd/uploads/site/favicon-32x32.png",
+        "fileHash": "sha256-89b8589993ef4ed9bb43cbc891d7ddcc80b097fb3431295b9d0036ad1bf9062f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22671,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "muratcesmecioglu"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 79,
+        "internalName": "DiziPalOriginal",
+        "description": "en yeni dizileri güvenli ve hızlı şekilde sunar.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziPalOriginal.cs3",
+        "name": "DiziPalOriginal"
+    },
+    {
+        "fileHash": "sha256-39f7d88afedf0f91fa6285cd200f229a0563fecfb3dee6808b091af901987518",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 160865,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 44,
+        "internalName": "DiziPalOrijinal",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziPalOrijinal.cs3",
+        "name": "DiziPalOrijinal"
+    },
+    {
+        "fileHash": "sha256-2fd00b01979aec233433cf0030320dd03a4b9881dbe8cec4c8908b3ea67ec8f0",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 36750,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 74,
+        "internalName": "DiziYo",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziYo.cs3",
+        "name": "DiziYo"
+    },
+    {
+        "iconUrl": "https://cdn.diziyou.one/wp-content/uploads/2020/04/diziyou-favicon.png",
+        "fileHash": "sha256-6261d0bb203f1870dec0f0e3eab2e6dba9404b36b2e83cef5e653f7bc112e72b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 17204,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 25,
+        "internalName": "DiziYou",
+        "description": "Diziyou en kaliteli Türkçe dublaj ve altyazılı yabancı dizi izleme sitesidir. Güncel ve efsanevi dizileri 1080p Full HD kalitede izlemek için hemen tıkla!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DiziYou.cs3",
+        "name": "DiziYou"
+    },
+    {
+        "fileHash": "sha256-d4bf1c4d02c4c2d04aee0182865ad93ff932b1cebb162ee5c75769caed4ff822",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 59170,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 4,
+        "internalName": "Dizigecesi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Dizigecesi.cs3",
+        "name": "Dizigecesi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=dizilla.club&sz=%size%",
+        "fileHash": "sha256-c7ae8afec0f1bf0a3194a14c80b0b039a269afbf6b5160f2999211b518c2ddd8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 32003,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 93,
+        "internalName": "Dizilla",
+        "description": "Dizilla tüm yabancı dizileri ücretsiz olarak Türkçe Dublaj ve altyazılı seçenekleri ile 1080P kalite izleyebileceğiniz yeni nesil yabancı dizi izleme siteniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Dizilla.cs3",
+        "name": "Dizilla"
+    },
+    {
+        "fileHash": "sha256-64c82bbd92dda72ea00e666e7488ae876d4f456ec5144347071e2616ae58d2c5",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 79339,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 12,
+        "internalName": "Dizipod",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Dizipod.cs3",
+        "name": "Dizipod"
+    },
+    {
+        "iconUrl": "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://documentaryarea.com&size=128",
+        "fileHash": "sha256-641b7c731bda0ce52f5f22329ae4980300ed65116df5f5b432c3c41294f540dc",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14373,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Documentary"
+        ],
+        "version": 2,
+        "internalName": "DocumentaryArea",
+        "description": "Watch the best online documentary films.Stunning collection of awesome, eyeopening, interesting, just released, full documentaries.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DocumentaryArea.cs3",
+        "name": "DocumentaryArea"
+    },
+    {
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://doramaslatinox.com/&size=128",
+        "fileHash": "sha256-599bb39e48967b68d745b759f450710c31a3b116d2c4abd754ca0fc379b4d3c8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 26380,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 7,
+        "internalName": "DoramasLatinoX",
+        "description": "Doramas en Audio Español Latino y Subtitulado.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DoramasLatinoX.cs3",
+        "name": "DoramasLatinoX"
+    },
+    {
+        "fileHash": "sha256-38936f72e0f14bfb61886b24747fc25584f31911b7990acda7e7e2ee179059cd",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 23825,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 3,
+        "internalName": "DramaDizilerim",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/DramaDizilerim.cs3",
+        "name": "DramaDizilerim"
+    },
+    {
+        "iconUrl": "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://dramaizle.net&size=16",
+        "fileHash": "sha256-e9618735ea85552c23f57eb67f46591ceda90705fa08ad5a68ca69e532509aa6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 20838,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 11,
+        "internalName": "Dramaizle",
+        "description": "Reels formatında Çin, Kore ve Japon mini dizileri! Her gün güncellenen bölümler, Türkçe altyazı seçenekleriyle seni bekliyor. Hemen izle!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Dramaizle.cs3",
+        "name": "Dramaizle"
+    },
+    {
+        "iconUrl": "https://www.dubbindo.site/themes/dubbindo/img/icon.png",
+        "fileHash": "sha256-f00b4a89502aec44f6b01ef34e36ddb519ec3b840ede72fc5fcb94d0a6c31be3",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13125,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 2,
+        "internalName": "Dubbindo",
+        "description": "Serial TV Bahasa Indonesia",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Dubbindo.cs3",
+        "name": "Dubbindo"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://esk.onl&size=128",
+        "fileHash": "sha256-d7c43ba8a8b23d426afd4e6647b2ac16fe8ce03f211211409096dbaadc1590c2",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 15531,
+        "status": 1,
+        "language": "ar",
+        "authors": [
+            "kraptor"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 18,
+        "internalName": "Esheaq",
+        "description": "قصة عشق الأصلي لأحدث المسلسلات التركية والدراما المترجمة علي قصه عشق ، يمكنك من خلال موقع قصة عشق مشاهدة كل جديد في عالم الدراما التركية",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Esheaq.cs3",
+        "name": "Esheaq"
+    },
+    {
+        "fileHash": "sha256-e84498be64eb99183dd71c9467d84eaf05fdc504707539c2d1299770d313ebce",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 24364,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 3,
+        "internalName": "Exxen",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Exxen.cs3",
+        "name": "Exxen"
+    },
+    {
+        "iconUrl": "https://i.imgur.com/CcDyv7Z.png",
+        "fileHash": "sha256-9e32d979494a9f743ddd108d0956dfe80bebebc0fbb0e779d6a06c6092d293d7",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 23582,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 11,
+        "internalName": "F1FullRaces",
+        "description": "F1FullRaces",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/F1FullRaces.cs3",
+        "name": "F1FullRaces"
+    },
+    {
+        "fileHash": "sha256-10b47d7d5e9b7eff155f3fce5fbd93c3498f5e7e9711d84d4aab4a0f2ae96bf8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 26128,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 4,
+        "internalName": "FilmBOL",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmBOL.cs3",
+        "name": "FilmBOL"
+    },
+    {
+        "iconUrl": "https://filmbip.com/uploads/favicon/original/favicon.webp",
+        "fileHash": "sha256-57e5811ca991f4fe6c27c66f4472456adc08e04c77abda5b819624eae77db789",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14795,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 11,
+        "internalName": "FilmBip",
+        "description": "Binlerce yerli yabancı dizi arşivi, tüm sezonlar, kesintisiz bölümler. Filmbip heryerde seninle!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/FilmBip.cs3",
+        "name": "FilmBip"
+    },
+    {
+        "fileHash": "sha256-b14d8915a8d72bd25590037be0f1a74946ec755995ed3896a452f3b547a1b3f2",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 71994,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 50,
+        "internalName": "FilmEkseni",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmEkseni.cs3",
+        "name": "FilmEkseni"
+    },
+    {
+        "fileHash": "sha256-02df47ed1de0d7771432f726955de1cb4b6078f3e7d7437d632cebbe0c6af676",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 60857,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 43,
+        "internalName": "FilmHane",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmHane.cs3",
+        "name": "FilmHane"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.filmizleilk.com&sz=%size%",
+        "fileHash": "sha256-f3f7bc73a6a197c18795f87d2febf7a1e21ad47cbaf11b05e9c9cddbff78209d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19933,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 7,
+        "internalName": "FilmIzleIlk",
+        "description": "Filmizleilk.com Yerli ve Yabancı en son Film ve Dizileri Full HD 1080p Bluray Tek Part Full izle",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmIzleIlk.cs3",
+        "name": "FilmIzleIlk"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=filmkovasi.tv&sz=%size%",
+        "fileHash": "sha256-91bf921e6159726a90aa7efa20d4f78a55bf06c15ba446804bb2b2b3a5d5d2ec",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 17829,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "FilmKovasi",
+        "description": "Film Kovasi ⚡ ile en güncel ve sorunsuz Full HD Film izle keyfi her yerde seninle! 1080p online film izleme ayrıcalığıyla Film Kovası'nın Tadını Çıkarın.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmKovasi.cs3",
+        "name": "FilmKovasi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=filmmakinesi.film&sz=%size%",
+        "fileHash": "sha256-9b58987f0eb1e19d70c2cd54f7c9c1e7ef18a005edf03113bc9e992d3f2e255b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 20531,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "usdogu"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 58,
+        "internalName": "FilmMakinesi",
+        "description": "Film Makinesi, en yeni ve en güncel filmleri sitemizde full HD kalite farkı ile izleyebilirsiniz. HD film izle denildiğinde akla gelen en kaliteli film izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmMakinesi.cs3",
+        "name": "FilmMakinesi"
+    },
+    {
+        "iconUrl": "https://www.filmmodu.one/icon/favicon.ico",
+        "fileHash": "sha256-3150a6212f052ad843a8b9e67d65c82b35078f502bb9f5032b1af808d87b862e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16496,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 19,
+        "internalName": "FilmModu",
+        "description": "Film modun geldiyse yüksek kalitede en yeni filmleri izle, 1080p izleyebileceğiniz reklamsiz film sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmModu.cs3",
+        "name": "FilmModu"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://filmatek.net/&size=128",
+        "fileHash": "sha256-200929c2e2075af5fd55fdedf0a476a4aa8510e87b6ecc40a0b1c42dd4b67dde",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14186,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "Filmatek",
+        "description": "Sosyalizmin sinemasının veritabanı.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Filmatek.cs3",
+        "name": "Filmatek"
+    },
+    {
+        "iconUrl": "https://filmmirasim.ktb.gov.tr/favicon-r.png",
+        "fileHash": "sha256-37bae4ea25e17fd60525c14c0127cb7c3c21410123a0807bf790478864189787",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13191,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "byayzen"
+        ],
+        "tvTypes": [
+            "Documentary"
+        ],
+        "version": 4,
+        "internalName": "Filmmirasım",
+        "description": "Kültür ve Turizm Bakanlığı, kültürel mirasımızın görsel belleğini oluşturan filmlerin muhafazası ve gelecek kuşaklara aktarılması amacıyla Sinema Genel Müdürlüğü bünyesinde oluşturduğu arşivdeki filmleri dijital ortama aktarmakta ve restore etmektedir. ",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Filmmirasım.cs3",
+        "name": "Filmmirasım"
+    },
+    {
+        "fileHash": "sha256-fad36234a9273e3660d41979e369c3898753e4e566b28ab6a1c61d1bcfdf0c5c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 38536,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 16,
+        "internalName": "Filmzal",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Filmzal.cs3",
+        "name": "Filmzal"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=filmizlesene.plus&sz=%size%",
+        "fileHash": "sha256-011e28d3b59b410ba4ee6e7ed33cb3807e9fb93d4cb013dd2fb31b43b1e9bf79",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 17195,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 5,
+        "internalName": "Filmİzlesene",
+        "description": "Filmizlesene ile hızlı film izleme fırsatını yakala, en yeni ve iyi filmleri Full HD 1080p kalitesiyle online ve bedava izle",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Filmİzlesene.cs3",
+        "name": "Filmİzlesene"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://flixlatam.com&size=128",
+        "fileHash": "sha256-8b3753aa7c473249b85dc18701aa33c275c6000a54ef0ab3297ea2903b4cda7e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 35306,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 8,
+        "internalName": "Flixlatam",
+        "description": "Mira tus Series, Películas y Animes en Latino Online!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Flixlatam.cs3",
+        "name": "Flixlatam"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.footreplays.com/&size=128",
+        "fileHash": "sha256-e49c3404af5d87c6fddba76d35fd2084d74e0e24720f4a1ab306a945bdb2be2b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22241,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Others"
+        ],
+        "version": 1,
+        "internalName": "FootReplays",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/FootReplays.cs3",
+        "name": "FootReplays"
+    },
+    {
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://footballia.net/tr&size=48",
+        "fileHash": "sha256-83833e949a9afe80653d448e8f2431f81e918681c7bbc57746567046b3ea60ce",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 42022,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kraptor",
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 9,
+        "internalName": "Footballia",
+        "description": "1950’lerden günümüze… 40.000’den fazla maç ve 100.000’den fazla oyuncu.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Footballia.cs3",
+        "name": "Footballia"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://plusizle.net&size=128",
+        "fileHash": "sha256-439523550c16885a2ad34db57b6a66247c6fd66b24d4c8e98462f31cee9223af",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 21174,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie",
+            "AsianDrama"
+        ],
+        "version": 20,
+        "internalName": "Full4kizle",
+        "description": "Filmci Baba, film izleme sitesi 4k Full film izle, 1080p ve 4k (yalan) kalite de sinema filmleri ve dizileri, tek parça hd kalitede türkçe dublajlı filmler seyret.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Full4kizle.cs3",
+        "name": "Full4kizle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilm.us&sz=%size%",
+        "fileHash": "sha256-c146161c013817e655e967a1ae5b61f17a17d3af10f068035a2b2819a6c05573",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 24969,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 36,
+        "internalName": "FullHDFilm",
+        "description": "Fullhdfilm ile en yeni vizyon filmler Full HD ve kesintisiz film sizlerle. Özgün film arşivimizle en üstün kaliteli film izle keyfini sunuyoruz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FullHDFilm.cs3",
+        "name": "FullHDFilm"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.fullhdfilmizlesene.de&sz=%size%",
+        "fileHash": "sha256-61cfbdd57995c0e64c9a21c51d097e568b36457b51bde3fbaa7b59ea5e9cda1e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 34153,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 29,
+        "internalName": "FullHDFilmizlesene",
+        "description": "Sinema zevkini evinize kadar getirdik. Türkiye'nin lider Film sitesinde, en yeni filmleri Full HD izleyin.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FullHDFilmizlesene.cs3",
+        "name": "FullHDFilmizlesene"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=fullhdfilmizlede.net&sz=%size%",
+        "fileHash": "sha256-054e5e56c369404fdea3c0de6a3c9ae6d23cd4b916511cb82833d0e0590c934e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16192,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 7,
+        "internalName": "FullHDFilmİzlede",
+        "description": "En güncel ve popüler filmleri Full HD kalitesinde, Türkçe altyazılı veya Türkçe dublaj seçenekleriyle izleyebileceğiniz tek adres! Sinema tutkunları için en özel film deneyimini yaşamak için fullhdfilmizlede.net",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FullHDFilmİzlede.cs3",
+        "name": "FullHDFilmİzlede"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=fullraces.com&sz=%size%",
+        "fileHash": "sha256-29b4315b3c713c46400f872b58d82901d78448fcaaa055d6cab8fec688560580",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 9896,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kerimmkirac"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "FullRaces",
+        "description": "Formula 1 is one of the most popular and dramatic sports in the world. You can watch Formula One races replays videos online and enjoy every moment of this exciting sports event. We offer to watch F1 Full Races replays FREE in HD",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/FullRaces.cs3",
+        "name": "FullRaces"
+    },
+    {
+        "fileHash": "sha256-565fb6f63a90ae84de84e037e3e36f15cafad318e164cc753a42468ca65495d3",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 18993,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Gain",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Gain.cs3",
+        "name": "Gain"
+    },
+    {
+        "fileHash": "sha256-74d715346d47a7c0706e464c81fbec9cde1a758c1e7afebea839da1d68820ae9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 17904,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 15,
+        "internalName": "GinikoCanli",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/GinikoCanli.cs3",
+        "name": "GinikoCanli"
+    },
+    {
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://ww3.gnulahd.nu/&size=128",
+        "fileHash": "sha256-56a472b16a0764d9233ae7709a82a6731bb3170606fdf3e0c2a72d205353bc1f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 27886,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie",
+            "Anime",
+            "TvSeries"
+        ],
+        "version": 7,
+        "internalName": "Gnulahd",
+        "description": "GnulaHD",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Gnulahd.cs3",
+        "name": "Gnulahd"
+    },
+    {
+        "fileHash": "sha256-567d67d637b8a8a4bc111a0866a5893ec6df2c6dd20816fbb6f2cec474c13a0d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 37779,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 14,
+        "internalName": "GolgeTV",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/GolgeTV.cs3",
+        "name": "GolgeTV"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilmcehennemi.com&sz=%size%",
+        "fileHash": "sha256-319c504b81d23a7bb48c98f44168e6797572d65b28013278183098aa61c4eaf1",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 33300,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "hexated",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 49,
+        "internalName": "HDFilmCehennemi",
+        "description": "Türkiye'nin en hızlı hd film izleme sitesi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmCehennemi.cs3",
+        "name": "HDFilmCehennemi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.hdfilmcehennemi2.site&sz=%size%",
+        "fileHash": "sha256-1ada879894ee4e790f367aa6495971515b7ec26f1534be595052bbeb339c19ce",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 24688,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 10,
+        "internalName": "HDFilmCehennemi2",
+        "description": "Full hd film izleme keyfini hdfilmcehennemi2 ile yaşayın. Türkiyenin en güncel yüksek hd kalitede film izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmCehennemi2.cs3",
+        "name": "HDFilmCehennemi2"
+    },
+    {
+        "fileHash": "sha256-96dfb25c05dc3825bc2b1f9d87b70a9692abdfbea871f65c3cea19f77870a75d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 85336,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 18,
+        "internalName": "HDFilmDelisi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmDelisi.cs3",
+        "name": "HDFilmDelisi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilmizle.to&sz=%size%",
+        "fileHash": "sha256-01aebcbf4d82c0782f95c6b76fdc79fed67f4c8e91900f6c3ab5e0e3cb586a4e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 28820,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 8,
+        "internalName": "HDFilmIzle",
+        "description": "HDFilmizle ile Full HD izle, 1080p kalitede Yerli ve Yabancı filmlerle Türkçe dublaj veya Altyazı olarak kesintisiz film izlemenin tadını çıkarın.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmIzle.cs3",
+        "name": "HDFilmIzle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=hdfilmsitesi.net&sz=%size%",
+        "fileHash": "sha256-63784fbc9af8ad652b00fdbcdd8725666716afe3d83c7cceea3ae16876e5c36d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 20384,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 19,
+        "internalName": "HDFilmSitesi",
+        "description": "Film izle, Hdfilmsitesi ile Online 1080p ve 4K kalite Full HD Filmlere Türkçe Dublaj ve Altyazılı olarak Reklamsız Kesintisiz HD Film izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmSitesi.cs3",
+        "name": "HDFilmSitesi"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://ww1.henaojara.net/&size=128",
+        "fileHash": "sha256-0ecc938ae892b106ff1b6d13906f96b5090f00a3f48d633ac95f81e193f265a5",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13901,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie"
+        ],
+        "version": 3,
+        "internalName": "Henaojara",
+        "description": "Ver anime online, subtitulado y/o doblado al español latino HD y completamente gratis. Aquí podrás ver y descargar todas tus series preferidas sin anuncios.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Henaojara.cs3",
+        "name": "Henaojara"
+    },
+    {
+        "iconUrl": "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh3vCp6N1K4bECoYRQD-cisJF2_6V_Hk01ZhDmoPR2JuM8O5qr4MqrPO1munM9cRlleBBSK6odYhLtDBWv4E3vhPhynlmS5hVVtJZShHoGA5REQ8_3v8SIlccTEqzVQu2UJyNYQdJNrKIfWy66RQeT0D-CcmFCbHPz5023H6p2v5fv4NVloZ5Rqo_yGrIY/s320/iNat-Box-App.png",
+        "fileHash": "sha256-006c7b68f7deb24c5356c753429c20607896f78009a8edbf27a46bd6ff0651fb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 36900,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "JustRelaxable",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Live"
+        ],
+        "version": 30,
+        "internalName": "InatBox",
+        "description": "İnatBox cloudstream eklentisidir. Sevdiğiniz yayın platformlarını ve canlı maçları burada bulabilirsiniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/InatBox.cs3",
+        "name": "InatBox"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=archive.org&sz=%size%",
+        "jarFileSize": 126718,
+        "fileHash": "sha256-30977a77225cea2bc3c07e026e85faa49b26680ec584518686a2649d4a22e2c8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 28112,
+        "status": 1,
+        "authors": [
+            "Luna712"
+        ],
+        "tvTypes": [
+            "Others"
+        ],
+        "version": 1,
+        "internalName": "InternetArchiveProvider",
+        "jarUrl": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/InternetArchiveProvider.jar",
+        "description": "Watch content from the Internet Archive at archive.org",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/InternetArchiveProvider.cs3",
+        "name": "InternetArchiveProvider",
+        "jarHash": "sha256-4b1597024e22b9e9adbbdf040845b78035476e01c241eb5408a525d4e213eb54"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=invidious.io&sz=%size%",
+        "jarFileSize": 64541,
+        "fileHash": "sha256-b74bec24a0264629b2abd3b34ce50f71023af7f4dddb04fb1b5090b9fb72098c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14283,
+        "status": 1,
+        "authors": [
+            "Cloudburst"
+        ],
+        "tvTypes": [
+            "Others"
+        ],
+        "version": 9,
+        "internalName": "InvidiousProvider",
+        "jarUrl": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/InvidiousProvider.jar",
+        "description": "Watch content from any invidious instance",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/InvidiousProvider.cs3",
+        "name": "InvidiousProvider",
+        "jarHash": "sha256-cd48d67707c7dbc0ceb03e13de6af3129a4def54f7120388afb21cdc2edd7aec"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://iwatchtheoffice.cc&size=128",
+        "fileHash": "sha256-2443f6aaba8db6606cc737b9918397e15baa614e8f7715f3c9d55aa8b84f5f17",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14574,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 3,
+        "internalName": "Iwatchtheoffice",
+        "description": "Stream The Office (US) Online Free in HD on XBOX, Playstation, MOBILE, TABLET and PC",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Iwatchtheoffice.cs3",
+        "name": "Iwatchtheoffice"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://jp-films.com&size=128",
+        "fileHash": "sha256-e682c44b2e1dcf0a05dc47597ac2c20bd787b98f1dca7554c1ead71b5e38692f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16402,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 6,
+        "internalName": "JPFilms",
+        "description": "Watch online The Yagyu Code: Secret Scrolls on Japanese Classic Movies and TVSeries (https://jp-films.com) with English Subtitle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/JPFilms.cs3",
+        "name": "JPFilms"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://jetfilmizle.de&sz=%size%",
+        "fileHash": "sha256-37b317c2623bb343f195f2aad59f2cea5a6c00727d9fbd663f215f8c5a9083e9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16349,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 43,
+        "internalName": "JetFilmizle",
+        "description": "Binlerce Film İzleme Seçeneğiyle En İyi Film İzleme Sitesi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/JetFilmizle.cs3",
+        "name": "JetFilmizle"
+    },
+    {
+        "iconUrl": "https://turkey.mom-rsf.org/uploads/tx_lfrogmom/media/241-101_import.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/MakotoTokioki/Cloudstream-Turkce-Eklentiler",
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "Makoto Tokioki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "Kanal 7",
+        "description": "Hint, Pakistan ve Türk dizilerinin adresi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Kanal 7.cs3",
+        "name": "Kanal 7",
+        "fileHash": "sha256-139bd94b3cf1839558131a23e29e0c55dfae70c67043cebc16c6598ecfcd885f",
+        "fileSize": 18115
+    },
+    {
+        "fileHash": "sha256-28c407d966543b9729551a1dd7599f2ecf8d58b83c896cf64ae394749b80dd6f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 40505,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 17,
+        "internalName": "KickTR",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/KickTR.cs3",
+        "name": "KickTR"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://kisskh.id/&size=256",
+        "fileHash": "sha256-4a5091770ed389dfa1e3c589a1faa1286c590d6c07d75a1ddd044e485d43d1ed",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 36429,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kraptor",
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 4,
+        "internalName": "KissKH",
+        "description": "Watch drama online in high quality. Free download high quality drama. Various formats from 240p to 720p HD (or even 1080p). Feel Free To Watch!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/KissKH.cs3",
+        "name": "KissKH"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=koreanturk.com&sz=%size%",
+        "fileHash": "sha256-c7de106147933ac0bfb647f8b1b9f00e097c83c5e91c563bcfcf4869984a3a65",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 12192,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "version": 8,
+        "internalName": "KoreanTurk",
+        "description": "Güney Kore sevdalılarının vazgeçemediği ve Türkiye'nin en çok ziyaret edilen Güney Kore Portalı; Koreantürk'e hoşgeldiniz!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/KoreanTurk.cs3",
+        "name": "KoreanTurk"
+    },
+    {
+        "fileHash": "sha256-4ed2fe7205a7a769e0863b06552fcd8d4a997c652346d8225e217fe6fa1dbccc",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 26392,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 3,
+        "internalName": "Koredizi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Koredizi.cs3",
+        "name": "Koredizi"
+    },
+    {
+        "fileHash": "sha256-2e9b8fa4fe721128da485ee79391ab8f4c320807e74745296462fa75aa11a6e4",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 622317,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 84,
+        "internalName": "KraptorPlus",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/KraptorPlus.cs3",
+        "name": "KraptorPlus"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=krmzy.org",
+        "fileHash": "sha256-19be93761a7d9577a17a372c764f1e746ddccce2e27545994df9fd36cbd76389",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16138,
+        "status": 1,
+        "language": "ar",
+        "authors": [
+            "kraptor"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 2,
+        "internalName": "Krmzy",
+        "description": "قرمزي – المنصة رقم #1 لمشاهدة المسلسلات التركية مترجمة الى العربية وبجودة عالية، مع تحديثات يومية للحلقات فور صدورها. مجاني بالكامل وبدون إشتراك.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Krmzy.cs3",
+        "name": "Krmzy"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=kultfilmler.net&sz=%size%",
+        "fileHash": "sha256-6c70beab08b71f1a4cf073486aa780c0dd55648886ba2907f9fb49ff5e417ce5",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 21677,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 16,
+        "internalName": "KultFilmler",
+        "description": "Kült Filmler özenle en iyi filmleri derler ve iyi bir altyazılı film izleme deneyimi sunmayı amaçlar",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/KultFilmler.cs3",
+        "name": "KultFilmler"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://latanime.org/&size=16",
+        "fileHash": "sha256-c90a1955833a768629b0c4228138678d5075d2091f798aa0adb0ab2a47fa6d3c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16149,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 8,
+        "internalName": "Latanime",
+        "description": "odos los anime con Doblaje Latino/Castellano solo aquí en Latanime. Animes de estreno, subtitulado al español y con Audio Latino o Castellano, Online, HD y gratis. Para descargar por MEGA, Mediafire o Drive sin limites.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Latanime.cs3",
+        "name": "Latanime"
+    },
+    {
+        "iconUrl": "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://tv12.lk21official.cc&size=256",
+        "fileHash": "sha256-b6e00031afc31ea00d909dca8166d5de7a7919c0da315274060598706e451c1f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 26389,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "kraptor",
+            "Phisher98",
+            "Hexated"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 13,
+        "internalName": "LayarKaca",
+        "description": "Nonton dan download film & series terbaru di LK21. Streaming sub Indo gratis, kualitas HD. Tersedia drama Korea, anime, film barat, dan Asia lengkap!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/LayarKaca.cs3",
+        "name": "LayarKaca"
+    },
+    {
+        "fileHash": "sha256-b70a88b3ed309391a5dc48f49c22321b418535f670034595940a5941ea7d3ed9",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 91964,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 12,
+        "internalName": "M3UPlayer",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/M3UPlayer.cs3",
+        "name": "M3UPlayer"
+    },
+    {
+        "fileHash": "sha256-575a767a7dda111c69b83ca35f996d220b422e6488734c3209c7b320e5fc982a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 140093,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 38,
+        "internalName": "MirrorVerse",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/MirrorVerse.cs3",
+        "name": "MirrorVerse"
+    },
+    {
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://movix.rodeo/&size=128",
+        "fileHash": "sha256-fc14e37b53dfed5ae674f5529434357f0ea4a76693cabd10d2a1634ddb75cbd8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 106947,
+        "status": 1,
+        "language": "fr",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 28,
+        "internalName": "Movix",
+        "description": "Explorez les films, séries, collections, alertes et recommandations Movix.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Movix.cs3",
+        "name": "Movix"
+    },
+    {
+        "iconUrl": "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://nekokun.my.id&size=128",
+        "fileHash": "sha256-c82356c6b182a3ce427e92bfd9491f88c2a589598cece177bde94ebdb8d5f052",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19432,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "Nekokun",
+        "description": "Nekokun adalah tempat nonton dan streaming animu favoritmu! Di sini tersedia berbagai resolusi untuk kalian download mulai dari 480p, 720p, dan 1080p. Selain bisa download kalian juga langsung bisa streaming dengan lancar dan tanpa lag!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Nekokun.cs3",
+        "name": "Nekokun"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=colorhunt.co&sz=%size%",
+        "fileHash": "sha256-a64106eb6a5525616caf45f3199d235901d20d3d0e33743892410ebeb75cd3ce",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19608,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "sarapcanagii"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 12,
+        "internalName": "NeonSpor",
+        "description": "(Açılmayan Spor Kanallar İçin VPN Gerekebilir.) NeonSpor eklentisi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/NeonSpor.cs3",
+        "name": "NeonSpor"
+    },
+    {
+        "iconUrl": "https://netfree2.cc/mobile/img/nf2/icon_x192.png",
+        "fileHash": "sha256-7cb616810b33bb2a2b4bf9dcf371eae67270e95ae7e76c6d752e1a4c66d02468",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 42776,
+        "status": 1,
+        "language": "hi",
+        "authors": [
+            "Horis, megix",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 33,
+        "internalName": "NetflixMirror",
+        "description": "Netflix, PrimeVideo Content in Multiple Languages",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/NetflixMirror.cs3",
+        "name": "NetflixMirror"
+    },
+    {
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://ok.ru/video/c12842395&size=128",
+        "fileHash": "sha256-e263da06ceae155a3ced019548c3523ed11044bbd385887086c687f4c6e720f7",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 23595,
+        "status": 1,
+        "language": "ru",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 4,
+        "internalName": "OK",
+        "description": "OKRU Videos.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/OK.cs3",
+        "name": "OK"
+    },
+    {
+        "fileHash": "sha256-b5261b29c0eb30c144252579fcafeb723cedd1032df89265d92fefee398ffe19",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 31609,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 13,
+        "internalName": "OnePaceTr",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/OnePaceTr.cs3",
+        "name": "OnePaceTr"
+    },
+    {
+        "fileHash": "sha256-49114c1d6b31b21491f7d93383601e3cbceec9fa960978efe09ee67baa488e0f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 75097,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 28,
+        "internalName": "OpenAnime",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/OpenAnime.cs3",
+        "name": "OpenAnime"
+    },
+    {
+        "fileHash": "sha256-2572de25d6b9ca8d829ceb476b7b022a34422c5f7031b056ecf9e95c38d893fd",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22504,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Puhu",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Puhu.cs3",
+        "name": "Puhu"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=rarefilmm.com&sz=%size%",
+        "fileHash": "sha256-afa630f0c82597cc1a684456ddafcc57ef5af78cb8a81e3665e727f12897e829",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 15096,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 3,
+        "internalName": "RareFilmm",
+        "description": "The Cave of Forgotten Films",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/RareFilmm.cs3",
+        "name": "RareFilmm"
+    },
+    {
+        "iconUrl": "https://rectvapp.com.tr/wp-content/uploads/2024/08/cropped-cropped-Screenshot_2023-08-31_at_11.02.55_PM-removebg-preview-32x32.webp",
+        "fileHash": "sha256-b70db480e6d3f679800fca081055c96b2a2205872221a48ed7f1ea1207da8d8f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 25856,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "yusiqo",
+            "inatchii",
+            "JustRelaxable"
+        ],
+        "tvTypes": [
+            "Movie",
+            "Live",
+            "TvSeries"
+        ],
+        "version": 99,
+        "internalName": "RecTV",
+        "description": "RecTv APK, Türkiye’deki en popüler Çevrimiçi Medya Akış platformlarından biridir. Filmlerin, Canlı Sporların, Web Dizilerinin ve çok daha fazlasının keyfini ücretsiz çıkarın.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/RecTV.cs3",
+        "name": "RecTV"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=roketdizi.life&sz=%size%",
+        "fileHash": "sha256-d119d37d706b81065ae3e57fa6fa703d6f48f0d47f6d001d335be4300e6bcfff",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 39880,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 19,
+        "internalName": "RoketDizi",
+        "description": "Türkiye'nin en tatlış yabancı dizi izleme sitesi. Türkçe dublaj, altyazılı, eski ve yeni yabancı dizilerin yanı sıra kore (asya) dizileri izleyebilirsiniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/RoketDizi.cs3",
+        "name": "RoketDizi"
+    },
+    {
+        "fileHash": "sha256-615f72c61f9775be1c41ece2fa2bba8e1712dcb667824740a739eeca46999c5c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 27846,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 8,
+        "internalName": "SSportPlus",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SSportPlus.cs3",
+        "name": "SSportPlus"
+    },
+    {
+        "fileHash": "sha256-42f7c9672c0d4d104acfdfb374bcfade2a09b375b217e876299aba182907604d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 40330,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 25,
+        "internalName": "SeiCode",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SeiCode.cs3",
+        "name": "SeiCode"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=selcukflix.com&sz=%size%",
+        "fileHash": "sha256-c03816d1ee2f6caeecb8ef134dd803681eb2ac82c6fbf032440a888cbbea12d6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 31434,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 7,
+        "internalName": "SelcukFlix",
+        "description": "SelcukFlix eklentisi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SelcukFlix.cs3",
+        "name": "SelcukFlix"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.setfilmizle.nl&sz=%size%",
+        "fileHash": "sha256-51c51ad8d54f8d37e53f529071a4b12820d4df91d5b81d67e634b3de044f31bf",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19088,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 27,
+        "internalName": "SetFilmIzle",
+        "description": "Setfilmizle sitemizde, donma yaşamadan Türkçe dublaj ve altyazılı filmleri ile dizileri muhteşem 1080p full HD kalitesinde izleyebilirsiniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SetFilmIzle.cs3",
+        "name": "SetFilmIzle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=sezonlukdizi6.com&sz=%size%",
+        "fileHash": "sha256-32d792823311892bd937cc75732b3598c1dab55256ddb99ba07075b31305ea84",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22385,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "JustRelaxable",
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 10,
+        "internalName": "SezonlukDizi",
+        "description": "Güncel ve eski dizileri en iyi görüntü kalitesiyle bulabileceğiniz yabancı dizi izleme siteniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SezonlukDizi.cs3",
+        "name": "SezonlukDizi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.sinema.cx&sz=%size%",
+        "fileHash": "sha256-aae26942e1e5ab87f70cc2d41f36c68032189b247663ea7fef9ed3a3b83df58b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14597,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 20,
+        "internalName": "SinemaCX",
+        "description": "Güncel ve en iyi yabancı filmleri yüksek görüntü kalitesinde, Türkçe dublaj ve altyazı seçenekleriyle filmleri full izleyin.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SinemaCX.cs3",
+        "name": "SinemaCX"
+    },
+    {
+        "iconUrl": "https://play-lh.googleusercontent.com/brwGNmr7IjA_MKk_TTPs0va10hdKE_bD_a1lnKoiMuCayW98EHpRv55edA6aEoJlmwfX",
+        "fileHash": "sha256-6c7931ec5a8cdc379cfb0335f194923c26fd17c533c243d6fa953e3af308f1e6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 24029,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n",
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime"
+        ],
+        "version": 16,
+        "internalName": "Sinewix",
+        "description": "Sinewix | Ücretsiz Film - Dizi - Anime İzleme Uygulaması",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Sinewix.cs3",
+        "name": "SineWix"
+    },
+    {
+        "fileHash": "sha256-4c99a833692c5945f4985b5a4dfdd39bbad36e508e0a155cb30ed71077111c54",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 27908,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 40,
+        "internalName": "Sinezy",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Sinezy.cs3",
+        "name": "Sinezy"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://x6.sokuja.uk&size=128",
+        "fileHash": "sha256-289fd607cdcb59cf45761f895831ba7694512b2d6885118f4b3816289475b816",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 18448,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime",
+            "AnimeMovie"
+        ],
+        "version": 3,
+        "internalName": "Sokuja",
+        "description": "SOKUJA menyediakan koleksi anime subtitle Indonesia terlengkap. Nonton streaming dan download anime sub Indo HD gratis, update episode baru setiap hari.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Sokuja.cs3",
+        "name": "Sokuja"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://streamed.pk/&size=128",
+        "fileHash": "sha256-67143703230b218d5bc540c92b4aef1e04bbe75df1b66a22ddae4fcccc1d1f60",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 29546,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kraptor"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 27,
+        "internalName": "Streamed",
+        "description": "Streamed ile Canlı Spor Yayınlarını İzleyebilirsiniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Streamed.cs3",
+        "name": "Streamed"
+    },
+    {
+        "iconUrl": "https://subsplease.org/favicon.ico",
+        "fileHash": "sha256-74a5efc506ebccc08a5f1d4f4b383643908f717b3af4e7cf256e657f625afac7",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 14302,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 4,
+        "internalName": "Subsplease",
+        "description": "One stop shop for new animes!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Subsplease.cs3",
+        "name": "Subsplease"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.superfilmgeldi.biz&sz=%size%",
+        "fileHash": "sha256-ef62d558e4304469f08c0d39020e6d67033b5ab6cd911f050f3c04d9eb957d17",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19803,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 26,
+        "internalName": "SuperFilmGeldi",
+        "description": "Hd film izliyerek arkadaşlarınızla ve sevdiklerinizle iyi bir vakit geçirmek istiyorsanız açın bir film eğlenmeye bakın. Bilim kurgu filmleri, aşk drama vahşet aşk romantik sıradışı korku filmlerini izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/SuperFilmGeldi.cs3",
+        "name": "SuperFilmGeldi"
+    },
+    {
+        "iconUrl": "https://i.imgur.com/LBfX2k3.png",
+        "fileHash": "sha256-327dfedda4d3a43167d7ab5623724ced3ad5664d66228668b890e5cc522c9012",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 10811,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Cartoon"
+        ],
+        "version": 2,
+        "internalName": "Supercartoons",
+        "description": "Watch Cartoons Online. Here you can Watch old Classical Cartoons like Bugs Bunny, Mickey Mouse, Pink Panther, Tom and Jerry and Many Many More!",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Supercartoons.cs3",
+        "name": "Supercartoons"
+    },
+    {
+        "fileHash": "sha256-e94e277f93e174d10dca5c1dd10edcc0042e68acb294e76a48ada6f22d97f723",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 92362,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Syncler",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Syncler.cs3",
+        "name": "Syncler"
+    },
+    {
+        "iconUrl": "https://www.tlctv.com.tr/favicon.ico",
+        "fileHash": "sha256-ce3180db11c2dd7e969ca2458c9a836824bd70733698c31d1b3e23abd3499a4d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13259,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "TLC",
+        "description": "TLC TV dizi ve programlarını takip etmek için ziyaret edin. TLC TV dizi ve programlarını tek parça ve hd kalitesiyle izleyin.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TLC.cs3",
+        "name": "TLC"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.tlctv.com.tr&sz=%size%",
+        "fileHash": "sha256-73e27d07e7eb91323d65da2a66a40a1d00e02a15f64a0041663e962486164a34",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13170,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 19,
+        "internalName": "TLCtr",
+        "description": "TLC tr",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TLCtr.cs3",
+        "name": "TLCtr"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tranimaci.com&sz=%size%",
+        "fileHash": "sha256-709344d4700bb9921e051aa40c1ef7a40cc2623c1c71decf35b3c4626a8f974c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 12674,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 17,
+        "internalName": "TRanimaci",
+        "description": "TRanimeci - Türkiye'nin Online Anime izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TRanimaci.cs3",
+        "name": "TRanimaci"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=asyalog.com&sz=%size%",
+        "fileHash": "sha256-59689b7ef4eb2f718b75604a3285e8f8cf97b37c521567be2bbfe4d9ef4c8a10",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13683,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 54,
+        "internalName": "TRasyalog",
+        "description": "TRasyalog izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/TRasyalog.cs3",
+        "name": "TRasyalog"
+    },
+    {
+        "iconUrl": "https://favicons.teamtailor-cdn.com/icon?size=80..120..200&url=tv.garden",
+        "fileHash": "sha256-805d37e8c90f079382bba613a2581cd717599bc634f1b1b8dc8f6570c9f14a74",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13566,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 11,
+        "internalName": "TVGarden",
+        "description": "With TVGarden, you can watch the local and legal channels you are looking for from both domestic and international sources.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TVGarden.cs3",
+        "name": "TVGarden"
+    },
+    {
+        "fileHash": "sha256-c6fec9a5c512584b9d0e0898c160ee57578aa94cd1d65a5c3a5e18110879faa4",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 46325,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 9,
+        "internalName": "Tabii",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Tabii.cs3",
+        "name": "Tabii"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tafdi.info&sz=%size%",
+        "fileHash": "sha256-19910de53e7d6b2529357e5818752c03f4a044f9b31d7dc3f172562ab6c6622f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 11869,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "Tafdi",
+        "description": "Türkçe altyazılı film izle, full hd olarak film izlemenin keyfini çıkarın. Türkiyenin en büyük film izleme platformu tafdi kalitesiyle sizlerle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Tafdi.cs3",
+        "name": "Tafdi"
+    },
+    {
+        "iconUrl": "https://cdn-icons-png.flaticon.com/512/3075/3075908.png",
+        "fileHash": "sha256-b52c9ce33564b7dcf2b29240a4577ee4c5fbdc1803ee54e58c2c5cf9f628ddb6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 54516,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "caca1403"
+        ],
+        "tvTypes": [
+            "LiveStream",
+            "TvSeries"
+        ],
+        "version": 41,
+        "internalName": "TelevizyonEklentileri",
+        "description": "Ulusal, haber, belgesel ve yerel canlı TV yayın akışları ile nostaljik yerli dizi arşivlerine erişim sağlayan televizyon yayın sağlayıcısı.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TelevizyonEklentileri.cs3",
+        "name": "TelevizyonEklentileri"
+    },
+    {
+        "iconUrl": "https://i.imgur.com/jXmev09.png",
+        "fileHash": "sha256-21f0bcbecc5ebc72f04b8631b6b012ef26319521dea61ac14f6b9a624309199c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 17620,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "AudioBook"
+        ],
+        "version": 4,
+        "internalName": "TokyBook",
+        "description": "Discover thousands of free audiobooks and podcasts. Your next favorite story is waiting for you.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/TokyBook.cs3",
+        "name": "TokyBook"
+    },
+    {
+        "iconUrl": "https://cdn-icons-png.flaticon.com/512/8634/8634073.png",
+        "fileHash": "sha256-4e0d38165ea329ef9f99cc444cb595755a3377edbdf71f161b95d0a88d5a95e4",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 153785,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "caca1403"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime",
+            "AsianDrama",
+            "Cartoon",
+            "Documentary",
+            "Live"
+        ],
+        "version": 135,
+        "internalName": "TopluDiziler",
+        "description": "Film, dizi, anime, belgesel ve canlı TV yayınlarını gelişmiş çapraz arama, IMDb/TMDB listeleri ve özelleştirilebilir kategori filtreleri ile tek çatı altında sunan birleşik medya sağlayıcısı.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TopluDiziler.cs3",
+        "name": "TopluDiziler"
+    },
+    {
+        "fileHash": "sha256-c10e441a15781fad75d9e704c3d7e94123ce2520aa68a294d5a6018711ed1330",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19290,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 2,
+        "internalName": "TorrentFilm",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/TorrentFilm.cs3",
+        "name": "TorrentFilm"
+    },
+    {
+        "fileHash": "sha256-d9aa73ac93c9dd0698913868203d2631fa32e6f3a60c7ffcb045206a9ec32ad7",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 166562,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 6,
+        "internalName": "Torrential",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Torrential.cs3",
+        "name": "Torrential"
+    },
+    {
+        "fileHash": "sha256-60004911f1d3104d68363371eca10ea21db0bc77ff9cea7b18eb38e0fb1d38b0",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 70894,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 15,
+        "internalName": "TrAnimeIzle",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/TrAnimeIzle.cs3",
+        "name": "TrAnimeIzle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.turkanime.co&sz=%size%",
+        "fileHash": "sha256-d1fa6d3cb58c937c8b7e44c9332515004cdea03890fe92f359d64c915b6981a1",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16549,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 14,
+        "internalName": "TurkAnime",
+        "description": "Türk Anime TV - Türkiye'nin Online Anime izleme sitesi.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TurkAnime.cs3",
+        "name": "TurkAnime"
+    },
+    {
+        "fileHash": "sha256-516a65f7709c43d4861242b5c9c82565766e4e7f989ac8dbf4c35a1e10aa4e60",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 166804,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 33,
+        "internalName": "Turkdizileri",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Turkdizileri.cs3",
+        "name": "Turkdizileri"
+    },
+    {
+        "fileHash": "sha256-02c4a4eb3bbff79a017107b93150e4ccdd2857cd0831eae7ccfcd4276418f62e",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13120,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Turkish",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Turkish.cs3",
+        "name": "Turkish"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tvdiziler.cc&sz=%size%",
+        "fileHash": "sha256-00ac59a95188d004b818b46aa48361e19343c501b2904d05bacf2d6c870faf8b",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 26362,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 5,
+        "internalName": "TvDiziler",
+        "description": "Ücretsiz yerli dizi izleme sitesi en popüler dizileri tek parça hd kalitesiyle ve reklamsız bedava olarak buradan tv dizileri izleyin.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TvDiziler.cs3",
+        "name": "TvDiziler"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=twitch.tv&sz=%size%",
+        "jarFileSize": 54903,
+        "fileHash": "sha256-61fa7c3e0ee99d4242f297f13e2477deb09d64e318dee70cee4fa10403e52d7a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13672,
+        "status": 1,
+        "authors": [
+            "CranberrySoup"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 2,
+        "internalName": "TwitchProvider",
+        "jarUrl": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/TwitchProvider.jar",
+        "description": "Watch livestreams from Twitch",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/TwitchProvider.cs3",
+        "name": "TwitchProvider",
+        "jarHash": "sha256-89f606dda385862be57e07ea15ec694f59fba0146475451874081bf3705b58e3"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=ugurfilm7.com&sz=%size%",
+        "fileHash": "sha256-dbee7a657f71df5723f81f06acb1cb9ccf8626face824bc41f18e67f4c4f6ffc",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22139,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 14,
+        "internalName": "UgurFilm",
+        "description": "Yabancı film izle, Türkçe dublaj ve Türkçe altyazılı film seçenekleriyle 720p ve 1080p HD kalitesinde film izle - Uğur Film full hd film izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/UgurFilm.cs3",
+        "name": "UgurFilm"
+    },
+    {
+        "fileHash": "sha256-ef74ff67abbd39a8ab5055eefa765ff7fde7ff4308b75e4e9285c5f078edfa45",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 36643,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Vavoo",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Vavoo.cs3",
+        "name": "Vavoo"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/WFilmizle.cs3",
+        "status": 1,
+        "version": 23,
+        "name": "WFilmizle",
+        "internalName": "WFilmizle",
+        "authors": [
+            "ByAyzen"
+        ],
+        "description": "Yerli ve yabancı film izle, Türkçe dublaj ve altyazı seçenekleriyle en yeni ve unutulmamış olan filmleri Full HD kalitesinde online izleyebilirsiniz.",
+        "fileSize": 59836,
+        "repositoryUrl": "https://github.com/Kraptor123/cs-kraptor",
+        "language": "tr",
+        "tvTypes": [
+            "Movie"
+        ],
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://wfilmizle.bar&size=128",
+        "apiVersion": 1,
+        "fileHash": "sha256-9c9073f5da2421fdffa28262d3acfa153cd3bc9ebe1feba352cf4899d9025a67"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=wfilmizle.my&sz=%size%",
+        "fileHash": "sha256-ac55584a362deee36927e261aaf4e98b21e71abe69a77296939cfb722863425d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 15651,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 9,
+        "internalName": "WFilmİzle",
+        "description": "Aile Filmleri izle, Yerli ve yabancı en yeni Aile filmlerini Full HD 1080p görüntü kalitesiyle Türkçe Dublaj ve Türkçe Altyazı seçenekleriyle izleyin.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/WFilmİzle.cs3",
+        "name": "WFilmİzle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=movies2watch.watch&sz=%size%",
+        "fileHash": "sha256-047f54ee3f3b54b59456018fa136013035674f89a8994aa8f8f1c0c3b5ff954f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 24839,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 6,
+        "internalName": "Watch2Movies",
+        "description": "Movies2Watch is a Free Movies streaming site with zero ads. We let you watch movies online without having to register or paying, with over 10000 movies and TV-Series.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Watch2Movies.cs3",
+        "name": "Watch2Movies"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://instapro.ac&size=32",
+        "fileHash": "sha256-1efefbe18bc2c3fe9c15e00fd35194f1bdb0fb6cb5afb2c3d799ad0779d80d68",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 17387,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kraptor"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 17,
+        "internalName": "WatchWrestling",
+        "description": "Watch WWE | WWE Raw | Smackdown Live",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/WatchWrestling.cs3",
+        "name": "WatchWrestling"
+    },
+    {
+        "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.wcoflix.tv/&size=128",
+        "fileHash": "sha256-c5f9e4c887596d308f3107778fd7af00d047fcda6a845b13594372caa8914963",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19741,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "ByAyzen",
+            "kraptor"
+        ],
+        "tvTypes": [
+            "Anime",
+            "Cartoon"
+        ],
+        "version": 9,
+        "internalName": "Wcoflix",
+        "description": "We have wide range of cartoons and anime that you can watch in HD and High quality for free.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Wcoflix.cs3",
+        "name": "Wcoflix"
+    },
+    {
+        "fileHash": "sha256-e88ba43fb2d88de7436629ba931c9e14a1e3a2ab9f29ae8ff3ba3c2193264532",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 16960,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 2,
+        "internalName": "WebDramaTurkey",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/WebDramaTurkey.cs3",
+        "name": "WebDramaTurkey"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=webteizle2.com&sz=%size%",
+        "fileHash": "sha256-db2607bb88595038bdcedee3470186942ff4a10d293ae7ee78a2ee5b3a069a7a",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 30712,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "keyiflerolsun",
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 60,
+        "internalName": "WebteIzle",
+        "description": "Her türlü filmi ister dublaj ister altyazılı, en kaliteli bir şekilde izleyebileceğiniz arşivi en geniş gerçek film izleme siteniz.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/WebteIzle.cs3",
+        "name": "WebteIzle"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=xprime.tv&sz=%size%",
+        "fileHash": "sha256-62e59f32fd2c430cda650a1480c1e9551fc636a00ddf974db3ad66eec5be9141",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 27276,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 6,
+        "internalName": "XPrime",
+        "description": "XPrime.Tv",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/XPrime.cs3",
+        "name": "XPrime"
+    },
+    {
+        "fileHash": "sha256-3c2ca3d9f30ad017cfc56e044bf38980ddf98b4426be77e1c6ce1cb3487706b2",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 92937,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 42,
+        "internalName": "YTS",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YTS.cs3",
+        "name": "YTS"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=yabancidizi.tv&sz=%size%",
+        "fileHash": "sha256-ffa826c030eafb1ba404ae496d9cb6039fe4b08e329e6b4af2f4be2daf0c5d5d",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 42946,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "nikyokki"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 9,
+        "internalName": "YabanciDizi",
+        "description": "Son çıkan yabancı dizi ve filmleri yabancidizi' de izle. En yeni yabancı film ve diziler, türkçe altyazılı yada dublaj olarak 1080p kalitesinde hd izle.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YabanciDizi.cs3",
+        "name": "YabanciDizi"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://yablom.com/euvcw7/home/yablom/&size=128",
+        "fileHash": "sha256-5c6d5a9ab3775ebd642081fe873053b8141b520b529727207eacb8740c4c02f8",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 15526,
+        "status": 1,
+        "language": "fr",
+        "authors": [
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 4,
+        "internalName": "Yablom",
+        "description": "French site.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Yablom.cs3",
+        "name": "Yablom"
+    },
+    {
+        "fileHash": "sha256-d4663850949c70fb2f14dabd8bfacb7848465439cc22251a4d6f891a350b76b6",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 29282,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 11,
+        "internalName": "YeniKaynak",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YeniKaynak.cs3",
+        "name": "YeniKaynak"
+    },
+    {
+        "fileHash": "sha256-82373fd647183b56da570c86c7b4fb050d30b17fca01257ac8c3c8850298c243",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 50752,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 14,
+        "internalName": "YerelDiziler",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YerelDiziler.cs3",
+        "name": "YerelDiziler"
+    },
+    {
+        "fileHash": "sha256-63485d7ee400491c9f5989dac15c582cce67a345a95a88928a45b22e4723a4e3",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 77654,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "YerelProgramlar",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YerelProgramlar.cs3",
+        "name": "YerelProgramlar"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=yoturkish.to",
+        "fileHash": "sha256-3b20ed2c8a4f10d83f635b6f8f20f97a816135c9c1e9fe810ffccc25c3d3af9c",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 18264,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kraptor"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 4,
+        "internalName": "YoTurkish",
+        "description": "YoTurkish - is the most favorite website for watching turkish series with english subtitles for free online, only at yoturkish.to",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/YoTurkish.cs3",
+        "name": "YoTurkish"
+    },
+    {
+        "fileHash": "sha256-31d16f3cac9ca336a7eb9cdb8016056076e2cf9a4add728006f8a19dca7348dc",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 109126,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 39,
+        "internalName": "Youtube",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Youtube.cs3",
+        "name": "Youtube"
+    },
+    {
+        "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/3840px-YouTube_full-color_icon_%282017%29.svg.png",
+        "jarFileSize": 46918,
+        "fileHash": "sha256-faae0f664a428a0c2da61d1ae6b4f4917c98a7f444e3690af7b7ef9190aa8bf3",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 13203,
+        "status": 1,
+        "authors": [
+            "KaifTaufiq"
+        ],
+        "tvTypes": [
+            "Other",
+            "Live",
+            "TvSeries"
+        ],
+        "version": 1,
+        "internalName": "YoutubeProvider",
+        "jarUrl": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YoutubeProvider.jar",
+        "description": "Watch Youtube in Cloudstream",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/YoutubeProvider.cs3",
+        "name": "YoutubeProvider",
+        "jarHash": "sha256-de027bd147bdcf2580c27fcb13171f3a9513b993fdbe019025fc02d67829cbff"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tr.canlitv.team&sz=%size%",
+        "fileHash": "sha256-65b813aa46f25f9dbc1cf7bcffaf4df613f33c09c611a7ecfa723223adb00f42",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19517,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n"
+        ],
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "version": 3,
+        "internalName": "powerDizi",
+        "description": "powerDizi",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/powerDizi.cs3",
+        "name": "powerDizi"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tr.canlitv.team&sz=%size%",
+        "fileHash": "sha256-9949ad67f48c23c31d02094d07652e840a5bad34f10f72ea97b09510fc99a6bd",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19495,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 3,
+        "internalName": "powerSinema",
+        "description": "powerSinema",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/powerSinema.cs3",
+        "name": "powerSinema"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=tr.canlitv.team&sz=%size%",
+        "fileHash": "sha256-b148906e9228730deabd65889268e82780ee9d326f116f7bf84abeeabe46ffeb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 19505,
+        "status": 1,
+        "language": "tr",
+        "authors": [
+            "patr0n"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 2,
+        "internalName": "vavooSpor",
+        "description": "vavooSpor",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/vavooSpor.cs3",
+        "name": "vavooSpor"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Ddizi.cs3",
+        "status": 1,
+        "version": 22,
+        "name": "Ddizi",
+        "internalName": "Ddizi",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "description": "DDizi.im için Cloudstream eklentisi",
+        "fileSize": 20110,
+        "repositoryUrl": "https://github.com/feroxx/Kekik-cloudstream",
+        "language": "tr",
+        "tvTypes": [
+            "TvSeries"
+        ],
+        "iconUrl": "https://www.ddizi.im/favicon.ico",
+        "apiVersion": 1,
+        "fileHash": "sha256-47e75d5eb583ed98fb54324a73028da5f35775e910f3e6a5e78cd00effa786a9"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/SineWix.cs3",
+        "status": 1,
+        "version": 16,
+        "name": "SineWix",
+        "internalName": "SineWix",
+        "authors": [
+            "kraptor",
+            "ByAyzen"
+        ],
+        "description": "SineWix - Ücretsiz Film, Dizi ve Anime İzleme Uygulaması 5000+ HD İçerik, Türkçe Altyazılı, Otaku Dostu Anime Arşivi, Premium Kalite Yabancı Yapımlar",
+        "fileSize": 24029,
+        "repositoryUrl": "https://github.com/Kraptor123/cs-kraptor",
+        "language": "tr",
+        "tvTypes": [
+            "Movie",
+            "TvSeries",
+            "Anime",
+            "AsianDrama",
+            "Cartoon"
+        ],
+        "iconUrl": "https://play-lh.googleusercontent.com/brwGNmr7IjA_MKk_TTPs0va10hdKE_bD_a1lnKoiMuCayW98EHpRv55edA6aEoJlmwfX=w240-h480",
+        "apiVersion": 1,
+        "fileHash": "sha256-6c7931ec5a8cdc379cfb0335f194923c26fd17c533c243d6fa953e3af308f1e6"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/CizgiveDizi.cs3",
+        "status": 1,
+        "version": 3,
+        "name": "CizgiVeDizi",
+        "internalName": "CizgiveDizi",
+        "authors": [
+            "kraptor",
+            "ByAyzen"
+        ],
+        "description": "Ücretsiz bir şekilde çizgi dizi, dizi, anime ve daha fazlasını eski-yeni demeden izleyebilirsiniz.",
+        "fileSize": 12115,
+        "repositoryUrl": "https://github.com/Kraptor123/cs-kraptor",
+        "language": "tr",
+        "tvTypes": [
+            "Cartoon"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=cizgivedizi.com",
+        "apiVersion": 1,
+        "fileHash": "sha256-a6f0c3712cc579492beaea7c4c5c01ffbdfc7f535d9288f19a8d9727d783f994"
+    },
+    {
+        "fileHash": "sha256-139bd94b3cf1839558131a23e29e0c55dfae70c67043cebc16c6598ecfcd885f",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 18115,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 1,
+        "internalName": "Kanal7",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/Kanal7.cs3",
+        "name": "Kanal 7"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Hqporner.cs3",
+        "status": 1,
+        "version": 4,
+        "name": "Hqporner",
+        "internalName": "Hqporner",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "description": "HQPorner — Yüksek kaliteli yetişkin video sitesi.",
+        "fileSize": 0,
+        "repositoryUrl": "https://github.com/KitsugiBeta-dev/Kitsugi-Plugins",
+        "language": "en",
+        "tvTypes": [
+            "NSFW"
+        ],
+        "iconUrl": "",
+        "apiVersion": 1,
+        "fileHash": ""
+    },
+    {
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/IfsaLog.cs3",
+        "status": 1,
+        "version": 3,
+        "name": "IfsaLog",
+        "internalName": "IfsaLog",
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "description": "IfsaLog — Türkçe yetişkin ifşa video sitesi.",
+        "fileSize": 0,
+        "repositoryUrl": "https://github.com/KitsugiBeta-dev/Kitsugi-Plugins",
+        "language": "tr",
+        "tvTypes": [
+            "NSFW"
+        ],
+        "iconUrl": "https://www.google.com/s2/favicons?domain=ifsalog.com&sz=%size%",
+        "apiVersion": 1,
+        "fileHash": ""
+    },
+    {
+        "url": "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/AsyaMinik.cs3",
+        "status": 1,
+        "version": 16,
+        "name": "AsyaMinik",
+        "internalName": "AsyaMinik",
+        "authors": [
+            "kraptor"
+        ],
+        "description": "Asyaminik - En Güncel Asya Dizileri Burada!",
+        "fileSize": 27275,
+        "repositoryUrl": "https://github.com/Kraptor123/cs-kraptor",
+        "language": "tr",
+        "tvTypes": [
+            "AsianDrama"
+        ],
+        "iconUrl": "https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://asyaminik.com/&size=128",
+        "apiVersion": 1,
+        "fileHash": "sha256-0e58fec26c38a4fc3cd6ead6507f5059c4c03ab0f3a295e3a40f8f9edd2dda66"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmIzle.cs3",
+        "status": 1,
+        "version": 8,
+        "name": "HDFilmIzle",
+        "internalName": "HDFilmizle",
+        "authors": [
+            "ByAyzen"
+        ],
+        "description": "En yeni ve popüler filmleri 1080p kalitesinde Türkçe dublaj altyazılı izle. Aksiyon, macera, komedi, dram ve daha fazlası film izle sayfamızda.",
+        "fileSize": 28820,
+        "repositoryUrl": "https://github.com/Kraptor123/cs-kraptor",
+        "language": "tr",
+        "tvTypes": [
+            "Movie"
+        ],
+        "iconUrl": "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://www.hdfilmizle.life/rally-caps/&size=128",
+        "apiVersion": 1,
+        "fileHash": "sha256-01aebcbf4d82c0782f95c6b76fdc79fed67f4c8e91900f6c3ab5e0e3cb586a4e"
+    },
+    {
+        "fileHash": "sha256-062e14cb3ad9238f9560a178e8f4b1093933afdc13dc66c79aa21dcb5d27e3f0",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 22326,
+        "status": 1,
+        "authors": [
+            "keyiflerolsun"
+        ],
+        "version": 9,
+        "internalName": "YesilCamTv",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/YesilCamTv.cs3",
+        "name": "YesilCamTv"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=https://",
+        "fileHash": "sha256-f11a9f5866ed724e1c60040bdb7ae4c509180b61cc2a1676eabffde035254f73",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 11706,
+        "status": 1,
+        "language": "en",
+        "authors": [
+            "kraptor"
+        ],
+        "tvTypes": [
+            "Movie"
+        ],
+        "version": 0,
+        "internalName": "__New",
+        "description": "DESCRIPTIONDONOTFORGET",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/__New.cs3",
+        "name": "__New"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=animeav1.com",
+        "fileHash": "sha256-fd552dc6d325776a311ddd3df41abca0648f1b1d4774ab451ffa86b4148f42cb",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
+        "fileSize": 25037,
+        "status": 1,
+        "language": "mx",
+        "authors": [
+            "kraptor",
+            "ByAyzen"
+        ],
+        "tvTypes": [
+            "Anime"
+        ],
+        "version": 16,
+        "internalName": "AnimeAV",
+        "description": "Disfruta de los últimos episodios y animes agregados en HD y Sub Español. Miles de series, películas y OVAs disponibles para ver online totalmente gratis.",
+        "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/AnimeAV.cs3",
+        "name": "AnimeAV"
+    }
+]
