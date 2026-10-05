@@ -1,27 +1,5 @@
 [
   {
-    "name": "3XChina",
-    "internalName": "3XChina",
-    "pluginClassName": "com.byayzen.XXXChinaPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/3XChina.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "3XChina Cloudstream eklentisi",
-    "fileSize": 17193,
-    "fileHash": "sha256-ab0db413e58abf59bd53d7d257d4ee3c7ddcb4c5a904c46edd7ffb9d91b2e18d",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=3xchina.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "4KFilmIzlesene",
     "internalName": "4KFilmIzlesene",
     "pluginClassName": "com.nikyokki.4KFilmIzlesenePlugin",
@@ -41,50 +19,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=4kfilmizlesene.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "AZNude",
-    "internalName": "AZNude",
-    "pluginClassName": "com.kraptor.AZNudePlugin",
-    "version": 7,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AZNude.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "AZNude Cloudstream eklentisi",
-    "fileSize": 23506,
-    "fileHash": "sha256-c8edd14045ea692566d8cdc935e342f5de34516fd34206c8bb63c4ffd8e2bbe2",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=aznude.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Aki",
-    "internalName": "Aki",
-    "pluginClassName": "com.byayzen.AkiPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Aki.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Aki Cloudstream eklentisi",
-    "fileSize": 17415,
-    "fileHash": "sha256-8fa056429241e6ba6bc2bcca250842b088e4ece0221be06976249b5ac85dbf48",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=aki.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -127,28 +61,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://animpow.com/&size=128",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "AnimeAV",
-    "internalName": "AnimeAV",
-    "pluginClassName": "com.kraptor.AnimeAVPlugin",
-    "version": 16,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/AnimeAV.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "AnimeAV Cloudstream eklentisi",
-    "fileSize": 25077,
-    "fileHash": "sha256-217232cdd400708e5016f2cfe14aede75cd6dc507330a8e76c4684394464e549",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=animeav.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -419,28 +331,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "BadTv",
-    "internalName": "BadTv",
-    "pluginClassName": "com.kerimmkirac.BadTvPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/BadTv.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "BadTv Cloudstream eklentisi",
-    "fileSize": 14802,
-    "fileHash": "sha256-059ecba29e9c12dad7d3c0ddf6f741374d441f2db42df9846f08b8af530e63f7",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=badtv.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "BasketballReplays",
     "internalName": "BasketballReplays",
     "pluginClassName": "com.byayzen.BasketballReplaysPlugin",
@@ -460,28 +350,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=basketballreplays.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Beeg",
-    "internalName": "Beeg",
-    "pluginClassName": "com.kraptor.BeegPlugin",
-    "version": 5,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Beeg.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Beeg Cloudstream eklentisi",
-    "fileSize": 24767,
-    "fileHash": "sha256-4272294cdcb427e1c4ea381a604eacd32fdfc82ffd6b4be838c524de61a59307",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=beeg.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -529,50 +397,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "CamCaps",
-    "internalName": "CamCaps",
-    "pluginClassName": "com.kraptor.CamCapsPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/CamCaps.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "CamCaps Cloudstream eklentisi",
-    "fileSize": 13593,
-    "fileHash": "sha256-63d8c04f269916305d5da24cb6192ee7c9f6e61f9e7ed0786f96d2e7979ee465",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=camcaps.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "CamWh",
-    "internalName": "CamWh",
-    "pluginClassName": "com.kerimmkirac.CamWhPlugin",
-    "version": 7,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/CamWh.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "CamWh Cloudstream eklentisi",
-    "fileSize": 10798,
-    "fileHash": "sha256-83dc3f9d99596c38fbb46c37784abfbe8a69c0d9beec05e02f9d6beffc846f15",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=camwh.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "CanliTV",
     "internalName": "CanliTV",
     "pluginClassName": "com.keyiflerolsun.CanliTVPlugin",
@@ -592,28 +416,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?domain=tr.canlitv.team&sz=%size%",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Chatrubate",
-    "internalName": "Chatrubate",
-    "pluginClassName": "com.kraptor.ChatrubatePlugin",
-    "version": 5,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Chatrubate.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Chatrubate Cloudstream eklentisi",
-    "fileSize": 13887,
-    "fileHash": "sha256-be2ed47ce78fe122af82120f3d2f8a8e3d72198975f1d2b96ad077db6117db3e",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=chatrubate.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -683,72 +485,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Cloudbate",
-    "internalName": "Cloudbate",
-    "pluginClassName": "com.byayzen.CloudbatePlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Cloudbate.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Cloudbate Cloudstream eklentisi",
-    "fileSize": 15016,
-    "fileHash": "sha256-68d264927e635aa48fc34777fb03e4a76d737f80f9c36e1292a5e0e79772f144",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=cloudbate.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Coomer",
-    "internalName": "Coomer",
-    "pluginClassName": "com.kraptor.CoomerPlugin",
-    "version": 12,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Coomer.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Coomer Cloudstream eklentisi",
-    "fileSize": 42235,
-    "fileHash": "sha256-66911fb9d3ec1a3124f84fd5a338f5b1a06be2cebf8b70070c86867454a80c45",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=coomer.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "CosXPlay",
-    "internalName": "CosXPlay",
-    "pluginClassName": "com.kraptor.CosXPlayPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/CosXPlay.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "CosXPlay Cloudstream eklentisi",
-    "fileSize": 13743,
-    "fileHash": "sha256-fec28c9c0447e5679ee4cefa6726ef9a208fa23f437415e748a5708aeb1173d6",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=cosxplay.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "Cricify",
     "internalName": "Cricify",
     "pluginClassName": "com.crucify.CrucifyPlugin",
@@ -768,28 +504,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=cricify.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Cumlouder",
-    "internalName": "Cumlouder",
-    "pluginClassName": "com.byayzen.CumlouderPlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Cumlouder.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Cumlouder Cloudstream eklentisi",
-    "fileSize": 12365,
-    "fileHash": "sha256-e19f4c361e771511275824a6bdbb30bff5e02c43ca9b05405b2e3a169a0691e0",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=cumlouder.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -855,28 +569,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.ddizi.im/favicon.ico",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "DirtyShip",
-    "internalName": "DirtyShip",
-    "pluginClassName": "com.kraptor.DirtyShipPlugin",
-    "version": 11,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DirtyShip.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "DirtyShip Cloudstream eklentisi",
-    "fileSize": 26048,
-    "fileHash": "sha256-ba1772f3bdf45ac79a6430d128e7fee28e913b8c4a3830b1ba327562552c1cf9",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=dirtyship.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -1304,72 +996,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Doeda",
-    "internalName": "Doeda",
-    "pluginClassName": "com.kraptor.DoedaPlugin",
-    "version": 9,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Doeda.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Doeda Cloudstream eklentisi",
-    "fileSize": 14329,
-    "fileHash": "sha256-53075a9180bf4d695f77a4237423fe18cc0ca63148ce599a02cce56bb61fcb67",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=doeda.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "DoedaOrijinal",
-    "internalName": "DoedaOrijinal",
-    "pluginClassName": "com.kerimmkirac.DoedaOrijinalPlugin",
-    "version": 6,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/DoedaOrijinal.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "DoedaOrijinal Cloudstream eklentisi",
-    "fileSize": 14069,
-    "fileHash": "sha256-5cc1190675f7b7158fb67c7a268d71801d0e89d4fe027abf7f484894fa1e206e",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=doedaorijinal.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Domlepen",
-    "internalName": "Domlepen",
-    "pluginClassName": "com.kerimmkirac.DomlepenPlugin",
-    "version": 11,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Domlepen.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Domlepen Cloudstream eklentisi",
-    "fileSize": 15112,
-    "fileHash": "sha256-d6eda03367e054180f63bb2b3e2d404d3d91903caf59d0ebebc8572ae2a8969c",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=domlepen.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "DoramasLatinoX",
     "internalName": "DoramasLatinoX",
     "pluginClassName": "com.byayzen.DoramasLatinoXPlugin",
@@ -1457,50 +1083,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "EFukt",
-    "internalName": "EFukt",
-    "pluginClassName": "com.kraptor.EFuktPlugin",
-    "version": 7,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/EFukt.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "EFukt Cloudstream eklentisi",
-    "fileSize": 13940,
-    "fileHash": "sha256-1462ea7871ba8b31bb938e01fcda92151e9761c3893c34db07c31033fee2cd10",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=efukt.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Erome",
-    "internalName": "Erome",
-    "pluginClassName": "com.byayzen.EromePlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Erome.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Erome Cloudstream eklentisi",
-    "fileSize": 14683,
-    "fileHash": "sha256-a59bfbe7709cc53d9801d2a1495a3cb040000e8060b7a0a032cb77172af688ed",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=erome.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "Esheaq",
     "internalName": "Esheaq",
     "pluginClassName": "com.kraptor.EsheaqPlugin",
@@ -1520,28 +1102,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=esheaq.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Evooli",
-    "internalName": "Evooli",
-    "pluginClassName": "com.kerimmkirac.EvooliPlugin",
-    "version": 5,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Evooli.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Evooli Cloudstream eklentisi",
-    "fileSize": 12325,
-    "fileHash": "sha256-e6a60c3a08ae9b9409cb60af87b5f875d011f561c118d8868c5ea2aca1b9d7a8",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=evooli.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -1586,28 +1146,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=f1fullraces.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Fapix",
-    "internalName": "Fapix",
-    "pluginClassName": "com.kerimmkirac.FapixPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Fapix.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Fapix Cloudstream eklentisi",
-    "fileSize": 10768,
-    "fileHash": "sha256-1333278e87ba29429083f20973c09d54efe97b8eaab3e2550b9add170247ecab",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=fapix.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -1896,28 +1434,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "FitNakedGirls",
-    "internalName": "FitNakedGirls",
-    "pluginClassName": "com.kraptor.FitNakedGirlsPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/FitNakedGirls.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "FitNakedGirls Cloudstream eklentisi",
-    "fileSize": 11592,
-    "fileHash": "sha256-9a16cfc3246b644b4085beaa946cfd4a48b55e8229080ff51010d19434f48dc8",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=fitnakedgirls.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "Flixlatam",
     "internalName": "Flixlatam",
     "pluginClassName": "com.byayzen.FlixlatamPlugin",
@@ -2094,28 +1610,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Fyptt",
-    "internalName": "Fyptt",
-    "pluginClassName": "com.byayzen.FypttPlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Fyptt.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Fyptt Cloudstream eklentisi",
-    "fileSize": 13082,
-    "fileHash": "sha256-94937e56d9eafffd7c89129a7624289af4b163e404af89017c133dd89039dfab",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=fyptt.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "Gain",
     "internalName": "Gain",
     "pluginClassName": "com.gain.GainPlugin",
@@ -2156,28 +1650,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.giniko.com/images/favicon.ico",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Girlsswallowed",
-    "internalName": "Girlsswallowed",
-    "pluginClassName": "com.byayzen.GirlswallowedPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Girlsswallowed.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Girlsswallowed Cloudstream eklentisi",
-    "fileSize": 11734,
-    "fileHash": "sha256-8de7121359512ab1a3b692aba0ad7055cac438b6dbf94c43b68e8ee8eedf3d65",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=girlsswallowed.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -2333,94 +1805,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "HQCollect",
-    "internalName": "HQCollect",
-    "pluginClassName": "com.kraptor.HQCollectPlugin",
-    "version": 7,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/HQCollect.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "HQCollect Cloudstream eklentisi",
-    "fileSize": 11932,
-    "fileHash": "sha256-82deefe6cee855c86b58a963ec59edbf6561bed91edd69f5e89cf3cdcebb072a",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=hqcollect.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "HanimeTV",
-    "internalName": "HanimeTV",
-    "pluginClassName": "com.byayzen.HanimePlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/HanimeTV.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "HanimeTV Cloudstream eklentisi",
-    "fileSize": 29123,
-    "fileHash": "sha256-30824d8ad99d065febcd09b91a7abe5e6c1f581b4c4dc3a76fa7b17edab65980",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=hanimetv.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "HdAbla",
-    "internalName": "HdAbla",
-    "pluginClassName": "com.kerimmkirac.HdAblaPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/HdAbla.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "HdAbla Cloudstream eklentisi",
-    "fileSize": 12377,
-    "fileHash": "sha256-cafd536548ed6a5105d65e2a47c5cf3a6ad08d7267aee206936dff274eb2b0a0",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=hdabla.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "HeavyR",
-    "internalName": "HeavyR",
-    "pluginClassName": "com.byayzen.HeavyPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/HeavyR.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "HeavyR Cloudstream eklentisi",
-    "fileSize": 10757,
-    "fileHash": "sha256-5bda492ae054c612091a11a434229374f6739f1695e570234f9ed613f63de845",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=heavyr.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "Henaojara",
     "internalName": "Henaojara",
     "pluginClassName": "com.byayzen.HenaojaraPlugin",
@@ -2440,28 +1824,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=henaojara.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "HotLeak",
-    "internalName": "HotLeak",
-    "pluginClassName": "com.kerimmkirac.HotLeakPlugin",
-    "version": 5,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/HotLeak.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "HotLeak Cloudstream eklentisi",
-    "fileSize": 14127,
-    "fileHash": "sha256-e8d0548cdd222e7c10424b58cc1ac466c393a49a55e73604f8aedf093bed1593",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=hotleak.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -2578,72 +1940,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "JavGuru",
-    "internalName": "JavGuru",
-    "pluginClassName": "com.kraptor.JavGuruPlugin",
-    "version": 16,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/JavGuru.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "JavGuru Cloudstream eklentisi",
-    "fileSize": 60495,
-    "fileHash": "sha256-3d075e2b29d940c78641a7c88301e65a7cd3060cdf190f1b670c01870613a980",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=javguru.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Javseen",
-    "internalName": "Javseen",
-    "pluginClassName": "com.byayzen.JavseenPlugin",
-    "version": 7,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Javseen.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Javseen Cloudstream eklentisi",
-    "fileSize": 57382,
-    "fileHash": "sha256-eb013157b95a212aa34ac3fcced5e6574f5a72e0aca52ea81425df2cf86b3f49",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=javseen.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Javtiful",
-    "internalName": "Javtiful",
-    "pluginClassName": "com.byayzen.JavtifulPlugin",
-    "version": 5,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Javtiful.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Javtiful Cloudstream eklentisi",
-    "fileSize": 15165,
-    "fileHash": "sha256-3ee460ce9500e3de9f1e00fca98f27c9ccfcac109f3a2eebdfd1414f46f4427e",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=javtiful.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "JetFilmizle",
     "internalName": "JetFilmizle",
     "pluginClassName": "com.keyiflerolsun.JetFilmizlePlugin",
@@ -2731,28 +2027,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Kopeda",
-    "internalName": "Kopeda",
-    "pluginClassName": "com.kerimmkirac.KopedaPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Kopeda.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Kopeda Cloudstream eklentisi",
-    "fileSize": 10935,
-    "fileHash": "sha256-6d97f3931b4cae879b57eea8ad5f8fbc1da70ee3a8d8c044c2befbc6ab90ae89",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=kopeda.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "KoreanTurk",
     "internalName": "KoreanTurk",
     "pluginClassName": "com.keyiflerolsun.KoreanTurkPlugin",
@@ -2772,28 +2046,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?domain=www.koreanturk.net&sz=%size%",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Koreaye",
-    "internalName": "Koreaye",
-    "pluginClassName": "com.kerimmkirac.KoreayePlugin",
-    "version": 9,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Koreaye.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Koreaye Cloudstream eklentisi",
-    "fileSize": 12091,
-    "fileHash": "sha256-5aa9aa0022c0ac4a2d53629082f3a55c78c8f750cf7adb6c5356347aebda0900",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=koreaye.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -2935,28 +2187,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "LiveCamRips",
-    "internalName": "LiveCamRips",
-    "pluginClassName": "com.kraptor.LiveCamRipsPlugin",
-    "version": 17,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/LiveCamRips.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "LiveCamRips Cloudstream eklentisi",
-    "fileSize": 25198,
-    "fileHash": "sha256-da13dc56f26ff93dea636eaf1ac67197481c991f04a2214f0da347e4f16862cb",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=livecamrips.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "M3UPlayer",
     "internalName": "M3UPlayer",
     "pluginClassName": "com.byayzen.M3UPlayerPlugin",
@@ -2975,50 +2205,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://i.imgur.com/BsS4wRT.png",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Maheir",
-    "internalName": "Maheir",
-    "pluginClassName": "com.kerimmkirac.MaheirPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Maheir.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Maheir Cloudstream eklentisi",
-    "fileSize": 13894,
-    "fileHash": "sha256-a4ce607e72d88ed09d583ca12ade60aadf7cb283acffdb1bebd96230064a3c46",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=maheir.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "MilfNut",
-    "internalName": "MilfNut",
-    "pluginClassName": "com.kraptor.MilfNutPlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/MilfNut.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "MilfNut Cloudstream eklentisi",
-    "fileSize": 11715,
-    "fileHash": "sha256-48b88b5b17367d760c4a0ab9fb0581c9fb057ee3c1b3c9d97dc0c0976fc74250",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=milfnut.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -3043,50 +2229,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/refs/heads/master/.github/icons/logo/mirrorverseicon.png",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "MissAV",
-    "internalName": "MissAV",
-    "pluginClassName": "com.byayzen.MissAVPlugin",
-    "version": 7,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/MissAV.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "MissAV Cloudstream eklentisi",
-    "fileSize": 14115,
-    "fileHash": "sha256-1739d549f0bbe5e2f430943fbe107389c4f470954077a1b615a88955d350a269",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=missav.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Motherless",
-    "internalName": "Motherless",
-    "pluginClassName": "com.kraptor.MotherlessPlugin",
-    "version": 13,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Motherless.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Motherless Cloudstream eklentisi",
-    "fileSize": 16159,
-    "fileHash": "sha256-2ccd75b4f06812c9fc087760f4c131093c719a4dd17dd4529fda0628a42aa0cf",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=motherless.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -3156,28 +2298,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "NetFapX",
-    "internalName": "NetFapX",
-    "pluginClassName": "com.kerimmkirac.NetFapXPlugin",
-    "version": 6,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/NetFapX.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "NetFapX Cloudstream eklentisi",
-    "fileSize": 14560,
-    "fileHash": "sha256-d047a77ea6c583e4bae2a25456ca6054a590cfcb1e70a7f4c7e332c205177c78",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=netfapx.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "NetflixMirror",
     "internalName": "NetflixMirror",
     "pluginClassName": "com.keyiflerolsun.NetflixMirrorPlugin",
@@ -3201,50 +2321,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "NoodleMagazine",
-    "internalName": "NoodleMagazine",
-    "pluginClassName": "com.byayzen.NoodleMagazinePlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/NoodleMagazine.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "NoodleMagazine Cloudstream eklentisi",
-    "fileSize": 13476,
-    "fileHash": "sha256-fee4e223761668cd262b3c49bf6233e7274af226af582abeaa84f03b58eb7ccd",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=noodlemagazine.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Notmik",
-    "internalName": "Notmik",
-    "pluginClassName": "com.kerimmkirac.NotmikPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Notmik.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Notmik Cloudstream eklentisi",
-    "fileSize": 11797,
-    "fileHash": "sha256-57c88c8dfeabfff2c3485c292da7a49f4d635894b0201fe043850ca340963745",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=notmik.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "OK",
     "internalName": "OK",
     "pluginClassName": "com.byayzen.OKRUPlugin",
@@ -3264,28 +2340,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=ok.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "OnScreens",
-    "internalName": "OnScreens",
-    "pluginClassName": "com.kraptor.OnScreensPlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/OnScreens.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "OnScreens Cloudstream eklentisi",
-    "fileSize": 20136,
-    "fileHash": "sha256-4fda86239b1a7eb746f10bb36cdbda528886da2cca94924006eeacecaabc975a",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=onscreens.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -3330,116 +2384,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://openani.me/&size=24",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "OppaiStream",
-    "internalName": "OppaiStream",
-    "pluginClassName": "com.byayzen.OppaiStreamPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/OppaiStream.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "OppaiStream Cloudstream eklentisi",
-    "fileSize": 14082,
-    "fileHash": "sha256-2d11d3a6a8eb95204f0d838331b7b9f3002d8a6f2171250524215e6244210296",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=oppaistream.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "PMVHaven",
-    "internalName": "PMVHaven",
-    "pluginClassName": "com.byayzen.PMVHavenPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/PMVHaven.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "PMVHaven Cloudstream eklentisi",
-    "fileSize": 17994,
-    "fileHash": "sha256-dbfcc0245a4e667cf1a612b1547b3d2d75025353bcb6ad065c287cb426f8b7a3",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=pmvhaven.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "PerfectGirls",
-    "internalName": "PerfectGirls",
-    "pluginClassName": "com.kerimmkirac.PerfectGirlsPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/PerfectGirls.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "PerfectGirls Cloudstream eklentisi",
-    "fileSize": 13414,
-    "fileHash": "sha256-6ceb8ae19d979de20aebcd8e82bfb849ad66369b6cb22af0a3bee49a2a93117e",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=perfectgirls.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Pimpbunny",
-    "internalName": "Pimpbunny",
-    "pluginClassName": "com.byayzen.PimpbunnyPlugin",
-    "version": 9,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Pimpbunny.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Pimpbunny Cloudstream eklentisi",
-    "fileSize": 16310,
-    "fileHash": "sha256-da973cf5ff6621784937a46130233e50aa18541b1bb7840b7ca53e26f7d404bb",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=pimpbunny.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Pinkueiga",
-    "internalName": "Pinkueiga",
-    "pluginClassName": "com.byayzen.PinkueigaPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Pinkueiga.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Pinkueiga Cloudstream eklentisi",
-    "fileSize": 13789,
-    "fileHash": "sha256-0ae4202d6de744ced4d05a0615b580c0fe63357014a60fb1b0642718cd0015fc",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=pinkueiga.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -3511,28 +2455,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Redgifs",
-    "internalName": "Redgifs",
-    "pluginClassName": "com.byayzen.RedgifsPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Redgifs.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Redgifs Cloudstream eklentisi",
-    "fileSize": 17051,
-    "fileHash": "sha256-4005908bebba0bca8e07e242c5c906b010f61eaa18313588636a363488bbfacc",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=redgifs.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "RoketDizi",
     "internalName": "RoketDizi",
     "pluginClassName": "com.nikyokki.RoketDiziPlugin",
@@ -3552,72 +2474,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=roketdizi.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "RoshyTv",
-    "internalName": "RoshyTv",
-    "pluginClassName": "com.kraptor.RoshyTvPlugin",
-    "version": 6,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/RoshyTv.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "RoshyTv Cloudstream eklentisi",
-    "fileSize": 14171,
-    "fileHash": "sha256-83ebc127597b62481a15a64c66eb9593011cb0399f86bcf6a52379ec4932f18f",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=roshytv.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "RouVideo",
-    "internalName": "RouVideo",
-    "pluginClassName": "com.byayzen.RouVideoPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/RouVideo.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "RouVideo Cloudstream eklentisi",
-    "fileSize": 12329,
-    "fileHash": "sha256-38f24d63fbd46a126dc3f7a173a890b8be4e9de54f08a16683f99bd3171677f1",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=rouvideo.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Rule34video",
-    "internalName": "Rule34video",
-    "pluginClassName": "com.byayzen.Rule34VideoPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Rule34video.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Rule34video Cloudstream eklentisi",
-    "fileSize": 12896,
-    "fileHash": "sha256-7d20a691a977254e42545c3e7af06448c3d34ebe6389f98c43be25ef34a28822",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=rule34video.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -3733,28 +2589,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "SimpCity",
-    "internalName": "SimpCity",
-    "pluginClassName": "com.kraptor.SimpCityPlugin",
-    "version": 8,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/SimpCity.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "SimpCity Cloudstream eklentisi",
-    "fileSize": 78034,
-    "fileHash": "sha256-175ba0eeba476396eaffe8b28464c4770cf4636c31a1d7a9469db9f7ec27fe1d",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=simpcity.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "SinemaCX",
     "internalName": "SinemaCX",
     "pluginClassName": "com.keyiflerolsun.SinemaCXPlugin",
@@ -3867,28 +2701,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Stripchat",
-    "internalName": "Stripchat",
-    "pluginClassName": "com.kraptor.StripchatPlugin",
-    "version": 4,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Stripchat.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Stripchat Cloudstream eklentisi",
-    "fileSize": 38588,
-    "fileHash": "sha256-c9f684cc3c26f57fea9201a400cb438086fa5fb530ff9891bbdb2e3971713030",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=stripchat.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "Subsplease",
     "internalName": "Subsplease",
     "pluginClassName": "com.byayzen.SubspleasePlugin",
@@ -3951,28 +2763,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=supercartoons.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "Sxyprn",
-    "internalName": "Sxyprn",
-    "pluginClassName": "com.byayzen.SxyprnPlugin",
-    "version": 8,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Sxyprn.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Sxyprn Cloudstream eklentisi",
-    "fileSize": 29952,
-    "fileHash": "sha256-b5f1be61b35e8a85e8d1b45b4dceffbd65f96412749632b2efbbb18399588fc2",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=sxyprn.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -4584,72 +3374,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "Wumaobi",
-    "internalName": "Wumaobi",
-    "pluginClassName": "com.byayzen.WumaobiPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/Wumaobi.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "Wumaobi Cloudstream eklentisi",
-    "fileSize": 9936,
-    "fileHash": "sha256-de582a4b83d1ba2aada9771d35e274e4de4fb852b131f876091e5cbecbb5cd19",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=wumaobi.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "XChina",
-    "internalName": "XChina",
-    "pluginClassName": "com.byayzen.XChinaPlugin",
-    "version": 3,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/XChina.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "XChina Cloudstream eklentisi",
-    "fileSize": 11351,
-    "fileHash": "sha256-15089623211097d3fc01da6f3369c438b10cfe095f925c45e1ca946759278128",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=xchina.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "XMoviesForYou",
-    "internalName": "XMoviesForYou",
-    "pluginClassName": "com.kraptor.XMoviesForYouPlugin",
-    "version": 10,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/XMoviesForYou.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "XMoviesForYou Cloudstream eklentisi",
-    "fileSize": 14909,
-    "fileHash": "sha256-34a9849c361dae04503c4be120210e8201e5926ad62fca0c1e1dc53f9f3c4b5a",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=xmoviesforyou.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "XPrime",
     "internalName": "XPrime",
     "pluginClassName": "com.nikyokki.XPrimePlugin",
@@ -4669,28 +3393,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=xprime.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "XRares",
-    "internalName": "XRares",
-    "pluginClassName": "com.kraptor.XRaresPlugin",
-    "version": 2,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/XRares.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "XRares Cloudstream eklentisi",
-    "fileSize": 14310,
-    "fileHash": "sha256-2e25ebc5073059a8af02c685650f3002b907583929344ea072b9e5d2d66b298b",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=xrares.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
@@ -4825,27 +3527,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "YesilCamTv",
-    "internalName": "YesilCamTv",
-    "pluginClassName": "com.kraptor.YesilCamTvPlugin",
-    "version": 9,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/YesilCamTv.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "kraptor"
-    ],
-    "description": "Türk sinemasının unutulmaz filmler bu adreste.",
-    "fileSize": 22358,
-    "fileHash": "sha256-7ff382f3d472cc5cfd72640b1f30afed9fb8a68d75052a7f63f427bc5afef84d",
-    "status": 1,
-    "tvTypes": [
-      "Movie"
-    ],
-    "language": "tr",
-    "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://yesilcamtv.com.tr&size=64",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "YoTurkish",
     "internalName": "YoTurkish",
     "pluginClassName": "com.kraptor.YoTurkishPlugin",
@@ -4916,50 +3597,6 @@
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   },
   {
-    "name": "__New",
-    "internalName": "__New",
-    "pluginClassName": "com.kraptor.NewPlugin",
-    "version": 1,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/__New.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "__New Cloudstream eklentisi",
-    "fileSize": 11729,
-    "fileHash": "sha256-8f48989b1260b38ce5443d2bbb4d20a880e1def81b4795c62f55b2ca78b73a4c",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=__new.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "ePawg",
-    "internalName": "ePawg",
-    "pluginClassName": "com.kraptor.EPawgPlugin",
-    "version": 5,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/ePawg.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "ePawg Cloudstream eklentisi",
-    "fileSize": 17553,
-    "fileHash": "sha256-4964838dc1f4b76e22516f14ebc1958e374d80cca5bcfe4060994f8217d59d01",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=epawg.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
     "name": "powerDizi",
     "internalName": "powerDizi",
     "pluginClassName": "com.keyiflerolsun.powerDiziPlugin",
@@ -5023,28 +3660,6 @@
     ],
     "language": "tr",
     "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=vavoospor.com",
-    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
-  },
-  {
-    "name": "İnfluencerChicks",
-    "internalName": "İnfluencerChicks",
-    "pluginClassName": "com.kerimmkirac.İnfluencerChicksPlugin",
-    "version": 6,
-    "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/prebuilt/İnfluencerChicks.cs3",
-    "apiVersion": 1,
-    "authors": [
-      "Kitsugi"
-    ],
-    "description": "İnfluencerChicks Cloudstream eklentisi",
-    "fileSize": 11887,
-    "fileHash": "sha256-766fbdc6e87ccc89c185d0ea7fd5c98faca0db84cdcee9e5713ba0c59df36b4e",
-    "status": 1,
-    "tvTypes": [
-      "Movie",
-      "TvSeries"
-    ],
-    "language": "tr",
-    "iconUrl": "https://www.google.com/s2/favicons?sz=64&domain=i̇nfluencerchicks.com",
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins"
   }
 ]
