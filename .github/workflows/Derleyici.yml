@@ -10,6 +10,11 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      plugins:
+        description: "Derlenecek eklenti dizinleri (boslukla ayrilmis). Bos birakilirsa sadece degisen dizinler derlenir."
+        required: false
+        default: ""
   push:
     branches:
       - main
@@ -48,9 +53,17 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
 
-          # Onceki commit ile karsilastir - hangi plugin klasorleri degismis
-          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
-          echo "Degisen klasorler: $CHANGED"
+          # Manuel tetiklemede (workflow_dispatch) eklenti listesi elle verilebilir;
+          # aksi halde onceki commit ile karsilastirilir. Boylece kaynagi olup hic
+          # derlenmemis eklentiler de derlenebilir (or. Filmmirasim, FilmIzlesene).
+          MANUAL="${{ github.event.inputs.plugins }}"
+          if [ -n "$MANUAL" ]; then
+            CHANGED="$MANUAL"
+            echo "Manuel derleme listesi: $CHANGED"
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
+            echo "Degisen klasorler: $CHANGED"
+          fi
 
           # Sadece gercek plugin klasorlerini sec (build.gradle.kts'i olanlar)
           PLUGINS_TO_BUILD=""
@@ -80,8 +93,14 @@ jobs:
             fi
           done
 
-          # Prebuilt (hazir) eklentileri kopyala
-          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds 2>/dev/null || true
+          # Prebuilt (hazir) eklentileri kopyala.
+          # DIKKAT: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
+          # bu yuzden kopya da `builds/prebuilt/` altina yapilmalidir. Daha once kok
+          # dizine kopyalandigi icin manifest ile dosya konumu uyusmuyor, indirme 404
+          # aliyordu (or. WFilmİzle.cs3).
+          mkdir -p $GITHUB_WORKSPACE/builds/prebuilt
+          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/prebuilt/ 2>/dev/null || true
+          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
           # Manifest guncelle
           python3 merge_plugins.py
