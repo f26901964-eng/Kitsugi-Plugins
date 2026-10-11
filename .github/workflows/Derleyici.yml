@@ -392,7 +392,9 @@ jobs:
         if: always() && github.ref != 'refs/heads/main'
         run: |
           cd $GITHUB_WORKSPACE/src
-          python3 - <<'PYEOF8'
+          echo "" >> /tmp/teshis.txt
+          echo "################ EKSIK cs3 ONARIMI ################" >> /tmp/teshis.txt
+          python3 - >> /tmp/teshis.txt 2>&1 <<'PYEOF8'
           import json, os, subprocess, hashlib, glob
           ws = os.environ.get("GITHUB_WORKSPACE", ".")
           bdir = os.path.join(ws, "builds")
@@ -418,10 +420,12 @@ jobs:
               for nm in names:
                   cands.append(MIRROR + nm.replace(" ", "%20"))
               code = "000"
+              print(f"  ? {fn} icin {len(cands)} aday denenecek")
               for cand in cands:
                   r = subprocess.run(["curl", "-s", "-L", "--max-time", "60", "-o", dest, "-w", "%{http_code}", cand],
                                      capture_output=True, text=True)
                   code = (r.stdout or "").strip()
+                  print(f"      {code}  {cand[:110]}  ({os.path.getsize(dest) if os.path.exists(dest) else 0} bayt)")
                   if code.startswith("2") and os.path.exists(dest) and os.path.getsize(dest) > 1000:
                       print(f"  + {fn} <- {cand}"); break
                   if os.path.exists(dest):
