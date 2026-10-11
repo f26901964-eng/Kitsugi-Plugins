@@ -255,16 +255,24 @@ jobs:
           print("  SAYFA2:", firstcard(p2), f"boyut={len(p2)}")
           print("  AYNI MI:", firstcard(p1)[1] == firstcard(p2)[1])
           print()
-          print("--- JS CHUNK translate-proxy denemesi ---")
-          chunks = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', t)[:6]
-          for c in chunks:
-              js = get(f"{T}{c}?{Q}")
-              hits = []
-              for kw in ["searchcontent", "api/bg", "searchterm"]:
-                  for m in list(re.finditer(kw, js, re.I))[:1]:
-                      hits.append(kw + " >>> " + re.sub(r"\s+", " ", js[max(0,m.start()-200):m.start()+200]))
-              print(f"  {c} boyut={len(js)} " + (("| " + " || ".join(hits)) if hits else "| hit yok"))
-          print()
+          print("--- JS CHUNK: TUM API YUZEYI (translate-proxy) ---")
+          import re as _re, subprocess as _sp
+          _chunks = _re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', t)
+          _apis, _pages = {}, {}
+          for _c in _chunks:
+              _js = _sp.run(["curl","-s","-L","--max-time","30","-A",
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                  f"{T}{_c}?{Q}"], capture_output=True, text=True).stdout
+              if len(_js) < 200: continue
+              for _m in _re.finditer(r'"(/api/[A-Za-z0-9_/\-]{2,60})"', _js):
+                  _apis.setdefault(_m.group(1), _c)
+              for _kw in ["getContents", "getContent", "pageIndex", "pageNumber"]:
+                  for _m in list(_re.finditer(_re.escape(_kw), _js))[:1]:
+                      _pages.setdefault(_kw, _re.sub(r"\s+", " ", _js[max(0,_m.start()-300):_m.start()+340]))
+          print("  --- SITEDE KULLANILAN API YOLLARI ---")
+          for _k in sorted(_apis): print("   " + _k)
+          print("  --- SAYFALAMA IZLERI ---")
+          for _k, _v in _pages.items(): print(f"   [{_k}] {_v[:460]}")
           PYEOF3
           echo "==================== DIZIPAL API (POST)"
           curl -s -i --max-time 25 -A "$UA" -X POST \
