@@ -218,36 +218,54 @@ jobs:
           head -c 220 /tmp/r_api3.txt; echo
           echo
 
-          echo "==================== ROKETDIZI ARAMA API YOLU (JS chunk) ===================="
-          python3 - <<'PYEOF2'
-          import re, subprocess, sys
-          txt = open("/tmp/r_dizi.html", encoding="utf-8", errors="replace").read()
-          chunks = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', txt)
-          print(f"  chunk sayisi: {len(chunks)}")
-          hits = 0
+          echo "==================== ROKETDIZI ARAMA FORMU (input adi) ===================="
+          python3 - <<'PYEOF3'
+          import re
+          T = "https://roketdizi-life.translate.goog"; Q = "_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
+          t = open("/tmp/r_dizi.html", encoding="utf-8", errors="replace").read()
+          k = t.find("data-action=\"/bg/searchcontent\"")
+          if k < 0: k = t.find("/bg/searchcontent")
+          if k >= 0:
+              blk = re.sub(r"\s+", " ", t[max(0, k-300):k+1100])
+              print("FORM BLOGU:", blk)
+              for m in re.finditer(r'name="([^"]{1,40})"', blk): print("  input adi:", m.group(1))
+          else:
+              print("  form bulunamadi")
+          print()
+          print("--- 'Daha Fazla' / yukleme isaretleri (dizi kategorisi) ---")
+          for kw in ["Daha Fazla", "loadMore", "load-more", "pagination", "infinite", "sayfala"]:
+              c = t.count(kw); print(f"  [{kw}] x{c}")
+          for m in list(re.finditer("Daha Fazla", t))[:2]:
+              print("   >>> " + re.sub(r"\s+", " ", t[max(0,m.start()-420):m.start()+120]))
+          print()
+          print("--- SAYFA 2 TESTI (dizi/tur/aksiyon?page=2) ---")
+          import subprocess
+          def get(u):
+              return subprocess.run(["curl","-s","-L","--max-time","40","-A",
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36", u],
+                  capture_output=True, text=True).stdout
+          p1 = t
+          p2 = get(f"{T}/dizi/tur/aksiyon?page=2&{Q}")
+          def firstcard(x):
+              m = re.search(r'watchlistitem.*?<a href="([^"]+)"', x, re.S)
+              n = re.search(r'watchlistitem.*?<span class="font-normal line-clamp-1[^>]*>([^<]{1,80})', x, re.S)
+              cards = len(re.findall(r"watchlistitem-", x))
+              return (m.group(1)[:80] if m else None, n.group(1) if n else None, cards)
+          print("  SAYFA1:", firstcard(p1), f"boyut={len(p1)}")
+          print("  SAYFA2:", firstcard(p2), f"boyut={len(p2)}")
+          print("  AYNI MI:", firstcard(p1)[1] == firstcard(p2)[1])
+          print()
+          print("--- JS CHUNK translate-proxy denemesi ---")
+          chunks = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', t)[:6]
           for c in chunks:
-              url = "https://roketdizi.life" + c
-              try:
-                  js = subprocess.run(["curl", "-s", "-L", "--max-time", "25",
-                                       "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-                                       url], capture_output=True, text=True).stdout
-              except Exception as e:
-                  print(f"  {c} HATA {e}"); continue
-              for kw in ["searchcontent", "searchterm"]:
-                  for m in list(re.finditer(kw, js, re.I))[:2]:
-                      hits += 1
-                      print(f"  [{c}] {kw} >>> " + re.sub(r"\s+", " ", js[max(0,m.start()-240):m.start()+240]))
-              if hits >= 8: break
-          if hits == 0: print("  chunk'larda searchcontent/searchterm BULUNAMADI")
+              js = get(f"{T}{c}?{Q}")
+              hits = []
+              for kw in ["searchcontent", "api/bg", "searchterm"]:
+                  for m in list(re.finditer(kw, js, re.I))[:1]:
+                      hits.append(kw + " >>> " + re.sub(r"\s+", " ", js[max(0,m.start()-200):m.start()+200]))
+              print(f"  {c} boyut={len(js)} " + (("| " + " || ".join(hits)) if hits else "| hit yok"))
           print()
-          print("--- PAGINATION (sayfa/2) LINKLERI ---")
-          for name, path in [("DIZI", "/tmp/r_dizi.html"), ("FILM", "/tmp/r_film.html")]:
-              t = open(path, encoding="utf-8", errors="replace").read()
-              links = sorted(set(re.findall(r'href="[^"]{0,160}(?:page=|sayfa)[^"]{0,80}"', t)))
-              print(f"  [{name}] {len(links)} link")
-              for l in links[:8]: print("    " + l[:150])
-          print()
-          PYEOF2
+          PYEOF3
           echo "==================== DIZIPAL API (POST)"
           curl -s -i --max-time 25 -A "$UA" -X POST \
             -H "Accept: application/json, text/javascript, */*; q=0.01" \
