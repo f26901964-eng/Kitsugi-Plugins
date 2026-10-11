@@ -1,4 +1,4 @@
-version = 8
+version = 9
 
 cloudstream {
     authors     = listOf("nikyokki")
@@ -14,7 +14,7 @@ cloudstream {
     **/
     status  = 1 // will be 3 if unspecified
     tvTypes = listOf("Movie")
-    iconUrl = "https://www.google.com/s2/favicons?domain=www.hdfilmcehennemi2.nl&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=www.hdfilmcehennemi2.site&sz=%size%"
 }
 
 android {

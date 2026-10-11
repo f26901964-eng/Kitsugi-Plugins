@@ -2045,25 +2045,6 @@
         "fileHash": "sha256-3c2ca3d9f30ad017cfc56e044bf38980ddf98b4426be77e1c6ce1cb3487706b2"
     },
     {
-        "iconUrl": "https://www.google.com/s2/favicons?domain=filmpalast.to&sz=%size%",
-        "apiVersion": 1,
-        "repositoryUrl": "https://github.com/hexated/cloudstream-extensions-hexated",
-        "fileSize": 11054,
-        "status": 1,
-        "authors": [
-            "Bnyro"
-        ],
-        "tvTypes": [
-            "TvSeries",
-            "Movie"
-        ],
-        "version": 1,
-        "internalName": "FilmPalast",
-        "description": "German Filmpalast provider",
-        "url": "https://raw.githubusercontent.com/hexated/cloudstream-extensions-hexated/builds/FilmPalast.cs3",
-        "name": "FilmPalast"
-    },
-    {
         "iconUrl": "https://turkey.mom-rsf.org/uploads/tx_lfrogmom/media/241-101_import.png",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/MakotoTokioki/Cloudstream-Turkce-Eklentiler",

@@ -23,6 +23,12 @@ import sys
 BRANCH = "builds"
 PLACEHOLDER_SLUG = "f26901964-eng/Kitsugi-Plugins"
 
+# Kalici olarak kaldirilan eklentiler (kucuk harf).
+# Bu isimler birlesme sirasinda "existing builds" kaydindan tekrar canlanmasin;
+# varsa .cs3 dosyalari da builds dalindan silinir.
+#   - FilmPalast: hexated deposundan gelen `com.example` iskeleti, calismiyor.
+REMOVED_PLUGINS = {"filmpalast"}
+
 
 def repo_slug():
     """GITHUB_REPOSITORY (owner/repo) — yoksa varsayilan depo."""
@@ -91,10 +97,17 @@ def main():
 
     # ── Birlestirme (onceki davranis korunuyor: son yazan kazanir) ────────────
     combined = {}
+    removed = []
     for group in (existing, prebuilt, compiled):
         for plugin in group:
             name = plugin.get("internalName") or plugin.get("name")
             if not name:
+                continue
+            if name.lower().strip() in REMOVED_PLUGINS:
+                if name not in removed:
+                    removed.append(name)
+                    print(f"  - {name}: REMOVED_PLUGINS listesinde, kayit dusuruldu")
+                combined.pop(name, None)
                 continue
             if plugin.get("url"):
                 # Derlenen kayitlarin URL'i yeni konumu gosterebilir; onlari oldugu gibi al.
@@ -105,6 +118,16 @@ def main():
     # ── Dogrulama: URL'leri gercek dosya konumuna gore duzelt ────────────────
     file_index = index_cs3_files(builds_root)
     print(f"  builds dizininde bulunan .cs3 dosyasi: {len(file_index)}")
+
+    # Kaldirilan eklentilerin .cs3 dosyalarini builds dalindan temizle
+    for fname, dirpath in list(file_index.items()):
+        if fname.endswith(".cs3") and fname[:-4].lower().strip() in REMOVED_PLUGINS:
+            try:
+                os.remove(os.path.join(dirpath, fname))
+                del file_index[fname]
+                print(f"  - {fname}: dosya silindi ({os.path.relpath(dirpath, builds_root)})")
+            except OSError as exc:
+                print(f"  ! {fname} silinemedi: {exc}")
 
     repaired = []
     still_missing = []
