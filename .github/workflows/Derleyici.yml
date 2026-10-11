@@ -327,7 +327,7 @@ jobs:
             CHANGED="$MANUAL"
             echo "Manuel derleme listesi: $CHANGED"
           elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            CHANGED="DiziPal SelcukFlix HDFilmCehennemi2 RoketDizi XPrime NeonSpor __New AnimeAV"
+            CHANGED="DiziPal DiziPalOriginal SelcukFlix HDFilmCehennemi2 RoketDizi XPrime NeonSpor __New AnimeAV DiziKorea Dizilla Dramaizle FullHDFilm FullHDFilmizlesene HDFilmIzle JetFilmizle KultFilmler RecTV SetFilmIzle SezonlukDizi SinemaCX TRasyalog WFilmİzle WebteIzle YabanciDizi"
             echo "GECICI teshis listesi: $CHANGED"
           else
             CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
@@ -500,6 +500,74 @@ jobs:
           print("  " + ", ".join(n for n, *_ in oks[:40]))
           print(f"  ... toplam {len(oks)} OK")
           PYEOF9
+      - name: "GECICI: Domain Aday Testi + Dex Eklenti Eslesmesi"
+        if: always() && github.ref != 'refs/heads/main'
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          {
+            echo ""
+            echo "################ DOMAIN ADAY TESTI ################"
+          } >> /tmp/teshis.txt
+          python3 - >> /tmp/teshis.txt <<'PYEOF7'
+          import json, subprocess, concurrent.futures as cf
+          UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
+          cands = json.load(open(".github/gecici_domain_probe.json", encoding="utf-8"))
+          jobs = [(ad, u) for ad, urls in cands.items() for u in urls]
+          def probe(job):
+              ad, u = job
+              try:
+                  r = subprocess.run(["curl","-s","-o","/dev/null","-L","--max-time","20","-A",UA,
+                                      "-w","%{http_code}|%{url_effective}", u],
+                                     capture_output=True, text=True, timeout=35).stdout.strip()
+                  code, _, eff = r.partition("|")
+              except Exception:
+                  code, eff = "000", ""
+              return (ad, u, code, eff)
+          with cf.ThreadPoolExecutor(max_workers=16) as ex:
+              res = list(ex.map(probe, jobs))
+          cur = None
+          for ad, u, code, eff in sorted(res):
+              if ad != cur: print(f"  --- {ad} ---"); cur = ad
+              park = " (PARK?)" if any(k in eff for k in ("ww38","ww80","park","sedo","above.com")) else ""
+              print(f"    {code}  {u[:52]:52} -> {eff[:60]}{park}")
+
+          print()
+          print("################ DEX EKLENTI <-> UYGULAMA TABLOSU ################")
+          import os, re, zipfile, glob
+          bdir = os.environ.get("GITHUB_WORKSPACE", ".") + "/builds"
+          tab = {}
+          try:
+              fx = json.load(open("domain_fixes.json", encoding="utf-8"))
+              tab.update({k.lower(): v for k, v in fx.get("domains", {}).items()})
+          except Exception:
+              fx = {}
+          def fold(s):
+              s = s.lower()
+              for a,b in (("\u0130","i"),("\u0131","i"),("\u015f","s"),("\u011f","g"),("\u00fc","u"),("\u00f6","o"),("\u00e7","c")):
+                  s = s.replace(a,b)
+              return s.replace(" ","").replace("_","").replace("-","")
+          tabf = {fold(k): v for k, v in tab.items()}
+          SAFE = ("original","orijinal","plus","pro","tv","hd","2","sitesi","provider","official")
+          eksik_dex = []
+          for cs3 in sorted(glob.glob(bdir + "/**/*.cs3", recursive=True)):
+              name = os.path.basename(cs3)[:-4]
+              try:
+                  with zipfile.ZipFile(cs3) as z:
+                      man = json.loads(z.read("manifest.json").decode("utf-8","ignore"))
+              except Exception:
+                  continue
+              pname = man.get("name") or name
+              k = fold(pname)
+              hit = tabf.get(k)
+              if hit is None:
+                  for suf in SAFE:
+                      if k.endswith(suf) and k[:-len(suf)] in tabf:
+                          hit = tabf[k[:-len(suf)]]; break
+              if hit: print(f"    ✓ {pname:24} -> {hit}")
+              else: eksik_dex.append(pname)
+          print()
+          print(f"  UYGULAMA TABLOSUNDA KARSILIGI OLMAYAN ({len(eksik_dex)}): " + ", ".join(eksik_dex[:30]))
+          PYEOF7
       - name: "GECICI: Teshis Ciktisini Yayinla"
         if: always() && github.ref != 'refs/heads/main'
         run: |
