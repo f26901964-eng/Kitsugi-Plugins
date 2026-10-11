@@ -113,42 +113,44 @@ jobs:
           echo
           echo "==================== ROKETDIZI dogrudan .life (WFW=bot blok) ===================="
           curl -s -o /tmp/roket_direct.html -w "SONUC: %{http_code} %{url_effective} BOYUT: %{size_download}\n" -L --max-time 25 -A "$UA" "https://roketdizi.life/dizi/tur/aksiyon"
-          echo "==================== ROKETDIZI translate-proxy HAM HTML ===================="
-          RP="https://roketdizi-life.translate.goog/dizi/tur/aksiyon?_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
-          curl -s -L --max-time 45 -A "$UA" -H "Accept-Language: tr,en;q=0.9" "$RP" -o /tmp/roket.html
-          echo "SONUC BOYUT: $(wc -c < /tmp/roket.html)"
-          echo "--- TITLE ---"; grep -oiE "<title[^>]{0,40}>[^<]{0,120}" /tmp/roket.html | head -3
+          echo "==================== ROKETDIZI .life HAM HTML (translate proxy) ===================="
+          T="https://roketdizi-life.translate.goog"
+          Q="_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
+          fetch_html () { curl -s -L --max-time 45 -A "$UA" "$1" -o "$2"; echo "  boyut: $(wc -c < "$2")"; }
+
+          fetch_html "$T/dizi/tur/aksiyon?$Q" /tmp/r_dizi.html
+          echo "--- DIZI SAYFASI: TITLE ---"; grep -oiE "<title[^>]{0,30}>[^<]{0,110}" /tmp/r_dizi.html | head -2
+          echo "--- DIZI SAYFASI: KART HTML ORNEGI (watchlistitem civari 1600 karakter) ---"
+          grep -o ".\{0,200\}watchlistitem.\{0,1400\}" /tmp/r_dizi.html | head -1
+          echo
+          echo "--- DIZI SAYFASI: CARD HREF ORNEKLERI ---"
+          grep -oE "roketdizi-life\.translate\.goog(/[^\"?]{2,70})" /tmp/r_dizi.html | sort -u | head -14
+          echo "--- DIZI SAYFASI: pageProps anahtarlari ---"
+          grep -oE "\"pageProps\":\{[^}]{0,300}" /tmp/r_dizi.html | head -2
+          echo "--- DIZI SAYFASI: secureData tipi (ilk 60 karakter) ---"
+          grep -oE "\"secureData\":\"[^\"]{0,80}" /tmp/r_dizi.html | head -2
+          echo
+
+          echo "==================== ROKETDIZI FILM KATEGORISI ===================="
+          fetch_html "$T/film-kategori/aksiyon?$Q" /tmp/r_film.html
+          echo "--- TITLE ---"; grep -oiE "<title[^>]{0,30}>[^<]{0,110}" /tmp/r_film.html | head -2
           echo "--- EN SIK CLASS'LAR ---"
-          grep -oE 'class="[^"]{0,100}"' /tmp/roket.html | sort | uniq -c | sort -rn | head -30
-          echo "--- ISARETLER ---"
-          for kw in "__NEXT_DATA__" "secureData" "searchcontent" "cKey" "cValue" "roketdizi" "window.openPlayer" "master.m3u8"; do
-            c=$(grep -c -o -- "$kw" /tmp/roket.html 2>/dev/null)
-            echo "  [$kw] x$c"
+          grep -oE 'class="[^"]{0,90}"' /tmp/r_film.html | sort | uniq -c | sort -rn | head -14
+          echo "--- KART HTML ORNEGI ---"
+          grep -o ".\{0,200\}watchlistitem.\{0,1200\}" /tmp/r_film.html | head -1
+          echo "--- FILM LINK ORNEKLERI ---"
+          grep -oE "roketdizi-life\.translate\.goog(/[^\"?]{2,70})" /tmp/r_film.html | sort -u | grep -iE "film" | head -10
+          echo
+
+          echo "==================== ROKETDIZI ARAMA ===================="
+          fetch_html "$T/arama?q=squid&$Q" /tmp/r_ara.html
+          echo "--- TITLE ---"; grep -oiE "<title[^>]{0,30}>[^<]{0,110}" /tmp/r_ara.html | head -2
+          echo "--- ARAMA SAYFASI ISARETLERI ---"
+          for kw in "watchlistitem" "searchcontent" "arama" "Sonuc" "sonuc"; do
+            c=$(grep -c -o -- "$kw" /tmp/r_ara.html 2>/dev/null); echo "  [$kw] x$c"
           done
-          echo "--- DIZI/FILM LINK ORNEKLERI ---"
-          grep -oE 'href="/[^"]{0,80}"' /tmp/roket.html | grep -iE "dizi|film|izle" | sort -u | head -12
-          echo "--- GORSEL/SRC ORNEKLERI ---"
-          grep -oE '(src|data-src|srcset)="[^"]{0,100}"' /tmp/roket.html | head -8
-          echo "--- HTML ILK 2500 KARAKTER (card bolgesi) ---"
-          head -c 2500 /tmp/roket.html | tr -d '\000'
-          echo
-          echo "--- KART BENZERI BLOK (a/h2/div iceren ilk 3000 karakter) ---"
-          grep -oE '<a [^>]{0,200}>' /tmp/roket.html | head -12
-          echo
-          echo "==================== ROKETDIZI DETAY SAYFASI (dizi linki) ===================="
-          FIRST=$(grep -oE 'href="/dizi/[^"]{0,60}"' /tmp/roket.html | head -1 | sed 's/href="//; s/"$//')
-          echo "DETAY URL: $FIRST"
-          if [ -n "$FIRST" ]; then
-            RD="https://roketdizi-life.translate.goog${FIRST}?_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
-            curl -s -L --max-time 45 -A "$UA" "$RD" -o /tmp/roket2.html
-            echo "BOYUT: $(wc -c < /tmp/roket2.html)"
-            echo "--- DETAY CLASS'LARI ---"
-            grep -oE 'class="[^"]{0,100}"' /tmp/roket2.html | sort | uniq -c | sort -rn | head -25
-            echo "--- BOLUM/SEZON ISARETLERI ---"
-            grep -oE 'href="/[^"]{0,80}(bolum|sezon)[^"]{0,40}"' /tmp/roket2.html | sort -u | head -10
-            echo "--- SCRIPT ICERIKLERI (player/iframe) ---"
-            grep -oE '(iframe|data-?src|player)[^ >]{0,60}' /tmp/roket2.html | head -15
-          fi
+          echo "--- ARAMA SONUC ORNEGI ---"
+          grep -o ".\{0,150\}watchlistitem.\{0,900\}" /tmp/r_ara.html | head -1
           echo
 
           echo "==================== DIZIPAL API (POST)"
