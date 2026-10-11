@@ -149,13 +149,51 @@ jobs:
           for kw in "watchlistitem" "searchcontent" "arama" "Sonuc" "sonuc"; do
             c=$(grep -c -o -- "$kw" /tmp/r_ara.html 2>/dev/null); echo "  [$kw] x$c"
           done
-          echo "==================== ROKETDIZI KART TAM HTML ===================="
-          echo "--- DIZI KARTI (watchlistitem'den 2200 karakter) ---"
-          grep -o "watchlistitem-\".\{0,2200\}" /tmp/r_dizi.html | head -1
-          echo
-          echo "--- FILM KARTI (izle linkinden 1800 karakter ONCE) ---"
-          grep -o ".\{0,1800\}/film/[a-z0-9-]*/izle" /tmp/r_film.html | head -1
-          echo
+          echo "==================== ROKETDIZI KART YAPISI (python) ===================="
+          python3 - <<'PYEOF'
+          import re, html
+          def load(p):
+              try:
+                  return open(p, encoding="utf-8", errors="replace").read()
+              except Exception as e:
+                  return ""
+          def block(txt, idx, before=200, after=2200):
+              a = max(0, idx-before); b = min(len(txt), idx+after)
+              return re.sub(r"\s+", " ", txt[a:b])
+          dizi = load("/tmp/r_dizi.html"); film = load("/tmp/r_film.html")
+          print("--- DIZI KARTI ---")
+          k = dizi.find("watchlistitem-")
+          print(block(dizi, k, 60, 2400) if k >= 0 else "  watchlistitem BULUNAMADI")
+          print()
+          print("--- DIZI SAYFASI SECICI SAYIMLARI ---")
+          for sel, pat in [("span.bg-[#232323] (Mevcut konteyner)", r'<span class="bg-\[#232323\]'),
+                           ("span.font-normal.line-clamp-1 (Mevcut baslik)", r'<span class="font-normal line-clamp-1'),
+                           ("div.font-normal.line-clamp-1 (Yeni baslik?)", r'<div class="font-normal line-clamp-1'),
+                           ("h2", r"<h2"), ("h4", r"<h4"), ("a.w-full", r'<a[^>]*class="w-full"')]:
+              print(f"  {sel}: {len(re.findall(pat, dizi))}")
+          print()
+          print("--- FILM KARTI ---")
+          m = re.search(r'<a[^>]*href="[^"]*/film/[^"]*"', film)
+          print(block(film, m.start(), 400, 2200) if m else "  film anchor BULUNAMADI")
+          print()
+          print("--- FILM SAYFASI SECICI SAYIMLARI ---")
+          for sel, pat in [("a.w-full (Mevcut konteyner)", r'<a[^>]*class="w-full"'),
+                           ("div.w-full min-w-full ambilight", r'<div[^>]*ambilight'),
+                           ("h2", r"<h2"), ("h4", r"<h4"),
+                           ("a href film", r'href="[^"]*/film/[^"]*"')]:
+              print(f"  {sel}: {len(re.findall(pat, film))}")
+          print()
+          print("--- ARAMA API IZLEME (dizi sayfasindan) ---")
+          for kw in ["searchcontent", "api/bg"]:
+              for mm in list(re.finditer(re.escape(kw), dizi))[:2]:
+                  print(f"  [{kw}] ...{re.sub(chr(92)+'s+', ' ', dizi[max(0,mm.start()-260):mm.start()+300])}...")
+          print()
+          print("--- SAYFADAKI TUM API YOLLARI ---")
+          paths = sorted(set(re.findall(r'/(?:api|_next/data)/[A-Za-z0-9_/\-\.]{2,60}', dizi)))
+          for x in paths[:25]: print("  " + x)
+          print()
+          PYEOF
+
           echo "==================== ROKETDIZI DETAY SAYFASI ===================="
           fetch_html "$T/dizi/cutie-honey?$Q" /tmp/r_detay.html
           echo "--- TITLE ---"; grep -oiE "<title[^>]{0,30}>[^<]{0,110}" /tmp/r_detay.html | head -2
