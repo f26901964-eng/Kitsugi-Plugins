@@ -149,8 +149,35 @@ jobs:
           for kw in "watchlistitem" "searchcontent" "arama" "Sonuc" "sonuc"; do
             c=$(grep -c -o -- "$kw" /tmp/r_ara.html 2>/dev/null); echo "  [$kw] x$c"
           done
-          echo "--- ARAMA SONUC ORNEGI ---"
-          grep -o ".\{0,150\}watchlistitem.\{0,900\}" /tmp/r_ara.html | head -1
+          echo "==================== ROKETDIZI KART TAM HTML ===================="
+          echo "--- DIZI KARTI (watchlistitem'den 2200 karakter) ---"
+          grep -o "watchlistitem-\".\{0,2200\}" /tmp/r_dizi.html | head -1
+          echo
+          echo "--- FILM KARTI (izle linkinden 1800 karakter ONCE) ---"
+          grep -o ".\{0,1800\}/film/[a-z0-9-]*/izle" /tmp/r_film.html | head -1
+          echo
+          echo "==================== ROKETDIZI DETAY SAYFASI ===================="
+          fetch_html "$T/dizi/cutie-honey?$Q" /tmp/r_detay.html
+          echo "--- TITLE ---"; grep -oiE "<title[^>]{0,30}>[^<]{0,110}" /tmp/r_detay.html | head -2
+          echo "--- ISARETLER ---"
+          for kw in "secureData" "openPlayer" "master.m3u8" "videosteam" "iframe" "sezon" "bolum" "episode"; do
+            c=$(grep -c -o -- "$kw" /tmp/r_detay.html 2>/dev/null); echo "  [$kw] x$c"
+          done
+          echo "--- BOLUM/SEZON HTML ORNEGI ---"
+          grep -oE ".{0,250}(sezon|bolum|episode).{0,350}" /tmp/r_detay.html | head -6
+          echo
+          echo "==================== ROKETDIZI ARAMA API (POST) ===================="
+          echo "--- DOGRUDAN POST ---"
+          curl -s -o /tmp/r_api1.txt -w "  kod: %{http_code} boyut: %{size_download}\n" --max-time 25 -X POST \
+            -A "$UA" -H "Accept: application/json, text/plain, */*" -H "X-Requested-With: XMLHttpRequest" \
+            -H "Referer: https://roketdizi.life/" "${mainUrl:-https://roketdizi.life}/api/bg/searchcontent?searchterm=squid"
+          head -c 220 /tmp/r_api1.txt; echo
+          echo "--- GET (translate proxy) ---"
+          curl -s -o /tmp/r_api2.txt -w "  kod: %{http_code} boyut: %{size_download}\n" --max-time 25 -A "$UA" "$T/api/bg/searchcontent?searchterm=squid&$Q"
+          head -c 220 /tmp/r_api2.txt; echo
+          echo "--- GET (dogrudan) ---"
+          curl -s -o /tmp/r_api3.txt -w "  kod: %{http_code} boyut: %{size_download}\n" --max-time 25 -A "$UA" -H "X-Requested-With: XMLHttpRequest" "https://roketdizi.life/api/bg/searchcontent?searchterm=squid"
+          head -c 220 /tmp/r_api3.txt; echo
           echo
 
           echo "==================== DIZIPAL API (POST)"
