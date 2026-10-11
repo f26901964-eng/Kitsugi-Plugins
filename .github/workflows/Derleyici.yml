@@ -55,7 +55,7 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
 
       - name: "GECICI: Canli Site Teshisi"
-        if: github.event.inputs.teshis != '0'
+        if: github.event_name == 'push' || github.event.inputs.teshis != '0'
         run: |
           set +e
           : > /tmp/teshis.txt
@@ -122,9 +122,14 @@ jobs:
           # aksi halde onceki commit ile karsilastirilir. Boylece kaynagi olup hic
           # derlenmemis eklentiler de derlenebilir (or. Filmmirasim, FilmIzlesene).
           MANUAL="${{ github.event.inputs.plugins }}"
+          # GECICI: kendi gelistirme branch'imizde push ile tetiklenen kosularda
+          # varsayilan eklenti listesini derle (teshis icin).
           if [ -n "$MANUAL" ]; then
             CHANGED="$MANUAL"
             echo "Manuel derleme listesi: $CHANGED"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            CHANGED="DiziPal SelcukFlix HDFilmCehennemi2 RoketDizi XPrime NeonSpor"
+            echo "GECICI teshis listesi: $CHANGED"
           else
             CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
             echo "Degisen klasorler: $CHANGED"
