@@ -141,11 +141,13 @@ def main():
             still_missing.append((name, url, "URL yok"))
             continue
 
-        # Yalnizca kendi depomuzu isaret eden URL'leri dogrulariz; diger depolar
-        # (or. Kraptor) bu calisma alaninda bulunmaz.
+        # URL harici bir depoyu (or. Kraptor) gosterse bile: dosya BIZIM builds
+        # dalinda mevcutsa kayit kendi depomuza cevrilir. Aksi halde harici URL
+        # korunur (indirme o depodan denenir).
+        # 2026-10 olayi: SineWix/HDFilmizle/Kanal 7/CizgiveDizi gibi kayitlar
+        # Kraptor'a isaret ettigi icin hic dogrulanmiyor, dosyalari depoda
+        # olmasina ragmen "kurulamiyor" durumda kaliyordu.
         is_ours = slug in url or "Kitsugi-Plugins" in url or "KitsugiPlugins" in url
-        if not is_ours:
-            continue
 
         actual_dir = file_index.get(fname)
         actual_name = fname
@@ -169,7 +171,8 @@ def main():
                     repaired.append(name)
                     break
             if actual_dir is None:
-                still_missing.append((name, url, "dosya hicbir yerde yok"))
+                reason = "dosya hicbir yerde yok" + ("" if is_ours else " [harici kaynak]")
+                still_missing.append((name, url, reason))
             continue
 
         expected_rel = _rel_path(builds_root, actual_dir, fname)
