@@ -144,32 +144,44 @@ class RoketDizi : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val searchReq = app.post(
-            "${mainUrl}/api/bg/searchcontent?searchterm=$query",
-            headers = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
-                "Accept" to "application/json, text/plain, */*",
-                "Accept-Language" to "en-US,en;q=0.5",
-                "X-Requested-With" to "XMLHttpRequest",
-                "Sec-Fetch-Site" to "same-origin",
-                "Sec-Fetch-Mode" to "cors",
-                "Sec-Fetch-Dest" to "empty",
-                "Referer" to "${mainUrl}/"
-            ),
-            referer = "${mainUrl}/",
-        )
         val objectMapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        val searchResult: SearchResult = objectMapper.readValue(searchReq.toString())
-        val decodedSearch = base64Decode(searchResult.response.toString())
-        val bytes = decodedSearch.toByteArray(Charsets.ISO_8859_1)
-        val converted = String(bytes, Charsets.UTF_8)
-        val contentJson: SearchData = objectMapper.readValue(converted)
-        if (contentJson.state != true) {
-            throw ErrorLoadingException("Invalid Json response")
+        val searchHeaders = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
+            "Accept" to "application/json, text/plain, */*",
+            "Accept-Language" to "en-US,en;q=0.5",
+            "X-Requested-With" to "XMLHttpRequest",
+            "Sec-Fetch-Site" to "same-origin",
+            "Sec-Fetch-Mode" to "cors",
+            "Sec-Fetch-Dest" to "empty",
+            "Referer" to "${mainUrl}/"
+        )
+        // Site JS'i /api/bg/searchContent (buyuk C) kullaniyor; uyumluluk icin iki varyant denenir
+        var contentJson: SearchData? = null
+        for (endpoint in listOf("/api/bg/searchContent", "/api/bg/searchcontent")) {
+            try {
+                val searchReq = app.post(
+                    "${mainUrl}$endpoint?searchterm=$query",
+                    headers = searchHeaders,
+                    referer = "${mainUrl}/",
+                )
+                val searchResult: SearchResult = objectMapper.readValue(searchReq.toString())
+                val decodedSearch = base64Decode(searchResult.response.toString())
+                val bytes = decodedSearch.toByteArray(Charsets.ISO_8859_1)
+                val converted = String(bytes, Charsets.UTF_8)
+                val parsed: SearchData = objectMapper.readValue(converted)
+                if (parsed.state == true) {
+                    contentJson = parsed
+                    break
+                }
+                Log.d("SFX", "$endpoint yanit state != true")
+            } catch (e: Exception) {
+                Log.d("SFX", "$endpoint hata: ${e.message}")
+            }
         }
+        val data = contentJson ?: throw ErrorLoadingException("Invalid Json response")
         val veriler = mutableListOf<SearchResponse>()
-        contentJson.result?.forEach {
+        data.result?.forEach {
             val name = it.title.toString()
             val link = fixUrl(it.slug.toString())
             val posterLink =
