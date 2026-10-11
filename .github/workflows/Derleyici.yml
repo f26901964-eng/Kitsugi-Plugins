@@ -111,8 +111,10 @@ jobs:
             -H "Referer: https://selcukflix.com/" \
             "https://selcukflix.com/api/bg/searchcontent?searchterm=squid" | head -c 2500
           echo
+          echo "==================== ROKETDIZI dogrudan .life (WFW=bot blok) ===================="
+          curl -s -o /tmp/roket_direct.html -w "SONUC: %{http_code} %{url_effective} BOYUT: %{size_download}\n" -L --max-time 25 -A "$UA" "https://roketdizi.life/dizi/tur/aksiyon"
           echo "==================== ROKETDIZI translate-proxy HAM HTML ===================="
-          RP="https://www-roketdizi-live.translate.goog/dizi/tur/aksiyon?_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
+          RP="https://roketdizi-life.translate.goog/dizi/tur/aksiyon?_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
           curl -s -L --max-time 45 -A "$UA" -H "Accept-Language: tr,en;q=0.9" "$RP" -o /tmp/roket.html
           echo "SONUC BOYUT: $(wc -c < /tmp/roket.html)"
           echo "--- TITLE ---"; grep -oiE "<title[^>]{0,40}>[^<]{0,120}" /tmp/roket.html | head -3
@@ -137,7 +139,7 @@ jobs:
           FIRST=$(grep -oE 'href="/dizi/[^"]{0,60}"' /tmp/roket.html | head -1 | sed 's/href="//; s/"$//')
           echo "DETAY URL: $FIRST"
           if [ -n "$FIRST" ]; then
-            RD="https://www-roketdizi-live.translate.goog${FIRST}?_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
+            RD="https://roketdizi-life.translate.goog${FIRST}?_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
             curl -s -L --max-time 45 -A "$UA" "$RD" -o /tmp/roket2.html
             echo "BOYUT: $(wc -c < /tmp/roket2.html)"
             echo "--- DETAY CLASS'LARI ---"
