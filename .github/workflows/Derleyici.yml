@@ -408,9 +408,25 @@ jobs:
               if fn in var: continue
               dest_dir = os.path.join(bdir, "prebuilt"); os.makedirs(dest_dir, exist_ok=True)
               dest = os.path.join(dest_dir, fn)
-              r = subprocess.run(["curl", "-s", "-L", "--max-time", "60", "-o", dest, "-w", "%{http_code}", url],
-                                 capture_output=True, text=True)
-              code = (r.stdout or "").strip()
+              # Aday URL listesi: orijinal (bosluk kodlanmis) + ayna depolar + bilinen ad varyantlari
+              MIRROR = "https://raw.githubusercontent.com/Sertel392/Makotogecici/main/"
+              ALIAS = {"CizgiveDizi.cs3": "CizgiVeDizi.cs3", "Kanal 7.cs3": "Kanal7.cs3"}
+              cands = []
+              if " " in url: cands.append(url.replace(" ", "%20"))
+              cands.append(url)
+              names = [fn, fn.replace(" ", "")] + ([ALIAS[fn]] if fn in ALIAS else [])
+              for nm in names:
+                  cands.append(MIRROR + nm.replace(" ", "%20"))
+              code = "000"
+              for cand in cands:
+                  r = subprocess.run(["curl", "-s", "-L", "--max-time", "60", "-o", dest, "-w", "%{http_code}", cand],
+                                     capture_output=True, text=True)
+                  code = (r.stdout or "").strip()
+                  if code.startswith("2") and os.path.exists(dest) and os.path.getsize(dest) > 1000:
+                      print(f"  + {fn} <- {cand}"); break
+                  if os.path.exists(dest):
+                      try: os.remove(dest)
+                      except OSError: pass
               if code.startswith("2") and os.path.exists(dest) and os.path.getsize(dest) > 1000:
                   h = hashlib.sha256(open(dest, "rb").read()).hexdigest()
                   p["url"] = base + "/prebuilt/" + fn
