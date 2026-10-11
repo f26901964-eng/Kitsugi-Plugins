@@ -54,14 +54,19 @@ subprojects {
             targetSdk = 35
         }
 
+        // DIKKAT: Hedef 1.8 idi; ancak `com.lagradost:cloudstream3:pre-release` stub'lari
+        // artik JVM 11 ile derlendigi icin "Cannot inline bytecode built with JVM target 11
+        // into bytecode that is being built with JVM target 1.8" hatasiyla TUM depo derlemesi
+        // cokuyordu (or. DailymotionProvider, NeonSpor, InternetArchiveProvider).
+        // Bu yuzden Java + Kotlin hedefi 11'e cekildi (Kekik/nik master ile uyumlu).
         compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
 
         tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile> {
             compilerOptions {
-                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
                 freeCompilerArgs.addAll(
                     listOf(
                         "-Xno-call-assertions",

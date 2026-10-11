@@ -87,6 +87,12 @@ jobs:
 
           probe "https://www.roketdizi.live/dizi/tur/aksiyon?&page=1" "ROKET-ana-sayfa"
           probe "https://roketdizi.live" "ROKET-kok"
+          probe "https://ww38.roketdizi.live/" "ROKET-ww38-park"
+          probe "https://roketdizi.org" "ROKET-org"
+          probe "https://roketdizi.com" "ROKET-com"
+          probe "https://roketdizi.net" "ROKET-net"
+          probe "https://roketdizi.co" "ROKET-co"
+          probe "https://roketdizi.xyz" "ROKET-xyz"
           probe "https://www.hdfilmcehennemi2.biz/" "HDFC2-biz"
           probe "https://www.hdfilmcehennemi2.site/" "HDFC2-site"
           probe "https://www.hdfilmcehennemi2.nl/" "HDFC2-nl"
