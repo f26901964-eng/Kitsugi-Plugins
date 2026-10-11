@@ -388,6 +388,54 @@ jobs:
           python3 merge_plugins.py
           cp build/plugins.json $GITHUB_WORKSPACE/builds
 
+      - name: "GECICI: Eklenti Site Saglik Taramasi"
+        if: always() && github.ref != 'refs/heads/main'
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          if [ ! -f .github/gecici_denetim.tsv ]; then echo "Denetim listesi yok."; exit 0; fi
+          echo "" >> /tmp/teshis.txt
+          echo "################ EKLENTI SITE SAGLIK TARAMASI ################" >> /tmp/teshis.txt
+          python3 - >> /tmp/teshis.txt <<'PYEOF9'
+          import concurrent.futures as cf, subprocess, re, collections
+          UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          rows = [l.split("\t") for l in open(".github/gecici_denetim.tsv", encoding="utf-8") if l.strip()]
+          def probe(row):
+              name, url = row[0], (row[1].strip() if len(row) > 1 else "")
+              if not url: return (name, "", "?", "url yok")
+              try:
+                  r = subprocess.run(["curl", "-s", "-o", "/dev/null", "-L", "--max-time", "20",
+                                      "-A", UA, "-w", "%{http_code}|%{url_effective}", url],
+                                     capture_output=True, text=True, timeout=40).stdout.strip()
+                  code, _, eff = r.partition("|")
+              except Exception:
+                  code, eff = "000", ""
+              return (name, url, code, eff)
+          with cf.ThreadPoolExecutor(max_workers=24) as ex:
+              res = list(ex.map(probe, rows))
+          def kind(code):
+              if code == "000": return "ERISILEMEDI"
+              if code.startswith("2"): return "OK"
+              if code.startswith("3"): return "YONLENDIRME"
+              if code in ("401","403","405","429","503"): return "ENGELLI(olabilir canli)"
+              return "HATA " + code
+          groups = collections.defaultdict(list)
+          for n, u, c, e in res: groups[kind(c)].append((n, u, c, e))
+          print("TOPLAM:", len(res))
+          for k in sorted(groups, key=lambda x: -len(groups[x])):
+              print(f"  {k}: {len(groups[k])}")
+          print()
+          for k in ("ERISILEMEDI", "HATA 404", "ENGELLI(olabilir canli)", "YONLENDIRME"):
+              if k not in groups: continue
+              print(f"--- {k} ({len(groups[k])}) ---")
+              for n, u, c, e in sorted(groups[k]):
+                  tail = "" if e == u else f"  -> {e[:80]}"
+                  print(f"  {n:24} {c:4} {u[:60]}{tail}")
+              print()
+          print("--- OK OLANLAR (ilk 40) ---")
+          oks = sorted(groups.get("OK", []))
+          print("  " + ", ".join(n for n, *_ in oks[:40]))
+          print(f"  ... toplam {len(oks)} OK")
+          PYEOF9
       - name: "GECICI: Teshis Ciktisini Yayinla"
         if: always() && github.ref != 'refs/heads/main'
         run: |
