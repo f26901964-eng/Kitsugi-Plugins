@@ -143,43 +143,78 @@ class RoketDizi : MainAPI() {
 
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
-        val objectMapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        val searchHeaders = mapOf(
+    private val searchHeaders: Map<String, String>
+        get() = mapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
             "Accept" to "application/json, text/plain, */*",
             "Accept-Language" to "en-US,en;q=0.5",
             "X-Requested-With" to "XMLHttpRequest",
+            "Origin" to mainUrl,
             "Sec-Fetch-Site" to "same-origin",
             "Sec-Fetch-Mode" to "cors",
             "Sec-Fetch-Dest" to "empty",
-            "Referer" to "${mainUrl}/"
+            "Referer" to "${mainUrl}/",
         )
-        // Site JS'i /api/bg/searchContent (buyuk C) kullaniyor; uyumluluk icin iki varyant denenir
-        var contentJson: SearchData? = null
-        for (endpoint in listOf("/api/bg/searchContent", "/api/bg/searchcontent")) {
-            try {
-                val searchReq = app.post(
+
+    // Tek bir arama denemesi: JSON gelmezse veya hata olursa null doner (eklenti cokmesin)
+    private suspend fun trySearch(
+        objectMapper: ObjectMapper,
+        endpoint: String,
+        query: String,
+        asBody: Boolean,
+    ): SearchData? {
+        return try {
+            val response = if (asBody) {
+                app.post(
+                    "${mainUrl}$endpoint",
+                    data = mapOf("searchterm" to query),
+                    headers = searchHeaders,
+                    referer = "${mainUrl}/",
+                )
+            } else {
+                app.post(
                     "${mainUrl}$endpoint?searchterm=$query",
                     headers = searchHeaders,
                     referer = "${mainUrl}/",
                 )
-                val searchResult: SearchResult = objectMapper.readValue(searchReq.toString())
-                val decodedSearch = base64Decode(searchResult.response.toString())
-                val bytes = decodedSearch.toByteArray(Charsets.ISO_8859_1)
-                val converted = String(bytes, Charsets.UTF_8)
-                val parsed: SearchData = objectMapper.readValue(converted)
-                if (parsed.state == true) {
-                    contentJson = parsed
-                    break
-                }
-                Log.d("SFX", "$endpoint yanit state != true")
-            } catch (e: Exception) {
-                Log.d("SFX", "$endpoint hata: ${e.message}")
+            }
+            val text = response.text.trim()
+            if (!text.startsWith("{")) {
+                Log.d("SFX", "$endpoint (govde=$asBody) JSON degil: ${text.take(120)}")
+                return null
+            }
+            val searchResult: SearchResult = objectMapper.readValue(text)
+            val decodedSearch = base64Decode(searchResult.response.toString())
+            val bytes = decodedSearch.toByteArray(Charsets.ISO_8859_1)
+            val converted = String(bytes, Charsets.UTF_8)
+            val parsed: SearchData = objectMapper.readValue(converted)
+            if (parsed.state == true) parsed else null
+        } catch (e: Exception) {
+            Log.d("SFX", "$endpoint (govde=$asBody) hata: ${e.message}")
+            null
+        }
+    }
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        val objectMapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+        // Cerez/Cloudflare icin ana sayfayi bir kez ziyaret et (basarisiz olsa da devam)
+        try {
+            app.get("${mainUrl}/", referer = "${mainUrl}/")
+        } catch (e: Exception) {
+            Log.d("SFX", "on ziyaret hata: ${e.message}")
+        }
+        // Sitenin JS'i /api/bg/searchContent (buyuk C) kullaniyor; eski/diger varyantlar da denenir
+        var contentJson: SearchData? = null
+        for (endpoint in listOf("/api/bg/searchContent", "/api/bg/searchcontent", "/bg/searchcontent")) {
+            contentJson = trySearch(objectMapper, endpoint, query, asBody = false)
+                ?: trySearch(objectMapper, endpoint, query, asBody = true)
+            if (contentJson != null) {
+                Log.d("SFX", "Arama basarili: $endpoint")
+                break
             }
         }
-        val data = contentJson ?: throw ErrorLoadingException("Invalid Json response")
+        val data = contentJson ?: throw ErrorLoadingException("Arama yaniti alinamadi")
         val veriler = mutableListOf<SearchResponse>()
         data.result?.forEach {
             val name = it.title.toString()

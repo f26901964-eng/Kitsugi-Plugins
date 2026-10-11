@@ -274,6 +274,36 @@ jobs:
           print("  --- SAYFALAMA IZLERI ---")
           for _k, _v in _pages.items(): print(f"   [{_k}] {_v[:460]}")
           PYEOF3
+          echo "==================== ROKETDIZI ARAMA ISTEGI DETAYI (JS) ===================="
+          python3 - <<'PYEOF5'
+          import re, subprocess
+          T = "https://roketdizi-life.translate.goog"; Q = "_x_tr_sl=tr&_x_tr_tl=en&_x_tr_hl=en"
+          t = open("/tmp/r_dizi.html", encoding="utf-8", errors="replace").read()
+          chunks = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', t)
+          keys = ["searchAjaxCallback", "URLSearchParams", "withCredentials", "baseURL",
+                  "XMLHttpRequest", "searchContent"]
+          found = {}
+          hosts = {}
+          for c in chunks:
+              js = subprocess.run(["curl","-s","-L","--max-time","30","-A",
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                  f"{T}{c}?{Q}"], capture_output=True, text=True).stdout
+              if len(js) < 200: continue
+              for h in re.findall(r'https://[A-Za-z0-9.-]+\.(?:com|life|net|io|online|me|xyz|to)/[A-Za-z0-9_/-]{0,30}', js):
+                  if h not in hosts: hosts[h] = 0
+                  hosts[h] += 1
+              for k in keys:
+                  if k in found: continue
+                  m = re.search(re.escape(k), js)
+                  if m:
+                      found[k] = f"[{c}] " + re.sub(r"\s+", " ", js[max(0,m.start()-700):m.start()+900])
+          for k in keys:
+              print(f"  --- {k} ---")
+              print("   " + found.get(k, "BULUNAMADI")[:1500])
+          print("  --- SITEDE GECEN HOSTLAR ---")
+          for h, n in sorted(hosts.items(), key=lambda x: -x[1])[:12]: print(f"   {h}  x{n}")
+          print()
+          PYEOF5
           echo "==================== DIZIPAL API (POST)"
           curl -s -i --max-time 25 -A "$UA" -X POST \
             -H "Accept: application/json, text/javascript, */*; q=0.01" \
@@ -372,7 +402,7 @@ jobs:
           git push -f origin teshis-cikti
 
       - name: Derlemeleri Yukle
-        if: github.ref == 'refs/heads/main' && github.event.inputs.teshis != '1'
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/arena/d4c5fe64-kitsugi-plugins') && github.event.inputs.teshis != '1'
         run: |
           cd $GITHUB_WORKSPACE/builds
           git config --local user.email "actions@github.com"
