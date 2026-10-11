@@ -274,7 +274,7 @@
     },
     {
         "url": "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/InatBox.cs3",
-        "status": 2,
+        "status": 1,
         "version": 57,
         "name": "InatBox",
         "internalName": "InatBox",
@@ -813,44 +813,51 @@
     {
         "name": "Cricify",
         "internalName": "Cricify",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Cricify.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Cricify.cs3",
+        "status": 1
     },
     {
         "name": "Exxen",
         "internalName": "Exxen",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Exxen.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Exxen.cs3",
+        "status": 1
     },
     {
         "name": "Gain",
         "internalName": "Gain",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Gain.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Gain.cs3",
+        "status": 1
     },
     {
         "name": "GolgeTV",
         "internalName": "GolgeTV",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/GolgeTV.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/GolgeTV.cs3",
+        "status": 1
     },
     {
         "name": "Kanal7",
         "internalName": "Kanal7",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Kanal7.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Kanal7.cs3",
+        "status": 1
     },
     {
         "name": "SSportPlus",
         "internalName": "SSportPlus",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/SSportPlus.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/SSportPlus.cs3",
+        "status": 1
     },
     {
         "name": "Tabii",
         "internalName": "Tabii",
-        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Tabii.cs3"
+        "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Tabii.cs3",
+        "status": 1
     },
     {
         "iconUrl": "https://www.google.com/s2/favicons?domain=anizm.net&sz=%size%",
         "apiVersion": 1,
         "repositoryUrl": "https://github.com/hexated/cloudstream-extensions-hexated",
         "fileSize": 16554,
-        "status": 0,
+        "status": 1,
         "language": "tr",
         "authors": [
             "Hexated"
@@ -1179,7 +1186,7 @@
     },
     {
         "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Animely.cs3",
-        "status": 0,
+        "status": 1,
         "version": 4,
         "name": "Animely",
         "internalName": "Animely",
@@ -1896,7 +1903,7 @@
     },
     {
         "url": "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/WebteIzle.cs3",
-        "status": 0,
+        "status": 1,
         "version": 53,
         "name": "WebteIzle",
         "internalName": "WebteIzle",

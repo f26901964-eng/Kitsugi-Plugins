@@ -327,7 +327,7 @@ jobs:
             CHANGED="$MANUAL"
             echo "Manuel derleme listesi: $CHANGED"
           elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            CHANGED="DiziPal SelcukFlix HDFilmCehennemi2 RoketDizi XPrime NeonSpor"
+            CHANGED="DiziPal SelcukFlix HDFilmCehennemi2 RoketDizi XPrime NeonSpor __New AnimeAV"
             echo "GECICI teshis listesi: $CHANGED"
           else
             CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
@@ -388,6 +388,44 @@ jobs:
           python3 merge_plugins.py
           cp build/plugins.json $GITHUB_WORKSPACE/builds
 
+      - name: "GECICI: Eksik cs3 Dosyalarini Onar"
+        if: always() && github.ref != 'refs/heads/main'
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          python3 - <<'PYEOF8'
+          import json, os, subprocess, hashlib, glob
+          ws = os.environ.get("GITHUB_WORKSPACE", ".")
+          bdir = os.path.join(ws, "builds")
+          var = {os.path.basename(f) for f in glob.glob(os.path.join(bdir, "**", "*.cs3"), recursive=True)}
+          pre_path = "prebuilt_plugins.json"
+          pre = json.load(open(pre_path, encoding="utf-8"))
+          base = "https://raw.githubusercontent.com/" + os.environ.get("GITHUB_REPOSITORY", "f26901964-eng/Kitsugi-Plugins") + "/builds"
+          onarildi, basarisiz = [], []
+          for p in pre:
+              url = p.get("url") or ""
+              if not url: continue
+              fn = url.split("?")[0].rsplit("/", 1)[-1]
+              if fn in var: continue
+              dest_dir = os.path.join(bdir, "prebuilt"); os.makedirs(dest_dir, exist_ok=True)
+              dest = os.path.join(dest_dir, fn)
+              r = subprocess.run(["curl", "-s", "-L", "--max-time", "60", "-o", dest, "-w", "%{http_code}", url],
+                                 capture_output=True, text=True)
+              code = (r.stdout or "").strip()
+              if code.startswith("2") and os.path.exists(dest) and os.path.getsize(dest) > 1000:
+                  h = hashlib.sha256(open(dest, "rb").read()).hexdigest()
+                  p["url"] = base + "/prebuilt/" + fn
+                  p["fileHash"] = "sha256-" + h
+                  p["fileSize"] = os.path.getsize(dest)
+                  var.add(fn)
+                  onarildi.append(fn)
+              else:
+                  basarisiz.append(f"{fn} ({code})")
+                  if os.path.exists(dest): os.remove(dest)
+          if onarildi:
+              json.dump(pre, open(pre_path, "w", encoding="utf-8"), indent=4, ensure_ascii=False)
+          print(f"ONARILDI ({len(onarildi)}): " + ", ".join(onarildi))
+          print(f"ALINAMADI ({len(basarisiz)}): " + ", ".join(basarisiz))
+          PYEOF8
       - name: "GECICI: Eklenti Site Saglik Taramasi"
         if: always() && github.ref != 'refs/heads/main'
         run: |

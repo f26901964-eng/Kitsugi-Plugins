@@ -166,6 +166,19 @@ def main():
             plugin["url"] = new_url
             repaired.append(name)
 
+    # ── status normalizasyonu ────────────────────────────────────────────────
+    # Uygulama (Kitsugi/CloudStream) status != 1 olan eklentileri listede GIZLER:
+    #   0 = "kapali/down", 3 = "beta only".
+    # 2026-10 olayi: prebuilt_plugins.json'daki eski status degerleri manifeset
+    # tasininca 176 eklentiden yalnizca ~115'i gorunur kaldi (kullanici sikayeti).
+    # Dagitilan her eklenti gorunur olmali -> hepsini 1 yap.
+    gizlenen = 0
+    for plugin in combined.values():
+        if plugin.get("status") != 1:
+            plugin["status"] = 1
+            gizlenen += 1
+    print(f"  ~ status=1 yapilan kayit: {gizlenen}")
+
     # ── Cikti ────────────────────────────────────────────────────────────────
     try:
         os.makedirs(os.path.dirname(compiled_json_path) or ".", exist_ok=True)
