@@ -1,4 +1,4 @@
-version = 16
+version = 17
 
 cloudstream {
     authors     = listOf("nikyokki")
@@ -13,7 +13,7 @@ cloudstream {
      * 3: Beta only
      **/
     status  = 1 // will be 3 if unspecified
-    tvTypes = listOf("TvSeries")
+    tvTypes = listOf("TvSeries", "Movie")
     iconUrl = "https://www.google.com/s2/favicons?domain=roketdizi.life&sz=%size%"
 }
 

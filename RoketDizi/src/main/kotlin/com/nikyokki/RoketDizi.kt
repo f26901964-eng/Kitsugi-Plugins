@@ -82,14 +82,21 @@ class RoketDizi : MainAPI() {
             val home = document.select("span.bg-\\[\\#232323\\]").mapNotNull { it.diziler() }
             return newHomePageResponse(request.name, home)
         }
-        val home = document.select("a.w-full").mapNotNull { it.filmler() }
+        val home = document.select("a.ambilight").mapNotNull { it.filmler() }
+            .distinctBy { it.url }
         return newHomePageResponse(request.name, home)
     }
 
     private fun Element.filmler(): SearchResponse? {
-        val title = this.selectFirst("h2")?.text() ?: return null
+        val title = (this.selectFirst("h2")?.text()?.trim()?.takeIf { it.isNotEmpty() }
+            ?: this.attr("title").removeSuffix(" izle").trim().takeIf { it.isNotEmpty() })
+            ?: return null
         val href = fixUrlNull(this.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
+        val img = this.selectFirst("img")
+        val posterUrl = fixUrlNull(
+            img?.attr("src")?.takeIf { it.isNotEmpty() }
+                ?: img?.attr("data-src")?.takeIf { it.isNotEmpty() }
+        )
         val score = this.selectFirst("h4")?.text()?.trim()
 
         return newMovieSearchResponse(title, href, TvType.Movie) {

@@ -218,6 +218,36 @@ jobs:
           head -c 220 /tmp/r_api3.txt; echo
           echo
 
+          echo "==================== ROKETDIZI ARAMA API YOLU (JS chunk) ===================="
+          python3 - <<'PYEOF2'
+          import re, subprocess, sys
+          txt = open("/tmp/r_dizi.html", encoding="utf-8", errors="replace").read()
+          chunks = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', txt)
+          print(f"  chunk sayisi: {len(chunks)}")
+          hits = 0
+          for c in chunks:
+              url = "https://roketdizi.life" + c
+              try:
+                  js = subprocess.run(["curl", "-s", "-L", "--max-time", "25",
+                                       "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                                       url], capture_output=True, text=True).stdout
+              except Exception as e:
+                  print(f"  {c} HATA {e}"); continue
+              for kw in ["searchcontent", "searchterm"]:
+                  for m in list(re.finditer(kw, js, re.I))[:2]:
+                      hits += 1
+                      print(f"  [{c}] {kw} >>> " + re.sub(r"\s+", " ", js[max(0,m.start()-240):m.start()+240]))
+              if hits >= 8: break
+          if hits == 0: print("  chunk'larda searchcontent/searchterm BULUNAMADI")
+          print()
+          print("--- PAGINATION (sayfa/2) LINKLERI ---")
+          for name, path in [("DIZI", "/tmp/r_dizi.html"), ("FILM", "/tmp/r_film.html")]:
+              t = open(path, encoding="utf-8", errors="replace").read()
+              links = sorted(set(re.findall(r'href="[^"]{0,160}(?:page=|sayfa)[^"]{0,80}"', t)))
+              print(f"  [{name}] {len(links)} link")
+              for l in links[:8]: print("    " + l[:150])
+          print()
+          PYEOF2
           echo "==================== DIZIPAL API (POST)"
           curl -s -i --max-time 25 -A "$UA" -X POST \
             -H "Accept: application/json, text/javascript, */*; q=0.01" \
