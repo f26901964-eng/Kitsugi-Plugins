@@ -22,6 +22,7 @@ on:
   push:
     branches:
       - main
+      - arena/d4c5fe64-kitsugi-plugins   # GECICI: is bitince kaldirilacak
     paths-ignore:
       - "**/*.md"
       - "**/*.jpg"
@@ -57,6 +58,8 @@ jobs:
         if: github.event.inputs.teshis != '0'
         run: |
           set +e
+          : > /tmp/teshis.txt
+          exec > >(tee -a /tmp/teshis.txt) 2>&1
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
 
           probe () {
@@ -144,7 +147,20 @@ jobs:
           chmod +x gradlew
 
           # Sadece degisen pluginleri derle
-          ./gradlew $PLUGINS_TO_BUILD makePluginsJson
+          set +e
+          ./gradlew $PLUGINS_TO_BUILD makePluginsJson --stacktrace > /tmp/build.txt 2>&1
+          RC=$?
+          tail -60 /tmp/build.txt
+          {
+            echo ""
+            echo "################ GRADLE CIKTI (RC=$RC) ################"
+            echo "--- HATA SATIRLARI ---"
+            grep -nE "^e: |error:|FAILURE:|Execution failed|Could not|> Task .*FAILED|Caused by" /tmp/build.txt | head -100
+            echo "--- SON 150 SATIR ---"
+            tail -150 /tmp/build.txt
+          } >> /tmp/teshis.txt
+          [ "$RC" != "0" ] && exit $RC
+          set -e
 
           # Derlenen cs3 dosyalarini builds branch'ine kopyala
           for dir in $CHANGED; do
@@ -167,6 +183,19 @@ jobs:
           # Manifest guncelle
           python3 merge_plugins.py
           cp build/plugins.json $GITHUB_WORKSPACE/builds
+
+      - name: "GECICI: Teshis Ciktisini Yayinla"
+        if: always() && github.ref != 'refs/heads/main'
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          if [ ! -s /tmp/teshis.txt ]; then echo "Teshis ciktisi yok, atlaniyor."; exit 0; fi
+          cp /tmp/teshis.txt ./teshis-cikti.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B teshis-cikti
+          git add -f teshis-cikti.txt
+          git commit -m "teshis cikti $(date -u +%FT%TZ)" || true
+          git push -f origin teshis-cikti
 
       - name: Derlemeleri Yukle
         if: github.ref == 'refs/heads/main' && github.event.inputs.teshis != '1'
