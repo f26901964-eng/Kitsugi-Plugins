@@ -117,6 +117,9 @@ def main():
 
     # ── Dogrulama: URL'leri gercek dosya konumuna gore duzelt ────────────────
     file_index = index_cs3_files(builds_root)
+    norm_index = {}
+    for fn, dirpath in file_index.items():
+        norm_index.setdefault(_norm_name(fn), (fn, dirpath))
     print(f"  builds dizininde bulunan .cs3 dosyasi: {len(file_index)}")
 
     # Kaldirilan eklentilerin .cs3 dosyalarini builds dalindan temizle
@@ -145,6 +148,16 @@ def main():
             continue
 
         actual_dir = file_index.get(fname)
+        actual_name = fname
+        if actual_dir is None:
+            # Once normalize edilmis ad ile dene (buyuk/kucuk harf, bosluk farki vb.)
+            hit = norm_index.get(_norm_name(fname))
+            if hit:
+                actual_name, actual_dir = hit
+                print(f"  ~ {name}: '{fname}' -> '{actual_name}' (normalize eslesme)")
+                plugin["url"] = f"{base}/{_rel_path(builds_root, actual_dir, actual_name)}"
+                repaired.append(name)
+                continue
         if actual_dir is None:
             # Dosya adi farkli olabilir: ayni eklenti icin alternatif yazimlari dene.
             alt = _alternative_names(fname)
@@ -210,6 +223,24 @@ def _rel_path(builds_root, dirpath, filename):
     if rel_dir in (".", ""):
         return filename
     return rel_dir.replace(os.sep, "/") + "/" + filename
+
+
+def _norm_name(fname):
+    """Dosya adini karsilastirmaya uygun hale getirir: kucuk harf + bosluk/tire/alt cizgi yok.
+
+    Gercek olaylar (2026-10): manifestteki ad ile builds dalindaki dosya adi
+    farkli yazimdaydi ve eklentiler "dosyasi yok" gorunuyordu:
+      SineWix.cs3   -> prebuilt/Sinewix.cs3
+      HDFilmizle.cs3-> prebuilt/HDFilmIzle.cs3
+      Kanal 7.cs3   -> prebuilt/Kanal7.cs3
+      CizgiveDizi.cs3 -> prebuilt/CizgiVeDizi.cs3
+      CanliTV.cs3   -> prebuilt/CanliTv.cs3
+    """
+    stem = fname[:-4] if fname.lower().endswith(".cs3") else fname
+    stem = stem.lower()
+    for ch in (" ", "_", "-", "'", "’"):
+        stem = stem.replace(ch, "")
+    return stem
 
 
 def _alternative_names(fname):
