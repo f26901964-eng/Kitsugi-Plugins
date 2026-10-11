@@ -1,6 +1,8 @@
+import hashlib
 import json
 import os
 import sys
+import zipfile
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Eklenti manifestini birlestirir ve URL'leri GERCEK DOSYALARA gore dogrular.
@@ -159,28 +161,35 @@ def main():
                 print(f"  ~ {name}: '{fname}' -> '{actual_name}' (normalize eslesme)")
                 plugin["url"] = f"{base}/{_rel_path(builds_root, actual_dir, actual_name)}"
                 repaired.append(name)
-                continue
         if actual_dir is None:
             # Dosya adi farkli olabilir: ayni eklenti icin alternatif yazimlari dene.
             alt = _alternative_names(fname)
             for candidate in alt:
                 if candidate in file_index:
                     actual_dir = file_index[candidate]
+                    actual_name = candidate
                     print(f"  ~ {name}: '{fname}' bulunamadi, '{candidate}' kullaniliyor")
                     plugin["url"] = f"{base}/{_rel_path(builds_root, actual_dir, candidate)}"
                     repaired.append(name)
                     break
-            if actual_dir is None:
-                reason = "dosya hicbir yerde yok" + ("" if is_ours else " [harici kaynak]")
-                still_missing.append((name, url, reason))
+        if actual_dir is None:
+            reason = "dosya hicbir yerde yok" + ("" if is_ours else " [harici kaynak]")
+            still_missing.append((name, url, reason))
             continue
 
-        expected_rel = _rel_path(builds_root, actual_dir, fname)
+        expected_rel = _rel_path(builds_root, actual_dir, actual_name)
         if not url.split("?")[0].endswith("/" + expected_rel):
             new_url = f"{base}/{expected_rel}"
             print(f"  ~ {name}: URL duzeltildi -> {new_url}")
             plugin["url"] = new_url
-            repaired.append(name)
+            if name not in repaired:
+                repaired.append(name)
+
+        # Surum/hash/boyut dosyadan okunur — manifest ile gercek dosya asla ayrisamaz.
+        try:
+            sync_record_with_file(plugin, os.path.join(actual_dir, actual_name))
+        except Exception as exc:
+            print(f"  ! {name}: dosya senkronizasyonu yapilamadi: {exc}")
 
     # ── status normalizasyonu ────────────────────────────────────────────────
     # Uygulama (Kitsugi/CloudStream) status != 1 olan eklentileri listede GIZLER:
@@ -226,6 +235,45 @@ def _rel_path(builds_root, dirpath, filename):
     if rel_dir in (".", ""):
         return filename
     return rel_dir.replace(os.sep, "/") + "/" + filename
+
+
+def read_cs3_manifest(path):
+    """Bir .cs3 dosyasinin icindeki manifest.json'u okur (yoksa None)."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            for cand in ("manifest.json", "META-INF/manifest.json"):
+                if cand in z.namelist():
+                    return json.loads(z.read(cand).decode("utf-8", "ignore"))
+    except Exception as exc:
+        print(f"  ! {os.path.basename(path)} manifest okunamadi: {exc}")
+    return None
+
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sync_record_with_file(plugin, abs_path):
+    """Manifest kaydini GERCEK dosyayla esitler.
+
+    2026-10-12 duzeltmesi: kayitlar prebuilt_plugins.json'daki upstream metadata'dan
+    geliyordu; dosya ise daha eski bir derleme olabiliyordu (or. DiziPal: kayit v113,
+    dosya v102). Uygulama v2.4.254+ SHA-256 parmak izine gore guncelleme karari verdigi
+    icin hem surum hem hash dosyadan okunmalidir.
+    """
+    man = read_cs3_manifest(abs_path)
+    if man:
+        ver = man.get("version")
+        if isinstance(ver, int):
+            plugin["version"] = ver
+        if man.get("name"):
+            plugin["name"] = man["name"]
+    plugin["fileHash"] = "sha256-" + file_sha256(abs_path)
+    plugin["fileSize"] = os.path.getsize(abs_path)
 
 
 def _norm_name(fname):

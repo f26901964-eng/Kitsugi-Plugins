@@ -366,23 +366,29 @@ jobs:
           [ "$RC" != "0" ] && exit $RC
           set -e
 
-          # Derlenen cs3 dosyalarini builds branch'ine kopyala
+          # ── SIRA KRITIK (2026-10-12 duzeltmesi) ──────────────────────────────
+          # ONCE repodaki prebuilt kopyalar, SONRA derlenen dosyalar kopyalanir.
+          # Onceki sirada derlenen dosya (or. DiziPal v113) sonra gelen bayat
+          # prebuilt kopyasiyla (v102) UZERINE YAZILIYORDU: kullanici listede v113
+          # goruyor ama eski kodu indiriyordu.
+          #
+          # Prebuilt (hazir) eklentileri kopyala.
+          # DIKKAT: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
+          # bu yuzden kopya da `builds/prebuilt/` altina yapilmalidir.
+          mkdir -p $GITHUB_WORKSPACE/builds/prebuilt
+          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/prebuilt/ 2>/dev/null || true
+          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
+
+          # Derlenen cs3 dosyalarini kopyala — prebuilt kopyalarinin UZERINE yazar.
           for dir in $CHANGED; do
             CS3="$dir/build/$dir.cs3"
             if [ -f "$CS3" ]; then
               cp "$CS3" $GITHUB_WORKSPACE/builds/
-              echo "Kopyalandi: $dir.cs3"
+              # Ayni isimdeki bayat prebuilt kopyasi da guncellensin (tutarlilik).
+              cp "$CS3" $GITHUB_WORKSPACE/builds/prebuilt/
+              echo "Kopyalandi (prebuilt'in uzerine): $dir.cs3"
             fi
           done
-
-          # Prebuilt (hazir) eklentileri kopyala.
-          # DIKKAT: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
-          # bu yuzden kopya da `builds/prebuilt/` altina yapilmalidir. Daha once kok
-          # dizine kopyalandigi icin manifest ile dosya konumu uyusmuyor, indirme 404
-          # aliyordu (or. WFilmİzle.cs3).
-          mkdir -p $GITHUB_WORKSPACE/builds/prebuilt
-          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/prebuilt/ 2>/dev/null || true
-          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
           # Manifest guncelle
           python3 merge_plugins.py
