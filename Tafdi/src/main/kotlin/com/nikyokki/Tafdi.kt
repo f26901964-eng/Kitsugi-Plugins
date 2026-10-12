@@ -8,7 +8,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 
 class Tafdi : MainAPI() {
-    override var mainUrl              = "https://tafdi.info"
+    override var mainUrl              = "https://tafdi.net"
     override var name                 = "Tafdi"
     override val hasMainPage          = true
     override var lang                 = "tr"
