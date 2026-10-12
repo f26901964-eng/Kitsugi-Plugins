@@ -18,7 +18,7 @@ import javax.crypto.spec.SecretKeySpec
 import java.security.MessageDigest
 
 class SetFilmizleProvider : MainAPI() {
-    override var mainUrl = "https://www.setfilmizle.uk"
+    override var mainUrl = "https://www.setfilmizle.com"
     override var name = "SetFilmizle"
     override val hasMainPage = true
     override var lang = "tr"

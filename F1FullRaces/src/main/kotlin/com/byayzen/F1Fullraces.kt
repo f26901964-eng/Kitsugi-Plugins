@@ -12,7 +12,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
 class F1Fullraces : MainAPI() {
-    override var mainUrl = "https://f1fullraces.com"
+    override var mainUrl = "https://f1fullraces.net"
     override var name = "F1Fullraces"
     override val hasMainPage = true
     override var lang = "en"

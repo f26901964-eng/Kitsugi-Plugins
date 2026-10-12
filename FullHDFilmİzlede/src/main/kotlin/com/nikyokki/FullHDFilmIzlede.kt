@@ -27,7 +27,7 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.nodes.Element
 
 class FullHDFilmIzlede : MainAPI() {
-    override var mainUrl = "https://fullhdfilmizlede.org"
+    override var mainUrl = "https://fullhdfilmizlede.net"
     override var name = "FullHDFilmİzlede"
     override val hasMainPage = true
     override var lang = "tr"

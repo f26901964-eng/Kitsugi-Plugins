@@ -14,7 +14,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.jsoup.Jsoup
 
 class Tokybook : MainAPI() {
-    override var mainUrl = "https://tokybook.com"
+    override var mainUrl = "https://tokybook.net"
     override var name = "Tokybook"
     override val hasMainPage = true
     override var lang = "en"

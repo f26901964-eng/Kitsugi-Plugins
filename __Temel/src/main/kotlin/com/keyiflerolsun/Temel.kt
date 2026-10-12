@@ -10,7 +10,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 
 class Temel : MainAPI() {
-    override var mainUrl              = "https://www.setfilmizle.lol"
+    override var mainUrl              = "https://www.setfilmizle.com"
     override var name                 = "Temel"
     override val hasMainPage          = true
     override var lang                 = "tr"

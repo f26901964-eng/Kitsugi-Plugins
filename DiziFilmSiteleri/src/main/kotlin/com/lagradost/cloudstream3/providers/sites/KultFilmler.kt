@@ -10,7 +10,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 
 class KultFilmler : MainAPI() {
-    override var mainUrl              = "https://kultfilmler.net"
+    override var mainUrl              = "https://www.kultfilmler.net"
     override var name                 = "Kült Filmler"
     override val hasMainPage          = true
     override var lang                 = "tr"

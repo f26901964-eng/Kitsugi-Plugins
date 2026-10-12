@@ -25,7 +25,7 @@ class DisneyMirrorProvider : MainAPI() {
     )
     override var lang = "en"
 
-    override var mainUrl = "https://netfree2.cc"
+    override var mainUrl = "https://netmirror.online"
     override var name = "DisneyMirror"
 
     override val hasMainPage = true

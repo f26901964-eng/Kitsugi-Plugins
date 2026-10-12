@@ -13,7 +13,7 @@ import kotlinx.coroutines.coroutineScope
 
 
 class DizipalProvider : MainAPI() {
-    override var mainUrl = "https://dizipal.im"
+    override var mainUrl = "https://dizipal3008.com"
     override var name = "Dizipal"
     override var lang = "tr"
     override val hasMainPage = true
