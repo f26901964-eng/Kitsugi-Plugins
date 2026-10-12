@@ -327,7 +327,7 @@ jobs:
             CHANGED="$MANUAL"
             echo "Manuel derleme listesi: $CHANGED"
           elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            CHANGED="DiziPal DiziPalOriginal SelcukFlix HDFilmCehennemi RoketDizi XPrime NeonSpor __New AnimeAV DiziKorea Dizilla Dramaizle FullHDFilm FullHDFilmizlesene HDFilmIzle JetFilmizle KultFilmler RecTV SetFilmIzle SezonlukDizi SinemaCX TRasyalog WFilmİzle WebteIzle YabanciDizi Tafdi UgurFilm __Temel DiziFilmSiteleri NetflixMirror F1FullRaces FilmIzleIlk FilmKovasi Filmİzlesene FullHDFilmİzlede KoreanTurk SuperFilmGeldi TokyBook HDFilmSitesi DiziGom HDFilmCehennemi2"
+            CHANGED="DiziPal DiziPalOriginal SelcukFlix HDFilmCehennemi RoketDizi XPrime NeonSpor __New AnimeAV DiziKorea Dizilla Dramaizle FullHDFilm FullHDFilmizlesene HDFilmIzle JetFilmizle KultFilmler RecTV SetFilmIzle SezonlukDizi SinemaCX TRasyalog WFilmİzle WebteIzle YabanciDizi Tafdi UgurFilm DiziFilmSiteleri NetflixMirror F1FullRaces FilmIzleIlk FilmKovasi Filmİzlesene FullHDFilmİzlede KoreanTurk SuperFilmGeldi TokyBook HDFilmSitesi DiziGom HDFilmCehennemi2"
             echo "GECICI teshis listesi: $CHANGED"
           else
             CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
