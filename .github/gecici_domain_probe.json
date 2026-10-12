@@ -1,81 +1,58 @@
 {
- "FullHDFilm": [
-  "https://hdfilm.us",
-  "https://fullhdfilm.pro"
- ],
- "RecTV": [
-  "https://m.prectv72.lol",
-  "https://a.psrectv80.xyz",
-  "https://m.prectv50.sbs"
+ "FullHDFilmizlesene": [
+  "https://www.fullhdfilmizlesene.now"
  ],
  "HDFilmCehennemi2": [
-  "https://www.hdfilmcehennemi.nl",
-  "https://www.hdfilmcehennemi2.site",
   "https://www.hdfilmcehennemi2.biz"
  ],
- "YabanciDizi": [
-  "https://yabancidizi.news",
-  "https://yabancidizi.so"
- ],
- "Dramaizle": [
-  "https://dramaflix.net/tr",
-  "https://dramaflix.cc"
- ],
- "SetFilmIzle": [
-  "https://www.setfilmizle.uk",
-  "https://www.setfilmizle.my"
- ],
- "DiziPal": [
-  "https://dizipal3008.com",
-  "https://dizipal1588.com"
- ],
- "Sinezy": [
-  "https://sinezy.to"
- ],
- "Diziyo": [
-  "https://www.diziyo.so"
+ "WFilmIzle": [
+  "https://wfilmizle.net"
  ],
  "WebteIzle": [
-  "https://webteizle3.xyz",
   "https://webteizle.info"
  ],
- "SezonlukDizi": [
-  "https://sezonlukdizi.cc",
-  "https://sezonlukdizi8.com"
- ],
- "Dizilla": [
-  "https://dizilla.now",
-  "https://dizillahd.com"
- ],
- "FullHDFilmizlesene": [
-  "https://www.fullhdfilmizlesene.mx",
-  "https://www.fullhdfilmizlesene.so"
+ "SetFilmIzle": [
+  "https://www.setfilmizle.my",
+  "https://setfilmizle.lol",
+  "https://setfilmizle.pro",
+  "https://setfilmizle.com"
  ],
  "JetFilmizle": [
   "https://jetfilmizle.now",
-  "https://jetfilmizle.website"
- ],
- "KultFilmler": [
-  "https://kultfilmler.net",
-  "https://kultfilmler.pro"
- ],
- "HDFilmIzle": [
-  "https://www.hdfilmizle.live",
-  "https://www.hdfilmizle.to"
- ],
- "TRasyalog": [
-  "https://asyalog.co",
-  "https://asyalog.com"
+  "https://jetfilmizle.net"
  ],
  "SinemaCX": [
-  "https://sinemacc.com",
-  "https://www.sinema.cv"
+  "https://sinemacc.com"
+ ],
+ "DiziPal": [
+  "https://dizipal3008.com"
+ ],
+ "Dizilla": [
+  "https://dizilla.now"
+ ],
+ "TRasyalog": [
+  "https://asyalog.co"
+ ],
+ "SezonlukDizi": [
+  "https://sezonlukdizi.cc"
  ],
  "DiziKorea": [
-  "https://dizikorea3.com",
-  "https://dizikorea.pw"
+  "https://dizikorea3.com"
  ],
- "DiziPalOriginal": [
-  "https://dizipal3008.com"
+ "RecTV": [
+  "https://m.prectv72.lol/api/attest/nonce",
+  "https://a.psrectv80.xyz"
+ ],
+ "YabanciDizi": [
+  "https://yabancidizi.news"
+ ],
+ "Dramaizle": [
+  "https://dramaflix.net/tr"
+ ],
+ "KultFilmler": [
+  "https://kultfilmler.net"
+ ],
+ "HDFilmIzle": [
+  "https://www.hdfilmizle.live"
  ]
 }
