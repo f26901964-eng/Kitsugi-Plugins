@@ -54,14 +54,18 @@ subprojects {
             targetSdk = 35
         }
 
+        // ! ÖNEMLİ: cloudstream3 kütüphanesi JVM 11 ile derlenmiş. Hedef 1.8 kaldığında
+        // ! kütüphanedeki inline fonksiyonlar (ör. AppUtils.tryParseJson) "Cannot inline
+        // ! bytecode built with JVM target 11 into bytecode ... JVM target 1.8" hatası
+        // ! veriyor ve eklenti HİÇ derlenemiyordu (HDFilmCehennemi, FilmMakinesi).
         compileOptions {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
+            sourceCompatibility = JavaVersion.VERSION_11
+            targetCompatibility = JavaVersion.VERSION_11
         }
 
         tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile> {
             compilerOptions {
-                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
                 freeCompilerArgs.addAll(
                     listOf(
                         "-Xno-call-assertions",

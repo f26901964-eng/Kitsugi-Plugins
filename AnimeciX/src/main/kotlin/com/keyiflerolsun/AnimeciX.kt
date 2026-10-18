@@ -8,6 +8,9 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 
+// AnimeciX /secure/* uç noktalarının istediği şifreli başlık (site istemcisinden).
+private const val X_E_H = "7Y2ozlO+QysR5w9Q6Tupmtvl9jJp7ThFH8SB+Lo7NvZjgjqRSqOgcT2v4ISM9sP10LmnlYI8WQ==.xrlyOBFS5BHjQ2Lk"
+
 class AnimeciX : MainAPI() {
     override var mainUrl              = "https://animecix.tv"
     override var name                 = "AnimeciX"
@@ -70,7 +73,16 @@ class AnimeciX : MainAPI() {
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val response = app.get("${mainUrl}/secure/search/${query}?limit=20").parsedSafe<Search>() ?: return listOf()
+        // ! ÖNEMLİ: /secure/* uç noktaları "x-e-h" başlığı olmadan 403/boş dönüyor.
+        // ! getMainPage ve load bu başlığı gönderiyordu, arama göndermiyordu —
+        // ! bu yüzden eklenti arama sonuçlarında hep boş dönüyordu.
+        val response = app.get(
+            "${mainUrl}/secure/search/${query}?limit=20",
+            headers = mapOf(
+                "x-e-h"   to X_E_H,
+                "Referer" to "${mainUrl}/"
+            )
+        ).parsedSafe<Search>() ?: return listOf()
 
         return response.results.map { anime ->
             newAnimeSearchResponse(

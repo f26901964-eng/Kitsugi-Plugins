@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  AKTİF EKLENTİLER  (tek kaynak / single source of truth)
+# ─────────────────────────────────────────────────────────────────────────────
+#  Uygulamada görünecek TEK eklentiler burada listelenir.
+#  Bu dosyayı settings.gradle.kts, merge_plugins.py ve Derleyici.yml okuyor:
+#
+#    * settings.gradle.kts  -> sadece buradaki dizinler derlenir
+#    * merge_plugins.py     -> builds/plugins.json'a sadece buradakiler yazılır
+#    * Derleyici.yml        -> sadece buradaki dizinler için derleme tetiklenir
+#
+#  Eklentileri SİLMEYE GEREK YOK. Devre dışı bırakmak  = satırı kaldırmak.
+#  Tekrar açmak  = dizin adını buraya bir satır olarak eklemek (push yeterli).
+#
+#  Not: Dizin adı ile birebir aynı olmalı (büyük/küçük harf dahil).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Anime ────────────────────────────────────────────────────────────────────
+Anizium
+AnimeciX
+
+# ── Dizi / Film ──────────────────────────────────────────────────────────────
+FilmMakinesi
+HDFilmCehennemi

@@ -1,0 +1,96 @@
+# Sadece DERLEME DOĞRULAMASI yapar — hiçbir şey yayınlamaz (builds dalına dokunmaz).
+# Amaç: PR'larda Kotlin derleme hatalarını merge edilmeden önce görmek.
+# Hata olursa derleme logunun son kısmı PR'a yorum olarak yazılır (log indirme
+# erişimi kısıtlı ortamlarda da hata görülebilsin diye).
+name: Derleme Testi
+
+on:
+  pull_request:
+    paths:
+      - "**/*.kt"
+      - "**/build.gradle.kts"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "enabled_plugins.txt"
+  workflow_dispatch:
+
+jobs:
+  Derle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: "Depo Kontrolu"
+        uses: actions/checkout@v4.2.2
+
+      - name: JDK 17 Ayarla
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android SDK Lisansları
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: Etkin Eklentileri Derle
+        id: build
+        run: |
+          chmod +x gradlew
+
+          ENABLED=""
+          if [ -f enabled_plugins.txt ]; then
+            ENABLED=$(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
+          fi
+
+          TASKS=""
+          for dir in $ENABLED; do
+            if [ -f "$dir/build.gradle.kts" ]; then
+              TASKS="$TASKS :$dir:make"
+              echo "Derlenecek: $dir"
+            fi
+          done
+
+          if [ -z "$TASKS" ]; then
+            echo "Derlenecek etkin eklenti bulunamadi."
+            exit 0
+          fi
+
+          set +e
+          ./gradlew --no-daemon $TASKS makePluginsJson > /tmp/build.log 2>&1
+          STATUS=$?
+          set -e
+
+          # Konsola da yaz (normal ortamlarda görünsün)
+          tail -n 120 /tmp/build.log
+
+          if [ $STATUS -ne 0 ]; then
+            {
+              echo "### ❌ Derleme başarısız"
+              echo ""
+              echo '```'
+              grep -nE "^e: |error:|Unresolved reference|Compilation error|FAILURE:|What went wrong|Caused by:" /tmp/build.log | head -n 60
+              echo '```'
+              echo ""
+              echo "<details><summary>Logun sonu</summary>"
+              echo ""
+              echo '```'
+              tail -n 100 /tmp/build.log
+              echo '```'
+              echo "</details>"
+            } > /tmp/comment.md
+            echo "comment=1" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "✅ Derleme başarılı"
+
+      - name: Hatayı PR'a Yaz
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f /tmp/comment.md ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md || true
+          fi
