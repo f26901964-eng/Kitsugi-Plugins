@@ -1,6 +1,40 @@
 # 🔌 Kitsugi Plugins
 
-Kitsugi Android & Android TV uygulaması için özel olarak derlenmiş, optimize edilmiş ve güncellenmiş Cloudstream 3 (CS3) eklenti havuzudur. Bu depo, tüm Türkçe video ve dizi sağlayıcılarını tek bir çatı altında birleştirerek Kitsugi uygulamanızın kesintisiz akış yapmasını sağlar.
+Kitsugi Android & Android TV uygulaması için özel olarak derlenmiş, optimize edilmiş ve güncellenmiş Cloudstream 3 (CS3) eklenti havuzudur.
+
+---
+
+## ✅ Aktif Kaynaklar (4)
+
+Depo artık **yalnızca aşağıdaki 4 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
+
+| Kategori | Eklenti | Sürüm |
+| --- | --- | --- |
+| Anime | **Anizium** | 25 |
+| Anime | **AnimeciX** | 21 |
+| Film / Dizi | **FilmMakinesi** | 58 |
+| Film / Dizi | **HDFilmCehennemi** | 48 |
+
+> ⚠️ Depoyu uygulamada güncelledikten sonra daha önce kurduğunuz diğer eklentiler listeden kaybolur; cihazda kurulu kalanları **Ayarlar → Eklentiler** üzerinden kaldırabilirsiniz.
+
+---
+
+## 🔁 Eklenti Açma / Kapatma
+
+Tüm eklenti yönetimi tek dosyadan yapılır: **`enabled_plugins.txt`**
+
+- **Devre dışı bırakmak** → satırı silin (klasörü silmeyin).
+- **Tekrar açmak** → klasör adını bir satır olarak ekleyin.
+- Push sonrası `Derleyici` iş akışı `builds` dalındaki `plugins.json`'ı otomatik yeniden üretir.
+
+Bu dosyayı okuyan yerler:
+
+| Dosya | Görevi |
+| --- | --- |
+| `enabled_plugins.txt` | Tek doğruluk kaynağı (eklenti listesi) |
+| `settings.gradle.kts` | Sadece listedeki dizinleri derler |
+| `merge_plugins.py` | `plugins.json`'a sadece listedekileri yazar, URL/hash/sürümü gerçek `.cs3` dosyasından üretir |
+| `.github/workflows/Derleyici.yml` | Sadece listedeki dizinler için derleme tetikler |
 
 ---
 

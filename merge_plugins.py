@@ -1,9 +1,18 @@
+import hashlib
 import json
 import os
 import sys
+import zipfile
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Eklenti manifestini birlestirir ve URL'leri GERCEK DOSYALARA gore dogrular.
+#
+# 2026-10 — AKTIF EKLENTI FILTRESI:
+#   Artik uygulamada yalnizca `enabled_plugins.txt` icindeki kaynaklar gorunur.
+#   Diger eklentiler SILINMEZ; sadece manifeste yazilmaz (devre disi).
+#   Aktif eklentilerin URL/hash/boyut/surum bilgisi depodaki GERCEK .cs3
+#   dosyasindan okunur. Boylece baska depolardan (or. Kraptor) gelen kayitlarin
+#   bizim dosyamizin uzerine yazip hash uyusmazligi olusturmasi engellenir.
 #
 # 2026-10 duzeltmesi — neden gerekliydi:
 #   Bu betik daha once dosya varligini hic kontrol etmiyordu. Bir kayit manifeste bir
@@ -22,6 +31,25 @@ import sys
 
 BRANCH = "builds"
 PLACEHOLDER_SLUG = "f26901964-eng/Kitsugi-Plugins"
+ENABLED_FILE = "enabled_plugins.txt"
+
+
+def load_enabled_plugins():
+    """enabled_plugins.txt'deki eklenti adlarini dondurur.
+
+    Dosya yoksa None doner -> eski davranis (tum eklentiler acik).
+    '#' ile baslayan satirlar ve bos satirlar yorum kabul edilir.
+    """
+    if not os.path.exists(ENABLED_FILE):
+        return None
+    names = []
+    with open(ENABLED_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            names.append(line)
+    return names
 
 
 def repo_slug():
@@ -102,6 +130,25 @@ def main():
             elif name not in combined:
                 combined[name] = plugin
 
+    # ── AKTIF EKLENTI FILTRESI ───────────────────────────────────────────────
+    # Uygulamada gorunecek kaynaklar yalnizca enabled_plugins.txt'dekiler.
+    # Digerleri manifestten cikarilir ama ne kaynaklari ne .cs3 dosyalari silinir.
+    # enabled_plugins.txt yoksa (eski davranis) filtre uygulanmaz.
+    enabled = load_enabled_plugins()
+    if enabled is None:
+        print(f"  i {ENABLED_FILE} yok -> tum eklentiler etkin (eski davranis).")
+    else:
+        allowed = {n.lower() for n in enabled}
+        before = len(combined)
+        combined = {n: p for n, p in combined.items() if n.lower() in allowed}
+        print(
+            f"  aktif liste: {len(enabled)} eklenti | "
+            f"devre disi birakilan kayit: {before - len(combined)}"
+        )
+        for name in enabled:
+            if name.lower() not in {k.lower() for k in combined}:
+                print(f"  !! AKTIF ama manifestte yok: {name} (kaynak/.cs3 eksik olabilir)")
+
     # ── Dogrulama: URL'leri gercek dosya konumuna gore duzelt ────────────────
     file_index = index_cs3_files(builds_root)
     print(f"  builds dizininde bulunan .cs3 dosyasi: {len(file_index)}")
@@ -143,6 +190,34 @@ def main():
             plugin["url"] = new_url
             repaired.append(name)
 
+    # ── Aktif eklentileri KENDI depomuza sabitle ─────────────────────────────
+    # prebuilt_plugins.json baska depolarin (or. Kraptor) kayitlarini icerir ve
+    # birlestirme sirasinda bunlar bizim kaydimizin uzerine yazar. Aktif dort
+    # kaynak icin URL / dosya boyutu / sha256 / surum bilgisini depodaki GERCEK
+    # .cs3 dosyasindan yeniden uretmezsek uygulama indirdigi dosyayi
+    # dogrulayamaz ve kurulum sessizce basarisiz olur.
+    if enabled is not None:
+        pinned = 0
+        for name in enabled:
+            plugin = next((p for k, p in combined.items() if k.lower() == name.lower()), None)
+            if plugin is None:
+                continue
+            fname = (plugin.get("internalName") or name) + ".cs3"
+            dirpath = file_index.get(fname)
+            if dirpath is None:
+                for candidate in _alternative_names(fname):
+                    if candidate in file_index:
+                        dirpath, fname = file_index[candidate], candidate
+                        break
+            if dirpath is None:
+                continue
+            path = os.path.join(dirpath, fname)
+            _sync_from_local_cs3(
+                plugin, path, base, _rel_path(builds_root, dirpath, fname)
+            )
+            pinned += 1
+        print(f"  kendi depomuza sabitlenen aktif eklenti: {pinned}")
+
     # ── Cikti ────────────────────────────────────────────────────────────────
     try:
         os.makedirs(os.path.dirname(compiled_json_path) or ".", exist_ok=True)
@@ -152,6 +227,22 @@ def main():
             f"  => plugins.json yazildi: {len(combined)} eklenti "
             f"(duzeltilen URL: {len(repaired)})"
         )
+
+        # Depo tanitimi da guncellenir; aksi halde uygulamada "166+ eklenti"
+        # gibi gercekle uyusmayan bir aciklama gorunur.
+        repo_json_path = os.path.join(os.path.dirname(compiled_json_path) or ".", "repo.json")
+        repo_obj = {
+            "name": "⚡ Kitsugi Eklentileri (Resmi)",
+            "description": (
+                f"{len(combined)} aktif Türkçe CloudStream eklentisi "
+                "(anime, dizi ve film kaynakları)."
+            ),
+            "manifestVersion": 1,
+            "pluginLists": [f"{base}/plugins.json"],
+        }
+        with open(repo_json_path, "w", encoding="utf-8") as f:
+            json.dump(repo_obj, f, indent=2, ensure_ascii=False)
+        print(f"  => repo.json yazildi: {repo_json_path}")
     except Exception as exc:
         print(f"  ! plugins.json yazilamadi: {exc}")
         return 1
@@ -166,6 +257,37 @@ def main():
     else:
         print("  OK: tum kayitlarin dosyasi mevcut.")
     return 0
+
+
+def _sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _read_cs3_manifest(path):
+    """.cs3 (zip) icindeki manifest.json'u okur; okunamazsa None doner."""
+    try:
+        with zipfile.ZipFile(path) as zf:
+            with zf.open("manifest.json") as fh:
+                return json.load(fh)
+    except Exception:
+        return None
+
+
+def _sync_from_local_cs3(plugin, path, base, rel_path):
+    """Kaydi depodaki gercek .cs3 dosyasiyla birebir tutarli hale getirir."""
+    plugin["url"] = f"{base}/{rel_path}"
+    plugin["fileSize"] = os.path.getsize(path)
+    plugin["fileHash"] = "sha256-" + _sha256(path)
+
+    meta = _read_cs3_manifest(path)
+    if isinstance(meta, dict) and isinstance(meta.get("version"), int):
+        # Manifestteki surum ile dosyadaki surum ayni olmali; aksi halde
+        # uygulama guncellemeyi hic gormez ya da kurulumu reddeder.
+        plugin["version"] = meta["version"]
 
 
 def _rel_path(builds_root, dirpath, filename):

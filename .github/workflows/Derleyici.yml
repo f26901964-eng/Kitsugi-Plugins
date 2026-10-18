@@ -54,57 +54,73 @@ jobs:
           cd $GITHUB_WORKSPACE/src
 
           # Manuel tetiklemede (workflow_dispatch) eklenti listesi elle verilebilir;
-          # aksi halde onceki commit ile karsilastirilir. Boylece kaynagi olup hic
-          # derlenmemis eklentiler de derlenebilir (or. Filmmirasim, FilmIzlesene).
+          # aksi halde onceki commit ile karsilastirilir.
           MANUAL="${{ github.event.inputs.plugins }}"
           if [ -n "$MANUAL" ]; then
             CHANGED="$MANUAL"
             echo "Manuel derleme listesi: $CHANGED"
           else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u)
+            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u || true)
             echo "Degisen klasorler: $CHANGED"
           fi
 
-          # Sadece gercek plugin klasorlerini sec (build.gradle.kts'i olanlar)
-          PLUGINS_TO_BUILD=""
-          for dir in $CHANGED; do
-            if [ -f "$dir/build.gradle.kts" ]; then
-              PLUGINS_TO_BUILD="$PLUGINS_TO_BUILD :$dir:make"
-              echo "Derlenecek plugin: $dir"
-            fi
-          done
-
-          if [ -z "$PLUGINS_TO_BUILD" ]; then
-            echo "Hicbir plugin degismemis, islem atlaniyor."
-            exit 0
+          # enabled_plugins.txt = uygulamada gorunecek TEK kaynaklar.
+          # Burada olmayan eklentiler derlenmez; kaynaklari SILINMEZ, sadece devre disi.
+          ENABLED=""
+          if [ -f enabled_plugins.txt ]; then
+            ENABLED=$(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
+            echo "Aktif eklenti listesi:"; echo "$ENABLED"
           fi
 
-          chmod +x gradlew
-
-          # Sadece degisen pluginleri derle
-          ./gradlew $PLUGINS_TO_BUILD makePluginsJson
-
-          # Derlenen cs3 dosyalarini builds branch'ine kopyala
-          for dir in $CHANGED; do
-            CS3="$dir/build/$dir.cs3"
-            if [ -f "$CS3" ]; then
-              cp "$CS3" $GITHUB_WORKSPACE/builds/
-              echo "Kopyalandi: $dir.cs3"
-            fi
-          done
-
-          # Prebuilt (hazir) eklentileri kopyala.
-          # DIKKAT: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
-          # bu yuzden kopya da `builds/prebuilt/` altina yapilmalidir. Daha once kok
-          # dizine kopyalandigi icin manifest ile dosya konumu uyusmuyor, indirme 404
-          # aliyordu (or. WFilmİzle.cs3).
+          # 1) Hazir (prebuilt) eklentileri ONCE kopyala.
+          #    DIKKAT: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
+          #    bu yuzden kopya hem kok dizine hem `builds/prebuilt/` altina yapilir.
+          #    Once kopyalanmasi, asagida derlenen taze dosyanin uzerine yazilmasini onler.
           mkdir -p $GITHUB_WORKSPACE/builds/prebuilt
           cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/prebuilt/ 2>/dev/null || true
           cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
 
-          # Manifest guncelle
+          # 2) Sadece gercek plugin klasorlerini sec (build.gradle.kts'i olanlar)
+          PLUGINS_TO_BUILD=""
+          BUILT_DIRS=""
+          for dir in $CHANGED; do
+            if [ ! -f "$dir/build.gradle.kts" ]; then
+              continue
+            fi
+            if [ -n "$ENABLED" ] && ! printf '%s\n' "$ENABLED" | grep -qxF "$dir"; then
+              echo "Devre disi (enabled_plugins.txt'de yok), atlandi: $dir"
+              continue
+            fi
+            PLUGINS_TO_BUILD="$PLUGINS_TO_BUILD :$dir:make"
+            BUILT_DIRS="$BUILT_DIRS $dir"
+            echo "Derlenecek plugin: $dir"
+          done
+
+          if [ -n "$PLUGINS_TO_BUILD" ]; then
+            chmod +x gradlew
+
+            # Sadece degisen ve aktif pluginleri derle
+            ./gradlew $PLUGINS_TO_BUILD makePluginsJson
+
+            # 3) Derlenen cs3 dosyalari prebuilt kopyalarinin UZERINE yazilir.
+            for dir in $BUILT_DIRS; do
+              CS3="$dir/build/$dir.cs3"
+              if [ -f "$CS3" ]; then
+                cp "$CS3" $GITHUB_WORKSPACE/builds/
+                echo "Kopyalandi: $dir.cs3"
+              fi
+            done
+          else
+            # ONEMLI: Derleme olmasa bile manifest yeniden uretilmeli; aksi halde
+            # enabled_plugins.txt degisikligi builds/plugins.json'a hic yansimaz
+            # (uygulamada eski 166+ eklenti listesi gorunmeye devam eder).
+            echo "Derlenecek aktif/degismis plugin yok; sadece manifest guncellenecek."
+          fi
+
+          # 4) Manifest guncelle (enabled_plugins.txt filtresi + hash/surum senkronu)
           python3 merge_plugins.py
           cp build/plugins.json $GITHUB_WORKSPACE/builds
+          cp build/repo.json $GITHUB_WORKSPACE/builds
 
       - name: Derlemeleri Yukle
         run: |
