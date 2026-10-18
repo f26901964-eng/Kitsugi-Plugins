@@ -27,11 +27,47 @@ import zipfile
 #   3. Dosya bulunursa ve URL baska bir konumu gosteriyorsa URL OTOMATIK duzeltilir.
 #   4. Dosya hicbir yerde yoksa kayit KORUNUR ama yuksek sesle rapor edilir
 #      (depo sahibinin derleme tetiklemesi icin).
+#
+# 2026-10 — TANITIM VERISI (KURATOR KAYDI):
+#   Aktif eklentilerin description / iconUrl / tvTypes / language / authors gibi
+#   "tanitim" alanlari `prebuilt_plugins.json` icindeki KURATORLU kayittan alinir.
+#   Neden gerekliydi:
+#     * Gradle'in `makePluginsJson` ciktisi bu alanlari uretmez. Kayit builds/plugins.json
+#       uzerinden geliyorsa tanitim verisi oradaki (bazen bozuk) degerde kaliyordu.
+#       Gercek ornekler: `iconUrl: ...&sz=%size%` (yer tutucu hic doldurulmamis),
+#       FilmMakinesi tvTypes=['Movie'] (dizi kaynagi ama sadece film gorunuyor),
+#       Anizium icin description/iconUrl/language/tvTypes HIC yok.
+#     * status=3 ("Beta only") kayitlari uygulamanin normal surumunde listelenmez;
+#       Anizium builds/plugins.json'da status=3 oldugu icin gorunmuyordu.
+#   Kurator kaydindan ALINMAZ: url / fileSize / fileHash / version.
+#   Bunlar depodaki GERCEK .cs3 dosyasindan uretilir (_sync_from_local_cs3);
+#   aksi halde hash uyusmazligi kurulumu sessizce bozar.
 # ─────────────────────────────────────────────────────────────────────────────
 
 BRANCH = "builds"
 PLACEHOLDER_SLUG = "f26901964-eng/Kitsugi-Plugins"
 ENABLED_FILE = "enabled_plugins.txt"
+
+# CloudStream SitePlugin status degerleri (RepositoryManager.kt):
+#   0: Down | 1: Ok | 2: Slow | 3: Beta only
+# Bu depo bilincli olarak "aktif liste" mantigiyla calisir; devre disi birakma isi
+# enabled_plugins.txt'ye aittir. Bu yuzden 3 (Beta only) -> 1 (Ok) yapilir.
+STATUS_OK = 1
+STATUS_BETA_ONLY = 3
+
+# prebuilt_plugins.json'dan (kurator kaydindan) devralinan tanitim alanlari.
+# Bilincli olarak DISARIDA birakilanlar:
+#   url / fileSize / fileHash / version -> GERCEK .cs3 dosyasindan uretilir.
+#   internalName / repositoryUrl        -> birlestirme anahtari ve bu deponun kimligi.
+CURATED_META_FIELDS = (
+    "name",
+    "description",
+    "iconUrl",
+    "tvTypes",
+    "language",
+    "status",
+    "apiVersion",
+)
 
 
 def load_enabled_plugins():
@@ -116,6 +152,13 @@ def main():
     prebuilt = load_json(prebuilt_json_path, []) or []
     compiled = load_json(compiled_json_path, []) or []
     print(f"  mevcut builds: {len(existing)} | prebuilt: {len(prebuilt)} | yeni derlenen: {len(compiled)}")
+
+    # Kuratorlu kayitlar: {kucuk_harfli internalName: kayit}
+    curated = {}
+    for plugin in prebuilt:
+        key = (plugin.get("internalName") or plugin.get("name") or "").lower().strip()
+        if key:
+            curated[key] = plugin
 
     # ── Birlestirme (onceki davranis korunuyor: son yazan kazanir) ────────────
     combined = {}
@@ -218,6 +261,32 @@ def main():
             pinned += 1
         print(f"  kendi depomuza sabitlenen aktif eklenti: {pinned}")
 
+    # ── Tanitim verisini KURATOR kaydindan al + status normalizasyonu ────────
+    # Siralama onemli: .cs3 senkronundan SONRA calisir, boylece url/fileSize/
+    # fileHash/version dosyadan gelen degerinde kalir; sadece tanitim alanlari
+    # prebuilt_plugins.json'daki editor kontrolunden gecmis kayitla degisir.
+    curated_hits = 0
+    if enabled is not None:
+        allowed = {n.lower() for n in enabled}
+        for name, plugin in combined.items():
+            if name.lower() not in allowed:
+                continue
+            record = curated.get(name.lower())
+            if record is not None:
+                curated_hits += 1
+                _apply_curated_meta(plugin, record)
+            else:
+                print(f"  ~ {name}: prebuilt_plugins.json'da kurator kaydi yok, mevcut alanlar korundu")
+        print(f"  tanitim verisi prebuilt_plugins.json'dan alinan aktif eklenti: {curated_hits}")
+
+    # status=3 (Beta only) kayitlar uygulamanin normal surumunde listelenmez.
+    # Ayni sekilde status hic yazilmamissa SitePlugin.status nullable olmadigi
+    # icin kayit cozumlenemeyebilir -> varsayilan 1 (Ok).
+    for name, plugin in combined.items():
+        if plugin.get("status") in (STATUS_BETA_ONLY, None):
+            print(f"  ~ {name}: status {plugin.get('status')} -> {STATUS_OK}")
+            plugin["status"] = STATUS_OK
+
     # ── Cikti ────────────────────────────────────────────────────────────────
     try:
         os.makedirs(os.path.dirname(compiled_json_path) or ".", exist_ok=True)
@@ -288,6 +357,54 @@ def _sync_from_local_cs3(plugin, path, base, rel_path):
         # Manifestteki surum ile dosyadaki surum ayni olmali; aksi halde
         # uygulama guncellemeyi hic gormez ya da kurulumu reddeder.
         plugin["version"] = meta["version"]
+
+
+def _usable(value):
+    """Kurator kaydindaki deger gercekten kullanilabilir mi?
+
+    Bos string ve bos liste kalintilari yok sayilir; `%size%` gibi doldurulmamis
+    yer tutucu iceren degerler de gecersizdir (prebuilt_plugins.json'da 19 kayitta
+    `.../s2/favicons?...&sz=%size%` biciminde bozuk iconUrl var).
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip()) and "%" not in value
+    if isinstance(value, (list, tuple)):
+        return len(value) > 0
+    return True
+
+
+def _apply_curated_meta(plugin, curated):
+    """prebuilt_plugins.json'daki kurator kaydin tanitim alanlarini uygular.
+
+    url / fileSize / fileHash / version BILINCLI olarak devralinmaz: onlar depodaki
+    gercek .cs3 dosyasindan uretilir. Kurator kaydi baska bir deponun (or. Kraptor)
+    dosyasini isaret ediyor olabilir; o degerler buraya kopyalanirsa uygulama
+    indirdigi dosyayi dogrulayamaz.
+    """
+    for field in CURATED_META_FIELDS:
+        if field not in curated:
+            continue
+        value = curated[field]
+        if not _usable(value):
+            continue
+        plugin[field] = value
+
+    # Yazarlar: kurator listesi esas alinir, derleme ciktisindaki ek yazarlar sona eklenir.
+    curated_authors = curated.get("authors")
+    if isinstance(curated_authors, list) and curated_authors:
+        merged = list(curated_authors)
+        seen = {str(a).lower() for a in merged}
+        for author in plugin.get("authors") or []:
+            if str(author).lower() not in seen:
+                merged.append(author)
+                seen.add(str(author).lower())
+        plugin["authors"] = merged
+
+    # Kurator kaydinda da status=3 olabilir; orada da 1'e cevrilir.
+    if plugin.get("status") == STATUS_BETA_ONLY:
+        plugin["status"] = STATUS_OK
 
 
 def _rel_path(builds_root, dirpath, filename):

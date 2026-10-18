@@ -11,9 +11,11 @@ Depo artık **yalnızca aşağıdaki 4 kaynağı** yayınlar. Bunların dışın
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
-| Anime | **AnimeciX** | 21 |
-| Film / Dizi | **FilmMakinesi** | 58 |
-| Film / Dizi | **HDFilmCehennemi** | 48 |
+| Anime | **AnimeciX** | 22 |
+| Film / Dizi | **FilmMakinesi** | 59 |
+| Film / Dizi | **HDFilmCehennemi** | 49 |
+
+> Sürüm sütunu bilgilendirme amaçlıdır; `plugins.json`'a yazılan gerçek sürüm her zaman `.cs3` dosyasının içindeki `manifest.json`'dan okunur.
 
 > ⚠️ Depoyu uygulamada güncelledikten sonra daha önce kurduğunuz diğer eklentiler listeden kaybolur; cihazda kurulu kalanları **Ayarlar → Eklentiler** üzerinden kaldırabilirsiniz.
 
@@ -33,8 +35,18 @@ Bu dosyayı okuyan yerler:
 | --- | --- |
 | `enabled_plugins.txt` | Tek doğruluk kaynağı (eklenti listesi) |
 | `settings.gradle.kts` | Sadece listedeki dizinleri derler |
-| `merge_plugins.py` | `plugins.json`'a sadece listedekileri yazar, URL/hash/sürümü gerçek `.cs3` dosyasından üretir |
+| `merge_plugins.py` | `plugins.json`'a sadece listedekileri yazar, URL/hash/sürümü gerçek `.cs3` dosyasından üretir, tanıtım verisini `prebuilt_plugins.json`'daki küratörlü kayıttan alır |
 | `.github/workflows/Derleyici.yml` | Sadece listedeki dizinler için derleme tetikler |
+
+---
+
+## 🏷️ Tanıtım Verisi ve `status`
+
+Aktif eklentilerin `plugins.json` kaydındaki **tanıtım alanları** (`description`, `iconUrl`, `tvTypes`, `language`, `authors`, `name`, `apiVersion`) `prebuilt_plugins.json` içindeki **küratörlü kayıttan** alınır. Gradle'ın `makePluginsJson` çıktısı bu alanları üretmediği için eskiden kayıt ya boş kalıyordu ya da bozuk değer taşıyordu (`&sz=%size%` gibi doldurulmamış ikon adresi, sadece `["Movie"]` görünen dizi kaynakları, hiç açıklaması olmayan Anizium).
+
+**Küratörlü kayıttan alınmayanlar:** `url`, `fileSize`, `fileHash`, `version`. Bunlar depodaki gerçek `.cs3` dosyasından üretilir; başka bir depodan (ör. Kraptor) gelen değer kopyalanırsa uygulama indirdiği dosyayı doğrulayamaz ve kurulum sessizce başarısız olur.
+
+`status` değerleri CloudStream karşılıklarıyla: `0` Down, `1` Ok, `2` Slow, `3` Beta only. **`status: 3` kayıtlar uygulamanın normal sürümünde listelenmez**; bu depoda devre dışı bırakma işi `enabled_plugins.txt`'ye ait olduğu için `merge_plugins.py` manifeste yazarken `3 → 1` düzeltmesi yapar (status hiç yazılmamışsa da `1` kabul edilir).
 
 ---
 
