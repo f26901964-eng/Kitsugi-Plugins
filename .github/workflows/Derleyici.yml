@@ -73,12 +73,14 @@ jobs:
           fi
 
           # 1) Hazir (prebuilt) eklentileri ONCE kopyala.
-          #    DIKKAT: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
+          #    DIKKAT 1: plugins.json'daki URL'ler `builds/prebuilt/<ad>.cs3` bicimindedir;
           #    bu yuzden kopya hem kok dizine hem `builds/prebuilt/` altina yapilir.
-          #    Once kopyalanmasi, asagida derlenen taze dosyanin uzerine yazilmasini onler.
-          mkdir -p $GITHUB_WORKSPACE/builds/prebuilt
-          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/prebuilt/ 2>/dev/null || true
-          cp prebuilt/*.cs3 $GITHUB_WORKSPACE/builds/ 2>/dev/null || true
+          #    DIKKAT 2: kopyalama SURUM KARSILASTIRMALI yapilir. Eskiden kosulsuz
+          #    `cp` kullaniliyordu; derleme yapilmayan bir commit'te builds/ altindaki
+          #    taze .cs3 dosyasi prebuilt/ altindaki eski surumle eziliyor ve yayindaki
+          #    surum geriye dusuyordu (AnimeciX 23 -> 21). stage_prebuilt.py yalnizca
+          #    daha yeni surumu kopyalar.
+          python3 tools/stage_prebuilt.py prebuilt "$GITHUB_WORKSPACE/builds"
 
           # 2) Sadece gercek plugin klasorlerini sec (build.gradle.kts'i olanlar)
           PLUGINS_TO_BUILD=""

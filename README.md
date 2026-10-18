@@ -11,7 +11,7 @@ Depo artık **yalnızca aşağıdaki 4 kaynağı** yayınlar. Bunların dışın
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
-| Anime | **AnimeciX** | 23 |
+| Anime | **AnimeciX** | 24 |
 | Film / Dizi | **FilmMakinesi** | 60 |
 | Film / Dizi | **HDFilmCehennemi** | 50 |
 
@@ -70,7 +70,7 @@ https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/repo.json
 ---
 
 ## 🔄 Otomatik Yönlendirme ve Geçiş
-Eski eklenti depolarını (`keyiflerolsun`, `maarrem/cs-Kekik` vb.) kullanan kullanıcılar için Kitsugi uygulaması otomatik yönlendirme sunar. Eski depoları eklediğinizde uygulama bunu algılar ve otomatik olarak bu güncel depoya (`KitsugiBeta-dev/Kitsugi-Plugins`) yönlendirerek eklentileri en güncel sürümleriyle günceller.
+Eski eklenti depolarını (`keyiflerolsun`, `maarrem/cs-Kekik` vb.) kullanan kullanıcılar için Kitsugi uygulaması otomatik yönlendirme sunar. Eski depoları eklediğinizde uygulama bunu algılar ve otomatik olarak bu güncel depoya (`f26901964-eng/Kitsugi-Plugins`) yönlendirerek eklentileri en güncel sürümleriyle günceller.
 
 ---
 
