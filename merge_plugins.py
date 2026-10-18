@@ -106,8 +106,22 @@ def builds_dir():
     return os.path.join(ws, "builds")
 
 
+def _cs3_version(path):
+    """.cs3 icindeki manifest surumunu dondurur; okunamazsa -1."""
+    meta = _read_cs3_manifest(path)
+    if isinstance(meta, dict) and isinstance(meta.get("version"), int):
+        return meta["version"]
+    return -1
+
+
 def index_cs3_files(root):
-    """builds/ altindaki tum .cs3 dosyalarini {dosya_adi: yol} olarak indeksler."""
+    """builds/ altindaki tum .cs3 dosyalarini {dosya_adi: yol} olarak indeksler.
+
+    Ayni dosya adi hem builds/ kokunde hem builds/prebuilt/ altinda bulunabilir.
+    Eskiden ilk bulunan (kok) kazanıyordu; prebuilt kopyasi daha yeni surum
+    tasiyorsa URL o dosyaya sabitlenip surum geriye dusebiliyordu. Artik ayni
+    ad icin EN YUKSEK manifest surumune sahip kopya secilir.
+    """
     index = {}
     if not os.path.isdir(root):
         return index
@@ -115,8 +129,17 @@ def index_cs3_files(root):
         if ".git" in dirpath.split(os.sep):
             continue
         for fn in filenames:
-            if fn.endswith(".cs3"):
-                index.setdefault(os.path.basename(fn), dirpath)
+            if not fn.endswith(".cs3"):
+                continue
+            base = os.path.basename(fn)
+            current = index.get(base)
+            if current is None:
+                index[base] = dirpath
+                continue
+            new_version = _cs3_version(os.path.join(dirpath, fn))
+            old_version = _cs3_version(os.path.join(current, base))
+            if new_version > old_version:
+                index[base] = dirpath
     return index
 
 
@@ -278,6 +301,20 @@ def main():
             else:
                 print(f"  ~ {name}: prebuilt_plugins.json'da kurator kaydi yok, mevcut alanlar korundu")
         print(f"  tanitim verisi prebuilt_plugins.json'dan alinan aktif eklenti: {curated_hits}")
+
+    # ── Depo kimligi: repositoryUrl HER ZAMAN bu depo ────────────────────────
+    # prebuilt_plugins.json'daki kurator kayitlari baska depolarin (or. Kraptor,
+    # KitsugiBeta-dev) kaydini tasiyor. Derleme yapilmayan bir calistirmada
+    # birlestirme sirasinda bu kayit bizimkinin uzerine yaziyor ve uygulama
+    # eklentiyi yanlis depoya bagliyordu. Aktif kayitlarin tamamini sabitliyoruz.
+    repo_url = f"https://github.com/{slug}"
+    pinned_repo = 0
+    for name, plugin in combined.items():
+        if plugin.get("repositoryUrl") != repo_url:
+            print(f"  ~ {name}: repositoryUrl -> {repo_url}")
+            plugin["repositoryUrl"] = repo_url
+            pinned_repo += 1
+    print(f"  repositoryUrl bu depoya sabitlenen kayit: {pinned_repo}")
 
     # status=3 (Beta only) kayitlar uygulamanin normal surumunde listelenmez.
     # Ayni sekilde status hic yazilmamissa SitePlugin.status nullable olmadigi

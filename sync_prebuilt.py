@@ -143,7 +143,10 @@ def main():
                 
                 # Create/Update entry
                 updated_entry = p.copy()
-                updated_entry['url'] = f"https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/{name}.cs3"
+                # Eskiden burada baska bir organizasyonun slug'i (KitsugiBeta-dev)
+                # sabit kodluydu; guncellenen kayitlar yanlis depoyu gosteriyordu.
+                repo_slug = os.environ.get('GITHUB_REPOSITORY', 'f26901964-eng/Kitsugi-Plugins')
+                updated_entry['url'] = f"https://raw.githubusercontent.com/{repo_slug}/builds/{name}.cs3"
                 updated_entry['fileSize'] = file_size
                 updated_entry['fileHash'] = file_hash
                 
