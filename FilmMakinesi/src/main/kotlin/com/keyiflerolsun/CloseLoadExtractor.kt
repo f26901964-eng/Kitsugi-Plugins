@@ -10,6 +10,8 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 
+private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+
 class CloseLoad : ExtractorApi() {
     private fun originOf(url: String): String? {
         return try {
@@ -35,16 +37,18 @@ class CloseLoad : ExtractorApi() {
     ) {
         // ! Referer, çağıranın verdiği host değil embed adresinin kendi host'u.
         // ! closeload.filmmakinesi.to ölünce başka bir closeload host'u da çalışsın.
-        val origin = originOf(url) ?: referer?.trimEnd('/')?.takeIf { it.startsWith("http") } ?: mainUrl
+        val origin = originOf(url)
+            ?: referer?.let { originOf(it) }?.takeIf { it.startsWith("http") }
+            ?: mainUrl
         val headers2 = mapOf(
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+            "User-Agent" to USER_AGENT,
             "Referer" to "$origin/",
             "Origin" to origin
         )
 
         try {
             val response = app.get(url, referer = origin, headers = headers2)
-            val html = response.text 
+            val html = response.text
 
             // 1. JS Deşifre Algoritmasını Dene
             var realUrl = decryptNative(html)
@@ -64,18 +68,27 @@ class CloseLoad : ExtractorApi() {
             }
 
             if (!realUrl.isNullOrBlank() && realUrl.startsWith("http")) {
+                // ! playmix.uno artık master.txt'yi oynatıcıya HAM vermiyor: liste
+                // ! açılıp içindeki gerçek .m3u8 adresi seçiliyor. Origin embed
+                // ! sunucusuna sabit; eksik kalınca uygulama onu playmix.uno yapıyor
+                // ! ve yayın 5004 ile düşüyordu.
+                val playlistHeaders = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$origin/",
+                    "Origin" to origin
+                )
+                val (streamUrl, streamHeaders) = resolveMasterPlaylist(realUrl, playlistHeaders)
+                    ?: (realUrl to playlistHeaders)
+
                 callback.invoke(
                     newExtractorLink(
                         source = this.name,
                         name = this.name,
-                        url = realUrl,
+                        url = streamUrl,
                         type = ExtractorLinkType.M3U8
                     ) {
                         quality = Qualities.P1080.value
-                        headers = mapOf(
-                            "Referer" to "$origin/",
-                            "User-Agent" to headers2["User-Agent"]!!
-                        )
+                        headers = streamHeaders
                     }
                 )
             } else {
@@ -86,6 +99,105 @@ class CloseLoad : ExtractorApi() {
 
         } catch (e: Exception) {
             Log.e("Kekik_${this.name}", "Hata: ${e.message}")
+        }
+    }
+
+    /**
+     * master.txt / master.m3u8 listesini açıp içindeki gerçek .m3u8 adresini seçer.
+     * Liste çözülemezse null döner; çağıran ham adresle devam eder.
+     */
+    private suspend fun resolveMasterPlaylist(
+        playlistUrl: String,
+        headers: Map<String, String>
+    ): Pair<String, Map<String, String>>? {
+        if (!playlistUrl.contains("master.txt") && !playlistUrl.contains(".m3u8")) return null
+        return try {
+            val listText = app.get(playlistUrl, headers = headers).text
+            pickVariant(listText, playlistUrl, headers)
+        } catch (e: Exception) {
+            Log.e("Kekik_${this.name}", "master listesi açılamadı: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * HLS listesinden en yüksek çözünürlüklü varyantı seçer.
+     * playmix.uno bazen #EXT-X-STREAM-INF bloğu yerine çıplak .m3u8 satırı döndürüyor;
+     * o yüzden hem etiketler hem düz satırlar taranıyor.
+     */
+    private fun pickVariant(
+        listText: String,
+        baseUrl: String,
+        headers: Map<String, String>
+    ): Pair<String, Map<String, String>>? {
+        val lines = listText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        var bestUrl: String? = null
+        var bestScore = -1
+        var pendingScore = -1
+
+        for (line in lines) {
+            if (line.startsWith("#EXT-X-STREAM-INF")) {
+                pendingScore = variantScore(line)
+                continue
+            }
+            if (line.startsWith("#")) continue
+
+            val candidate = absolutize(line, baseUrl) ?: continue
+            if (!candidate.contains(".m3u8") && !candidate.contains("master.txt")) continue
+
+            // ! resolution= etiketi yoksa dosya adındaki 1080p/720p ipucu kullanılır.
+            val score = if (pendingScore >= 0) pendingScore else nameScore(candidate)
+            if (score > bestScore) {
+                bestScore = score
+                bestUrl = candidate
+            }
+            pendingScore = -1
+        }
+
+        val chosen = bestUrl ?: return null
+        Log.d("Kekik_${this.name}", "master listesi çözüldü: $chosen")
+
+        // ! Oynatıcının Origin/Referer'ı artık liste host'u değil, gerçek yayın host'u.
+        val streamOrigin = originOf(chosen)
+        val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(baseUrl)) {
+            mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$streamOrigin/",
+                "Origin" to streamOrigin
+            )
+        } else {
+            headers
+        }
+        return chosen to streamHeaders
+    }
+
+    private fun variantScore(streamInfLine: String): Int {
+        val resolution = """RESOLUTION=(\d+)x(\d+)""".toRegex().find(streamInfLine)
+        if (resolution != null) {
+            val height = resolution.groupValues[2].toIntOrNull() ?: 0
+            return height * 1000
+        }
+        val bandwidth = """BANDWIDTH=(\d+)""".toRegex().find(streamInfLine)
+        return (bandwidth?.groupValues?.get(1)?.toLongOrNull() ?: 0L).let { (it / 1000).toInt() }
+    }
+
+    private fun nameScore(url: String): Int {
+        val match = """(\d{3,4})p""".toRegex().find(url.lowercase()) ?: return 0
+        return (match.groupValues[1].toIntOrNull() ?: 0) * 1000
+    }
+
+    /** Göreli liste satırını (index.m3u8, ../x/y.m3u8) tam adrese çevirir. */
+    private fun absolutize(line: String, baseUrl: String): String? {
+        val value = line.replace("\\/", "/").trim().trim('"', '\'')
+        if (value.isBlank()) return null
+        return when {
+            value.startsWith("http://") || value.startsWith("https://") -> value
+            value.startsWith("//") -> "https:$value"
+            else -> try {
+                java.net.URI(baseUrl).resolve(value).toString()
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 
@@ -215,9 +327,9 @@ class CloseLoad : ExtractorApi() {
                     val file = fileRegex.find(block)?.groupValues?.get(1)?.replace("\\/", "/")
                     val label = labelRegex.find(block)?.groupValues?.get(1) ?: "Altyazı"
 
-                    // file null değilse ve http ile başlıyorsa fırlat
+                    // ! Sonundaki "/" kaldırıldı: o eğik çizgi .vtt dosyasını 404 yaptırıyordu.
                     if (!file.isNullOrBlank() && file.startsWith("http")) {
-                        subtitleCallback.invoke(SubtitleFile(label, file))
+                        subtitleCallback.invoke(SubtitleFile(label, file.trimEnd('/')))
                     }
                 }
             }
