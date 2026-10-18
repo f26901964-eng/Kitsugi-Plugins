@@ -398,8 +398,14 @@ private fun Element.toSearchResult(): SearchResponse? {
         val iframes = document.select("iframe").mapNotNull {
             normalizeLink(it.attr("data-src").ifBlank { it.attr("src") })
         }
-        val videoUrls = document.select("[data-video_url]").mapNotNull {
-            normalizeLink(it.attr("data-video_url"))
+        val videoUrls = document.select("[data-video_url], [data-video-url], [data-video], [data-embed], [data-server]").mapNotNull { element ->
+            listOf(
+                element.attr("data-video_url"),
+                element.attr("data-video-url"),
+                element.attr("data-video"),
+                element.attr("data-embed"),
+                element.attr("data-server")
+            ).firstOrNull { it.isNotBlank() }?.let(::normalizeLink)
         }
         val partLinks = document.select(".video-parts a, .video-options a").mapNotNull { el ->
             normalizeLink(el.attr("href").ifBlank { el.attr("data-href") }.ifBlank { el.attr("data-url") })
@@ -415,10 +421,15 @@ private fun Element.toSearchResult(): SearchResponse? {
             Log.d("FLMM", "Processing URL: $url")
             // ! CloseLoad referer'ı embed adresinin kendi host'undan alır.
             val referer = (originOf(url) ?: mainUrl).trimEnd('/') + "/"
-            if (url.contains("closeload")) {
-                CloseLoad().getUrl(url, referer, subtitleCallback, wrapped)
-            } else {
-                loadExtractor(url, referer, subtitleCallback, wrapped)
+            when {
+                url.contains("closeload", ignoreCase = true) ->
+                    CloseLoad().getUrl(url, referer, subtitleCallback, wrapped)
+                url.contains("rapidvid", ignoreCase = true) || url.contains("rapidrame", ignoreCase = true) || url.contains("rplayer", ignoreCase = true) -> {
+                    val hadLinkBefore = produced
+                    Rapidrame().getUrl(url, referer, subtitleCallback, wrapped)
+                    if (produced == hadLinkBefore) loadExtractor(url, referer, subtitleCallback, wrapped)
+                }
+                else -> loadExtractor(url, referer, subtitleCallback, wrapped)
             }
         }
         return produced

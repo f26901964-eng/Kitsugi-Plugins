@@ -737,6 +737,53 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
+    /** CloseLoad encodes its playable stream URL as a base64 token in the embed HTML. */
+    private fun extractBase64StreamUrl(html: String): String? {
+        val candidates = Regex("""aHR0[A-Za-z0-9+/_=-]{12,}""").findAll(html)
+        for (match in candidates) {
+            try {
+                var encoded = match.value.trimEnd('=', ';', ',')
+                while (encoded.length % 4 != 0) encoded += "="
+                val decoded = String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), Charsets.UTF_8)
+                    .replace("\\/", "/").trim()
+                if ((decoded.startsWith("http://") || decoded.startsWith("https://")) &&
+                    runCatching { java.net.URI(decoded).host }.getOrNull() != null) return decoded
+            } catch (_: Exception) {
+                // Ignore unrelated base64 data and continue.
+            }
+        }
+        return null
+    }
+
+    /** RapidVid/Rapidrame JWPlayer's av('...') URL obfuscation used by the host. */
+    private fun extractRapidStreamUrl(html: String): String? {
+        val encoded = Regex("""av\(['"]([^'"]+)['"]\)""").find(html)?.groupValues?.get(1)
+            ?: return null
+        return try {
+            fun decodeBase64(value: String): String {
+                var padded = value
+                while (padded.length % 4 != 0) padded += "="
+                val bytes = runCatching { android.util.Base64.decode(padded, android.util.Base64.DEFAULT) }
+                    .getOrElse { android.util.Base64.decode(padded, android.util.Base64.URL_SAFE) }
+                return String(bytes, Charsets.ISO_8859_1)
+            }
+            val first = decodeBase64(encoded.reversed())
+            val key = "K9L"
+            val shifted = buildString {
+                first.forEachIndexed { index, char ->
+                    val offset = key[index % key.length].code % 5 + 1
+                    append((char.code - offset).toChar())
+                }
+            }
+            val decoded = decodeBase64(shifted).replace("\\/", "/").trim()
+            decoded.takeIf { (it.startsWith("http://") || it.startsWith("https://")) &&
+                runCatching { java.net.URI(it).host }.getOrNull() != null }
+        } catch (e: Exception) {
+            Log.w("HDCH", "Rapidrame URL çözülemedi: ${e.message}")
+            null
+        }
+    }
+
     private suspend fun extractMobiOrCloseLoad(
         source: String,
         url: String,
@@ -754,9 +801,14 @@ class HDFilmCehennemi : MainAPI() {
             )
             val html = app.get(url, headers = headers, interceptor = interceptor).text
 
-            // 1. JSON-LD contentUrl
-            val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
-            var realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
+            // CloseLoad and Rapidrame each use a different obfuscated source format.
+            var realUrl = extractRapidStreamUrl(html) ?: extractBase64StreamUrl(html)
+
+            // JSON-LD contentUrl fallback
+            if (realUrl.isNullOrBlank()) {
+                val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
+                realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
+            }
 
             // 2. Direct master.txt / m3u8
             if (realUrl.isNullOrBlank()) {
@@ -765,10 +817,12 @@ class HDFilmCehennemi : MainAPI() {
                 realUrl = txtMatch
             }
 
-            // 3. Native decrypt if present
-            if (realUrl.isNullOrBlank() && html.contains("function dc_")) {
+            // 3. Some Rapidrame/CloseLoad embeds pack their player script first.
+            if (realUrl.isNullOrBlank() && (html.contains("function dc_") || html.contains("eval(function"))) {
                 val unpacked = getAndUnpack(html)
-                realUrl = decryptLocalUrl(unpacked)
+                realUrl = extractRapidStreamUrl(unpacked)
+                    ?: extractBase64StreamUrl(unpacked)
+                    ?: decryptLocalUrl(unpacked)
             }
 
             val normalizedReal = normalizeStreamUrl(realUrl)
@@ -851,13 +905,20 @@ class HDFilmCehennemi : MainAPI() {
         } catch (e: Exception) {
             return
         }
-        val script = Jsoup.parse(pageText).select("script").find { it.data().contains("sources:") }?.data()
-            ?: pageText.takeIf { it.contains("sources:") }
-        Log.d("HDCH", "script » $script")
-        var decryptedUrl: String? = null
-        if (script != null) {
+        val script = Jsoup.parse(pageText).select("script").find {
+            val code = it.data()
+            code.contains("sources:") || code.contains("jwSetup.sources") ||
+                code.contains("av(") || code.contains("eval(function") || code.contains("function dc_")
+        }?.data() ?: pageText.takeIf {
+            it.contains("sources:") || it.contains("jwSetup.sources") || it.contains("av(") || it.contains("function dc_")
+        }
+        Log.d("HDCH", "source script found » ${script != null}")
+        var decryptedUrl: String? = extractRapidStreamUrl(pageText) ?: extractBase64StreamUrl(pageText)
+        if (decryptedUrl.isNullOrBlank() && script != null) {
             val unpackedScript = getAndUnpack(script)
-            decryptedUrl = decryptLocalUrl(unpackedScript)
+            decryptedUrl = extractRapidStreamUrl(unpackedScript)
+                ?: extractBase64StreamUrl(unpackedScript)
+                ?: decryptLocalUrl(unpackedScript)
         }
 
         // Fallback: Check for contentUrl or master.txt or m3u8 in pageText
@@ -987,7 +1048,8 @@ class HDFilmCehennemi : MainAPI() {
                 callback(link)
             }
             val looksLikeEmbed = target.contains("mobi") || target.contains("closeload") ||
-                target.contains("/embed/") || target.contains("rplayer") || target.contains("rapidrame")
+                target.contains("/embed/") || target.contains("rplayer") || target.contains("rapidrame") ||
+                target.contains("rapidvid")
 
             if (looksLikeEmbed) {
                 extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
@@ -1025,36 +1087,47 @@ class HDFilmCehennemi : MainAPI() {
                 val source = if (langCode.isNotBlank()) "$label $langCode" else label
                 val vid = listOf(
                     button.attr("data-video"),
+                    button.attr("data-video-url"),
+                    button.attr("data-video_url"),
                     button.attr("data-id"),
                     button.attr("data-src"),
-                    button.attr("data-url")
+                    button.attr("data-url"),
+                    button.attr("data-embed"),
+                    button.attr("data-server")
                 ).firstOrNull { it.isNotBlank() } ?: return@forEach
                 val normalized = normalizeEmbed(vid, pageUrl)
+                val rawId = vid.trim().removePrefix("/video/").trim('/')
+                    .takeIf { it.isNotBlank() && !it.contains('/') && !it.contains("://") }
                 if (normalized != null) {
-                    candidates.add(LinkCandidate(source, normalized, vid.trim()))
-                } else if (!vid.contains("://") && vid.trim().isNotEmpty()) {
-                    candidates.add(LinkCandidate(source, "", vid.trim()))
+                    candidates.add(LinkCandidate(source, normalized, rawId))
+                } else if (rawId != null) {
+                    candidates.add(LinkCandidate(source, "", rawId))
                 }
             }
         }
 
         // 2) data-video / data-video_url / data-src / data-url taşıyan tüm öğeler
-        document.select("[data-video], [data-video_url], [data-src], [data-url]").forEach { element ->
+        document.select("[data-video], [data-video-url], [data-video_url], [data-src], [data-url], [data-embed], [data-server]").forEach { element ->
             val raw = listOf(
                 element.attr("data-video"),
+                element.attr("data-video-url"),
                 element.attr("data-video_url"),
                 element.attr("data-src"),
-                element.attr("data-url")
+                element.attr("data-url"),
+                element.attr("data-embed"),
+                element.attr("data-server")
             ).firstOrNull { it.isNotBlank() } ?: return@forEach
             val label = element.text().trim().take(40)
                 .ifBlank { element.attr("title").trim() }
                 .ifBlank { "Kaynak" }
             val normalized = normalizeEmbed(raw, pageUrl)
+            val rawId = raw.trim().removePrefix("/video/").trim('/')
+                .takeIf { it.isNotBlank() && !it.contains('/') && !it.contains("://") }
             if (normalized != null) {
-                candidates.add(LinkCandidate(label, normalized, raw.trim()))
-            } else if (!raw.contains("://") && raw.trim().isNotEmpty()) {
-                // ! Rapidrame rplayer yolu: ham kimlik /video/{id}/ ile denenir.
-                candidates.add(LinkCandidate(label, "", raw.trim()))
+                candidates.add(LinkCandidate(label, normalized, rawId))
+            } else if (rawId != null) {
+                // IDs are resolved through the site's /video/{id}/ endpoint.
+                candidates.add(LinkCandidate(label, "", rawId))
             }
         }
 
@@ -1075,7 +1148,7 @@ class HDFilmCehennemi : MainAPI() {
             """"file"\s*:\s*"([^"]+\.m3u8[^"]*)"""".toRegex(),
             """https?://[^\s"'<>]+/master\.txt[^\s"'<>]*""".toRegex(),
             """https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""".toRegex(),
-            """https?://[^\s"'<>]*rplayer[^\s"'<>]*""".toRegex()
+            """https?://[^\s"'<>]*(?:rplayer|rapidvid|rapidrame)[^\s"'<>]*""".toRegex(RegexOption.IGNORE_CASE)
         ).forEach { regex ->
             regex.findAll(html).forEach { match ->
                 val value = match.groupValues.getOrElse(1) { match.value }
