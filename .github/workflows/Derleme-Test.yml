@@ -1,0 +1,56 @@
+# Sadece DERLEME DOĞRULAMASI yapar — hiçbir şey yayınlamaz (builds dalına dokunmaz).
+# Amaç: PR'larda Kotlin derleme hatalarını merge edilmeden önce görmek.
+# Yayına alma işi Derleyici.yml'de (main'e push) yapılır.
+name: Derleme Testi
+
+on:
+  pull_request:
+    paths:
+      - "**/*.kt"
+      - "**/build.gradle.kts"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+  workflow_dispatch:
+
+jobs:
+  Derle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: "Depo Kontrolu"
+        uses: actions/checkout@v4.2.2
+
+      - name: JDK 17 Ayarla
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android SDK Lisansları
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: Etkin Eklentileri Derle
+        run: |
+          chmod +x gradlew
+
+          ENABLED=""
+          if [ -f enabled_plugins.txt ]; then
+            ENABLED=$(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
+          fi
+
+          TASKS=""
+          for dir in $ENABLED; do
+            if [ -f "$dir/build.gradle.kts" ]; then
+              TASKS="$TASKS :$dir:make"
+              echo "Derlenecek: $dir"
+            fi
+          done
+
+          if [ -z "$TASKS" ]; then
+            echo "Derlenecek etkin eklenti bulunamadi."
+            exit 0
+          fi
+
+          ./gradlew $TASKS makePluginsJson
