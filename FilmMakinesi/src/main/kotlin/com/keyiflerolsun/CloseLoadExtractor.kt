@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 
@@ -138,16 +139,16 @@ class CloseLoad : ExtractorApi() {
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
             lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
-            else -> ExtractorLinkType.INFER_TYPE
+            else -> INFER_TYPE
         }
     }
 
     private fun normalizeStreamUrl(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
         var cleaned = raw.trim().replace("\\/", "/")
-        val urlRegex = Regex("https?://[^\\s"'<>\\]]+")
+        val urlRegex = Regex("""https?://[^\s"'<>]+""")
         val match = urlRegex.find(cleaned) ?: return null
-        var url = match.value.trimEnd(',', '"', '\'', ')', ']', '}', ';').replace("\\", "")
+        var url = match.value.trimEnd(',', '"', 39.toChar(), ')', ']', '}', ';').replace("\\", "")
         if (url.startsWith("httpshttp://")) url = "http://" + url.removePrefix("httpshttp://")
         if (url.startsWith("httpshttps://")) url = "https://" + url.removePrefix("httpshttps://")
         if (url.contains("httpshttp://")) {
@@ -183,7 +184,7 @@ class CloseLoad : ExtractorApi() {
                 return norm
             }
         }
-        val urlRegex = Regex("https?://[^\\s"']+\\.m3u8[^\\s"']*|https?://[^\\s"']+master\\.txt[^\\s"']*|https?://[^\\s"']+\\.mp4[^\\s"']*", RegexOption.IGNORE_CASE)
+        val urlRegex = Regex("""https?://[^\s"']+\.m3u8[^\s"']*|https?://[^\s"']+master\.txt[^\s"']*|https?://[^\s"']+\.mp4[^\s"']*""", RegexOption.IGNORE_CASE)
         val fallback = urlRegex.find(text)?.value
         return normalizeStreamUrl(fallback)
     }

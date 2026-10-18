@@ -34,6 +34,7 @@ import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.getAndUnpack
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -204,7 +205,7 @@ class HDFilmCehennemi : MainAPI() {
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
             lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
-            else -> ExtractorLinkType.INFER_TYPE
+            else -> INFER_TYPE
         }
     }
 
@@ -212,9 +213,9 @@ class HDFilmCehennemi : MainAPI() {
         if (raw.isNullOrBlank()) return null
         var cleaned = raw.trim().replace("\\/", "/")
         // JSON içinde tırnaklı değer olabilir, regex ile ilk geçerli http adresini çıkar
-        val urlRegex = Regex("https?://[^\\s"'<>\\]]+")
+        val urlRegex = Regex("""https?://[^\s"'<>]+""")
         val match = urlRegex.find(cleaned) ?: return null
-        var url = match.value.trimEnd(',', '"', '\'', ')', ']', '}', ';').replace("\\", "")
+        var url = match.value.trimEnd(',', '"', 39.toChar(), ')', ']', '}', ';').replace("\\", "")
         // substringAfter("https") hatası: httpshttp:// → düzelt
         if (url.startsWith("httpshttp://")) url = "http://" + url.removePrefix("httpshttp://")
         if (url.startsWith("httpshttps://")) url = "https://" + url.removePrefix("httpshttps://")
@@ -254,7 +255,7 @@ class HDFilmCehennemi : MainAPI() {
             }
         }
         // fallback: JSON içinde herhangi bir doğrudan stream URL
-        val urlRegex = Regex("https?://[^\\s"']+\\.m3u8[^\\s"']*|https?://[^\\s"']+master\\.txt[^\\s"']*|https?://[^\\s"']+\\.mp4[^\\s"']*", RegexOption.IGNORE_CASE)
+        val urlRegex = Regex("""https?://[^\s"']+\.m3u8[^\s"']*|https?://[^\s"']+master\.txt[^\s"']*|https?://[^\s"']+\.mp4[^\s"']*""", RegexOption.IGNORE_CASE)
         val fallback = urlRegex.find(text)?.value
         return normalizeStreamUrl(fallback)
     }
