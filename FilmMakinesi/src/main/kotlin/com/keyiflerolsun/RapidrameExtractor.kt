@@ -32,10 +32,15 @@ class Rapidrame : ExtractorApi() {
                 )
             ).text
 
+            // ! TANI: embed sayfasının ham içeriği + bulunan av() yükü.
+            Log.d("FLMM_TANI", "[rapidrame $url] " + page.replace("\r", " ").replace("\n", " ").take(900))
+
             val encoded = Regex("""av\(['"]([^'"]+)['"]\)""").find(page)?.groupValues?.get(1)
+            Log.d("FLMM_TANI", "[rapidrame $url] av() yuku: " + (encoded ?: "<yok>"))
             val decoded = encoded?.let(::decodeRapidUrl)
                 ?: Regex("""https?://[^\s"'<>]+\.(?:m3u8|mp4)(?:\?[^\s"'<>]*)?""", RegexOption.IGNORE_CASE)
                     .find(page)?.value
+            Log.d("FLMM_TANI", "[rapidrame $url] cozulen adres: ${decoded ?: "<yok>"}")
             if (decoded.isNullOrBlank()) {
                 Log.e("Rapidrame", "JWPlayer kaynak URL'si bulunamadı: $url")
                 return

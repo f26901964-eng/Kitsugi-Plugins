@@ -104,6 +104,18 @@ jobs:
             # Sadece degisen ve aktif pluginleri derle
             ./gradlew $PLUGINS_TO_BUILD makePluginsJson
 
+            # 2b) Regresyon testleri (varsa) — bozuk kod yayinlanmasin.
+            TEST_TASKS=""
+            for dir in $BUILT_DIRS; do
+              if [ -d "$dir/src/test" ]; then
+                TEST_TASKS="$TEST_TASKS :$dir:test"
+                echo "Test edilecek: $dir"
+              fi
+            done
+            if [ -n "$TEST_TASKS" ]; then
+              ./gradlew $TEST_TASKS
+            fi
+
             # 3) Derlenen cs3 dosyalari prebuilt kopyalarinin UZERINE yazilir.
             for dir in $BUILT_DIRS; do
               CS3="$dir/build/$dir.cs3"

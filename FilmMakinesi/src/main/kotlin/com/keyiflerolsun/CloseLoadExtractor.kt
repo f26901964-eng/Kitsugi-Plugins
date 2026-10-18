@@ -50,6 +50,9 @@ class CloseLoad : ExtractorApi() {
             val response = app.get(url, referer = origin, headers = headers2)
             val html = response.text
 
+            // ! TANI: embed sayfasının ham içeriği (kaynak nerede?).
+            Log.d("FLMM_TANI", "[closeload $url] " + html.replace("\r", " ").replace("\n", " ").take(1200))
+
             // 1. JS deşifre algoritmasını dene.
             var realUrl = decryptNative(html)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
 
@@ -71,6 +74,8 @@ class CloseLoad : ExtractorApi() {
                     ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(html)?.value
                 realUrl = txtMatch
             }
+
+            Log.d("FLMM_TANI", "[closeload $url] cozulen adres: ${realUrl ?: "<yok>"}")
 
             if (!realUrl.isNullOrBlank() && realUrl.startsWith("http")) {
                 // ! playmix.uno artık master.txt'yi oynatıcıya HAM vermiyor: liste
