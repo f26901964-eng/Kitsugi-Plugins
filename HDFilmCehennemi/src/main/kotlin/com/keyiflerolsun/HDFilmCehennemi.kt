@@ -170,6 +170,99 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
+    /**
+     * Altyazı adresini mutlaklaştırır ve sonundaki eğik çizgiyi atar.
+     * ! O eğik çizgi .vtt dosyasını 404 yaptırıyordu.
+     */
+    private fun subtitleUrlOf(file: String): String? {
+        val value = file.replace("\\/", "/").trim().trim('"', '\'')
+        if (value.isBlank()) return null
+        val absolute = when {
+            value.startsWith("http") -> value
+            value.startsWith("//") -> "https:$value"
+            else -> absolutizeUrl(value, mainUrl) ?: return null
+        }
+        return absolute.trimEnd('/')
+    }
+
+    /** Göreli adresi (index.m3u8, ../x/y.m3u8) tam adrese çevirir. */
+    private fun absolutizeUrl(raw: String, baseUrl: String): String? {
+        val value = raw.trim()
+        if (value.isBlank()) return null
+        if (value.startsWith("http://") || value.startsWith("https://")) return value
+        if (value.startsWith("//")) return "https:$value"
+        return try {
+            java.net.URI(baseUrl).resolve(value).toString()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * master.txt / master.m3u8 listesini açıp içindeki gerçek .m3u8 adresini seçer.
+     * playmix.uno listeyi oynatıcıya ham vermiyor; ham adres 5004 ile düşürüyordu.
+     * Çözülemezse null döner, çağıran ham adresle devam eder.
+     */
+    private suspend fun resolveStreamUrl(
+        streamUrl: String,
+        headers: Map<String, String>
+    ): Pair<String, Map<String, String>>? {
+        if (!streamUrl.contains("master.txt") && !streamUrl.contains(".m3u8")) return null
+        val listText = try {
+            app.get(streamUrl, headers = headers, interceptor = interceptor).text
+        } catch (e: Exception) {
+            Log.e("HDCH", "master listesi acilamadi: ${e.message}")
+            return null
+        }
+
+        var bestUrl: String? = null
+        var bestScore = -1
+        var pendingScore = -1
+        for (line in listText.lines()) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) continue
+            if (trimmed.startsWith("#EXT-X-STREAM-INF")) {
+                pendingScore = variantScore(trimmed)
+                continue
+            }
+            if (trimmed.startsWith("#")) continue
+            val candidate = absolutizeUrl(trimmed.replace("\\/", "/").trim('"', '\''), streamUrl) ?: continue
+            if (!candidate.contains(".m3u8") && !candidate.contains("master.txt")) continue
+            val score = if (pendingScore >= 0) pendingScore else nameScore(candidate)
+            if (score > bestScore) {
+                bestScore = score
+                bestUrl = candidate
+            }
+            pendingScore = -1
+        }
+
+        val chosen = bestUrl ?: return null
+        Log.d("HDCH", "master listesi cozuldu: $chosen")
+        // ! Oynatıcının Origin/Referer'ı artık liste host'u değil, gerçek yayın host'u.
+        val streamOrigin = originOf(chosen)
+        val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(streamUrl)) {
+            mapOf("User-Agent" to USER_AGENT, "Referer" to "$streamOrigin/", "Origin" to streamOrigin)
+        } else {
+            headers
+        }
+        return chosen to streamHeaders
+    }
+
+    private fun variantScore(streamInfLine: String): Int {
+        val resolution = """RESOLUTION=(\d+)x(\d+)""".toRegex().find(streamInfLine)
+        if (resolution != null) {
+            val height = resolution.groupValues[2].toIntOrNull() ?: 0
+            return height * 1000
+        }
+        val bandwidth = """BANDWIDTH=(\d+)""".toRegex().find(streamInfLine)
+        return ((bandwidth?.groupValues?.get(1)?.toLongOrNull() ?: 0L) / 1000).toInt()
+    }
+
+    private fun nameScore(url: String): Int {
+        val match = """(\d{3,4})p""".toRegex().find(url.lowercase()) ?: return 0
+        return (match.groupValues[1].toIntOrNull() ?: 0) * 1000
+    }
+
     private fun siteLooksAlive(finalUrl: String, body: String, marker: String, required: List<String>): Boolean {
         val host = runCatching { java.net.URI(finalUrl).host?.lowercase().orEmpty() }.getOrDefault("")
         if (!host.contains(marker)) return false
@@ -509,9 +602,13 @@ class HDFilmCehennemi : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
+            // ! Origin/Referer embed host'una sabitlenir. Eksik kalınca uygulama
+            // ! onu playmix.uno yapıyor ve yayın 5004 ile düşüyordu.
+            val origin = originOf(url) ?: mainUrl
             val headers = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-                "Referer" to "${mainUrl}/"
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$origin/",
+                "Origin" to origin
             )
             val html = app.get(url, headers = headers, interceptor = interceptor).text
 
@@ -534,18 +631,19 @@ class HDFilmCehennemi : MainAPI() {
 
             if (!realUrl.isNullOrBlank() && realUrl.startsWith("http")) {
                 val finalStream = realUrl.substringAfter("https").let { "https$it" }
+                // ! playmix.uno master.txt'yi oynatıcıya ham vermiyor: liste açılıp
+                // ! içindeki gerçek .m3u8 adresi seçiliyor.
+                val (streamUrl, streamHeaders) = resolveStreamUrl(finalStream, headers)
+                    ?: (finalStream to headers)
                 callback.invoke(
                     newExtractorLink(
                         source = source,
                         name = source,
-                        url = finalStream,
+                        url = streamUrl,
                         type = ExtractorLinkType.M3U8
                     ) {
                         quality = Qualities.P1080.value
-                        this.headers = mapOf(
-                            "Referer" to "$mainUrl/",
-                            "User-Agent" to headers["User-Agent"]!!
-                        )
+                        this.headers = streamHeaders
                     }
                 )
             }
@@ -555,7 +653,8 @@ class HDFilmCehennemi : MainAPI() {
             if (subData.isNotBlank()) {
                 AppUtils.tryParseJson<List<SubSource>>("[${subData}]")?.filter { it.kind == "captions" || it.kind == "subtitles" }?.forEach {
                     val subFile = it.file ?: return@forEach
-                    val subtitleUrl = if (subFile.startsWith("http")) subFile else "${mainUrl}${subFile}/"
+                    // ! Sonundaki "/" kaldırıldı: o eğik çizgi .vtt dosyasını 404 yaptırıyordu.
+                    val subtitleUrl = subtitleUrlOf(subFile) ?: return@forEach
                     subtitleCallback(newSubtitleFile(it.language ?: "Türkçe", subtitleUrl))
                 }
             }
@@ -565,8 +664,18 @@ class HDFilmCehennemi : MainAPI() {
     }
 
     private suspend fun invokeLocalSource(source: String, url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit ) {
+        val origin = originOf(url) ?: mainUrl
         val pageText = try {
-            app.get(url, referer = "${mainUrl}/", interceptor = interceptor).text
+            app.get(
+                url,
+                referer = "$origin/",
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$origin/",
+                    "Origin" to origin
+                ),
+                interceptor = interceptor
+            ).text
         } catch (e: Exception) {
             return
         }
@@ -586,12 +695,18 @@ class HDFilmCehennemi : MainAPI() {
                 ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(pageText)?.value
         }
         if (decryptedUrl.isNullOrBlank()) return
-        val lastUrl = decryptedUrl.substringAfter("https").let { "https$it" }
+        val rawStream = decryptedUrl.substringAfter("https").let { "https$it" }
+        // ! master.txt ham verilmeyip içindeki gerçek .m3u8 adresi seçilir.
+        val (lastUrl, streamHeaders) = resolveStreamUrl(
+            rawStream,
+            mapOf("User-Agent" to USER_AGENT, "Referer" to "$origin/", "Origin" to origin)
+        ) ?: (rawStream to mapOf("Referer" to "$origin/", "Origin" to origin, "User-Agent" to USER_AGENT))
         val subData = pageText.substringAfter("tracks: [", "").substringBefore("]")
         if (subData.isNotBlank()) {
             AppUtils.tryParseJson<List<SubSource>>("[${subData}]")?.filter { it.kind == "captions" || it.kind == "subtitles" }?.forEach {
                 val subFile = it.file ?: return@forEach
-                val subtitleUrl = if (subFile.startsWith("http")) subFile else "${mainUrl}${subFile}/"
+                // ! Sonundaki "/" kaldırıldı: o eğik çizgi .vtt dosyasını 404 yaptırıyordu.
+                val subtitleUrl = subtitleUrlOf(subFile) ?: return@forEach
                 subtitleCallback(newSubtitleFile(it.language ?: "Türkçe", subtitleUrl))
             }
         }
@@ -602,66 +717,220 @@ class HDFilmCehennemi : MainAPI() {
                 url     = lastUrl,
                 type    = ExtractorLinkType.M3U8
             ) {
-                headers = mapOf("Referer" to "${mainUrl}/", "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Norton/124.0.0.0")
+                headers = streamHeaders
                 quality = Qualities.Unknown.value
             }
         )
     }
 
-override suspend fun loadLinks(
-    data: String,
-    isCasting: Boolean,
-    subtitleCallback: (SubtitleFile) -> Unit,
-    callback: (ExtractorLink) -> Unit
-): Boolean {
-    resolveDomain()
-    val pageUrl = migrateUrl(data)
-    Log.d("HDCH", "data » $pageUrl")
-    val document = app.get(pageUrl, interceptor = interceptor).document
-    var linkFound = false
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        resolveDomain()
+        val pageUrl = migrateUrl(data)
+        Log.d("HDCH", "data » $pageUrl")
+        val document = app.get(pageUrl, interceptor = interceptor).document
+        var linkFound = false
 
-    document.select("div.alternative-links").map { element ->
-        element to element.attr("data-lang").uppercase()
-    }.forEach { (element, langCode) ->
-        element.select("button.alternative-link").mapNotNull { button ->
-            val vid = button.attr("data-video").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            (button.text().replace("(HDrip Xbet)", "").trim() + " $langCode") to vid
-        }.forEach { (source, videoID) ->
-            try {
-                val apiGet = app.get(
-                    "${mainUrl}/video/$videoID/", interceptor = interceptor,
-                    headers = mapOf(
-                        "Content-Type" to "application/json",
-                        "X-Requested-With" to "fetch"
-                    ),
-                    referer = pageUrl
-                ).text
-                Log.d("HDCH", "Found videoID: $videoID")
-                val iframeRaw = Regex("""data-src=\\?"([^"\\]+)""").find(apiGet)?.groupValues?.get(1)
-                    ?: Regex("""src=\\?"([^"\\]+)""").find(apiGet)?.groupValues?.get(1)
-                    ?: return@forEach
-                var iframe = iframeRaw.replace("\\/", "/").replace("\\", "").trim()
-                if (iframe.startsWith("//")) iframe = "https:$iframe"
-                Log.d("HDCH", "$source » $videoID » $iframe")
+        // ! Artık yalnızca eski "alternative-link" düğmesine bakılmıyor: kaynak
+        // ! düğmesi bulunamayınca boş liste dönüyordu. Sayfadaki iframe, data-video
+        // ! ve gömülü adresler de taranıyor; /video/{id}/ ile Rapidrame rplayer yolu deneniyor.
+        val candidates = collectLinkCandidates(document, pageUrl)
+        Log.d("HDCH", "aday kaynak: ${candidates.size}")
+        val tried = mutableSetOf<String>()
 
-                if (iframe.contains("mobi") || iframe.contains("closeload") || iframe.contains("/embed/")) {
-                    extractMobiOrCloseLoad(source, iframe, subtitleCallback) { link ->
-                        linkFound = true
-                        callback(link)
-                    }
-                } else {
-                    invokeLocalSource(source, iframe, subtitleCallback) { link ->
-                        linkFound = true
-                        callback(link)
-                    }
+        candidates.forEach { candidate ->
+            var embedUrl: String? = null
+
+            // 1) /video/{id}/ → iframe (eski alternative-link akışı + Rapidrame rplayer)
+            val videoId = candidate.videoId
+            if (!videoId.isNullOrBlank() && !videoId.contains("://")) {
+                try {
+                    val apiGet = app.get(
+                        "${mainUrl}/video/$videoId/", interceptor = interceptor,
+                        headers = mapOf(
+                            "Content-Type" to "application/json",
+                            "X-Requested-With" to "fetch",
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to pageUrl
+                        ),
+                        referer = pageUrl
+                    ).text
+                    Log.d("HDCH", "Found videoID: $videoId")
+                    embedUrl = iframeFromHtml(apiGet)
+                } catch (e: Exception) {
+                    Log.e("HDCH", "Error loading videoID $videoId: ${e.message}")
                 }
-            } catch (e: Exception) {
-                Log.e("HDCH", "Error loading videoID $videoID: ${e.message}")
+            }
+
+            // 2) Aday adresin kendisi zaten gömülü oynatıcı mı?
+            if (embedUrl.isNullOrBlank()) embedUrl = candidate.url.takeIf { it.isNotBlank() }
+
+            // 3) rplayer sayfasından bir seviye daha çık (gerçek kaynak iframe'i)
+            if (!embedUrl.isNullOrBlank() && embedUrl.contains("rplayer")) {
+                embedUrl = iframeFromHtml(fetchText(embedUrl, pageUrl)) ?: embedUrl
+            }
+
+            val target = embedUrl?.trim()
+            if (target.isNullOrBlank() || target == "about:blank" || !target.startsWith("http")) return@forEach
+            if (!tried.add(target)) return@forEach
+            Log.d("HDCH", "${candidate.source} » $target")
+
+            val source = candidate.source
+            val wrapped: (ExtractorLink) -> Unit = { link ->
+                linkFound = true
+                callback(link)
+            }
+            val looksLikeEmbed = target.contains("mobi") || target.contains("closeload") ||
+                target.contains("/embed/") || target.contains("rplayer") || target.contains("rapidrame")
+
+            if (looksLikeEmbed) {
+                extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
+            } else {
+                invokeLocalSource(source, target, subtitleCallback, wrapped)
+            }
+
+            // ! İlk yol boş dönerse aynı adres diğer çözümleyiciyle de denenir.
+            if (!linkFound) {
+                if (looksLikeEmbed) {
+                    invokeLocalSource(source, target, subtitleCallback, wrapped)
+                } else {
+                    extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
+                }
             }
         }
+
+        Log.d("HDCH", "linkFound » $linkFound")
+        return linkFound
     }
-    return linkFound
-}
+
+    private data class LinkCandidate(val source: String, val url: String, val videoId: String? = null)
+
+    /** Sayfadaki tüm kaynak adaylarını toplar: alternative-link düğmeleri, iframe'ler, data-video ve gömülü adresler. */
+    private fun collectLinkCandidates(document: org.jsoup.nodes.Document, pageUrl: String): List<LinkCandidate> {
+        val candidates = mutableListOf<LinkCandidate>()
+
+        // 1) Eski yol: alternative-links düğmeleri (data-video → /video/{id}/)
+        document.select("div.alternative-links").forEach { element ->
+            val langCode = element.attr("data-lang").uppercase()
+            element.select("button.alternative-link").forEach { button ->
+                val label = button.text().replace("(HDrip Xbet)", "").trim()
+                    .ifBlank { button.attr("data-name").trim() }
+                    .ifBlank { "Kaynak" }
+                val source = if (langCode.isNotBlank()) "$label $langCode" else label
+                val vid = listOf(
+                    button.attr("data-video"),
+                    button.attr("data-id"),
+                    button.attr("data-src"),
+                    button.attr("data-url")
+                ).firstOrNull { it.isNotBlank() } ?: return@forEach
+                val normalized = normalizeEmbed(vid, pageUrl)
+                if (normalized != null) {
+                    candidates.add(LinkCandidate(source, normalized, vid.trim()))
+                } else if (!vid.contains("://") && vid.trim().isNotEmpty()) {
+                    candidates.add(LinkCandidate(source, "", vid.trim()))
+                }
+            }
+        }
+
+        // 2) data-video / data-video_url / data-src / data-url taşıyan tüm öğeler
+        document.select("[data-video], [data-video_url], [data-src], [data-url]").forEach { element ->
+            val raw = listOf(
+                element.attr("data-video"),
+                element.attr("data-video_url"),
+                element.attr("data-src"),
+                element.attr("data-url")
+            ).firstOrNull { it.isNotBlank() } ?: return@forEach
+            val label = element.text().trim().take(40)
+                .ifBlank { element.attr("title").trim() }
+                .ifBlank { "Kaynak" }
+            val normalized = normalizeEmbed(raw, pageUrl)
+            if (normalized != null) {
+                candidates.add(LinkCandidate(label, normalized, raw.trim()))
+            } else if (!raw.contains("://") && raw.trim().isNotEmpty()) {
+                // ! Rapidrame rplayer yolu: ham kimlik /video/{id}/ ile denenir.
+                candidates.add(LinkCandidate(label, "", raw.trim()))
+            }
+        }
+
+        // 3) iframe'ler (src / data-src / data-lazy-src)
+        document.select("iframe").forEach { frame ->
+            val raw = listOf(
+                frame.attr("data-src"),
+                frame.attr("src"),
+                frame.attr("data-lazy-src")
+            ).firstOrNull { it.isNotBlank() } ?: return@forEach
+            val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
+            candidates.add(LinkCandidate("iframe", normalized))
+        }
+
+        // 4) Sayfanın ham HTML'inde gömülü duran oynatıcı adresleri
+        val html = document.html()
+        listOf(
+            """"file"\s*:\s*"([^"]+\.m3u8[^"]*)"""".toRegex(),
+            """https?://[^\s"'<>]+/master\.txt[^\s"'<>]*""".toRegex(),
+            """https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""".toRegex(),
+            """https?://[^\s"'<>]*rplayer[^\s"'<>]*""".toRegex()
+        ).forEach { regex ->
+            regex.findAll(html).forEach { match ->
+                val value = match.groupValues.getOrElse(1) { match.value }
+                val normalized = normalizeEmbed(value, pageUrl) ?: return@forEach
+                candidates.add(LinkCandidate("Gömülü", normalized))
+            }
+        }
+
+        return candidates.distinctBy { it.url.ifBlank { "id:${it.videoId}" } }
+    }
+
+    /** data-src="..." / src="..." kalıplarını ve doğrudan akış adreslerini çözer. */
+    private fun iframeFromHtml(html: String?): String? {
+        if (html.isNullOrBlank()) return null
+        val raw = Regex("""data-src=\\?"([^"\\]+)""").find(html)?.groupValues?.get(1)
+            ?: Regex("""src=\\?"([^"\\]+)""").find(html)?.groupValues?.get(1)
+            ?: Regex("""<iframe[^>]+src=["']([^"']+)["']""").find(html)?.groupValues?.get(1)
+            ?: Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(html)?.value
+            ?: Regex("""https?://[^\s"'<>]+/master\.txt[^\s"'<>]*""").find(html)?.value
+            ?: return null
+        return normalizeEmbed(raw, null)
+    }
+
+    private fun normalizeEmbed(raw: String, pageUrl: String?): String? {
+        var value = raw.replace("\\/", "/").replace("\\", "").trim().trim('"', '\'')
+        if (value.isBlank() || value == "about:blank") return null
+        // ! Görsel/ikon adresleri kaynak değildir (lazyload data-src'leri elenir).
+        val lower = value.lowercase()
+        if (listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif").any { lower.contains(it) }) return null
+        if (value.startsWith("//")) value = "https:$value"
+        if (!value.startsWith("http")) {
+            val base = pageUrl ?: mainUrl
+            value = absolutizeUrl(value, base) ?: return null
+        }
+        if (!value.startsWith("http")) return null
+        // ! Kendi sayfamızın adresi kaynak değildir; sonsuz döngüyü keser.
+        if (originOf(value) == originOf(mainUrl)) return null
+        return value
+    }
+
+    private suspend fun fetchText(url: String, referer: String): String? {
+        return try {
+            val origin = originOf(url) ?: mainUrl
+            app.get(
+                url,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "$referer",
+                    "Origin" to origin
+                ),
+                interceptor = interceptor
+            ).text
+        } catch (e: Exception) {
+            Log.e("HDCH", "fetchText error ($url): ${e.message}")
+            null
+        }
+    }
     private data class SubSource(
         @JsonProperty("file")    val file: String?  = null,
         @JsonProperty("label")   val label: String? = null,
