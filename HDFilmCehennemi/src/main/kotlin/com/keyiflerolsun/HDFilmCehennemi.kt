@@ -205,7 +205,7 @@ class HDFilmCehennemi : MainAPI() {
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
             lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
-            else -> INFER_TYPE
+            else -> INFER_TYPE ?: ExtractorLinkType.VIDEO
         }
     }
 
