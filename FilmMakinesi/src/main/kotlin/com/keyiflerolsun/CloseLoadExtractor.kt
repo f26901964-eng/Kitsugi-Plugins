@@ -51,10 +51,15 @@ class CloseLoad : ExtractorApi() {
             val response = app.get(url, referer = origin, headers = headers2)
             val html = response.text
 
-            // 1. JS Deşifre Algoritmasını Dene
-            var realUrl = decryptNative(html)
+            // 1. JS deşifre algoritmasını dene.
+            var realUrl = decryptNative(html)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
 
-            // 2. Fallback Mekanizması: Eğer JS şifre çözücü başarısız olursa JSON-LD bloğundaki şifresiz contentUrl'i ara
+            // CloseLoad'un güncel embed'i kaynak URL'sini base64 (aHR0...) olarak
+            // gömüyor. Eski extractor bu alanı hiç çözmediği için player'a link
+            // gönderemiyordu; önce doğrudan bu URL'yi çıkar.
+            if (realUrl.isNullOrBlank()) realUrl = extractBase64StreamUrl(html)
+
+            // 2. Fallback: JSON-LD / JWPlayer'daki şifresiz contentUrl veya file.
             if (realUrl.isNullOrBlank()) {
                 Log.w("Kekik_${this.name}", "Native deşifre başarısız, Fallback JSON-LD aranıyor...")
                 val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
@@ -339,6 +344,29 @@ class CloseLoad : ExtractorApi() {
                 null
             }
         }
+    }
+
+    /** CloseLoad stores the playable URL as a base64 token (often beginning aHR0...). */
+    private fun extractBase64StreamUrl(html: String): String? {
+        val candidates = Regex("""aHR0[A-Za-z0-9+/_=-]{12,}""")
+            .findAll(html)
+            .map { it.value.trimEnd('=', ';', ',') }
+        for (candidate in candidates) {
+            try {
+                var padded = candidate
+                while (padded.length % 4 != 0) padded += "="
+                val decoded = String(Base64.decode(padded, Base64.DEFAULT), Charsets.UTF_8)
+                    .replace("\\/", "/").trim()
+                if ((decoded.startsWith("http://") || decoded.startsWith("https://")) &&
+                    runCatching { java.net.URI(decoded).host }.getOrNull() != null) {
+                    Log.d("Kekik_${this.name}", "base64 stream çözüldü: $decoded")
+                    return decoded
+                }
+            } catch (_: Exception) {
+                // Sayfadaki diğer base64 değerlerini dene.
+            }
+        }
+        return null
     }
 
     private fun decryptNative(html: String): String? {
