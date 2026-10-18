@@ -22,6 +22,7 @@ import com.lagradost.cloudstream3.syncproviders.SyncIdName
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrlNull
 import com.lagradost.cloudstream3.mainPageOf
+import com.lagradost.cloudstream3.updateUrl
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
@@ -46,7 +47,23 @@ private const val TMDB_API_KEY = "c4ffcab48dfaa7b41625ac13d61aec31"
 private const val USER_AGENT   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 class HDFilmCehennemi : MainAPI() {
+    // ! 12 Ekim kaydı .biz'i canlı sanıyordu; 18 Ekim 2026'da .biz cPanel
+    // ! varsayılan sayfası, hdfilmcehennemi7.com satışta. Eklentinin ayrıştırıcısıyla
+    // ! uyumlu canlı site .nl (images/list/poster). Yedekler sırayla denenir; cPanel,
+    // ! satış sayfası ve WordPress klonu sabitlenmez.
     override var mainUrl              = "https://www.hdfilmcehennemi.nl"
+    private val domainCandidates      = listOf(
+        "https://www.hdfilmcehennemi.nl",
+        "https://hdfilmcehennemi.nl",
+        "https://www.hdfilmcehennemi.la",
+        "https://hdfilmcehennemi.la",
+        "https://www.hdfilmcehennemi.com",
+        "https://www.hdfilmcehennemi.com.tr",
+        "https://www.hdfilmcehennemi.biz",
+        "https://hdfilmcehennemi.biz",
+        "https://hdfilmcehennemi7.com",
+    )
+    private var domainResolved        = false
     override var name                 = "HDFilmCehennemi"
     override val hasMainPage          = true
     override var lang                 = "tr"
@@ -78,14 +95,15 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
+    // ! Yollar göreli: domain sonradan çözülse de istek doğru host'a gider.
     override val mainPage = mainPageOf(
-        "${mainUrl}/load/page/sayfano/home/"                                       to "Yeni Eklenen Filmler",
-        //"${mainUrl}/load/page/sayfano/categories/nette-ilk-filmler/"               to "Nette İlk Filmler",
-        "${mainUrl}/load/page/sayfano/home-series/"                                to "Yeni Eklenen Diziler",
-        "${mainUrl}/load/page/sayfano/categories/tavsiye-filmler-izle3/"           to "Tavsiye Filmler",
-        "${mainUrl}/load/page/sayfano/imdb7/"                                      to "IMDB 7+ Filmler",
-        "${mainUrl}/load/page/sayfano/mostCommented/"                              to "En Çok Yorumlananlar",
-        "${mainUrl}/load/page/sayfano/mostLiked/"                                  to "En Çok Beğenilenler",
+        "/load/page/sayfano/home/"                                       to "Yeni Eklenen Filmler",
+        //"/load/page/sayfano/categories/nette-ilk-filmler/"               to "Nette İlk Filmler",
+        "/load/page/sayfano/home-series/"                                to "Yeni Eklenen Diziler",
+        "/load/page/sayfano/categories/tavsiye-filmler-izle3/"           to "Tavsiye Filmler",
+        "/load/page/sayfano/imdb7/"                                      to "IMDB 7+ Filmler",
+        "/load/page/sayfano/mostCommented/"                              to "En Çok Yorumlananlar",
+        "/load/page/sayfano/mostLiked/"                                  to "En Çok Beğenilenler",
         //"${mainUrl}/load/page/sayfano/genres/aile-filmleri-izleyin-6/"             to "Aile Filmleri",
         //"${mainUrl}/load/page/sayfano/genres/aksiyon-filmleri-izleyin-5/"          to "Aksiyon Filmleri",
         //"${mainUrl}/load/page/sayfano/genres/animasyon-filmlerini-izleyin-5/"      to "Animasyon Filmleri",
@@ -96,10 +114,93 @@ class HDFilmCehennemi : MainAPI() {
         //"${mainUrl}/load/page/sayfano/genres/romantik-filmleri-izle-2/"            to "Romantik Filmleri"
     )
 
+    private suspend fun resolveDomain() {
+        if (domainResolved) return
+        domainResolved = true
+        for (candidate in domainCandidates) {
+            try {
+                val res = app.get(
+                    candidate,
+                    headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Referer" to "$candidate/"
+                    ),
+                    interceptor = interceptor,
+                    cacheTime = 60
+                )
+                if (!res.isSuccessful) continue
+                val pinned = originOf(res.url) ?: continue
+                if (!siteLooksAlive(
+                        pinned,
+                        res.text,
+                        "hdfilmcehennemi",
+                        listOf("images/list/poster", "alternative-link", "load/page", "post-info")
+                    )
+                ) continue
+                mainUrl = pinned
+                Log.d("HDCH", "domain sabitlendi: $mainUrl")
+                return
+            } catch (e: Exception) {
+                Log.d("HDCH", "domain adayi olmadi: $candidate (${e.message})")
+            }
+        }
+        Log.w("HDCH", "hicbir domain ayakta degil, varsayilan kaldi: $mainUrl")
+    }
+
+    /** Eski domaindeki kayıtlı içerik/bölüm adresini çözülen host'a taşır. */
+    private fun migrateUrl(url: String): String {
+        val host = runCatching { java.net.URI(url).host?.lowercase().orEmpty() }.getOrDefault("")
+        if (!host.contains("hdfilmcehennemi")) return url
+        return try {
+            updateUrl(url)
+        } catch (e: Exception) {
+            url
+        }
+    }
+
+    private fun originOf(url: String): String? {
+        return try {
+            val uri = java.net.URI(url)
+            val host = uri.host ?: return null
+            val scheme = uri.scheme ?: "https"
+            val port = if (uri.port > 0 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""
+            "$scheme://$host$port"
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun siteLooksAlive(finalUrl: String, body: String, marker: String, required: List<String>): Boolean {
+        val host = runCatching { java.net.URI(finalUrl).host?.lowercase().orEmpty() }.getOrDefault("")
+        if (!host.contains(marker)) return false
+        val lower = body.lowercase()
+        val dead = listOf(
+            "yasal nedenlerle",
+            "unavailable for legal reasons",
+            "domain for sale",
+            "buy this domain",
+            "is for sale",
+            "godaddy",
+            "default web site page",
+            "cgi-sys/defaultwebpage",
+            "wp-content",
+            "wp-login.php",
+        )
+        if (dead.any { lower.contains(it) }) return false
+        if (body.length < 300) return false
+        return required.any { lower.contains(it) }
+    }
+
+    private fun absoluteUrl(path: String): String {
+        if (path.startsWith("http://") || path.startsWith("https://")) return path
+        return mainUrl.trimEnd('/') + "/" + path.trimStart('/')
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        resolveDomain()
         val objectMapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
         objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        val url = request.data.replace("sayfano", page.toString())
+        val url = absoluteUrl(request.data.replace("sayfano", page.toString()))
         val headers = mapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
             "user-agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
@@ -119,7 +220,7 @@ class HDFilmCehennemi : MainAPI() {
 
     private fun Element.toSearchResult(): SearchResponse? {
         val title = this.attr("title")
-        val href = fixUrlNull(this.attr("href")) ?: return null
+        val href = fixUrlNull(this.attr("href"))?.let { migrateUrl(it) } ?: return null
         val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("data-src"))
 
         return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
@@ -128,8 +229,10 @@ class HDFilmCehennemi : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
+        resolveDomain()
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
         val response      = app.get(
-            "${mainUrl}/search?q=${query}",
+            "${mainUrl}/search?q=$encoded",
             headers = mapOf(
                 "User-Agent"       to USER_AGENT,
                 "X-Requested-With" to "fetch",
@@ -146,7 +249,7 @@ class HDFilmCehennemi : MainAPI() {
                 ?: document.selectFirst(".title")?.text()?.trim()
                 ?: return@forEach
             val anchor = document.selectFirst("a.search-result") ?: document.selectFirst("a")
-            val href   = fixUrlNull(anchor?.attr("href")) ?: return@forEach
+            val href   = fixUrlNull(anchor?.attr("href"))?.let { migrateUrl(it) } ?: return@forEach
             val posterUrl = fixUrlNull(document.selectFirst("img")?.attr("src"))
                 ?: fixUrlNull(document.selectFirst("img")?.attr("data-src"))
 
@@ -230,7 +333,9 @@ class HDFilmCehennemi : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url, interceptor = interceptor).document
+        resolveDomain()
+        val pageUrl = migrateUrl(url)
+        val document = app.get(pageUrl, interceptor = interceptor).document
 
         val title       = document.selectFirst("h1.section-title")?.text()?.substringBefore(" izle") ?: return null
         val poster      = fixUrlNull(document.select("aside.post-info-poster img.lazyload").lastOrNull()?.attr("data-src"))
@@ -244,7 +349,7 @@ class HDFilmCehennemi : MainAPI() {
 
         val recommendations = document.select("div.section-slider-container div.slider-slide").mapNotNull {
                 val recName      = it.selectFirst("a")?.attr("title") ?: return@mapNotNull null
-                val recHref      = fixUrlNull(it.selectFirst("a")?.attr("href")) ?: return@mapNotNull null
+                val recHref      = fixUrlNull(it.selectFirst("a")?.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
                 val recPosterUrl = fixUrlNull(it.selectFirst("img")?.attr("data-src")) ?: fixUrlNull(it.selectFirst("img")?.attr("src"))
 
                 newTvSeriesSearchResponse(recName, recHref, TvType.TvSeries) {
@@ -257,7 +362,7 @@ class HDFilmCehennemi : MainAPI() {
             Log.d("HDCH", "Trailer: $trailer")
             val episodes = document.select("div.seasons-tab-content a").mapNotNull {
                 val epName    = it.selectFirst("h4")?.text()?.trim() ?: return@mapNotNull null
-                val epHref    = fixUrlNull(it.attr("href")) ?: return@mapNotNull null
+                val epHref    = fixUrlNull(it.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
                 val epEpisode = Regex("""(\d+)\. ?Bölüm""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
                 val epSeason  = Regex("""(\d+)\. ?Sezon""").find(epName)?.groupValues?.get(1)?.toIntOrNull() ?: 1
 
@@ -268,7 +373,7 @@ class HDFilmCehennemi : MainAPI() {
                 }
             }
 
-            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+            newTvSeriesLoadResponse(title, pageUrl, TvType.TvSeries, episodes) {
                 this.posterUrl       = poster
                 this.year            = year
                 this.plot            = description
@@ -280,7 +385,7 @@ class HDFilmCehennemi : MainAPI() {
         } else {
             val trailer = document.selectFirst("div.post-info-trailer button")?.attr("data-modal")?.substringAfter("trailer/", "")?.let { if (it.isNotEmpty()) "https://www.youtube.com/watch?v=$it" else null }
             Log.d("HDCH", "Trailer: $trailer")
-            newMovieLoadResponse(title, url, TvType.Movie, url) {
+            newMovieLoadResponse(title, pageUrl, TvType.Movie, pageUrl) {
                 this.posterUrl       = poster
                 this.year            = year
                 this.plot            = description
@@ -509,8 +614,10 @@ override suspend fun loadLinks(
     subtitleCallback: (SubtitleFile) -> Unit,
     callback: (ExtractorLink) -> Unit
 ): Boolean {
-    Log.d("HDCH", "data » $data")
-    val document = app.get(data, interceptor = interceptor).document
+    resolveDomain()
+    val pageUrl = migrateUrl(data)
+    Log.d("HDCH", "data » $pageUrl")
+    val document = app.get(pageUrl, interceptor = interceptor).document
     var linkFound = false
 
     document.select("div.alternative-links").map { element ->
@@ -527,7 +634,7 @@ override suspend fun loadLinks(
                         "Content-Type" to "application/json",
                         "X-Requested-With" to "fetch"
                     ),
-                    referer = data
+                    referer = pageUrl
                 ).text
                 Log.d("HDCH", "Found videoID: $videoID")
                 val iframeRaw = Regex("""data-src=\\?"([^"\\]+)""").find(apiGet)?.groupValues?.get(1)

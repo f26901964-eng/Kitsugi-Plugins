@@ -11,6 +11,18 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 
 class CloseLoad : ExtractorApi() {
+    private fun originOf(url: String): String? {
+        return try {
+            val uri = java.net.URI(url)
+            val host = uri.host ?: return null
+            val scheme = uri.scheme ?: "https"
+            val port = if (uri.port > 0 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""
+            "$scheme://$host$port"
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     override val name = "CloseLoad"
     override val mainUrl = "https://closeload.filmmakinesi.to"
     override val requiresReferer = true
@@ -21,14 +33,17 @@ class CloseLoad : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
+        // ! Referer, çağıranın verdiği host değil embed adresinin kendi host'u.
+        // ! closeload.filmmakinesi.to ölünce başka bir closeload host'u da çalışsın.
+        val origin = originOf(url) ?: referer?.trimEnd('/')?.takeIf { it.startsWith("http") } ?: mainUrl
         val headers2 = mapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Referer" to "$mainUrl/",
-            "Origin" to mainUrl
+            "Referer" to "$origin/",
+            "Origin" to origin
         )
 
         try {
-            val response = app.get(url, referer = mainUrl, headers = headers2)
+            val response = app.get(url, referer = origin, headers = headers2)
             val html = response.text 
 
             // 1. JS Deşifre Algoritmasını Dene
@@ -58,7 +73,7 @@ class CloseLoad : ExtractorApi() {
                     ) {
                         quality = Qualities.P1080.value
                         headers = mapOf(
-                            "Referer" to "$mainUrl/",
+                            "Referer" to "$origin/",
                             "User-Agent" to headers2["User-Agent"]!!
                         )
                     }

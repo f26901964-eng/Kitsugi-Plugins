@@ -17,7 +17,18 @@ private const val TMDB_API_KEY = "c4ffcab48dfaa7b41625ac13d61aec31"
 
 
 class FilmMakinesi : MainAPI() {
+    // ! .to ölürse sırayla denenir; ayakta olan sabitlenir.
     override var mainUrl              = "https://filmmakinesi.to"
+    private val domainCandidates      = listOf(
+        "https://filmmakinesi.to",
+        "https://filmmakinesi.film",
+        "https://filmmakinesi.tv",
+        "https://filmmakinesi.pw",
+        "https://filmmakinesi.net",
+        "https://filmmakinesi.de",
+        "https://filmmakinesi.com",
+    )
+    private var domainResolved        = false
     override var name                 = "FilmMakinesi"
     override val hasMainPage          = true
     override var lang                 = "tr"
@@ -40,18 +51,19 @@ class FilmMakinesi : MainAPI() {
     override var sequentialMainPageDelay       = 50L  // ? 0.05 saniye
     override var sequentialMainPageScrollDelay = 50L  // ? 0.05 saniye
 
+    // ! Yollar göreli: domain sonradan çözülse de doğru host'a gidilir.
     override val mainPage = mainPageOf(
-        "${mainUrl}/filmler-1/sayfa/"                                to "Son Filmler",
-        "${mainUrl}/film-izle/olmeden-izlenmesi-gerekenler-fm1/sayfa/" to "Ölmeden İzle",
-        "${mainUrl}/tur/aksiyon-fm1/film/sayfa/"                       to "Aksiyon",
-        "${mainUrl}/tur/bilim-kurgu-fm2/film/sayfa/"                   to "Bilim Kurgu",
-        "${mainUrl}/tur/macera-fm1/film/sayfa/"                        to "Macera",
-        "${mainUrl}/tur/komedi-fm1/film/sayfa/"                        to "Komedi",
-        "${mainUrl}/tur/romantik-fm1/film/sayfa/"                      to "Romantik",
-        "${mainUrl}/tur/belgesel/film/sayfa/"                      to "Belgesel",
-        "${mainUrl}/tur/fantastik-fm1/film/sayfa/"                     to "Fantastik",
-        "${mainUrl}/tur/polisiye/film/sayfa/"                      to "Polisiye Suç",
-        "${mainUrl}/tur/korku-fm1/film/sayfa/"                         to "Korku",
+        "/filmler-1/sayfa/"                                to "Son Filmler",
+        "/film-izle/olmeden-izlenmesi-gerekenler-fm1/sayfa/" to "Ölmeden İzle",
+        "/tur/aksiyon-fm1/film/sayfa/"                       to "Aksiyon",
+        "/tur/bilim-kurgu-fm2/film/sayfa/"                   to "Bilim Kurgu",
+        "/tur/macera-fm1/film/sayfa/"                        to "Macera",
+        "/tur/komedi-fm1/film/sayfa/"                        to "Komedi",
+        "/tur/romantik-fm1/film/sayfa/"                      to "Romantik",
+        "/tur/belgesel/film/sayfa/"                          to "Belgesel",
+        "/tur/fantastik-fm1/film/sayfa/"                     to "Fantastik",
+        "/tur/polisiye/film/sayfa/"                          to "Polisiye Suç",
+        "/tur/korku-fm1/film/sayfa/"                         to "Korku",
         // "${mainUrl}/tur/savas/film/sayfa/"                      to "Tarihi ve Savaş",
         // "${mainUrl}/film-izle/gerilim-filmleri-izle/sayfa/"     to "Gerilim Heyecan",
         // "${mainUrl}/film-izle/gizemli/sayfa/"                   to "Gizem",
@@ -64,18 +76,109 @@ class FilmMakinesi : MainAPI() {
         // "${mainUrl}/film-izle/spor/sayfa/"                      to "Spor"
     )
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-val cleanedUrl = request.data.removeSuffix("/")
-val url = if (page > 1) {
-    "$cleanedUrl/$page"
-} else {
-    cleanedUrl.replace(Regex("/sayfa/?$"), "")
-}
+    private suspend fun resolveDomain() {
+        if (domainResolved) return
+        domainResolved = true
+        for (candidate in domainCandidates) {
+            try {
+                val res = app.get(
+                    candidate,
+                    headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Referer" to "$candidate/"
+                    ),
+                    cacheTime = 60
+                )
+                if (!res.isSuccessful) continue
+                val pinned = originOf(res.url) ?: continue
+                if (!siteLooksAlive(
+                        pinned,
+                        res.text,
+                        "filmmakinesi",
+                        listOf("film-list", "item-relative", "data-title", "filmler")
+                    )
+                ) continue
+                mainUrl = pinned
+                Log.d("FLMM", "domain sabitlendi: $mainUrl")
+                return
+            } catch (e: Exception) {
+                Log.d("FLMM", "domain adayi olmadi: $candidate (${e.message})")
+            }
+        }
+        Log.w("FLMM", "hicbir domain ayakta degil, varsayilan kaldi: $mainUrl")
+    }
 
-val document = app.get(url, headers = mapOf(
-    "User-Agent" to USER_AGENT,
-    "Referer" to mainUrl
-)).document
+    /** Eski domaindeki kayıtlı adresi çözülen host'a taşır. CloseLoad vb. dış host'lara dokunmaz. */
+    private fun migrateUrl(url: String): String {
+        val host = runCatching { java.net.URI(url).host?.lowercase().orEmpty() }.getOrDefault("")
+        if (!host.contains("filmmakinesi")) return url
+        return try {
+            updateUrl(url)
+        } catch (e: Exception) {
+            url
+        }
+    }
+
+    private fun originOf(url: String): String? {
+        return try {
+            val uri = java.net.URI(url)
+            val host = uri.host ?: return null
+            val scheme = uri.scheme ?: "https"
+            val port = if (uri.port > 0 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""
+            "$scheme://$host$port"
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun siteLooksAlive(finalUrl: String, body: String, marker: String, required: List<String>): Boolean {
+        val host = runCatching { java.net.URI(finalUrl).host?.lowercase().orEmpty() }.getOrDefault("")
+        if (!host.contains(marker)) return false
+        val lower = body.lowercase()
+        val dead = listOf(
+            "yasal nedenlerle",
+            "unavailable for legal reasons",
+            "domain for sale",
+            "buy this domain",
+            "is for sale",
+            "godaddy",
+            "default web site page",
+            "cgi-sys/defaultwebpage",
+        )
+        if (dead.any { lower.contains(it) }) return false
+        if (body.length < 300) return false
+        return required.any { lower.contains(it) }
+    }
+
+    private fun absoluteUrl(path: String): String {
+        if (path.startsWith("http://") || path.startsWith("https://")) return path
+        return mainUrl.trimEnd('/') + "/" + path.trimStart('/')
+    }
+
+    private fun normalizeLink(raw: String): String? {
+        val value = raw.trim()
+        if (value.isBlank() || value.contains("youtube") || value.contains("youtu.be")) return null
+        return when {
+            value.startsWith("//") -> "https:$value"
+            value.startsWith("http://") || value.startsWith("https://") -> value
+            value.startsWith("/") -> mainUrl.trimEnd('/') + value
+            else -> value
+        }
+    }
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        resolveDomain()
+        val cleanedUrl = absoluteUrl(request.data).removeSuffix("/")
+        val url = if (page > 1) {
+            "$cleanedUrl/$page"
+        } else {
+            cleanedUrl.replace(Regex("/sayfa/?$"), "")
+        }
+
+        val document = app.get(url, headers = mapOf(
+            "User-Agent" to USER_AGENT,
+            "Referer" to "$mainUrl/"
+        )).document
 
     val home = document.select("div.film-list div.item-relative")
         .mapNotNull { it.toSearchResult() }
@@ -86,9 +189,13 @@ val document = app.get(url, headers = mapOf(
 
 private fun Element.toSearchResult(): SearchResponse? {
     val aTag = selectFirst("a.item") ?: return null
-    val title = aTag.attr("data-title").takeIf { it.isNotBlank() } ?: return null
-    val href = fixUrlNull(aTag.attr("href")) ?: return null
-    val posterUrl = fixUrlNull(aTag.selectFirst("img")?.attr("src"))
+    val title = aTag.attr("data-title").takeIf { it.isNotBlank() }
+        ?: aTag.attr("title").takeIf { it.isNotBlank() }
+        ?: aTag.text().trim().takeIf { it.isNotBlank() }
+        ?: return null
+    val href = fixUrlNull(aTag.attr("href"))?.let { migrateUrl(it) } ?: return null
+    val img = aTag.selectFirst("img")
+    val posterUrl = fixUrlNull(img?.attr("data-src")) ?: fixUrlNull(img?.attr("src"))
 
     Log.d("FLMM", "Film: $title, Href: $href, Poster: $posterUrl")
 
@@ -108,13 +215,22 @@ private fun Element.toSearchResult(): SearchResponse? {
     private fun Element.toRecommendResult(): SearchResponse? {
         val title     = this.select("a").last()?.text() ?: return null
         val href      = fixUrlNull(this.select("a").last()?.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
+        val img = this.selectFirst("img")
+        val posterUrl = fixUrlNull(img?.attr("data-src")) ?: fixUrlNull(img?.attr("src"))
 
-        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
+        return newMovieSearchResponse(title, migrateUrl(href), TvType.Movie) { this.posterUrl = posterUrl }
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val document = app.get("${mainUrl}/arama/?s=${query}").document
+        resolveDomain()
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val document = app.get(
+            "${mainUrl}/arama/?s=$encoded",
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$mainUrl/"
+            )
+        ).document
 
         return document.select("div.film-list div.item-relative").mapNotNull { it.toSearchResult() }
     }
@@ -200,7 +316,15 @@ private fun Element.toSearchResult(): SearchResponse? {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(url).document
+        resolveDomain()
+        val pageUrl = migrateUrl(url)
+        val document = app.get(
+            pageUrl,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$mainUrl/"
+            )
+        ).document
 
         // ! Dizi sayfası mı? /dizi/ adresi veya bölüm bağlantıları varsa dizi.
         val isSeries = url.contains("/dizi/") || parseSeriesEpisodes(document).isNotEmpty()
@@ -217,7 +341,7 @@ private fun Element.toSearchResult(): SearchResponse? {
             val episodes     = parseSeriesEpisodes(document)
             if (episodes.isEmpty()) return null
 
-            return newTvSeriesLoadResponse(seriesTitle, url, TvType.TvSeries, episodes) {
+            return newTvSeriesLoadResponse(seriesTitle, pageUrl, TvType.TvSeries, episodes) {
                 this.posterUrl = seriesPoster
                 this.plot      = seriesPlot
                 this.year      = seriesYear
@@ -247,7 +371,7 @@ private fun Element.toSearchResult(): SearchResponse? {
     if (it.isNotEmpty()) "https://www.youtube.com/watch?v=$it" else null 
 }
 
-        return newMovieLoadResponse(title, url, TvType.Movie, url) {
+        return newMovieLoadResponse(title, pageUrl, TvType.Movie, pageUrl) {
             this.posterUrl       = poster
             this.year            = year
             this.plot            = description
@@ -261,20 +385,42 @@ private fun Element.toSearchResult(): SearchResponse? {
 
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        Log.d("FLMM", "data » $data")
-        val document = app.get(data).document
+        resolveDomain()
+        val pageUrl = migrateUrl(data)
+        Log.d("FLMM", "data » $pageUrl")
+        val document = app.get(
+            pageUrl,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$mainUrl/"
+            )
+        ).document
         val iframes = document.select("iframe").mapNotNull {
-            it.attr("data-src").ifBlank { it.attr("src") }.takeIf { u -> u.isNotBlank() && !u.contains("youtube") }
+            normalizeLink(it.attr("data-src").ifBlank { it.attr("src") })
         }
         val videoUrls = document.select("[data-video_url]").mapNotNull {
-            it.attr("data-video_url").takeIf { u -> u.isNotBlank() && !u.contains("youtube") }
+            normalizeLink(it.attr("data-video_url"))
         }
-        val allUrls = (iframes + videoUrls).distinct()
+        val partLinks = document.select(".video-parts a, .video-options a").mapNotNull { el ->
+            normalizeLink(el.attr("href").ifBlank { el.attr("data-href") }.ifBlank { el.attr("data-url") })
+        }
+        val allUrls = (iframes + videoUrls + partLinks).distinct()
 
+        var produced = false
+        val wrapped: (ExtractorLink) -> Unit = { link ->
+            produced = true
+            callback(link)
+        }
         allUrls.forEach { url ->
             Log.d("FLMM", "Processing URL: $url")
-            loadExtractor(url, "${mainUrl}/", subtitleCallback, callback)
+            // ! CloseLoad referer'ı embed adresinin kendi host'undan alır.
+            val referer = (originOf(url) ?: mainUrl).trimEnd('/') + "/"
+            if (url.contains("closeload")) {
+                CloseLoad().getUrl(url, referer, subtitleCallback, wrapped)
+            } else {
+                loadExtractor(url, referer, subtitleCallback, wrapped)
+            }
         }
-        return allUrls.isNotEmpty()
+        return produced
     }
 }
