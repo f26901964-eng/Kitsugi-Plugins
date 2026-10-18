@@ -34,7 +34,6 @@ import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.getAndUnpack
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -200,14 +199,37 @@ class HDFilmCehennemi : MainAPI() {
     }
 
     // === Oynatıcı düzeltmeleri: kör M3U8 + 4 delik ===
-    private fun linkTypeFor(url: String): ExtractorLinkType {
+
+    /**
+     * Akış tipi. Bilinen uzantılar için ExtractorLinkType, bilinmeyen adresler için null.
+     *
+     * ! DİKKAT — burası oynatmayı tamamen öldüren delikti:
+     * ! CloudStream kütüphanesinde `val INFER_TYPE: ExtractorLinkType? = null`
+     * ! (ExtractorApi.kt:447) tanımlı. Yani `INFER_TYPE!!` yazmak DERLEME HATASI
+     * ! vermiyor ama ÇALIŞMA ANINDA her seferinde NullPointerException fırlatıyor.
+     * ! O NPE eklentinin kendi try/catch'inde yutulduğu için callback hiç
+     * ! çağrılmıyor, uygulama "0 kaynak" gösteriyor ve oynatıcı hata veriyordu.
+     * ! Uzantısız adresler (master.txt varyantları, JSON'dan çözülen CDN
+     * ! adresleri, token'lı /play) tam olarak bu dala düşüyordu.
+     * ! Doğrusu: null geçmek. `newExtractorLink` type parametresi zaten
+     * ! nullable; null verildiğinde kütüphane tipi adresten çıkarır.
+     */
+    private fun linkTypeFor(url: String): ExtractorLinkType? {
         val lower = url.lowercase().substringBefore("?")
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
             lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
-            else -> INFER_TYPE!!
+            else -> null
         }
     }
+
+    /**
+     * Ham .ts SEGMENT adresi mi? Yalnızca gerçek dosya uzantısına bakar.
+     * ! `contains(".ts")` çok genişti: "cdn.vod.ts.net/..." ve "lists.tsx/..."
+     * ! gibi geçerli adresleri de eliyordu. Sorgu dizesi de hesaba katılır.
+     */
+    private fun isTsSegment(url: String): Boolean =
+        url.substringBefore("?").trim().lowercase().endsWith(".ts")
 
     private fun normalizeStreamUrl(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
@@ -330,7 +352,7 @@ class HDFilmCehennemi : MainAPI() {
             val cleanedLine = trimmed.replace("\\/", "/").trim('"', '\'')
             val abs = absolutizeUrl(cleanedLine, baseUrl) ?: continue
             // .ts segmentleri aday değil
-            if (abs.lowercase().endsWith(".ts")) continue
+            if (isTsSegment(abs)) continue
             if (!abs.contains(".m3u8") && !abs.contains("master.txt")) continue
             val score = if (pendingScore >= 0) pendingScore else nameScore(abs)
             candidates.add(abs to score)
@@ -578,8 +600,13 @@ class HDFilmCehennemi : MainAPI() {
         val year        = document.selectFirst("div.post-info-year-country a")?.text()?.trim()?.toIntOrNull()
         val tvType      = if (document.select("div.seasons").isEmpty()) TvType.Movie else TvType.TvSeries
         val description = document.selectFirst("article.post-info-content > p")?.text()?.trim()
-        val actors      = document.select("div.post-info-cast a").map {
-            Actor(it.selectFirst("strong")!!.text(), it.select("img").attr("data-src"))
+        // ! `selectFirst("strong")!!` NPE fırlatıyordu; markup değişince (ya da
+        // ! "strong" içermeyen bir oyuncu bağlantısında) load() tümden patlıyor
+        // ! ve kullanıcı detay sayfasını hiç göremiyordu. Adı olmayan oyuncu atlanır.
+        val actors      = document.select("div.post-info-cast a").mapNotNull {
+            val actorName = it.selectFirst("strong")?.text()?.trim()?.takeIf { n -> n.isNotEmpty() }
+                ?: return@mapNotNull null
+            Actor(actorName, it.select("img").attr("data-src"))
         }
 
         val recommendations = document.select("div.section-slider-container div.slider-slide").mapNotNull {
@@ -832,7 +859,7 @@ class HDFilmCehennemi : MainAPI() {
                     variants.forEachIndexed { idx, pair ->
                         val (streamUrl, streamHeaders) = pair
                         val norm = normalizeStreamUrl(streamUrl) ?: return@forEachIndexed
-                        if (norm.startsWith("httpshttp://") || norm.contains(".ts")) {
+                        if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
                             Log.w("HDCH", "çöp adres elendi: $norm")
                             return@forEachIndexed
                         }
@@ -853,7 +880,7 @@ class HDFilmCehennemi : MainAPI() {
                     }
                 } else {
                     val norm = normalizedReal
-                    if (norm.startsWith("httpshttp://") || norm.contains(".ts")) {
+                    if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
                         Log.w("HDCH", "çöp adres elendi: $norm")
                     } else {
                         callback.invoke(
@@ -933,7 +960,7 @@ class HDFilmCehennemi : MainAPI() {
             Log.w("HDCH", "normalizeStreamUrl bozuk, elendi: $decryptedUrl")
             return
         }
-        if (rawStream.startsWith("httpshttp://") || rawStream.lowercase().endsWith(".ts")) {
+        if (rawStream.startsWith("httpshttp://") || isTsSegment(rawStream)) {
             Log.w("HDCH", "çöp adres elendi: $rawStream")
             return
         }
@@ -951,7 +978,7 @@ class HDFilmCehennemi : MainAPI() {
             variants.forEachIndexed { idx, pair ->
                 val (u, h) = pair
                 val norm = normalizeStreamUrl(u) ?: return@forEachIndexed
-                if (norm.startsWith("httpshttp://") || norm.lowercase().endsWith(".ts")) {
+                if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
                     Log.w("HDCH", "çöp varyant elendi: $norm")
                     return@forEachIndexed
                 }

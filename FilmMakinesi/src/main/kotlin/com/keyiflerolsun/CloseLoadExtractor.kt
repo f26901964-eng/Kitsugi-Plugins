@@ -7,7 +7,6 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.INFER_TYPE
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 
@@ -86,7 +85,7 @@ class CloseLoad : ExtractorApi() {
                 val normalized = normalizeStreamUrl(realUrl)
                 if (normalized.isNullOrBlank()) {
                     Log.w("Kekik_${this.name}", "normalizeStreamUrl bozuk, elendi: $realUrl")
-                } else if (normalized.startsWith("httpshttp://") || normalized.lowercase().endsWith(".ts")) {
+                } else if (normalized.startsWith("httpshttp://") || isTsSegment(normalized)) {
                     Log.w("Kekik_${this.name}", "çöp adres elendi: $normalized")
                 } else {
                     val variants = resolveMasterPlaylist(normalized, playlistHeaders)
@@ -94,7 +93,7 @@ class CloseLoad : ExtractorApi() {
                         variants.forEachIndexed { idx, pair ->
                             val (streamUrl, streamHeaders) = pair
                             val norm = normalizeStreamUrl(streamUrl) ?: return@forEachIndexed
-                            if (norm.startsWith("httpshttp://") || norm.lowercase().endsWith(".ts")) {
+                            if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
                                 Log.w("Kekik_${this.name}", "çöp varyant elendi: $norm")
                                 return@forEachIndexed
                             }
@@ -139,14 +138,36 @@ class CloseLoad : ExtractorApi() {
         }
     }
 
-    private fun linkTypeFor(url: String): ExtractorLinkType {
+    /**
+     * Akış tipi. Bilinen uzantılar için ExtractorLinkType, bilinmeyen adresler için null.
+     *
+     * ! DİKKAT — burası oynatmayı tamamen öldüren delikti:
+     * ! CloudStream kütüphanesinde `val INFER_TYPE: ExtractorLinkType? = null`
+     * ! (ExtractorApi.kt:447) tanımlı. Yani `INFER_TYPE!!` yazmak DERLEME HATASI
+     * ! vermiyor ama ÇALIŞMA ANINDA her seferinde NullPointerException fırlatıyor.
+     * ! O NPE eklentinin kendi try/catch'inde yutulduğu için callback hiç
+     * ! çağrılmıyor, uygulama "0 kaynak" gösteriyor ve oynatıcı hata veriyordu.
+     * ! Uzantısız adresler (master.txt varyantları, JSON'dan çözülen CDN
+     * ! adresleri, token'lı /play) tam olarak bu dala düşüyordu.
+     * ! Doğrusu: null geçmek. `newExtractorLink` type parametresi zaten
+     * ! nullable; null verildiğinde kütüphane tipi adresten çıkarır.
+     */
+    private fun linkTypeFor(url: String): ExtractorLinkType? {
         val lower = url.lowercase().substringBefore("?")
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
             lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
-            else -> INFER_TYPE!!
+            else -> null
         }
     }
+
+    /**
+     * Ham .ts SEGMENT adresi mi? Yalnızca gerçek dosya uzantısına bakar.
+     * ! `contains(".ts")` çok genişti: "cdn.vod.ts.net/..." ve "lists.tsx/..."
+     * ! gibi geçerli adresleri de eliyordu. Sorgu dizesi de hesaba katılır.
+     */
+    private fun isTsSegment(url: String): Boolean =
+        url.substringBefore("?").trim().lowercase().endsWith(".ts")
 
     private fun normalizeStreamUrl(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
@@ -254,7 +275,7 @@ class CloseLoad : ExtractorApi() {
             }
             if (line.startsWith("#")) continue
             val candidate = absolutize(line, baseUrl) ?: continue
-            if (candidate.lowercase().endsWith(".ts")) continue
+            if (isTsSegment(candidate)) continue
             if (!candidate.contains(".m3u8") && !candidate.contains("master.txt")) continue
             val score = if (pendingScore >= 0) pendingScore else nameScore(candidate)
             candidates.add(candidate to score)
