@@ -155,6 +155,15 @@ class FilmMakinesi : MainAPI() {
         return mainUrl.trimEnd('/') + "/" + path.trimStart('/')
     }
 
+    /**
+     * TANI (teşhis) logu — oynatıcıyla ilgili ham HTML dilimlerini logcat'e basar.
+     * ! Hedef: `adb logcat -s FLMM_TANI` ile sitenin o anki yapısını gözlemlemek.
+     */
+    private fun tani(label: String, text: String, limit: Int = 900) {
+        val clean = text.replace("\r", " ").replace("\n", " ").replace(Regex("\\s{2,}"), " ").trim()
+        Log.d("FLMM_TANI", "[$label] $clean".take(limit + label.length + 4))
+    }
+
     private fun normalizeLink(raw: String): String? {
         val value = raw.trim()
         if (value.isBlank() || value.contains("youtube") || value.contains("youtu.be")) return null
@@ -388,13 +397,35 @@ private fun Element.toSearchResult(): SearchResponse? {
         resolveDomain()
         val pageUrl = migrateUrl(data)
         Log.d("FLMM", "data » $pageUrl")
-        val document = app.get(
+        val response = app.get(
             pageUrl,
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
                 "Referer" to "$mainUrl/"
             )
-        ).document
+        )
+        val pageText = response.text
+        val document = response.document
+
+        // ── TANI: oynatıcıyla ilgili ham HTML dilimleri ──────────────────
+        // ! Amaç: tahmin etmek yerine sitenin O AN ne döndürdüğünü gözlemek.
+        // ! `adb logcat -s FLMM_TANI FLMM` ile okunur.
+        tani("film sayfasi $pageUrl (${pageText.length} bayt)", pageText, 400)
+        document.select("iframe").take(6).forEach { tani("iframe", it.outerHtml(), 400) }
+        document.select("[data-video_url], [data-video-url], [data-video], [data-embed], [data-server]")
+            .take(10)
+            .forEach { tani("data-video", it.outerHtml(), 400) }
+        document.select(".video-parts, .video-options").take(4).forEach { tani("video-parts", it.outerHtml(), 600) }
+        document.select("script").forEach { s ->
+            val code = s.data()
+            if (code.contains("m3u8") || code.contains("master.txt") || code.contains("closeload") ||
+                code.contains("rapidrame") || code.contains("rapidvid") || code.contains("jwplayer") ||
+                code.contains("sources:") || code.contains("av(")
+            ) {
+                tani("script", code, 1400)
+            }
+        }
+
         val iframes = document.select("iframe").mapNotNull {
             normalizeLink(it.attr("data-src").ifBlank { it.attr("src") })
         }
@@ -411,10 +442,12 @@ private fun Element.toSearchResult(): SearchResponse? {
             normalizeLink(el.attr("href").ifBlank { el.attr("data-href") }.ifBlank { el.attr("data-url") })
         }
         val allUrls = (iframes + videoUrls + partLinks).distinct()
+        tani("aday adresler (${allUrls.size})", allUrls.joinToString(" | "), 1200)
 
         var produced = false
         val wrapped: (ExtractorLink) -> Unit = { link ->
             produced = true
+            Log.d("FLMM_TANI", "link » ${link.name} type=${link.type} url=${link.url}")
             callback(link)
         }
         allUrls.forEach { url ->

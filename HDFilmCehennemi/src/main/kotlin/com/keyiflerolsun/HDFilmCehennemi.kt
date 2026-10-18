@@ -811,6 +811,97 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
+    /**
+     * /rplayer/ sayfasındaki paketli kaynağı çözer.
+     *
+     * ! Sayfa JW Player kurar; gerçek m3u8 adresi "Dean Edwards packer" ile
+     * ! paketlenmiş bir JS bloğunun içindedir. RplayerDecoder bloğu açar,
+     * ! işlemleri (atob / reverse / harf-kaydırma) KAYNAK SIRASINA göre
+     * ! uygular ve son adımdaki sayısal bayt kaydırmayı yapar. Tuzak
+     * ! (decoy) fonksiyonlar sayıma katılmaz. Altyazılar aynı sayfada düz
+     * ! (paketlenmemiş) "tracks:" JSON'undadır.
+     */
+    private suspend fun extractRplayerSource(
+        source: String,
+        url: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        try {
+            val html = fetchText(url, "$mainUrl/") ?: run {
+                Log.e("HDCH", "rplayer sayfasi alinamadi: $url")
+                return
+            }
+
+            // ! TANI: sayfadaki paketli script'in başı ve tracks bloğu.
+            val packedAt = html.indexOf("eval(function(p,a,c,k,e,d)")
+            Log.d(
+                "HDCH_TANI",
+                "rplayer $url paketli script: " +
+                    (if (packedAt >= 0) html.substring(packedAt, minOf(packedAt + 300, html.length)) else "<yok>")
+            )
+            Log.d("HDCH_TANI", "rplayer tracks: " + html.substringAfter("tracks:", "").take(300).replace("\n", " "))
+
+            // ! Altyazılar: düz tracks JSON'undan.
+            RplayerDecoder.extractTracks(html).forEach { track ->
+                val subUrl = subtitleUrlOf(track.file) ?: return@forEach
+                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
+                subtitleCallback(newSubtitleFile(label, subUrl))
+            }
+
+            // ! Yeni çözücü; eski yöntem yedek olarak bırakıldı.
+            val streamUrl = RplayerDecoder.extractStreamUrl(html)
+                ?: decryptLocalUrl(getAndUnpack(html))
+            Log.d("HDCH_TANI", "rplayer cozulen adres: $streamUrl")
+            if (streamUrl.isNullOrBlank()) {
+                Log.e("HDCH", "rplayer kaynagi cozulemedi: $url")
+                return
+            }
+
+            val embedHeaders = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$mainUrl/",
+                "Origin" to mainUrl
+            )
+            val variants = resolveStreamUrl(streamUrl, embedHeaders)
+            if (!variants.isNullOrEmpty()) {
+                variants.take(3).forEachIndexed { index, (variantUrl, variantHeaders) ->
+                    val norm = normalizeStreamUrl(variantUrl) ?: return@forEachIndexed
+                    // ! Not: "quality" adı link kalitesi değişkeniyle çakışırdı
+                    // ! (ExtractorLink.quality ataması yerel val'e düşüyordu).
+                    val q = when (index) {
+                        0 -> Qualities.P1080.value
+                        1 -> Qualities.P720.value
+                        else -> Qualities.P480.value
+                    }
+                    callback.invoke(
+                        newExtractorLink(
+                            source = source,
+                            name = if (variants.size > 1) "$source - ${index + 1}" else source,
+                            url = norm,
+                            type = linkTypeFor(norm)
+                        ) {
+                            quality = q
+                            headers = variantHeaders
+                        }
+                    )
+                    Log.d("HDCH", "link [$index] » $norm type=${linkTypeFor(norm)}")
+                }
+            } else {
+                val norm = normalizeStreamUrl(streamUrl) ?: return
+                callback.invoke(
+                    newExtractorLink(source = source, name = source, url = norm, type = linkTypeFor(norm)) {
+                        quality = Qualities.P1080.value
+                        headers = embedHeaders
+                    }
+                )
+                Log.d("HDCH", "link » $norm type=${linkTypeFor(norm)}")
+            }
+        } catch (e: Exception) {
+            Log.e("HDCH", "extractRplayerSource error: ${e.message}")
+        }
+    }
+
     private suspend fun extractMobiOrCloseLoad(
         source: String,
         url: String,
@@ -1028,8 +1119,26 @@ class HDFilmCehennemi : MainAPI() {
         // ! Artık yalnızca eski "alternative-link" düğmesine bakılmıyor: kaynak
         // ! düğmesi bulunamayınca boş liste dönüyordu. Sayfadaki iframe, data-video
         // ! ve gömülü adresler de taranıyor; /video/{id}/ ile Rapidrame rplayer yolu deneniyor.
+        // ! TANI: sayfadaki kaynak butonları ve data-video değerleri.
+        document.select("div.alternative-links button.alternative-link").forEach { b ->
+            Log.d("HDCH_TANI", "kaynak butonu: etiket=${b.text().trim().take(40)} data-video=${b.attr("data-video")}")
+        }
+        // ! TANI: iframe ve oynatıcıyla ilgili script blokları.
+        document.select("iframe").take(6).forEach { f ->
+            Log.d("HDCH_TANI", "iframe: src=${f.attr("src")} data-src=${f.attr("data-src")} class=${f.attr("class")}")
+        }
+        document.select("script").forEach { sc ->
+            val code = sc.data()
+            if (code.contains("sources:") || code.contains("jwplayer") || code.contains("jwSetup") ||
+                code.contains("m3u8") || code.contains("master.txt") || code.contains("rplayer") ||
+                code.contains("eval(function") || code.contains("function dc_") || code.contains("av(")
+            ) {
+                Log.d("HDCH_TANI", "script: " + code.replace("\n", " ").take(1200))
+            }
+        }
         val candidates = collectLinkCandidates(document, pageUrl)
         Log.d("HDCH", "aday kaynak: ${candidates.size}")
+        Log.d("HDCH_TANI", "adaylar: " + candidates.joinToString(" | ") { "vid=${it.videoId} url=${it.url}" })
         val tried = mutableSetOf<String>()
 
         candidates.forEach { candidate ->
@@ -1050,7 +1159,13 @@ class HDFilmCehennemi : MainAPI() {
                         referer = pageUrl
                     ).text
                     Log.d("HDCH", "Found videoID: $videoId")
-                    embedUrl = iframeFromHtml(apiGet)
+                    // ! TANI: ham API yanıtının ilk 900 karakteri (yapıyı görmek için).
+                    Log.d("HDCH_TANI", "video/$videoId/ yanit: " + apiGet.take(900).replace("\n", " "))
+                    embedUrl = extractEmbedUrl(apiGet)
+                    Log.d("HDCH_TANI", "video/$videoId/ embed: $embedUrl")
+                    // ! Site bazen harici adres + ?rapidrame_id= veriyor; site-içi
+                    // ! rplayer adresine çevriliyor ve sondaki / ekleniyor.
+                    embedUrl = embedUrl?.let { toPlayerUrl(it) }
                 } catch (e: Exception) {
                     Log.e("HDCH", "Error loading videoID $videoId: ${e.message}")
                 }
@@ -1059,10 +1174,8 @@ class HDFilmCehennemi : MainAPI() {
             // 2) Aday adresin kendisi zaten gömülü oynatıcı mı?
             if (embedUrl.isNullOrBlank()) embedUrl = candidate.url.takeIf { it.isNotBlank() }
 
-            // 3) rplayer sayfasından bir seviye daha çık (gerçek kaynak iframe'i)
-            if (!embedUrl.isNullOrBlank() && embedUrl.contains("rplayer")) {
-                embedUrl = iframeFromHtml(fetchText(embedUrl, pageUrl)) ?: embedUrl
-            }
+            // 3) rplayer sayfası kendi içinde paketli kaynağı taşır; bir seviye
+            //    daha çıkmaya gerek yok (içinde iframe yok, kaynak gizli JS'te).
 
             val target = embedUrl?.trim()
             if (target.isNullOrBlank() || target == "about:blank" || !target.startsWith("http")) return@forEach
@@ -1072,13 +1185,18 @@ class HDFilmCehennemi : MainAPI() {
             val source = candidate.source
             val wrapped: (ExtractorLink) -> Unit = { link ->
                 linkFound = true
+                Log.d("HDCH_TANI", "link » ${link.name} type=${link.type} url=${link.url}")
                 callback(link)
             }
             val looksLikeEmbed = target.contains("mobi") || target.contains("closeload") ||
                 target.contains("/embed/") || target.contains("rplayer") || target.contains("rapidrame") ||
                 target.contains("rapidvid")
 
-            if (looksLikeEmbed) {
+            // ! rplayer sayfası kendi paketli çözücüsüyle ele alınır.
+            val isRplayer = target.contains("/rplayer/") || target.contains("/playerr/")
+            if (isRplayer) {
+                extractRplayerSource(source, target, subtitleCallback, wrapped)
+            } else if (looksLikeEmbed) {
                 extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
             } else {
                 invokeLocalSource(source, target, subtitleCallback, wrapped)
@@ -1086,7 +1204,9 @@ class HDFilmCehennemi : MainAPI() {
 
             // ! İlk yol boş dönerse aynı adres diğer çözümleyiciyle de denenir.
             if (!linkFound) {
-                if (looksLikeEmbed) {
+                if (isRplayer) {
+                    extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
+                } else if (looksLikeEmbed) {
                     invokeLocalSource(source, target, subtitleCallback, wrapped)
                 } else {
                     extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
@@ -1187,34 +1307,40 @@ class HDFilmCehennemi : MainAPI() {
         return candidates.distinctBy { it.url.ifBlank { "id:${it.videoId}" } }
     }
 
-    /** data-src="..." / src="..." kalıplarını ve doğrudan akış adreslerini çözer. */
-    private fun iframeFromHtml(html: String?): String? {
-        if (html.isNullOrBlank()) return null
-        val raw = Regex("""data-src=\\?"([^"\\]+)""").find(html)?.groupValues?.get(1)
-            ?: Regex("""src=\\?"([^"\\]+)""").find(html)?.groupValues?.get(1)
-            ?: Regex("""<iframe[^>]+src=["']([^"']+)["']""").find(html)?.groupValues?.get(1)
-            ?: Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(html)?.value
-            ?: Regex("""https?://[^\s"'<>]+/master\.txt[^\s"'<>]*""").find(html)?.value
-            ?: return null
-        return normalizeEmbed(raw, null)
-    }
+    /**
+     * /video/{id}/ yanıtından gömülü oynatıcı adresini çıkarır.
+     *
+     * ! SİTE YANITI JSON'DUR ve HTML İÇİNDE KAÇIŞLI SLASH KULLANIR:
+     * !   {"data":{"html":"<iframe data-src=\"https:\/\/site\/rplayer\/ID\/\">"}}
+     * !
+     * ! Eski regex (data-src=\\?"([^"\\]+)") kaçışlı slash'te duruyor ve
+     * ! kapanış tırnağı gelmediği için HİÇ EŞLEŞMİYORDU → embed bulunamıyor
+     * ! → uygulama "0 kaynak" gösteriyordu. Bu yüzden önce JSON'daki "html"
+     * ! alanı çözülüyor, kaçışlar geri alınıyor, sonra HTML'den data-src okunuyor.
+     */
+    private fun extractEmbedUrl(rawResponse: String?): String? = EmbedResolver.extractEmbedUrl(rawResponse)
 
-    private fun normalizeEmbed(raw: String, pageUrl: String?): String? {
-        var value = raw.replace("\\/", "/").replace("\\", "").trim().trim('"', '\'')
-        if (value.isBlank() || value == "about:blank") return null
-        // ! Görsel/ikon adresleri kaynak değildir (lazyload data-src'leri elenir).
-        val lower = value.lowercase()
-        if (listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif").any { lower.contains(it) }) return null
-        if (value.startsWith("//")) value = "https:$value"
-        if (!value.startsWith("http")) {
-            val base = pageUrl ?: mainUrl
-            value = absolutizeUrl(value, base) ?: return null
-        }
-        if (!value.startsWith("http")) return null
-        // ! Kendi sayfamızın adresi kaynak değildir; sonsuz döngüyü keser.
-        if (originOf(value) == originOf(mainUrl)) return null
-        return value
-    }
+    /** JSON gövdesindeki "html" alanını çözer (JSON kaçışlarını geri alır). */
+    private fun jsonHtmlField(raw: String): String? = EmbedResolver.jsonHtmlField(raw)
+
+    /**
+     * iframe adresinden oynatıcı sayfasının adresini kurar.
+     *
+     * ! Site bazen doğrudan site-içi /rplayer/<id>/ adresi verir; bazen de
+     * ! harici bir adres verip rapidrame_id'sini sorgu dizesinde taşır
+     * ! (canlıda test edilmiş scraper'lar bu yolu kullanıyor). Harici
+     * ! adresteki rapidrame_id, site-içi rplayer adresine çevrilir.
+     * !
+     * ! rplayer adresi SONDA / ile olmalı: sonda / yoksa sunucu 301
+     * ! yönlendiriyor ve oynatıcı sayfası boş dönüyor.
+     */
+    private fun toPlayerUrl(iframe: String): String = EmbedResolver.toPlayerUrl(iframe, mainUrl)
+
+    private fun normalizeEmbed(raw: String, pageUrl: String?): String? =
+        EmbedResolver.normalizeEmbed(raw, pageUrl, mainUrl)
+
+    /** Siteye ait oynatıcı yolları — kendi host'unda olsalar da geçerli kaynaktır. */
+    private fun isPlayerPath(url: String): Boolean = EmbedResolver.isPlayerPath(url)
 
     private suspend fun fetchText(url: String, referer: String): String? {
         return try {
@@ -1253,4 +1379,5 @@ class HDFilmCehennemi : MainAPI() {
         @JsonProperty("canonical") val canonical: String,
         @JsonProperty("keywords") val keywords: Boolean
     )
+
 }
