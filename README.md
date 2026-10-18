@@ -11,9 +11,9 @@ Depo artık **yalnızca aşağıdaki 4 kaynağı** yayınlar. Bunların dışın
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
-| Anime | **AnimeciX** | 22 |
-| Film / Dizi | **FilmMakinesi** | 59 |
-| Film / Dizi | **HDFilmCehennemi** | 49 |
+| Anime | **AnimeciX** | 23 |
+| Film / Dizi | **FilmMakinesi** | 60 |
+| Film / Dizi | **HDFilmCehennemi** | 50 |
 
 > Sürüm sütunu bilgilendirme amaçlıdır; `plugins.json`'a yazılan gerçek sürüm her zaman `.cs3` dosyasının içindeki `manifest.json`'dan okunur.
 
