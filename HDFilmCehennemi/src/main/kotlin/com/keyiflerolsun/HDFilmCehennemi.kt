@@ -18,6 +18,7 @@ import com.lagradost.cloudstream3.MainPageRequest
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream3.syncproviders.SyncIdName
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.fixUrlNull
 import com.lagradost.cloudstream3.mainPageOf
@@ -40,6 +41,10 @@ import okhttp3.Response
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
+// TMDB genel (public) API anahtarı — IMDb ID → başlık çözümlemesi için.
+private const val TMDB_API_KEY = "c4ffcab48dfaa7b41625ac13d61aec31"
+private const val USER_AGENT   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
 class HDFilmCehennemi : MainAPI() {
     override var mainUrl              = "https://www.hdfilmcehennemi.nl"
     override var name                 = "HDFilmCehennemi"
@@ -47,6 +52,9 @@ class HDFilmCehennemi : MainAPI() {
     override var lang                 = "tr"
     override val hasQuickSearch       = true
     override val supportedTypes       = setOf(TvType.Movie, TvType.TvSeries)
+
+    // ! IMDb ID ile doğrudan içerik açma (Anizium ile aynı davranış).
+    override val supportedSyncNames   = setOf(SyncIdName.Imdb)
 
     override var sequentialMainPage = true        // * https://recloudstream.github.io/dokka/-cloudstream/com.lagradost.cloudstream3/-main-a-p-i/index.html#-2049735995%2FProperties%2F101969414
     override var sequentialMainPageDelay       = 150L  // ? 0.15 saniye
@@ -122,23 +130,103 @@ class HDFilmCehennemi : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val response      = app.get(
             "${mainUrl}/search?q=${query}",
-            headers = mapOf("X-Requested-With" to "fetch")
+            headers = mapOf(
+                "User-Agent"       to USER_AGENT,
+                "X-Requested-With" to "fetch",
+                "Content-Type"     to "application/json"
+            ),
+            referer = "${mainUrl}/"
         ).parsedSafe<Results>() ?: return emptyList()
         val searchResults = mutableListOf<SearchResponse>()
 
         response.results.forEach { resultHtml ->
             val document = Jsoup.parse(resultHtml)
 
-            val title     = document.selectFirst("h4.title")?.text() ?: return@forEach
-            val href      = fixUrlNull(document.selectFirst("a")?.attr("href")) ?: return@forEach
-            val posterUrl = fixUrlNull(document.selectFirst("img")?.attr("src")) ?: fixUrlNull(document.selectFirst("img")?.attr("data-src"))
+            val title = document.selectFirst("h4.title")?.text()?.trim()
+                ?: document.selectFirst(".title")?.text()?.trim()
+                ?: return@forEach
+            val anchor = document.selectFirst("a.search-result") ?: document.selectFirst("a")
+            val href   = fixUrlNull(anchor?.attr("href")) ?: return@forEach
+            val posterUrl = fixUrlNull(document.selectFirst("img")?.attr("src"))
+                ?: fixUrlNull(document.selectFirst("img")?.attr("data-src"))
 
-            searchResults.add(
-                newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl?.replace("/thumb/", "/list/") }
-            )
+            // ! ÖNEMLİ: Diziler /dizi/... adresinde. Önceden TÜM sonuçlar
+            // ! TvType.Movie dönüyordu; uygulama dizi aramasında bu kayıtları
+            // ! "film" sanıp eliyordu (The Mentalist / Supernatural vb.).
+            val isSeries = href.contains("/dizi/")
+            if (isSeries) {
+                searchResults.add(
+                    newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                        this.posterUrl = posterUrl?.replace("/thumb/", "/list/")
+                    }
+                )
+            } else {
+                searchResults.add(
+                    newMovieSearchResponse(title, href, TvType.Movie) {
+                        this.posterUrl = posterUrl?.replace("/thumb/", "/list/")
+                    }
+                )
+            }
         }
 
         return searchResults
+    }
+
+    // ── IMDb ID → içerik sayfası ─────────────────────────────────────────────
+    // Uygulama "video izle" akışında önce getLoadUrl(Imdb, "tt1234567") çağırır.
+    // IMDb kimliği TMDB üzerinden başlığa çevrilir, site aramasıyla eşleştirilir
+    // ve doğrudan içerik sayfası döndürülür. Böylece başlık yazım farklarından
+    // (Türkçe/İngilizce ad) kaynaklanan "veri gelmiyor" durumu engellenir.
+    private data class TmdbItem(
+        @JsonProperty("title")          val title: String?         = null,
+        @JsonProperty("name")           val name: String?          = null,
+        @JsonProperty("original_title") val originalTitle: String? = null,
+        @JsonProperty("original_name")  val originalName: String?  = null
+    )
+
+    private data class TmdbFind(
+        @JsonProperty("movie_results") val movieResults: List<TmdbItem>? = null,
+        @JsonProperty("tv_results")    val tvResults: List<TmdbItem>?    = null
+    )
+
+    private suspend fun tmdbTitlesByImdb(imdbId: String): List<String> {
+        val body = app.get(
+            "https://api.themoviedb.org/3/find/$imdbId" +
+                "?api_key=$TMDB_API_KEY&external_source=imdb_id&language=tr-TR"
+        ).text
+        val parsed  = AppUtils.tryParseJson<TmdbFind>(body) ?: return emptyList()
+        val entries = parsed.movieResults.orEmpty() + parsed.tvResults.orEmpty()
+        return entries
+            .flatMap { listOfNotNull(it.title, it.originalTitle, it.name, it.originalName) }
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+    }
+
+    private fun normalizeTitle(value: String): String =
+        value.lowercase().replace(Regex("[^a-z0-9]"), "")
+
+    private fun titleScore(a: String, b: String): Double {
+        val x = normalizeTitle(a)
+        val y = normalizeTitle(b)
+        if (x.isEmpty() || y.isEmpty()) return 0.0
+        if (x == y) return 1.0
+        if (x.contains(y) || y.contains(x)) return 0.85
+        return 0.0
+    }
+
+    override suspend fun getLoadUrl(name: SyncIdName, id: String): String? {
+        if (name != SyncIdName.Imdb || id.isBlank()) return null
+        val titles = try { tmdbTitlesByImdb(id) } catch (e: Exception) { emptyList() }
+        for (title in titles) {
+            val results = try { search(title) } catch (e: Exception) { emptyList() }
+            val best = results
+                .map { it to titleScore(title, it.name) }
+                .filter { it.second >= 0.7 }
+                .maxByOrNull { it.second } ?: continue
+            return best.first.url
+        }
+        return null
     }
 
     override suspend fun load(url: String): LoadResponse? {
