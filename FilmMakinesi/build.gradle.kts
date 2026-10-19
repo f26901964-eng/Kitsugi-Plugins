@@ -1,4 +1,15 @@
-version = 66
+version = 67
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
 
 cloudstream {
     authors     = listOf("keyiflerolsun", "usdogu")
