@@ -134,7 +134,8 @@ class HDFilmCehennemi : MainAPI() {
                         pinned,
                         res.text,
                         "hdfilmcehennemi",
-                        listOf("images/list/poster", "alternative-link", "load/page", "post-info")
+                        // ! GÜNCELLEME (2026-10-19): Site SPA'ya geçti, yeni aria-label'lar da canlı kabul edilir.
+                        listOf("images/list/poster", "alternative-link", "Alternative tab content", "load/page", "post-info", "Player", "section-title")
                     )
                 ) continue
                 mainUrl = pinned
@@ -445,64 +446,189 @@ class HDFilmCehennemi : MainAPI() {
         val pageUrl = migrateUrl(url)
         val document = app.get(pageUrl, interceptor = interceptor).document
 
-        val title       = document.selectFirst("h1.section-title")?.text()?.substringBefore(" izle") ?: return null
-        val poster      = fixUrlNull(document.select("aside.post-info-poster img.lazyload").lastOrNull()?.attr("data-src"))
-        val tags        = document.select("div.post-info-genres a").map { it.text() }
-        val year        = document.selectFirst("div.post-info-year-country a")?.text()?.trim()?.toIntOrNull()
-        val tvType      = if (document.select("div.seasons").isEmpty()) TvType.Movie else TvType.TvSeries
-        val description = document.selectFirst("article.post-info-content > p")?.text()?.trim()
-        // ! `selectFirst("strong")!!` NPE fırlatıyordu; markup değişince (ya da
-        // ! "strong" içermeyen bir oyuncu bağlantısında) load() tümden patlıyor
-        // ! ve kullanıcı detay sayfasını hiç göremiyordu. Adı olmayan oyuncu atlanır.
-        val actors      = document.select("div.post-info-cast a").mapNotNull {
-            val actorName = it.selectFirst("strong")?.text()?.trim()?.takeIf { n -> n.isNotEmpty() }
-                ?: return@mapNotNull null
-            Actor(actorName, it.select("img").attr("data-src"))
+        // ! GÜNCELLEME (2026-10-19): Site SPA'ya geçti, başlık ve diğer alanlar
+        // ! hem eski `.post-info-*` hem de yeni `[aria-label]` ve JSON-LD
+        // ! kaynaklarından okunur.
+        val title = (
+            document.selectFirst("h1.section-title")?.text()
+                ?: document.selectFirst("h1")?.text()
+                ?: document.selectFirst("meta[property='og:title']")?.attr("content")
+                ?: document.selectFirst("script[type='application/ld+json']")?.data()?.let { json ->
+                    Regex(""""name"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.get(1)
+                }
+            )?.substringBefore(" izle")?.substringBefore(" Filminin Bilgileri")?.trim()?.takeIf { it.isNotBlank() } ?: return null
+
+        val poster = fixUrlNull(
+            document.selectFirst("aside.post-info-poster img.lazyload")?.attr("data-src")
+                ?: document.selectFirst("aside.post-info-poster img")?.attr("data-src")
+                ?: document.selectFirst(".post-info-poster img")?.attr("data-src")
+                ?: document.selectFirst(".post-info-poster img")?.attr("src")
+                ?: document.selectFirst("meta[property='og:image']")?.attr("content")
+                ?: document.selectFirst("img.img-fluid")?.attr("src")
+        ) ?: fixUrlNull(document.selectFirst("img[src*='/uploads/poster/']")?.attr("src"))
+
+        val tags = (
+            document.select("div.post-info-genres a").takeIf { it.isNotEmpty() }
+                ?: document.select(".post-info-genres a").takeIf { it.isNotEmpty() }
+                ?: document.select("div.mb-0.lh-lg div:nth-child(5) a").takeIf { it.isNotEmpty() }
+                ?: document.select("a[href*='/genre/'], a[href*='/tur/']")
+            ).map { it.text().trim() }.filter { it.isNotBlank() }
+
+        var year: Int? = document.selectFirst("div.post-info-year-country a")?.text()?.trim()?.toIntOrNull()
+            ?: document.selectFirst("div.release a")?.text()?.trim()?.toIntOrNull()
+        if (year == null) {
+            val ldYear = document.selectFirst("script[type='application/ld+json']")?.data()?.let { json ->
+                Regex(""""datePublished"\s*:\s*"(\d{4})""").find(json)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: Regex(""""datePublished"\s*:\s*"[^"]*(\d{4})""").find(json)?.groupValues?.get(1)?.toIntOrNull()
+            }
+            year = ldYear
         }
 
-        val recommendations = document.select("div.section-slider-container div.slider-slide").mapNotNull {
-                val recName      = it.selectFirst("a")?.attr("title") ?: return@mapNotNull null
-                val recHref      = fixUrlNull(it.selectFirst("a")?.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
-                val recPosterUrl = fixUrlNull(it.selectFirst("img")?.attr("data-src")) ?: fixUrlNull(it.selectFirst("img")?.attr("src"))
+        // ! TvSeries tespiti: önce eski div.seasons, sonra yeni nav#seasonsTabs / aria-label, sonra URL ve bölüm linkleri
+        val hasSeasons = document.select("div.seasons").isNotEmpty()
+            || document.select("nav#seasonsTabs").isNotEmpty()
+            || document.select("[aria-label*='Season'], [aria-label*='Sezon']").isNotEmpty()
+            || document.select("div.seasons-tab-content a, div#seasonsTabs-tabContent div.card-list-item, a[href*='/bolum-']").isNotEmpty()
+        val tvType = when {
+            hasSeasons -> TvType.TvSeries
+            pageUrl.contains("/dizi/") || pageUrl.contains("/sezon-") -> TvType.TvSeries
+            else -> TvType.Movie
+        }
 
+        val description = document.selectFirst("article.post-info-content > p")?.text()?.trim()
+            ?: document.selectFirst(".post-info-content > p")?.text()?.trim()
+            ?: document.selectFirst("article.text-white > p")?.text()?.trim()
+            ?: document.selectFirst("meta[name='description']")?.attr("content")?.trim()
+            ?: document.selectFirst("script[type='application/ld+json']")?.data()?.let { json ->
+                Regex(""""description"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.get(1)
+            }
+
+        val actors = mutableListOf<Actor>()
+        // Eski: post-info-cast
+        document.select("div.post-info-cast a").mapNotNull {
+            val actorName = it.selectFirst("strong")?.text()?.trim()?.takeIf { n -> n.isNotEmpty() }
+                ?: it.selectFirst("span")?.text()?.trim()?.takeIf { n -> n.isNotEmpty() }
+                ?: it.text().trim().takeIf { n -> n.isNotEmpty() }
+                ?: return@mapNotNull null
+            Actor(actorName, it.selectFirst("img")?.attr("data-src") ?: it.selectFirst("img")?.attr("src") ?: "")
+        }.let { actors.addAll(it) }
+        if (actors.isEmpty()) {
+            // Yeni: .story-item ve chip
+            document.select(".story-item").forEach {
+                val img = fixUrlNull(it.selectFirst("img")?.attr("data-src") ?: it.selectFirst("img")?.attr("src"))
+                val name = it.selectFirst("div.story-item-title")?.text()?.trim() ?: it.selectFirst("strong")?.text()?.trim() ?: ""
+                if (name.isNotBlank()) actors.add(Actor(name, img ?: ""))
+            }
+        }
+        if (actors.isEmpty()) {
+            document.select("div.mb-0.lh-lg div:last-child a.chip, .cast a").mapNotNull {
+                val n = it.text().trim().takeIf { t -> t.isNotBlank() } ?: return@mapNotNull null
+                Actor(n, it.selectFirst("img")?.attr("src") ?: "")
+            }.let { actors.addAll(it) }
+        }
+
+        val recommendations = (
+            document.select("div.section-slider-container div.slider-slide").takeIf { it.isNotEmpty() }
+                ?: document.select("div.swiper-wrapper div.poster.poster-pop").takeIf { it.isNotEmpty() }
+                ?: document.select("div.section-slider-container div.slider-slide, .poster-container, .glide__slide")
+            ).mapNotNull {
+                val recName = it.selectFirst("a")?.attr("title")?.trim()
+                    ?: it.selectFirst("h2")?.text()?.trim()
+                    ?: it.selectFirst("h2.title")?.text()?.trim()
+                    ?: return@mapNotNull null
+                if (recName.isBlank()) return@mapNotNull null
+                val recHref = fixUrlNull(it.selectFirst("a")?.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
+                val recPosterUrl = fixUrlNull(it.selectFirst("img")?.attr("data-src"))
+                    ?: fixUrlNull(it.selectFirst("img")?.attr("src"))
                 newTvSeriesSearchResponse(recName, recHref, TvType.TvSeries) {
                     this.posterUrl = recPosterUrl
                 }
             }
 
         return if (tvType == TvType.TvSeries) {
-            val trailer  = document.selectFirst("div.post-info-trailer button")?.attr("data-modal")?.substringAfter("trailer/", "")?.let { if (it.isNotEmpty()) "https://www.youtube.com/watch?v=$it" else null }
-            Log.d("HDCH", "Trailer: $trailer")
-            val episodes = document.select("div.seasons-tab-content a").mapNotNull {
-                val epName    = it.selectFirst("h4")?.text()?.trim() ?: return@mapNotNull null
-                val epHref    = fixUrlNull(it.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
-                val epEpisode = Regex("""(\d+)\. ?Bölüm""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
-                val epSeason  = Regex("""(\d+)\. ?Sezon""").find(epName)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            val trailer = (
+                document.selectFirst("div.post-info-trailer button")?.attr("data-modal")?.substringAfter("trailer/", "")
+                    ?: document.selectFirst("button.btn.btn-fragman.btn-danger")?.attr("data-trailer")
+                    ?: document.selectFirst("button[data-trailer]")?.attr("data-trailer")
+                    ?: document.selectFirst("[data-trailer]")?.attr("data-trailer")
+                )?.let { if (it.isNotBlank()) "https://www.youtube.com/watch?v=$it".replace("/embed/", "/watch?v=") else null }
 
-                newEpisode(epHref) {
-                    this.name = epName
-                    this.season = epSeason
-                    this.episode = epEpisode
+            // Bölüm listesi: önce eski, sonra yeni hexated .de, sonra genel href regex
+            // ! GÜNCELLEME: Hem .nl eski (seasons-tab-content) hem .de yeni (card-list-item) hem SPA fallback desteklenir.
+            val episodes = when {
+                document.select("div.seasons-tab-content a").isNotEmpty() -> {
+                    document.select("div.seasons-tab-content a").mapNotNull { el ->
+                        val epHref = fixUrlNull(el.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
+                        val epName = el.selectFirst("h4")?.text()?.trim() ?: el.text().trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val epEpisode = Regex("""(\d+)\. ?Bölüm""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                            ?: Regex("""bolum-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
+                        val epSeason = Regex("""(\d+)\. ?Sezon""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                            ?: Regex("""sezon-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                        newEpisode(epHref) {
+                            this.name = epName
+                            this.season = epSeason
+                            this.episode = epEpisode
+                        }
+                    }
                 }
-            }
+                document.select("div#seasonsTabs-tabContent div.card-list-item").isNotEmpty() -> {
+                    document.select("div#seasonsTabs-tabContent div.card-list-item").mapNotNull { el ->
+                        val href = fixUrlNull(el.selectFirst("a")?.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
+                        val name = el.selectFirst("h3")?.text()?.trim() ?: return@mapNotNull null
+                        val epNum = name.substringAfter("Sezon ").substringBefore(". Bölüm").toIntOrNull()
+                            ?: Regex("""bolum-(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
+                        val season = el.parents().find { p -> p.id().startsWith("seasons-") || p.id() == "seasonsTabs-tabContent" }?.id()?.substringAfter("seasons-")?.toIntOrNull()
+                            ?: Regex("""sezon-(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                        newEpisode(href) {
+                            this.name = name
+                            this.season = season
+                            this.episode = epNum
+                        }
+                    }
+                }
+                else -> {
+                    // Genel fallback: sayfadaki tüm bölüm linkleri (SPA)
+                    document.select("a[href*='/bolum-']").mapNotNull { el ->
+                        val epHref = fixUrlNull(el.attr("href"))?.let { h -> migrateUrl(h) } ?: return@mapNotNull null
+                        // Sadece dizi bölüm linkleri (sezon/bolum içeren)
+                        if (!epHref.contains("/bolum-")) return@mapNotNull null
+                        val epName = el.selectFirst("h4")?.text()?.trim()
+                            ?: el.selectFirst("h3")?.text()?.trim()
+                            ?: el.text().trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val epEpisode = Regex("""(\d+)\. ?Bölüm""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                            ?: Regex("""bolum-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
+                        val epSeason = Regex("""(\d+)\. ?Sezon""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                            ?: Regex("""sezon-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                        newEpisode(epHref) {
+                            this.name = epName
+                            this.season = epSeason
+                            this.episode = epEpisode
+                        }
+                    }.distinctBy { it.data }
+                }
+            }.distinctBy { it.data }
 
             newTvSeriesLoadResponse(title, pageUrl, TvType.TvSeries, episodes) {
-                this.posterUrl       = poster
-                this.year            = year
-                this.plot            = description
-                this.tags            = tags
+                this.posterUrl = poster
+                this.year = year
+                this.plot = description
+                this.tags = tags
                 this.recommendations = recommendations
                 addActors(actors)
                 addTrailer(trailer)
             }
         } else {
-            val trailer = document.selectFirst("div.post-info-trailer button")?.attr("data-modal")?.substringAfter("trailer/", "")?.let { if (it.isNotEmpty()) "https://www.youtube.com/watch?v=$it" else null }
+            val trailer = (
+                document.selectFirst("div.post-info-trailer button")?.attr("data-modal")?.substringAfter("trailer/", "")
+                    ?: document.selectFirst("button.btn.btn-fragman.btn-danger")?.attr("data-trailer")
+                    ?: document.selectFirst("[data-trailer]")?.attr("data-trailer")
+                )?.let { if (it.isNotBlank()) "https://www.youtube.com/watch?v=$it".replace("/embed/", "/watch?v=") else null }
             Log.d("HDCH", "Trailer: $trailer")
             newMovieLoadResponse(title, pageUrl, TvType.Movie, pageUrl) {
-                this.posterUrl       = poster
-                this.year            = year
-                this.plot            = description
-                this.tags            = tags
+                this.posterUrl = poster
+                this.year = year
+                this.plot = description
+                this.tags = tags
                 this.recommendations = recommendations
                 addActors(actors)
                 addTrailer(trailer)
@@ -1070,13 +1196,14 @@ class HDFilmCehennemi : MainAPI() {
         // ! Artık yalnızca eski "alternative-link" düğmesine bakılmıyor: kaynak
         // ! düğmesi bulunamayınca boş liste dönüyordu. Sayfadaki iframe, data-video
         // ! ve gömülü adresler de taranıyor; /video/{id}/ ile Rapidrame rplayer yolu deneniyor.
-        // ! TANI: sayfadaki kaynak butonları ve data-video değerleri.
-        document.select("div.alternative-links button.alternative-link").forEach { b ->
-            Log.d("HDCH_TANI", "kaynak butonu: etiket=${b.text().trim().take(40)} data-video=${b.attr("data-video")}")
+        // ! GÜNCELLEME (2026-10-19): Site SPA oldu, yeni aria-label tabanlı butonlar da taranır.
+        // ! TANI: sayfadaki kaynak butonları ve data-video değerleri (eski + yeni).
+        document.select("div.alternative-links button.alternative-link, [aria-label='Alternative tab content'] button, [aria-label='Language tab menu'] button, button[data-video]").forEach { b ->
+            Log.d("HDCH_TANI", "kaynak butonu: etiket=${b.text().trim().take(40)} data-video=${b.attr("data-video")} data-lang=${b.attr("data-lang")} aria=${b.attr("aria-label")}")
         }
-        // ! TANI: iframe ve oynatıcıyla ilgili script blokları.
-        document.select("iframe").take(6).forEach { f ->
-            Log.d("HDCH_TANI", "iframe: src=${f.attr("src")} data-src=${f.attr("data-src")} class=${f.attr("class")}")
+        // ! TANI: iframe ve oynatıcıyla ilgili script blokları (Player aria-label dahil).
+        document.select("iframe, [aria-label='Player'] iframe").take(8).forEach { f ->
+            Log.d("HDCH_TANI", "iframe: src=${f.attr("src")} data-src=${f.attr("data-src")} class=${f.attr("class")} aria-parent=${f.parents().find { it.hasAttr("aria-label") }?.attr("aria-label")}")
         }
         document.select("script").forEach { sc ->
             val code = sc.data()
@@ -1177,17 +1304,34 @@ class HDFilmCehennemi : MainAPI() {
 
         // ! Öncelik: gerçek oynatıcı kapsayıcısındaki iframe[data-src].
         // ! Mutlak harici adres aynen korunur; rapidrame_id ile site-içi rplayer'a çevrilmez.
+        // ! GÜNCELLEME (2026-10-19): Yeni SPA'da [aria-label='Player'] de önceliklidir.
         EmbedResolver.preferredPlayerDataSrcs(document).forEach { raw ->
             val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
             candidates.add(LinkCandidate("iframe", normalized))
         }
 
         // 1) Eski yol: alternative-links düğmeleri (data-video → /video/{id}/)
-        document.select("div.alternative-links").forEach { element ->
+        //    GÜNCELLEME: Yeni aria-label tabanlı butonlar da desteklenir.
+        val altGroups = mutableListOf<org.jsoup.nodes.Element>()
+        altGroups.addAll(document.select("div.alternative-links"))
+        altGroups.addAll(document.select("[aria-label='Alternative tab content']"))
+        altGroups.addAll(document.select("[aria-label='Language tab menu']"))
+        // Eğer hiç grup bulunamazsa, doğrudan butonları tara
+        val altButtons = if (altGroups.isNotEmpty()) {
+            altGroups.flatMap { g ->
+                g.select("button.alternative-link, button[data-video], button[data-video-url], button[data-video_url]")
+            }
+        } else {
+            document.select("[aria-label='Alternative tab content'] button, [aria-label='Language tab menu'] button, button.alternative-link, button[data-video]")
+        }
+
+        // Gruplu işleme (langCode korunur)
+        altGroups.forEach { element ->
             val langCode = element.attr("data-lang").uppercase()
-            element.select("button.alternative-link").forEach { button ->
+            element.select("button.alternative-link, button[data-video], button[data-video-url], button[data-video_url]").forEach { button ->
                 val label = button.text().replace("(HDrip Xbet)", "").trim()
                     .ifBlank { button.attr("data-name").trim() }
+                    .ifBlank { button.attr("aria-label").trim() }
                     .ifBlank { "Kaynak" }
                 val source = if (langCode.isNotBlank()) "$label $langCode" else label
                 val vid = listOf(
@@ -1207,6 +1351,32 @@ class HDFilmCehennemi : MainAPI() {
                     candidates.add(LinkCandidate(source, normalized, rawId))
                 } else if (rawId != null) {
                     candidates.add(LinkCandidate(source, "", rawId))
+                }
+            }
+        }
+        // Eğer gruplu işleme hiç aday üretmediyse, düz buton listesini dene (grup dili yok)
+        if (candidates.isEmpty() && altButtons.isNotEmpty()) {
+            altButtons.forEach { button ->
+                val label = button.text().replace("(HDrip Xbet)", "").trim()
+                    .ifBlank { button.attr("data-name").trim() }
+                    .ifBlank { "Kaynak" }
+                val vid = listOf(
+                    button.attr("data-video"),
+                    button.attr("data-video-url"),
+                    button.attr("data-video_url"),
+                    button.attr("data-id"),
+                    button.attr("data-src"),
+                    button.attr("data-url"),
+                    button.attr("data-embed"),
+                    button.attr("data-server")
+                ).firstOrNull { it.isNotBlank() } ?: return@forEach
+                val normalized = normalizeEmbed(vid, pageUrl)
+                val rawId = vid.trim().removePrefix("/video/").trim('/')
+                    .takeIf { it.isNotBlank() && !it.contains('/') && !it.contains("://") }
+                if (normalized != null) {
+                    candidates.add(LinkCandidate(label, normalized, rawId))
+                } else if (rawId != null) {
+                    candidates.add(LinkCandidate(label, "", rawId))
                 }
             }
         }
@@ -1246,11 +1416,14 @@ class HDFilmCehennemi : MainAPI() {
         // ! bulunamazsa "0 kaynak" kaçınılmazdır.
         // ! Adres MUTLAK'tır ve host'u mainUrl'den FARKLIDIR; bu yüzden
         // ! olduğu gibi korunur, rplayer/embed adresine ÇEVRİLMEZ.
-        val frames = document.select("iframe").sortedByDescending { frame ->
+        // ! GÜNCELLEME (2026-10-19): SPA'da [aria-label='Player'] önceliklidir.
+        val frames = document.select("iframe, [aria-label='Player'] iframe").sortedByDescending { frame ->
             val inPlayer = frame.parents().any {
                 it.hasClass("video-container") || it.hasClass("hdmv-play-container") ||
-                    it.hasClass("player") || it.hasClass("video-player")
-            }
+                    it.hasClass("player") || it.hasClass("video-player") ||
+                    it.hasAttr("aria-label") && it.attr("aria-label").contains("Player", ignoreCase = true) ||
+                    it.attr("aria-label").contains("Alternative", ignoreCase = true)
+            } || frame.hasAttr("data-src") // data-src'li iframe'ler öncelikli
             inPlayer
         }
         frames.forEach { frame ->
@@ -1275,6 +1448,30 @@ class HDFilmCehennemi : MainAPI() {
                 val value = match.groupValues.getOrElse(1) { match.value }
                 val normalized = normalizeEmbed(value, pageUrl) ?: return@forEach
                 candidates.add(LinkCandidate("Gömülü", normalized))
+            }
+        }
+
+        // 5) SPA fallback: JSON içindeki data-video değerleri (Next.js __NEXT_DATA__)
+        if (candidates.isEmpty()) {
+            Regex(""""data-video"\s*:\s*"([^"]+)"""").findAll(html).forEach { m ->
+                val vid = m.groupValues[1].trim()
+                if (vid.isNotBlank() && !vid.contains("://")) {
+                    val rawId = vid.removePrefix("/video/").trim('/')
+                    candidates.add(LinkCandidate("SPA", "", rawId))
+                }
+            }
+            Regex(""""videoId"\s*:\s*"([^"]+)"""").findAll(html).forEach { m ->
+                val vid = m.groupValues[1].trim()
+                if (vid.isNotBlank() && !vid.contains("://")) {
+                    val rawId = vid.removePrefix("/video/").trim('/')
+                    candidates.add(LinkCandidate("SPA", "", rawId))
+                }
+            }
+            Regex("""/video/([A-Za-z0-9_-]+)/""").findAll(html).forEach { m ->
+                val vid = m.groupValues[1].trim()
+                if (vid.isNotBlank() && !vid.contains("://")) {
+                    candidates.add(LinkCandidate("Regex", "", vid))
+                }
             }
         }
 
