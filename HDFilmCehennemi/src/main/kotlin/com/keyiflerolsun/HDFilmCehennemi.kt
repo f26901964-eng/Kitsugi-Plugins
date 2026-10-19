@@ -697,13 +697,18 @@ class HDFilmCehennemi : MainAPI() {
                 return
             }
 
-            // ! TANI: sayfadaki paketli script'in başı ve tracks bloğu.
-            val packedAt = html.indexOf("eval(function(p,a,c,k,e,d)")
-            Log.d(
-                "HDCH_TANI",
-                "rplayer $url paketli script: " +
-                    (if (packedAt >= 0) html.substring(packedAt, minOf(packedAt + 300, html.length)) else "<yok>")
-            )
+            // ! TANI: paketli script'in TAMAMI (logcat satır sınırı için parçalı).
+            // ! Yeni dc_ biçimini çözebilmek için bu log şart: 1200 karakterlik
+            // ! parçalar hâlinde yazılır, çözücüye girdi olarak kullanılabilir.
+            val packedAt = listOf("eval(function(p,a,c,k,e,d)", "function dc_")
+                .map { html.indexOf(it) }
+                .filter { it >= 0 }
+                .minOrNull() ?: -1
+            if (packedAt >= 0) {
+                logScriptChunks("HDCH_TANI", "rplayer[${url.substringAfterLast('/').ifBlank { "x" }}]", html.substring(packedAt))
+            } else {
+                Log.d("HDCH_TANI", "rplayer $url paketli script: <yok>")
+            }
             Log.d("HDCH_TANI", "rplayer tracks: " + html.substringAfter("tracks:", "").take(300).replace("\n", " "))
 
             // ! Altyazılar: düz tracks JSON'undan.
@@ -772,6 +777,74 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
+    /**
+     * Düz (şifresiz) yedek adayları — contentUrl / master.txt / .m3u8 — DOĞRULAR.
+     *
+     * ! Eski davranış: paketli kaynak çözülemeyince JSON-LD'deki contentUrl
+     * ! doğrudan oynatıcıya gönderiliyordu. O adres çoğu zaman bayat (404)
+     * ! olduğu için uygulama "boş kaynak → oynatıcı hatası" veriyordu.
+     * ! Yeni davranış: adaylar tek tek sunucuda denenir; yalnızca gerçekten
+     * ! cevap veren (2xx/3xx) adres döndürülür. Hiçbiri yayında değilse null.
+     */
+    private suspend fun verifiedFallbackUrl(html: String, headers: Map<String, String>): String? {
+        // ! Aday seçimi FallbackCandidates'te: JSON-LD'deki contentUrl çoğu
+        // ! zaman AFİŞ (thumbnail) adresidir ve video sanılmamalıdır.
+        val candidates = FallbackCandidates.plainCandidates(html)
+
+        for (candidate in candidates) {
+            val norm = normalizeStreamUrl(candidate) ?: continue
+            if (isUrlAlive(norm, headers)) {
+                Log.d("HDCH", "yedek adres yayinda, kullanilacak: $norm")
+                return norm
+            }
+            Log.w("HDCH", "bayat yedek adres elendi (yayinda degil): $norm")
+        }
+        return null
+    }
+
+    /** Adres gerçekten cevap veriyor mu? (404'lük linki oynatıcıya göndermemek için.) */
+    private suspend fun isUrlAlive(url: String, headers: Map<String, String>): Boolean {
+        return try {
+            // ! HEAD bazı CDN'lerde 405 dönüyor; küçük Range'li GET daha güvenilir.
+            val res = app.get(
+                url,
+                headers = headers + mapOf("Range" to "bytes=0-1", "Accept" to "*/*"),
+                allowRedirects = true
+            )
+            if (!(res.isSuccessful || res.code in 300..399)) return false
+
+            // ! Görsel dönen adres yayın değildir (afişler 200 döner!).
+            val contentType = res.headers["Content-Type"].orEmpty().lowercase()
+            if (contentType.startsWith("image/") || FallbackCandidates.isImageUrl(url)) return false
+            if (contentType.contains("text/html") || contentType.contains("application/json")) return false
+
+            // ! HLS uzantılı bir HTML hata sayfası da yayın sayılmamalı.
+            val path = url.substringBefore('?').lowercase()
+            val looksHls = path.endsWith(".m3u8") || path.endsWith("master.txt") || path.contains(".urlset")
+            if (!looksHls) return true
+            val preview = res.text.take(2048)
+            preview.contains("#EXTM3U") || preview.contains("#EXT-X")
+        } catch (e: Exception) {
+            Log.w("HDCH", "adres dogrulanamadi: $url (${e.message})")
+            false
+        }
+    }
+
+    /**
+     * Uzun script'i logcat satır sınırını (~4 KB) aşmayacak parçalara bölerek yazar.
+     * ! Tanı için: yeni dc_ biçiminin ham JavaScript'i ancak böyle tam okunabilir.
+     */
+    private fun logScriptChunks(tag: String, label: String, text: String, chunk: Int = 1200, limit: Int = 30000) {
+        val body = if (text.length > limit) text.substring(0, limit) + "…<kesildi>" else text
+        var index = 0
+        var part = 1
+        while (index < body.length) {
+            Log.d(tag, "$label #$part " + body.substring(index, minOf(index + chunk, body.length)))
+            index += chunk
+            part++
+        }
+    }
+
     private suspend fun extractMobiOrCloseLoad(
         source: String,
         url: String,
@@ -805,26 +878,14 @@ class HDFilmCehennemi : MainAPI() {
                     ?: decryptLocalUrl(unpacked)
             }
 
-            // ! DÜZ fallback (contentUrl / master.txt / m3u8) YALNIZCA sayfada
-            // ! şifreli oynatıcı YOKKEN kullanılır. Şifreli blok varken çözüm
-            // ! başarısızsa contentUrl bayat (404) olabilir; onu kaynak diye
-            // ! göndermek "boş kaynak → oynatıcı hatası" zincirini kuruyordu.
+            // ! Düz adaylar (contentUrl / master.txt / m3u8) görsel/bayat URL'leri
+            // ! elemek için tek tek doğrulanır; şifreli oynatıcı çözülemezse bile
+            // ! yayındaki, gerçek yedek kaynak kaybedilmez.
             if (realUrl.isNullOrBlank()) {
                 if (packedPlayer) {
-                    Log.e("HDCH", "sifreli oynatici cozulemedi; bayat fallback gonderilmedi: $url")
-                    return
+                    Log.w("HDCH", "sifreli oynatici cozulemedi, dogrulanmis yedekler denenecek: $url")
                 }
-
-                // JSON-LD contentUrl fallback
-                val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
-                realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
-
-                // 2. Direct master.txt / m3u8
-                if (realUrl.isNullOrBlank()) {
-                    val txtMatch = """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(html)?.value
-                        ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(html)?.value
-                    realUrl = txtMatch
-                }
+                realUrl = verifiedFallbackUrl(html, headers)
             }
 
             val normalizedReal = normalizeStreamUrl(realUrl)
@@ -915,12 +976,12 @@ class HDFilmCehennemi : MainAPI() {
             it.contains("sources:") || it.contains("jwSetup.sources") || it.contains("av(") || it.contains("function dc_")
         }
         Log.d("HDCH", "source script found » ${script != null}")
-        // ! Önce şifreli/paketli yollar; contentUrl en sona (ve yalnızca
-        // ! sayfada şifreli blok yokken) bırakıldı.
+        // ! Önce şifreli/paketli yollar; düz yedekler en sonda ve doğrulanarak denenir.
         var decryptedUrl: String? = extractRapidStreamUrl(pageText)
             ?: extractBase64StreamUrl(pageText)
             ?: RplayerDecoder.extractPackedStreamUrl(pageText)
         val packedPlayer = RplayerDecoder.hasPackedPlayer(pageText)
+        val embedHeaders = mapOf("User-Agent" to USER_AGENT, "Referer" to "$origin/", "Origin" to origin)
         if (decryptedUrl.isNullOrBlank() && script != null) {
             val unpackedScript = getAndUnpack(script)
             decryptedUrl = extractRapidStreamUrl(unpackedScript)
@@ -929,15 +990,12 @@ class HDFilmCehennemi : MainAPI() {
                 ?: decryptLocalUrl(unpackedScript)
         }
 
-        // Fallback: Check for contentUrl or master.txt or m3u8 in pageText
+        // ! Düz adresler yalnızca aday filtresi ve sunucu doğrulamasından sonra kullanılır.
         if (decryptedUrl.isNullOrBlank()) {
             if (packedPlayer) {
-                Log.e("HDCH", "sifreli oynatici cozulemedi; bayat fallback gonderilmedi: $url")
-                return
+                Log.w("HDCH", "sifreli oynatici cozulemedi, dogrulanmis yedekler denenecek: $url")
             }
-            decryptedUrl = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(pageText)?.groupValues?.get(1)?.replace("\\/", "/")
-                ?: """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(pageText)?.value
-                ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(pageText)?.value
+            decryptedUrl = verifiedFallbackUrl(pageText, embedHeaders)
         }
         if (decryptedUrl.isNullOrBlank()) return
         val rawStream = normalizeStreamUrl(decryptedUrl)
@@ -949,7 +1007,6 @@ class HDFilmCehennemi : MainAPI() {
             Log.w("HDCH", "çöp adres elendi: $rawStream")
             return
         }
-        val embedHeaders = mapOf("User-Agent" to USER_AGENT, "Referer" to "$origin/", "Origin" to origin)
         val variants = resolveStreamUrl(rawStream, embedHeaders)
         val subData = pageText.substringAfter("tracks: [", "").substringBefore("]")
         if (subData.isNotBlank()) {
@@ -1118,6 +1175,13 @@ class HDFilmCehennemi : MainAPI() {
     private fun collectLinkCandidates(document: org.jsoup.nodes.Document, pageUrl: String): List<LinkCandidate> {
         val candidates = mutableListOf<LinkCandidate>()
 
+        // ! Öncelik: gerçek oynatıcı kapsayıcısındaki iframe[data-src].
+        // ! Mutlak harici adres aynen korunur; rapidrame_id ile site-içi rplayer'a çevrilmez.
+        EmbedResolver.preferredPlayerDataSrcs(document).forEach { raw ->
+            val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
+            candidates.add(LinkCandidate("iframe", normalized))
+        }
+
         // 1) Eski yol: alternative-links düğmeleri (data-video → /video/{id}/)
         document.select("div.alternative-links").forEach { element ->
             val langCode = element.attr("data-lang").uppercase()
@@ -1149,6 +1213,8 @@ class HDFilmCehennemi : MainAPI() {
 
         // 2) data-video / data-video_url / data-src / data-url taşıyan tüm öğeler
         document.select("[data-video], [data-video-url], [data-video_url], [data-src], [data-url], [data-embed], [data-server]").forEach { element ->
+            // ! iframe'ler 3. adımda ayrıca işlenir; burada tekrar eklenmesin.
+            if (element.tagName().equals("iframe", ignoreCase = true)) return@forEach
             val raw = listOf(
                 element.attr("data-video"),
                 element.attr("data-video-url"),
@@ -1173,7 +1239,21 @@ class HDFilmCehennemi : MainAPI() {
         }
 
         // 3) iframe'ler (src / data-src / data-lazy-src)
-        document.select("iframe").forEach { frame ->
+        // ! SAYFADAKİ TEK GERÇEK KAYNAK BUDUR (canlı sayfa ile doğrulandı):
+        // !   <div class="video-container" hidden>
+        // !     <iframe class="close" data-src="https://hdfilmcehennemi.mobi/video/embed/ID/?rapidrame_id=...">
+        // ! Sayfada contentUrl / master.txt / .m3u8 YOKTUR; bu yüzden iframe
+        // ! bulunamazsa "0 kaynak" kaçınılmazdır.
+        // ! Adres MUTLAK'tır ve host'u mainUrl'den FARKLIDIR; bu yüzden
+        // ! olduğu gibi korunur, rplayer/embed adresine ÇEVRİLMEZ.
+        val frames = document.select("iframe").sortedByDescending { frame ->
+            val inPlayer = frame.parents().any {
+                it.hasClass("video-container") || it.hasClass("hdmv-play-container") ||
+                    it.hasClass("player") || it.hasClass("video-player")
+            }
+            inPlayer
+        }
+        frames.forEach { frame ->
             val raw = listOf(
                 frame.attr("data-src"),
                 frame.attr("src"),

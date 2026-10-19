@@ -164,16 +164,7 @@ class FilmMakinesi : MainAPI() {
         Log.d("FLMM_TANI", "[$label] $clean".take(limit + label.length + 4))
     }
 
-    private fun normalizeLink(raw: String): String? {
-        val value = raw.trim()
-        if (value.isBlank() || value.contains("youtube") || value.contains("youtu.be")) return null
-        return when {
-            value.startsWith("//") -> "https:$value"
-            value.startsWith("http://") || value.startsWith("https://") -> value
-            value.startsWith("/") -> mainUrl.trimEnd('/') + value
-            else -> value
-        }
-    }
+    private fun normalizeLink(raw: String): String? = SourceLinks.normalize(raw, mainUrl)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         resolveDomain()
@@ -438,8 +429,16 @@ private fun Element.toSearchResult(): SearchResponse? {
                 element.attr("data-server")
             ).firstOrNull { it.isNotBlank() }?.let(::normalizeLink)
         }
+        // ! Canlı sayfada düğmelerin href'i "#"tir; gerçek adres data-video_url'dedir.
         val partLinks = document.select(".video-parts a, .video-options a").mapNotNull { el ->
-            normalizeLink(el.attr("href").ifBlank { el.attr("data-href") }.ifBlank { el.attr("data-url") })
+            SourceLinks.partUrl(
+                mainUrl = mainUrl,
+                dataVideoUrl = el.attr("data-video_url"),
+                dataVideoDashUrl = el.attr("data-video-url"),
+                href = el.attr("href"),
+                dataHref = el.attr("data-href"),
+                dataUrl = el.attr("data-url")
+            )
         }
         val allUrls = (iframes + videoUrls + partLinks).distinct()
         tani("aday adresler (${allUrls.size})", allUrls.joinToString(" | "), 1200)
@@ -454,15 +453,18 @@ private fun Element.toSearchResult(): SearchResponse? {
             Log.d("FLMM", "Processing URL: $url")
             // ! CloseLoad referer'ı embed adresinin kendi host'undan alır.
             val referer = (originOf(url) ?: mainUrl).trimEnd('/') + "/"
-            when {
-                url.contains("closeload", ignoreCase = true) ->
+            // ! Rota konak adından belirlenir: "rapid.filmmakinesi.to" gibi
+            // ! adresler eskiden hiçbir çözümleyiciye gitmiyordu ("DUAL Rapid"
+            // ! düğmesi sessizce kayboluyordu).
+            when (SourceLinks.routeFor(url)) {
+                SourceLinks.Route.CLOSELOAD ->
                     CloseLoad().getUrl(url, referer, subtitleCallback, wrapped)
-                url.contains("rapidvid", ignoreCase = true) || url.contains("rapidrame", ignoreCase = true) || url.contains("rplayer", ignoreCase = true) -> {
+                SourceLinks.Route.RAPID -> {
                     val hadLinkBefore = produced
                     Rapidrame().getUrl(url, referer, subtitleCallback, wrapped)
                     if (produced == hadLinkBefore) loadExtractor(url, referer, subtitleCallback, wrapped)
                 }
-                else -> loadExtractor(url, referer, subtitleCallback, wrapped)
+                SourceLinks.Route.GENERIC -> loadExtractor(url, referer, subtitleCallback, wrapped)
             }
         }
         return produced

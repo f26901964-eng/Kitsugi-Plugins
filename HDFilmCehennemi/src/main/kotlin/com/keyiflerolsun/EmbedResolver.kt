@@ -58,6 +58,23 @@ object EmbedResolver {
     }
 
     /**
+     * Oynatıcı kapsayıcısındaki lazy iframe kaynaklarını döndürür.
+     * Bu adaylar sayfadaki alternatif düğme kimliklerinden önce denenmelidir;
+     * `data-src` mutlaksa değeri değiştirilmeden korunur.
+     */
+    fun preferredPlayerDataSrcs(document: org.jsoup.nodes.Document): List<String> =
+        document.select("iframe[data-src]")
+            .filter { frame ->
+                frame.parents().any {
+                    it.hasClass("video-container") || it.hasClass("hdmv-play-container") ||
+                        it.hasClass("player") || it.hasClass("video-player")
+                }
+            }
+            .map { it.attr("data-src").trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+
+    /**
      * /video/{id}/ yanıtından embed (oynatıcı) adresini çıkarır.
      * Yanıt JSON ise önce "html" alanı çözülür; değilse ham metin taranır.
      */

@@ -50,12 +50,12 @@ class CloseLoad : ExtractorApi() {
             val response = app.get(url, referer = origin, headers = headers2)
             val html = response.text
 
-            // ! TANI: embed sayfasının ham içeriği (kaynak nerede?).
-            Log.d("FLMM_TANI", "[closeload $url] " + html.replace("\r", " ").replace("\n", " ").take(1200))
+            // ! TANI: embed sayfasının tamamı (logcat satır sınırı için parçalı).
+            // ! Yeni dc_ biçimini çözebilmek için ham JS gerekiyor.
+            logScriptChunks("FLMM_TANI", "[closeload ${url.substringAfterLast('/').ifBlank { "x" }}]", html)
 
-            // ! Sayfada şifreli/obfüskeli oynatıcı var mı? Varsa contentUrl gibi
-            // ! düz fallback'ler YALNIZCA şifre çözülemezse değil, hiç
-            // ! kullanılmamalı: o adresler bayat (404) olabiliyor.
+            // ! Sayfada şifreli/obfüskeli oynatıcı var mı? Varsa düz yedek adresler
+            // ! ancak aşağıda tek tek doğrulanır; afiş/bayat URL kaynak sayılmaz.
             val packedPlayer = RplayerDecoder.hasPackedPlayer(html)
 
             // 1. Paketli eval/dc_ kaynağını contentUrl fallback'inden ÖNCE dene.
@@ -74,23 +74,9 @@ class CloseLoad : ExtractorApi() {
 
             if (realUrl.isNullOrBlank()) {
                 if (packedPlayer) {
-                    // ! Şifreli blok var ama çözülemedi. Bayat contentUrl/master
-                    // ! adresini kaynak diye göndermiyoruz; aksi hâlde uygulama
-                    // ! 404'lük sahte bir link üretip oynatıcıda hata veriyordu.
-                    Log.e("Kekik_${this.name}", "Şifreli oynatıcı çözülemedi; bayat fallback gönderilmedi.")
-                } else {
-                    // 3. Fallback: JSON-LD / JWPlayer'daki şifresiz contentUrl veya file.
-                    Log.w("Kekik_${this.name}", "Native deşifre başarısız, Fallback JSON-LD aranıyor...")
-                    val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
-                    realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
+                    Log.w("Kekik_${this.name}", "Şifreli oynatıcı çözülemedi, doğrulanmış yedekler denenecek.")
                 }
-            }
-
-            // 4. Fallback: master.txt veya .m3u8 doğrudan akış linki ara
-            if (realUrl.isNullOrBlank() && !packedPlayer) {
-                val txtMatch = """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(html)?.value
-                    ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(html)?.value
-                realUrl = txtMatch
+                realUrl = verifiedFallbackUrl(html, headers2)
             }
 
             Log.d("FLMM_TANI", "[closeload $url] cozulen adres: ${realUrl ?: "<yok>"}")
@@ -399,6 +385,98 @@ class CloseLoad : ExtractorApi() {
             } catch (e: Exception) {
                 null
             }
+        }
+    }
+
+    /** Uzun metni logcat satır sınırını aşmayacak parçalara bölerek yazar. */
+    private fun logScriptChunks(tag: String, label: String, text: String, chunk: Int = 1200, limit: Int = 30000) {
+        val body = if (text.length > limit) text.substring(0, limit) + "…<kesildi>" else text
+        var index = 0
+        var part = 1
+        while (index < body.length) {
+            Log.d(tag, "$label #$part " + body.substring(index, minOf(index + chunk, body.length)))
+            index += chunk
+            part++
+        }
+    }
+
+    /** Yayın olamayacak görsel uzantıları. */
+    private val imageExtensions = listOf(
+        ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif", ".bmp", ".ico", ".tiff"
+    )
+
+    /** Görsel adresi mi? Afişler 200 döndüğü için "canlı" sanılmamalı. */
+    private fun isImageUrl(url: String): Boolean {
+        val path = url.trim().lowercase().substringBefore('?').substringBefore('#')
+        if (path.startsWith("data:")) return true
+        return imageExtensions.any { path.endsWith(it) }
+    }
+
+    /**
+     * Düz yedek adayları — GÖRSELLER HARİÇ.
+     * ! JSON-LD'deki contentUrl çoğu zaman afişin adresidir:
+     * !   "thumbnail":{"@type":"ImageObject","contentUrl":".../poster/x.jpg"}
+     * ! Bunu video sanmak "video verisi gelmiyor" hatasına yol açıyordu.
+     */
+    private fun plainCandidates(html: String): List<String> {
+        val candidates = mutableListOf<String>()
+        val regex = Regex(""""contentUrl"\s*:\s*"([^"]+)"""")
+        for (match in regex.findAll(html)) {
+            val raw = match.groupValues.getOrNull(1)?.replace("\\/", "/")?.trim() ?: continue
+            if (raw.isBlank() || isImageUrl(raw)) continue
+            val start = (match.range.first - 240).coerceAtLeast(0)
+            if (html.substring(start, match.range.first).lowercase().contains("thumbnail")) continue
+            candidates.add(raw)
+        }
+        Regex("""https?://[^\s"']+/master\.txt[^\s"']*""").findAll(html).forEach { candidates.add(it.value) }
+        Regex("""https?://[^\s"']+\.m3u8[^\s"']*""").findAll(html).forEach { candidates.add(it.value) }
+        return candidates.filterNot { isImageUrl(it) }.distinct()
+    }
+
+    /**
+     * Düz yedek adayları (contentUrl / master.txt / .m3u8) doğrular.
+     * ! Bayat (404) adresi oynatıcıya göndermemek, ama hâlâ yayında olan
+     * ! yedeği de kaybetmemek için: adaylar tek tek denenir, yalnızca
+     * ! 2xx/3xx dönen adres döndürülür.
+     */
+    private suspend fun verifiedFallbackUrl(html: String, headers: Map<String, String>): String? {
+        val candidates = plainCandidates(html)
+
+        for (candidate in candidates) {
+            val norm = normalizeStreamUrl(candidate) ?: continue
+            if (isUrlAlive(norm, headers)) {
+                Log.d("Kekik_${this.name}", "yedek adres yayında: $norm")
+                return norm
+            }
+            Log.w("Kekik_${this.name}", "bayat yedek adres elendi (yayında değil): $norm")
+        }
+        return null
+    }
+
+    /** Adres gerçekten cevap veriyor mu? HEAD bazı CDN'lerde 405 döndüğü için Range'li GET. */
+    private suspend fun isUrlAlive(url: String, headers: Map<String, String>): Boolean {
+        return try {
+            val res = app.get(
+                url,
+                headers = headers + mapOf("Range" to "bytes=0-1", "Accept" to "*/*"),
+                allowRedirects = true
+            )
+            if (!(res.isSuccessful || res.code in 300..399)) return false
+
+            // ! Görsel dönen adres yayın değildir (afişler 200 döner!).
+            val contentType = res.headers["Content-Type"].orEmpty().lowercase()
+            if (contentType.startsWith("image/") || isImageUrl(url)) return false
+            if (contentType.contains("text/html") || contentType.contains("application/json")) return false
+
+            // ! 200 dönen HTML hata sayfası "yaşıyor" sayılmamalı.
+            val path = url.substringBefore('?').lowercase()
+            val looksHls = path.endsWith(".m3u8") || path.endsWith("master.txt") || path.contains(".urlset")
+            if (!looksHls) return true
+            val preview = res.text.take(2048)
+            preview.contains("#EXTM3U") || preview.contains("#EXT-X")
+        } catch (e: Exception) {
+            Log.w("Kekik_${this.name}", "adres doğrulanamadı: $url (${e.message})")
+            false
         }
     }
 
