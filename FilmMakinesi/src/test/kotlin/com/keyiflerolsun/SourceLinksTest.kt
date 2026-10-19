@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.jsoup.Jsoup
 
 class SourceLinksTest {
 
@@ -56,6 +57,47 @@ class SourceLinksTest {
     @Test
     fun `gorsel adres kaynak sayilmaz`() {
         assertFalse(SourceLinks.isUsable("https://filmmakinesi.to/uploads/postlar/afis/x.webp"))
+    }
+
+
+    @Test
+    fun `sayfadan data iframe script ve dogrudan yayin adaylari toplanir`() {
+        val html = """
+            <div class="video-parts">
+              <a href="#" data-video_url="https://closeload.filmmakinesi.to/video/embed/abc/?imdb_id=tt123">Close</a>
+            </div>
+            <iframe data-src="https://filmmakinesi.de/rplayer/episode-1/"></iframe>
+            <a href="/playerr/episode-2/">Alternate player</a>
+            <video><source src="https://cdn.example.com/master.m3u8?token=abc"></video>
+            <script>var stream = "https:\/\/cdn.example.com/series/episode.mp4?key=xyz";</script>
+            <script>var player = {"file":"/hls/relative.m3u8?token=rel"};</script>
+            <div data-video-id="not-a-url-id"></div>
+            <script>var trailer = "https://www.youtube.com/embed/ignored";</script>
+        """.trimIndent()
+
+        val candidates = SourceLinks.pageCandidates(Jsoup.parse(html, pageUrl), pageUrl)
+
+        assertTrue(candidates.contains("https://closeload.filmmakinesi.to/video/embed/abc/?imdb_id=tt123"))
+        assertTrue(candidates.contains("https://filmmakinesi.de/rplayer/episode-1/"))
+        assertTrue(candidates.contains("$mainUrl/playerr/episode-2/"))
+        assertTrue(candidates.contains("https://cdn.example.com/master.m3u8?token=abc"))
+        assertTrue(candidates.contains("https://cdn.example.com/series/episode.mp4?key=xyz"))
+        assertTrue(candidates.contains("$mainUrl/hls/relative.m3u8?token=rel"))
+        assertFalse(candidates.any { it.contains("not-a-url-id") || it.contains("youtube.com") })
+    }
+
+    @Test
+    fun `direct stream uzantilari query ile taninir`() {
+        assertTrue(SourceLinks.isDirectStreamUrl("https://cdn.example.com/master.m3u8?token=abc"))
+        assertTrue(SourceLinks.isDirectStreamUrl("https://cdn.example.com/manifest.mpd?token=abc"))
+        assertTrue(SourceLinks.isDirectStreamUrl("https://cdn.example.com/master.txt?token=abc"))
+        assertFalse(SourceLinks.isDirectStreamUrl("https://cdn.example.com/embed/player.html"))
+    }
+
+    @Test
+    fun `rplayer ve playerr yollari rapidrame cozucusune yonlenir`() {
+        assertEquals(SourceLinks.Route.RAPID, SourceLinks.routeFor("https://filmmakinesi.de/rplayer/id/"))
+        assertEquals(SourceLinks.Route.RAPID, SourceLinks.routeFor("https://filmmakinesi.de/playerr/id/"))
     }
 
     @Test

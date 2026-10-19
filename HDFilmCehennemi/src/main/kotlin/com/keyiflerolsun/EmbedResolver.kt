@@ -48,6 +48,72 @@ object EmbedResolver {
         "/rplayer/", "/playerr/", "/player/", "/embed/", "/video/", "/play/", "/stream/"
     )
 
+    private val DIRECT_MEDIA_SUFFIXES = listOf(
+        ".m3u8", ".m3u", ".mpd", ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi"
+    )
+    private val VIDEO_ID_REGEX = Regex("""[A-Za-z0-9_-]{1,128}""")
+
+    /**
+     * URL gerçekten medya dosyası/playlist'ine mi işaret ediyor?
+     * Sorgu dizesini değil, URL path'ini kontrol eder; ör. `master.m3u8?token=...`
+     * doğrudan yayın sayılırken bir görsel URL'sindeki `.m3u8` sorgu değeri sayılmaz.
+     */
+    fun isDirectMediaUrl(raw: String): Boolean {
+        val value = raw.trim()
+        if (value.isBlank()) return false
+        val path = runCatching { java.net.URI(value).path }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: value.substringBefore('?').substringBefore('#')
+        val lowerPath = path.lowercase()
+        return lowerPath.endsWith("master.txt") || DIRECT_MEDIA_SUFFIXES.any { lowerPath.endsWith(it) }
+    }
+
+    /**
+     * `<video>/<source>` ve lazy player düğümlerindeki doğrudan medya adresleri.
+     * Yalnızca dosya/playlist yolu gibi görünen değerler döner; poster ve reklam
+     * iframe'leri bu listeden geçemez.
+     */
+    fun embeddedMediaSources(document: org.jsoup.nodes.Document): List<String> {
+        val attributes = listOf("src", "data-src", "data-lazy-src", "data-file", "data-hls", "data-stream", "data-mp4")
+        val out = mutableListOf<String>()
+
+        document.select("video, source, [data-file], [data-hls], [data-stream], [data-mp4]").forEach { element ->
+            attributes.forEach { attribute ->
+                val value = element.attr(attribute).trim()
+                if (value.isNotBlank() && isDirectMediaUrl(value) && !FallbackCandidates.isImageUrl(value)) {
+                    out.add(value)
+                }
+            }
+        }
+
+        return out.distinct()
+    }
+
+    /**
+     * Site `/video/{id}/` uç noktasındaki kimliği hem düz değerlerden hem de
+     * göreli/tam URL'lerden alır. `/video/embed/...` bir oynatıcı adresidir,
+     * API kimliği değildir; özellikle ayırt edilir.
+     */
+    fun videoIdFrom(raw: String): String? {
+        val value = raw.trim().replace("\\/", "/").trim('"', '\'')
+        if (value.isBlank() || isDirectMediaUrl(value)) return null
+
+        val path = runCatching { java.net.URI(value).path.orEmpty() }
+            .getOrElse { value.substringBefore('?').substringBefore('#') }
+        val segments = path.split('/').filter { it.isNotBlank() }
+        val videoIndex = segments.indexOfLast { it.equals("video", ignoreCase = true) }
+        if (videoIndex >= 0) {
+            val segment = segments.getOrNull(videoIndex + 1) ?: return null
+            if (segment.lowercase() in setOf("embed", "player", "play", "rplayer", "playerr")) return null
+            return segment.takeIf { VIDEO_ID_REGEX.matches(it) }
+        }
+
+        val plain = value.substringBefore('?').substringBefore('#').trim('/')
+        if (plain.contains('/') || plain.contains("://") || plain.contains('.')) return null
+        return plain.takeIf { VIDEO_ID_REGEX.matches(it) }
+    }
+
     /** JSON gövdesindeki "html" alanını çözer (JSON kaçışlarını geri alır). */
     fun jsonHtmlField(raw: String): String? {
         val match = Regex("\"html\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").find(raw) ?: return null
@@ -118,7 +184,12 @@ object EmbedResolver {
      * @param mainUrl sitenin kök adresi (sonunda / olmayabilir)
      */
     fun toPlayerUrl(iframe: String, mainUrl: String): String {
-        val rapidrameId = iframe.substringAfter("?rapidrame_id=", "").substringBefore("&").trim()
+        val rapidrameId = Regex("""[?&]rapidrame_id=([^&#]+)""", RegexOption.IGNORE_CASE)
+            .find(iframe)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
         if (rapidrameId.isNotBlank()) {
             return "${mainUrl.trimEnd('/')}/rplayer/$rapidrameId/"
         }
@@ -142,8 +213,7 @@ object EmbedResolver {
         var value = raw.replace("\\/", "/").replace("\\", "").trim().trim('"', '\'')
         if (value.isBlank() || value == "about:blank") return null
         // ! Görsel/ikon adresleri kaynak değildir (lazyload data-src'leri elenir).
-        val lower = value.lowercase()
-        if (listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif").any { lower.contains(it) }) return null
+        if (FallbackCandidates.isImageUrl(value)) return null
         if (value.startsWith("//")) value = "https:$value"
         if (!value.startsWith("http")) {
             val base = pageUrl ?: mainUrl
@@ -155,7 +225,7 @@ object EmbedResolver {
         // ! ANCAK sitenin ASIL oynatıcısı (/rplayer/, /playerr/, /embed/ ...)
         // ! yine kendi host'unda oluyor. Bu kural onları eliyor ve oynatmayı
         // ! tamamen engelliyordu ("0 kaynak"). Oynatıcı yolları serbest bırakıldı.
-        if (originOf(value) == originOf(mainUrl) && !isPlayerPath(value)) return null
+        if (originOf(value) == originOf(mainUrl) && !isPlayerPath(value) && !isDirectMediaUrl(value)) return null
         return value
     }
 

@@ -78,15 +78,17 @@ class FilmMakinesi : MainAPI() {
 
     private suspend fun resolveDomain() {
         if (domainResolved) return
-        domainResolved = true
         for (candidate in domainCandidates) {
             try {
                 val res = app.get(
                     candidate,
                     headers = mapOf(
                         "User-Agent" to USER_AGENT,
-                        "Referer" to "$candidate/"
+                        "Referer" to "$candidate/",
+                        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
                     ),
+                    interceptor = FilmMakinesiHttp.interceptor,
                     cacheTime = 60
                 )
                 if (!res.isSuccessful) continue
@@ -99,6 +101,7 @@ class FilmMakinesi : MainAPI() {
                     )
                 ) continue
                 mainUrl = pinned
+                domainResolved = true
                 Log.d("FLMM", "domain sabitlendi: $mainUrl")
                 return
             } catch (e: Exception) {
@@ -164,8 +167,6 @@ class FilmMakinesi : MainAPI() {
         Log.d("FLMM_TANI", "[$label] $clean".take(limit + label.length + 4))
     }
 
-    private fun normalizeLink(raw: String): String? = SourceLinks.normalize(raw, mainUrl)
-
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         resolveDomain()
         val cleanedUrl = absoluteUrl(request.data).removeSuffix("/")
@@ -175,10 +176,16 @@ class FilmMakinesi : MainAPI() {
             cleanedUrl.replace(Regex("/sayfa/?$"), "")
         }
 
-        val document = app.get(url, headers = mapOf(
-            "User-Agent" to USER_AGENT,
-            "Referer" to "$mainUrl/"
-        )).document
+        val document = app.get(
+            url,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$mainUrl/",
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
+            ),
+            interceptor = FilmMakinesiHttp.interceptor
+        ).document
 
     val home = document.select("div.film-list div.item-relative")
         .mapNotNull { it.toSearchResult() }
@@ -228,8 +235,11 @@ private fun Element.toSearchResult(): SearchResponse? {
             "${mainUrl}/arama/?s=$encoded",
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Referer" to "$mainUrl/"
-            )
+                "Referer" to "$mainUrl/",
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
+            ),
+            interceptor = FilmMakinesiHttp.interceptor
         ).document
 
         return document.select("div.film-list div.item-relative").mapNotNull { it.toSearchResult() }
@@ -322,8 +332,11 @@ private fun Element.toSearchResult(): SearchResponse? {
             pageUrl,
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Referer" to "$mainUrl/"
-            )
+                "Referer" to "$mainUrl/",
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
+            ),
+            interceptor = FilmMakinesiHttp.interceptor
         ).document
 
         // ! Dizi sayfası mı? /dizi/ adresi veya bölüm bağlantıları varsa dizi.
@@ -392,8 +405,11 @@ private fun Element.toSearchResult(): SearchResponse? {
             pageUrl,
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Referer" to "$mainUrl/"
-            )
+                "Referer" to "$mainUrl/",
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
+            ),
+            interceptor = FilmMakinesiHttp.interceptor
         )
         val pageText = response.text
         val document = response.document
@@ -402,8 +418,8 @@ private fun Element.toSearchResult(): SearchResponse? {
         // ! Amaç: tahmin etmek yerine sitenin O AN ne döndürdüğünü gözlemek.
         // ! `adb logcat -s FLMM_TANI FLMM` ile okunur.
         tani("film sayfasi $pageUrl (${pageText.length} bayt)", pageText, 400)
-        document.select("iframe").take(6).forEach { tani("iframe", it.outerHtml(), 400) }
-        document.select("[data-video_url], [data-video-url], [data-video], [data-embed], [data-server]")
+        document.select("iframe, video, source").take(10).forEach { tani("player/media", it.outerHtml(), 400) }
+        document.select("[data-video_url], [data-video-url], [data-video], [data-video-id], [data-embed], [data-player], [data-server]")
             .take(10)
             .forEach { tani("data-video", it.outerHtml(), 400) }
         document.select(".video-parts, .video-options").take(4).forEach { tani("video-parts", it.outerHtml(), 600) }
@@ -417,30 +433,7 @@ private fun Element.toSearchResult(): SearchResponse? {
             }
         }
 
-        val iframes = document.select("iframe").mapNotNull {
-            normalizeLink(it.attr("data-src").ifBlank { it.attr("src") })
-        }
-        val videoUrls = document.select("[data-video_url], [data-video-url], [data-video], [data-embed], [data-server]").mapNotNull { element ->
-            listOf(
-                element.attr("data-video_url"),
-                element.attr("data-video-url"),
-                element.attr("data-video"),
-                element.attr("data-embed"),
-                element.attr("data-server")
-            ).firstOrNull { it.isNotBlank() }?.let(::normalizeLink)
-        }
-        // ! Canlı sayfada düğmelerin href'i "#"tir; gerçek adres data-video_url'dedir.
-        val partLinks = document.select(".video-parts a, .video-options a").mapNotNull { el ->
-            SourceLinks.partUrl(
-                mainUrl = mainUrl,
-                dataVideoUrl = el.attr("data-video_url"),
-                dataVideoDashUrl = el.attr("data-video-url"),
-                href = el.attr("href"),
-                dataHref = el.attr("data-href"),
-                dataUrl = el.attr("data-url")
-            )
-        }
-        val allUrls = (iframes + videoUrls + partLinks).distinct()
+        val allUrls = SourceLinks.pageCandidates(document, pageUrl)
         tani("aday adresler (${allUrls.size})", allUrls.joinToString(" | "), 1200)
 
         var produced = false
@@ -451,6 +444,33 @@ private fun Element.toSearchResult(): SearchResponse? {
         }
         allUrls.forEach { url ->
             Log.d("FLMM", "Processing URL: $url")
+
+            // ! Sayfada doğrudan HLS/MP4 varsa loadExtractor'a (HTML extractor'ı)
+            // ! gönderme; geçerli stream'i doğrudan kaynak olarak döndür.
+            if (SourceLinks.isDirectStreamUrl(url)) {
+                val path = url.substringBefore('?').substringBefore('#').lowercase()
+                val type = when {
+                    path.endsWith(".m3u8") || path.endsWith(".m3u") || path.endsWith("master.txt") -> ExtractorLinkType.M3U8
+                    path.endsWith(".mpd") -> ExtractorLinkType.DASH
+                    path.endsWith(".mp4") || path.endsWith(".m4v") || path.endsWith(".mkv") ||
+                        path.endsWith(".webm") || path.endsWith(".mov") || path.endsWith(".avi") -> ExtractorLinkType.VIDEO
+                    else -> null
+                }
+                val pageOrigin = originOf(pageUrl) ?: mainUrl
+                wrapped(
+                    newExtractorLink(source = name, name = name, url = url, type = type) {
+                        quality = Qualities.Unknown.value
+                        this.referer = pageUrl
+                        headers = mapOf(
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to pageUrl,
+                            "Origin" to pageOrigin
+                        )
+                    }
+                )
+                return@forEach
+            }
+
             // ! CloseLoad referer'ı embed adresinin kendi host'undan alır.
             val referer = (originOf(url) ?: mainUrl).trimEnd('/') + "/"
             // ! Rota konak adından belirlenir: "rapid.filmmakinesi.to" gibi

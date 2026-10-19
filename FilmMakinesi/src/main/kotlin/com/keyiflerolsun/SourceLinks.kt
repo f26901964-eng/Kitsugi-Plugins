@@ -28,6 +28,12 @@ object SourceLinks {
     /** Kaynak olarak kullanılamayacak şemalar/konaklar. */
     private val BLOCKED_HOSTS = listOf("youtube.com", "youtu.be", "youtube-nocookie.com", "googlevideo.com")
     private val IMAGE_EXTENSIONS = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif", ".bmp", ".ico", ".tif", ".tiff")
+    private val SOURCE_ATTRIBUTES = listOf(
+        "data-video_url", "data-video-url", "data-video", "data-video-id", "data-video_id",
+        "data-embed-url", "data-embed", "data-player-url", "data-player", "data-server",
+        "data-source", "data-file", "data-hls", "data-stream", "data-mp4",
+        "data-src", "data-lazy-src", "data-href", "data-url", "src", "href"
+    )
 
     /** Adres gerçekten yayın/oynatıcı adresi mi? */
     fun isUsable(url: String): Boolean {
@@ -59,6 +65,80 @@ object SourceLinks {
     }
 
     /**
+     * Bir içerik sayfasından oynatıcı/kaynak URL'lerini toplar.
+     * Eski `.video-parts` yapısına ek olarak yeni iframe lazy alanları, `video/source`
+     * etiketleri, data-* kontrolleri ve script içine JSON/JS olarak gömülen URL'ler taranır.
+     */
+    fun pageCandidates(document: org.jsoup.nodes.Document, pageUrl: String): List<String> {
+        val out = linkedSetOf<String>()
+        val selector = listOf(
+            "iframe", "video", "source", ".video-parts a", ".video-options a",
+            ".video-servers a", ".alternative-links a", "[aria-label*=Alternative] a",
+            "[data-video_url]", "[data-video-url]", "[data-video]", "[data-video-id]", "[data-video_id]",
+            "[data-embed-url]", "[data-embed]", "[data-player-url]", "[data-player]", "[data-server]",
+            "[data-source]", "[data-file]", "[data-hls]", "[data-stream]", "[data-mp4]",
+            "[data-src*=embed]", "[data-src*=video]", "[data-src*=player]",
+            "[href*='embed']", "[href*='rplayer']", "[href*='playerr']",
+            "[href*='.m3u8']", "[href*='.mpd']", "[href*='.mp4']"
+        ).joinToString(", ")
+
+        document.select(selector).forEach { element ->
+            SOURCE_ATTRIBUTES.forEach { attribute ->
+                val raw = element.attr(attribute).trim()
+                if (raw.isNotBlank() && !isPlainId(raw)) {
+                    normalize(raw, pageUrl)?.let(out::add)
+                }
+            }
+        }
+
+        // JS objeleri bazen `https:\/\/host/...` biçiminde kaçışlıdır.
+        val rawHtml = document.html()
+            .replace("\\/", "/")
+            .replace("\\u002f", "/", ignoreCase = true)
+            .replace("\\u003a", ":", ignoreCase = true)
+            .replace("\\u0026", "&", ignoreCase = true)
+            .replace("&amp;", "&", ignoreCase = true)
+        Regex("""https?://[^\s"'<>]+""").findAll(rawHtml).forEach { match ->
+            val raw = match.value.trimEnd(',', ';', ')', ']', '}')
+            val lower = raw.lowercase()
+            val isPlayerOrStream = isDirectStreamUrl(raw) || routeFor(raw) != Route.GENERIC ||
+                lower.contains("/embed/") || lower.contains("/rplayer/") || lower.contains("/playerr/") ||
+                lower.contains("/video/") || lower.contains("rapidrame_id=")
+            if (!isPlayerOrStream) return@forEach
+            normalize(raw, pageUrl)?.let(out::add)
+        }
+
+        // JSON/JS player configs often store a relative path as `file` or `src`.
+        val scriptUrlValue = Regex(
+            """["'](?:file|src|source|contentUrl|embedUrl|playerUrl|url)["']\s*:\s*["']([^"'<>]+)["']""",
+            RegexOption.IGNORE_CASE
+        )
+        scriptUrlValue.findAll(rawHtml).forEach { match ->
+            val normalized = normalize(match.groupValues[1], pageUrl) ?: return@forEach
+            val lower = normalized.lowercase()
+            val isPlayerOrStream = isDirectStreamUrl(normalized) || routeFor(normalized) != Route.GENERIC ||
+                lower.contains("/embed/") || lower.contains("/rplayer/") || lower.contains("/playerr/") ||
+                lower.contains("/video/") || lower.contains("rapidrame_id=")
+            if (isPlayerOrStream) out.add(normalized)
+        }
+
+        return out.toList()
+    }
+
+    private fun isPlainId(raw: String): Boolean =
+        Regex("""[A-Za-z0-9_-]{1,64}""").matches(raw.trim())
+
+    /** URL doğrudan HLS/DASH/video dosyası mı? */
+    fun isDirectStreamUrl(url: String): Boolean {
+        val path = runCatching { java.net.URI(url.trim()).path.orEmpty() }
+            .getOrElse { url.substringBefore('?').substringBefore('#') }
+            .lowercase()
+        return path.endsWith("master.txt") || listOf(
+            ".m3u8", ".m3u", ".mpd", ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi"
+        ).any { extension -> path.endsWith(extension) }
+    }
+
+    /**
      * Kaynak düğmesindeki ilk kullanılabilir adresi seçer.
      * ! `href="#"` bir bağlantı değildir; `data-video_url` önceliklidir.
      */
@@ -84,11 +164,13 @@ object SourceLinks {
      */
     fun routeFor(url: String): Route {
         val host = hostOf(url) ?: return Route.GENERIC
-        val lower = host.lowercase()
+        val lowerHost = host.lowercase()
+        val lowerPath = runCatching { java.net.URI(url.trim()).path.orEmpty().lowercase() }.getOrDefault("")
         return when {
-            lower.contains("closeload") -> Route.CLOSELOAD
-            lower.startsWith("rapid") || lower.contains("rapidvid") || lower.contains("rapidrame") -> Route.RAPID
-            lower.contains("rplayer") || lower.contains("playerr") -> Route.RAPID
+            lowerHost.contains("closeload") -> Route.CLOSELOAD
+            lowerPath.contains("/rplayer/") || lowerPath.contains("/playerr/") -> Route.RAPID
+            lowerHost.startsWith("rapid") || lowerHost.contains("rapidvid") || lowerHost.contains("rapidrame") -> Route.RAPID
+            lowerHost.contains("rplayer") || lowerHost.contains("playerr") -> Route.RAPID
             else -> Route.GENERIC
         }
     }

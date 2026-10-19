@@ -47,7 +47,12 @@ class CloseLoad : ExtractorApi() {
         )
 
         try {
-            val response = app.get(url, referer = origin, headers = headers2)
+            val response = app.get(
+                url,
+                referer = origin,
+                headers = headers2,
+                interceptor = FilmMakinesiHttp.interceptor
+            )
             val html = response.text
 
             // ! TANI: embed sayfasının tamamı (logcat satır sınırı için parçalı).
@@ -177,7 +182,9 @@ class CloseLoad : ExtractorApi() {
         val lower = url.lowercase().substringBefore("?")
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
-            lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
+            lower.endsWith(".mpd") -> ExtractorLinkType.DASH
+            lower.contains(".mp4") || lower.contains(".m4v") || lower.contains(".mkv") ||
+                lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
             else -> null
         }
     }
@@ -245,7 +252,11 @@ class CloseLoad : ExtractorApi() {
         embedHeaders: Map<String, String>
     ): String? {
         try {
-            val t = app.get(playlistUrl, headers = embedHeaders).text
+            val t = app.get(
+                playlistUrl,
+                headers = embedHeaders,
+                interceptor = FilmMakinesiHttp.interceptor
+            ).text
             if (t.isNotBlank()) {
                 val lower = t.lowercase()
                 val isHtmlError = t.trim().startsWith("<") && (lower.contains("403") || lower.contains("forbidden") || lower.contains("not found") || lower.contains("access denied"))
@@ -264,7 +275,11 @@ class CloseLoad : ExtractorApi() {
                     "Referer" to "$ownOrigin/",
                     "Origin" to ownOrigin
                 )
-                val t2 = app.get(playlistUrl, headers = altHeaders).text
+                val t2 = app.get(
+                    playlistUrl,
+                    headers = altHeaders,
+                    interceptor = FilmMakinesiHttp.interceptor
+                ).text
                 if (t2.isNotBlank()) {
                     Log.d("Kekik_${this.name}", "kendi hostu ile liste alındı: $playlistUrl")
                     return t2
@@ -459,7 +474,8 @@ class CloseLoad : ExtractorApi() {
             val res = app.get(
                 url,
                 headers = headers + mapOf("Range" to "bytes=0-1", "Accept" to "*/*"),
-                allowRedirects = true
+                allowRedirects = true,
+                interceptor = FilmMakinesiHttp.interceptor
             )
             if (!(res.isSuccessful || res.code in 300..399)) return false
 

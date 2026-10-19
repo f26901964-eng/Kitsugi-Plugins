@@ -83,15 +83,23 @@ class HDFilmCehennemi : MainAPI() {
 
     class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller): Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
-            val request  = chain.request()
-            val response = chain.proceed(request)
-            val doc      = Jsoup.parse(response.peekBody(1024 * 1024).string())
+            val response = chain.proceed(chain.request())
+            val contentType = response.header("Content-Type").orEmpty().lowercase()
+            val looksLikeHtml = contentType.contains("text/html") || contentType.contains("application/xhtml+xml")
+            if (!looksLikeHtml && response.code !in 403..503) return response
 
-            if (doc.html().contains("Just a moment")) {
-                return cloudflareKiller.intercept(chain)
-            }
+            val html = response.peekBody(256 * 1024).string()
+            val lower = html.lowercase()
+            val challengePage = lower.contains("just a moment") ||
+                lower.contains("cf-browser-verification") ||
+                lower.contains("checking your browser") ||
+                (response.code in 403..503 && lower.contains("cloudflare"))
 
-            return response
+            if (!challengePage) return response
+
+            // CloudflareKiller yeniden istekte bulunmadan önce ilk gövdeyi kapat.
+            response.close()
+            return cloudflareKiller.intercept(chain)
         }
     }
 
@@ -116,7 +124,6 @@ class HDFilmCehennemi : MainAPI() {
 
     private suspend fun resolveDomain() {
         if (domainResolved) return
-        domainResolved = true
         for (candidate in domainCandidates) {
             try {
                 val res = app.get(
@@ -139,6 +146,7 @@ class HDFilmCehennemi : MainAPI() {
                     )
                 ) continue
                 mainUrl = pinned
+                domainResolved = true
                 Log.d("HDCH", "domain sabitlendi: $mainUrl")
                 return
             } catch (e: Exception) {
@@ -219,7 +227,9 @@ class HDFilmCehennemi : MainAPI() {
         val lower = url.lowercase().substringBefore("?")
         return when {
             lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
-            lower.contains(".mp4") || lower.contains(".mkv") || lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
+            lower.endsWith(".mpd") -> ExtractorLinkType.DASH
+            lower.contains(".mp4") || lower.contains(".m4v") || lower.contains(".mkv") ||
+                lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
             else -> null
         }
     }
@@ -297,7 +307,7 @@ class HDFilmCehennemi : MainAPI() {
         )
         if (dead.any { lower.contains(it) }) return false
         if (body.length < 300) return false
-        return required.any { lower.contains(it) }
+        return required.any { lower.contains(it.lowercase()) }
     }
 
     private fun absoluteUrl(path: String): String {
@@ -347,7 +357,8 @@ class HDFilmCehennemi : MainAPI() {
                 "X-Requested-With" to "fetch",
                 "Content-Type"     to "application/json"
             ),
-            referer = "${mainUrl}/"
+            referer = "${mainUrl}/",
+            interceptor = interceptor
         ).parsedSafe<Results>() ?: return emptyList()
         val searchResults = mutableListOf<SearchResponse>()
 
@@ -444,7 +455,16 @@ class HDFilmCehennemi : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         resolveDomain()
         val pageUrl = migrateUrl(url)
-        val document = app.get(pageUrl, interceptor = interceptor).document
+        val document = app.get(
+            pageUrl,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
+            ),
+            referer = "$mainUrl/",
+            interceptor = interceptor
+        ).document
 
         // ! GÜNCELLEME (2026-10-19): Site SPA'ya geçti, başlık ve diğer alanlar
         // ! hem eski `.post-info-*` hem de yeni `[aria-label]` ve JSON-LD
@@ -935,7 +955,8 @@ class HDFilmCehennemi : MainAPI() {
             val res = app.get(
                 url,
                 headers = headers + mapOf("Range" to "bytes=0-1", "Accept" to "*/*"),
-                allowRedirects = true
+                allowRedirects = true,
+                interceptor = interceptor
             )
             if (!(res.isSuccessful || res.code in 300..399)) return false
 
@@ -1190,7 +1211,17 @@ class HDFilmCehennemi : MainAPI() {
         resolveDomain()
         val pageUrl = migrateUrl(data)
         Log.d("HDCH", "data » $pageUrl")
-        val document = app.get(pageUrl, interceptor = interceptor).document
+        // ! Sayfa cevabındaki lazy player iframe'lerini ve video source etiketlerini
+        // ! alabilmek için tarayıcı UA + sayfanın ana domain referer'ı ile iste.
+        val document = app.get(
+            pageUrl,
+            headers = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            ),
+            referer = "$mainUrl/",
+            interceptor = interceptor
+        ).document
         var linkFound = false
 
         // ! Artık yalnızca eski "alternative-link" düğmesine bakılmıyor: kaynak
@@ -1266,12 +1297,38 @@ class HDFilmCehennemi : MainAPI() {
                 Log.d("HDCH_TANI", "link » ${link.name} type=${link.type} url=${link.url}")
                 callback(link)
             }
-            val looksLikeEmbed = target.contains("mobi") || target.contains("closeload") ||
-                target.contains("/embed/") || target.contains("rplayer") || target.contains("rapidrame") ||
-                target.contains("rapidvid")
+
+            // ! HTML'de doğrudan <video>/<source> veya JSON-LD video URL'si varsa
+            // ! onu embed sayfası gibi tekrar GET etme; doğrudan yayın linki olarak ver.
+            val directStream = normalizeStreamUrl(target)?.takeIf { EmbedResolver.isDirectMediaUrl(it) }
+            if (directStream != null) {
+                val pageOrigin = originOf(pageUrl) ?: mainUrl
+                wrapped(
+                    newExtractorLink(
+                        source = source,
+                        name = source,
+                        url = directStream,
+                        type = linkTypeFor(directStream)
+                    ) {
+                        quality = Qualities.Unknown.value
+                        this.referer = pageUrl
+                        headers = mapOf(
+                            "User-Agent" to USER_AGENT,
+                            "Referer" to pageUrl,
+                            "Origin" to pageOrigin
+                        )
+                    }
+                )
+                return@forEach
+            }
+
+            val lowerTarget = target.lowercase()
+            val looksLikeEmbed = lowerTarget.contains("mobi") || lowerTarget.contains("closeload") ||
+                lowerTarget.contains("/embed/") || lowerTarget.contains("rplayer") || lowerTarget.contains("rapidrame") ||
+                lowerTarget.contains("rapidvid")
 
             // ! rplayer sayfası kendi paketli çözücüsüyle ele alınır.
-            val isRplayer = target.contains("/rplayer/") || target.contains("/playerr/")
+            val isRplayer = lowerTarget.contains("/rplayer/") || lowerTarget.contains("/playerr/")
             if (isRplayer) {
                 extractRplayerSource(source, target, subtitleCallback, wrapped)
             } else if (looksLikeEmbed) {
@@ -1296,9 +1353,23 @@ class HDFilmCehennemi : MainAPI() {
         return linkFound
     }
 
+    private val VIDEO_DATA_ATTRIBUTES = listOf(
+        "data-video", "data-video-url", "data-video_url", "data-video-id", "data-video_id",
+        "data-src", "data-url", "data-embed", "data-embed-url", "data-player",
+        "data-player-url", "data-player-id", "data-server", "data-id"
+    )
+    private val VIDEO_DATA_SELECTOR = VIDEO_DATA_ATTRIBUTES
+        .filterNot { it == "data-id" }
+        .joinToString(", ") { "[$it]" } + ", button[data-id], a[data-id]"
+
+    private fun Element.videoDataValue(): String? = VIDEO_DATA_ATTRIBUTES
+        .asSequence()
+        .map { attr(it).trim() }
+        .firstOrNull { it.isNotBlank() }
+
     private data class LinkCandidate(val source: String, val url: String, val videoId: String? = null)
 
-    /** Sayfadaki tüm kaynak adaylarını toplar: alternative-link düğmeleri, iframe'ler, data-video ve gömülü adresler. */
+    /** Sayfadaki tüm kaynak adaylarını toplar: player düğmeleri, iframe'ler, video etiketleri ve gömülü adresler. */
     private fun collectLinkCandidates(document: org.jsoup.nodes.Document, pageUrl: String): List<LinkCandidate> {
         val candidates = mutableListOf<LinkCandidate>()
 
@@ -1319,34 +1390,28 @@ class HDFilmCehennemi : MainAPI() {
         // Eğer hiç grup bulunamazsa, doğrudan butonları tara
         val altButtons = if (altGroups.isNotEmpty()) {
             altGroups.flatMap { g ->
-                g.select("button.alternative-link, button[data-video], button[data-video-url], button[data-video_url]")
+                g.select("button.alternative-link, a.alternative-link, button[data-video], button[data-video-url], button[data-video_url], button[data-video-id], button[data-video_id], button[data-id], a[data-video], a[data-video-url], a[data-video_url], a[data-video-id], a[data-video_id], a[data-id], a[href*='/video/']")
             }
         } else {
-            document.select("[aria-label='Alternative tab content'] button, [aria-label='Language tab menu'] button, button.alternative-link, button[data-video]")
+            document.select("[aria-label='Alternative tab content'] button, [aria-label='Language tab menu'] button, button.alternative-link, a.alternative-link, button[data-video], button[data-video-id], button[data-id], a[data-video], a[data-video-id], a[data-id], a[href*='/video/']")
         }
 
         // Gruplu işleme (langCode korunur)
         altGroups.forEach { element ->
             val langCode = element.attr("data-lang").uppercase()
-            element.select("button.alternative-link, button[data-video], button[data-video-url], button[data-video_url]").forEach { button ->
+            element.select("button.alternative-link, a.alternative-link, button[data-video], button[data-video-url], button[data-video_url], button[data-video-id], button[data-video_id], button[data-id], a[data-video], a[data-video-url], a[data-video_url], a[data-video-id], a[data-video_id], a[data-id], a[href*='/video/']").forEach { button ->
                 val label = button.text().replace("(HDrip Xbet)", "").trim()
                     .ifBlank { button.attr("data-name").trim() }
                     .ifBlank { button.attr("aria-label").trim() }
                     .ifBlank { "Kaynak" }
                 val source = if (langCode.isNotBlank()) "$label $langCode" else label
-                val vid = listOf(
-                    button.attr("data-video"),
-                    button.attr("data-video-url"),
-                    button.attr("data-video_url"),
-                    button.attr("data-id"),
-                    button.attr("data-src"),
-                    button.attr("data-url"),
-                    button.attr("data-embed"),
-                    button.attr("data-server")
-                ).firstOrNull { it.isNotBlank() } ?: return@forEach
+                val vid = button.videoDataValue()
+                    ?: button.attr("href").trim().takeIf {
+                        EmbedResolver.videoIdFrom(it) != null || it.contains("/embed/", ignoreCase = true)
+                    }
+                    ?: return@forEach
                 val normalized = normalizeEmbed(vid, pageUrl)
-                val rawId = vid.trim().removePrefix("/video/").trim('/')
-                    .takeIf { it.isNotBlank() && !it.contains('/') && !it.contains("://") }
+                val rawId = EmbedResolver.videoIdFrom(vid)
                 if (normalized != null) {
                     candidates.add(LinkCandidate(source, normalized, rawId))
                 } else if (rawId != null) {
@@ -1354,25 +1419,20 @@ class HDFilmCehennemi : MainAPI() {
                 }
             }
         }
-        // Eğer gruplu işleme hiç aday üretmediyse, düz buton listesini dene (grup dili yok)
-        if (candidates.isEmpty() && altButtons.isNotEmpty()) {
+        // Gruplu butonlar boş kalmışsa diye, etiketli/düz kontrolleri de tara.
+        if (altButtons.isNotEmpty()) {
             altButtons.forEach { button ->
                 val label = button.text().replace("(HDrip Xbet)", "").trim()
                     .ifBlank { button.attr("data-name").trim() }
+                    .ifBlank { button.attr("aria-label").trim() }
                     .ifBlank { "Kaynak" }
-                val vid = listOf(
-                    button.attr("data-video"),
-                    button.attr("data-video-url"),
-                    button.attr("data-video_url"),
-                    button.attr("data-id"),
-                    button.attr("data-src"),
-                    button.attr("data-url"),
-                    button.attr("data-embed"),
-                    button.attr("data-server")
-                ).firstOrNull { it.isNotBlank() } ?: return@forEach
+                val vid = button.videoDataValue()
+                    ?: button.attr("href").trim().takeIf {
+                        EmbedResolver.videoIdFrom(it) != null || it.contains("/embed/", ignoreCase = true)
+                    }
+                    ?: return@forEach
                 val normalized = normalizeEmbed(vid, pageUrl)
-                val rawId = vid.trim().removePrefix("/video/").trim('/')
-                    .takeIf { it.isNotBlank() && !it.contains('/') && !it.contains("://") }
+                val rawId = EmbedResolver.videoIdFrom(vid)
                 if (normalized != null) {
                     candidates.add(LinkCandidate(label, normalized, rawId))
                 } else if (rawId != null) {
@@ -1382,24 +1442,20 @@ class HDFilmCehennemi : MainAPI() {
         }
 
         // 2) data-video / data-video_url / data-src / data-url taşıyan tüm öğeler
-        document.select("[data-video], [data-video-url], [data-video_url], [data-src], [data-url], [data-embed], [data-server]").forEach { element ->
+        document.select("$VIDEO_DATA_SELECTOR, a[href*='/video/']").forEach { element ->
             // ! iframe'ler 3. adımda ayrıca işlenir; burada tekrar eklenmesin.
             if (element.tagName().equals("iframe", ignoreCase = true)) return@forEach
-            val raw = listOf(
-                element.attr("data-video"),
-                element.attr("data-video-url"),
-                element.attr("data-video_url"),
-                element.attr("data-src"),
-                element.attr("data-url"),
-                element.attr("data-embed"),
-                element.attr("data-server")
-            ).firstOrNull { it.isNotBlank() } ?: return@forEach
+            val raw = element.videoDataValue()
+                ?: element.attr("href").trim().takeIf {
+                    EmbedResolver.videoIdFrom(it) != null || it.contains("/embed/", ignoreCase = true)
+                }
+                ?: return@forEach
             val label = element.text().trim().take(40)
                 .ifBlank { element.attr("title").trim() }
+                .ifBlank { element.attr("aria-label").trim() }
                 .ifBlank { "Kaynak" }
             val normalized = normalizeEmbed(raw, pageUrl)
-            val rawId = raw.trim().removePrefix("/video/").trim('/')
-                .takeIf { it.isNotBlank() && !it.contains('/') && !it.contains("://") }
+            val rawId = EmbedResolver.videoIdFrom(raw)
             if (normalized != null) {
                 candidates.add(LinkCandidate(label, normalized, rawId))
             } else if (rawId != null) {
@@ -1433,15 +1489,28 @@ class HDFilmCehennemi : MainAPI() {
                 frame.attr("data-lazy-src")
             ).firstOrNull { it.isNotBlank() } ?: return@forEach
             val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
-            candidates.add(LinkCandidate("iframe", normalized))
+            candidates.add(LinkCandidate("iframe", normalized, EmbedResolver.videoIdFrom(raw)))
         }
 
-        // 4) Sayfanın ham HTML'inde gömülü duran oynatıcı adresleri
+        // ! Bazı sayfalarda iframe yerine doğrudan <video>/<source> kullanılır.
+        // ! Bunları ayrı aday olarak topla; loadLinks aşağıda doğrudan ExtractorLink
+        // ! üretir ve m3u8/mp4 adresini bir HTML sayfası gibi indirmez.
+        EmbedResolver.embeddedMediaSources(document).forEach { raw ->
+            val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
+            candidates.add(LinkCandidate("Doğrudan video", normalized))
+        }
+
+        // 4) Sayfanın ham HTML'inde gömülü duran oynatıcı ve yayın adresleri.
+        // ! JSON/JS içindeki \/ ve \u002f kaçışları çözülür; bunlar regex'in
+        // ! URL'yi kaçırmasına ve sayfanın 0 kaynak görünmesine yol açabiliyordu.
         val html = document.html()
+            .replace("\\/", "/")
+            .replace("\\u002f", "/", ignoreCase = true)
+            .replace("\\u003a", ":", ignoreCase = true)
+            .replace("\\u0026", "&", ignoreCase = true)
         listOf(
-            """"file"\s*:\s*"([^"]+\.m3u8[^"]*)"""".toRegex(),
-            """https?://[^\s"'<>]+/master\.txt[^\s"'<>]*""".toRegex(),
-            """https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""".toRegex(),
+            """"file"\s*:\s*"([^"]+\.(?:m3u8|m3u|mpd|mp4|m4v|mkv|webm|mov|avi)[^"]*)"""".toRegex(RegexOption.IGNORE_CASE),
+            """https?://[^\s"'<>]+(?:master\.txt|\.(?:m3u8|m3u|mpd|mp4|m4v|mkv|webm|mov|avi))[^\s"'<>]*""".toRegex(RegexOption.IGNORE_CASE),
             """https?://[^\s"'<>]*(?:rplayer|rapidvid|rapidrame)[^\s"'<>]*""".toRegex(RegexOption.IGNORE_CASE)
         ).forEach { regex ->
             regex.findAll(html).forEach { match ->
@@ -1451,31 +1520,40 @@ class HDFilmCehennemi : MainAPI() {
             }
         }
 
-        // 5) SPA fallback: JSON içindeki data-video değerleri (Next.js __NEXT_DATA__)
+        // JSON-LD'deki `contentUrl` video olabilir; poster ImageObject değerleri
+        // FallbackCandidates tarafından burada da elenir.
+        FallbackCandidates.contentUrls(html)
+            .filter { EmbedResolver.isDirectMediaUrl(it) }
+            .forEach { raw ->
+                val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
+                candidates.add(LinkCandidate("JSON-LD video", normalized))
+            }
+
+        // 5) SPA fallback: JSON içindeki video alanları (Next.js/__NEXT_DATA__).
         if (candidates.isEmpty()) {
-            Regex(""""data-video"\s*:\s*"([^"]+)"""").findAll(html).forEach { m ->
-                val vid = m.groupValues[1].trim()
-                if (vid.isNotBlank() && !vid.contains("://")) {
-                    val rawId = vid.removePrefix("/video/").trim('/')
-                    candidates.add(LinkCandidate("SPA", "", rawId))
+            val jsonVideoValue = Regex(
+                """["'](?:data-video|data-video-url|data-video-id|videoId|video_id|video-id)["']\s*:\s*["']([^"']+)["']""",
+                RegexOption.IGNORE_CASE
+            )
+            jsonVideoValue.findAll(html).forEach { match ->
+                val value = match.groupValues[1].trim()
+                val videoId = EmbedResolver.videoIdFrom(value)
+                if (videoId != null) {
+                    candidates.add(LinkCandidate("SPA", "", videoId))
+                } else {
+                    val normalized = normalizeEmbed(value, pageUrl) ?: return@forEach
+                    candidates.add(LinkCandidate("SPA", normalized))
                 }
             }
-            Regex(""""videoId"\s*:\s*"([^"]+)"""").findAll(html).forEach { m ->
-                val vid = m.groupValues[1].trim()
-                if (vid.isNotBlank() && !vid.contains("://")) {
-                    val rawId = vid.removePrefix("/video/").trim('/')
-                    candidates.add(LinkCandidate("SPA", "", rawId))
-                }
-            }
-            Regex("""/video/([A-Za-z0-9_-]+)/""").findAll(html).forEach { m ->
-                val vid = m.groupValues[1].trim()
-                if (vid.isNotBlank() && !vid.contains("://")) {
-                    candidates.add(LinkCandidate("Regex", "", vid))
-                }
+            Regex("""/video/([A-Za-z0-9_-]+)/""").findAll(html).forEach { match ->
+                val videoId = EmbedResolver.videoIdFrom(match.value) ?: return@forEach
+                candidates.add(LinkCandidate("Regex", "", videoId))
             }
         }
 
-        return candidates.distinctBy { it.url.ifBlank { "id:${it.videoId}" } }
+        return candidates.distinctBy { candidate ->
+            candidate.videoId?.let { "id:$it" } ?: candidate.url
+        }
     }
 
     /**
