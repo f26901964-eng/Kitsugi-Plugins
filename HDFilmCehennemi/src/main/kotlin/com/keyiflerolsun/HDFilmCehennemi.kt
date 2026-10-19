@@ -811,22 +811,19 @@ class HDFilmCehennemi : MainAPI() {
                 headers = headers + mapOf("Range" to "bytes=0-1", "Accept" to "*/*"),
                 allowRedirects = true
             )
-            try {
-                if (!(res.isSuccessful || res.code in 300..399)) return false
-                // ! Görsel dönen adres yayın değildir (afişler 200 döner!).
-                val contentType = res.headers["Content-Type"].orEmpty().lowercase()
-                if (contentType.startsWith("image/") || FallbackCandidates.isImageUrl(url)) return false
-                if (contentType.contains("text/html") || contentType.contains("application/json")) return false
+            if (!(res.isSuccessful || res.code in 300..399)) return false
 
-                // ! HLS uzantılı bir HTML hata sayfası da yayın sayılmamalı.
-                val path = url.substringBefore('?').lowercase()
-                val looksHls = path.endsWith(".m3u8") || path.endsWith("master.txt") || path.contains(".urlset")
-                if (!looksHls) return true
-                val head = runCatching { res.peekBody(2048).string() }.getOrDefault("")
-                head.contains("#EXTM3U") || head.contains("#EXT-X")
-            } finally {
-                res.close()
-            }
+            // ! Görsel dönen adres yayın değildir (afişler 200 döner!).
+            val contentType = res.headers["Content-Type"].orEmpty().lowercase()
+            if (contentType.startsWith("image/") || FallbackCandidates.isImageUrl(url)) return false
+            if (contentType.contains("text/html") || contentType.contains("application/json")) return false
+
+            // ! HLS uzantılı bir HTML hata sayfası da yayın sayılmamalı.
+            val path = url.substringBefore('?').lowercase()
+            val looksHls = path.endsWith(".m3u8") || path.endsWith("master.txt") || path.contains(".urlset")
+            if (!looksHls) return true
+            val preview = res.text.take(2048)
+            preview.contains("#EXTM3U") || preview.contains("#EXT-X")
         } catch (e: Exception) {
             Log.w("HDCH", "adres dogrulanamadi: $url (${e.message})")
             false
