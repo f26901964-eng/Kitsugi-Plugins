@@ -30,7 +30,8 @@ class Rapidrame : ExtractorApi() {
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
                     "Referer" to (referer ?: "$mainUrl/")
-                )
+                ),
+                interceptor = FilmMakinesiHttp.interceptor
             ).text
 
             // ! TANI: embed sayfasının ham içeriği + bulunan av() yükü.

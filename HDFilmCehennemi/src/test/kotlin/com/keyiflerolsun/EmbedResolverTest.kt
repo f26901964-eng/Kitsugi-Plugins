@@ -75,6 +75,10 @@ class EmbedResolverTest {
     fun `rapidrame id site ici oynatici adresine cevrilir`() {
         val iframe = "https://harici-ornek.com/player/?rapidrame_id=abc123&x=1"
         assertEquals("$mainUrl/rplayer/abc123/", EmbedResolver.toPlayerUrl(iframe, mainUrl))
+        assertEquals(
+            "$mainUrl/rplayer/abc123/",
+            EmbedResolver.toPlayerUrl("https://harici-ornek.com/player/?x=1&rapidrame_id=abc123", mainUrl)
+        )
     }
 
     @Test
@@ -99,5 +103,69 @@ class EmbedResolverTest {
         // ! JSON olmayan yanıt (bazı durumlarda) doğrudan taranır.
         val html = "<iframe data-src=\"$embedUrl\" width=\"100%\"></iframe>"
         assertEquals(embedUrl, EmbedResolver.extractEmbedUrl(html))
+    }
+
+    @Test
+    fun `gizli video source lazy playerdan cikar ve mutlaklastirilir`() {
+        val pageUrl = "https://www.hdfilmcehennemi.nl/dizi/supernatural/sezon-5/bolum-3-hd1/"
+        val html = """
+            <div class="hdmv-play-container">
+              <div class="video-container" hidden>
+                <video poster="/uploads/poster/supernatural-5-3.jpg">
+                  <source src="//cdn.example.test/hls/supernatural/master.m3u8?token=abc" type="application/x-mpegURL">
+                </video>
+              </div>
+            </div>
+        """.trimIndent()
+        val document = org.jsoup.Jsoup.parse(html, pageUrl)
+        val media = EmbedResolver.embeddedMediaSources(document)
+
+        assertEquals(listOf("//cdn.example.test/hls/supernatural/master.m3u8?token=abc"), media)
+        val normalized = EmbedResolver.normalizeEmbed(media.single(), pageUrl, mainUrl)
+        assertEquals("https://cdn.example.test/hls/supernatural/master.m3u8?token=abc", normalized)
+        assertTrue(EmbedResolver.isDirectMediaUrl(normalized!!))
+    }
+
+    @Test
+    fun `ayni hosttaki dogrudan video kabul edilir poster reddedilir`() {
+        val pageUrl = "https://www.hdfilmcehennemi.nl/dizi/supernatural/sezon-5/bolum-3-hd1/"
+        assertNull(
+            EmbedResolver.normalizeEmbed("$mainUrl/uploads/poster/supernatural-5-3.jpg", pageUrl, mainUrl)
+        )
+        assertEquals(
+            "$mainUrl/uploads/video/supernatural-5-3.mp4?token=abc",
+            EmbedResolver.normalizeEmbed("$mainUrl/uploads/video/supernatural-5-3.mp4?token=abc", pageUrl, mainUrl)
+        )
+    }
+
+    @Test
+    fun `video api kimligi duz goreli ve tam url den okunur`() {
+        assertEquals("279345", EmbedResolver.videoIdFrom("279345"))
+        assertEquals("279345", EmbedResolver.videoIdFrom("/video/279345/"))
+        assertEquals("279345", EmbedResolver.videoIdFrom("https://www.hdfilmcehennemi.nl/video/279345/?lang=tr"))
+        assertNull(
+            EmbedResolver.videoIdFrom("https://hdfilmcehennemi.mobi/video/embed/4U1b90inBvN/?rapidrame_id=mhvkp8ijb531")
+        )
+        assertNull(EmbedResolver.videoIdFrom("https://cdn.example.test/hls/master.m3u8?token=279345"))
+    }
+
+    @Test
+    fun `yalnizca sayfa metni gercek video adresi olusturmaz`() {
+        // Kullanıcının gönderdiği metin dökümünde gerçek iframe/video src yoktu.
+        // Parser'ın özet, poster ve Cloudflare beacon'ından URL uydurmaması gerekir.
+        val html = """
+            <html><head>
+              <link rel="canonical" href="$mainUrl/dizi/supernatural/sezon-5/bolum-3-hd1/">
+              <script src="/dist/third-party/defer.min.js"></script>
+            </head><body>
+              <h1>Supernatural 5. Sezon 3. Bölüm İzle</h1>
+              <p>Sam avlamaya son vermeye karar veriyor.</p>
+              <button>Close Rapidrame</button>
+              <img src="/uploads/poster/supernatural-5-3.jpg">
+              <script src="https://static.cloudflareinsights.com/beacon.min.js"></script>
+            </body></html>
+        """.trimIndent()
+        val document = org.jsoup.Jsoup.parse(html)
+        assertTrue(EmbedResolver.embeddedMediaSources(document).isEmpty())
     }
 }
