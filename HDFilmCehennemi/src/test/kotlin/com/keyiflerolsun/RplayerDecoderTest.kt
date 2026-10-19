@@ -12,6 +12,7 @@ package com.keyiflerolsun
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -38,6 +39,33 @@ class RplayerDecoderTest {
         val url = RplayerDecoder.extractStreamUrl(html)
         assertNotNull("Master adresi cozulemedi", url)
         assertEquals(expectedMaster, url)
+    }
+
+    @Test
+    fun `paketli cozucu fixture kaynagini cozer`() {
+        val html = loadFixture("rplayer_page.html")
+        assertEquals(expectedMaster, RplayerDecoder.extractPackedStreamUrl(html))
+        assertTrue("Paketli oynatici taninmali", RplayerDecoder.hasPackedPlayer(html))
+    }
+
+    @Test
+    fun `paketli cozucu contentUrl'i cozmus saymaz`() {
+        // ! Gerçek hata zinciri: dc_ çözülemedi → JSON-LD'deki bayat contentUrl
+        // ! "kaynak" sanıldı → uygulama 404 linki oynatıcıya verdi.
+        val html = """
+            <html><body>
+            <script>function dc_TEST(){ /* sifreli govde */ }</script>
+            <script type="application/ld+json">{"contentUrl":"https://cdn.example.com/eski/master.m3u8"}</script>
+            </body></html>
+        """.trimIndent()
+        assertNull(
+            "Paketli cozucu duz contentUrl'i kaynak saymamali",
+            RplayerDecoder.extractPackedStreamUrl(html)
+        )
+        assertTrue(RplayerDecoder.hasPackedPlayer(html))
+        // ! Düz adres yalnızca son çare fonksiyonunda bulunur; eklentiler bu
+        // ! fonksiyonu şifreli blok varken kullanmaz.
+        assertEquals("https://cdn.example.com/eski/master.m3u8", RplayerDecoder.extractStreamUrl(html))
     }
 
     @Test
