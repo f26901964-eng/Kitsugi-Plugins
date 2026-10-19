@@ -262,169 +262,20 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
-    private fun extractJsonStream(text: String): String? {
-        val trimmed = text.trim()
-        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
-        // playmix liste yerine JSON döndüğünde file/src/url/hls alanlarından çöz
-        val keyRegex = Regex("\"(?:file|src|url|hls|source|stream|link)\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
-        val m = keyRegex.find(text)
-        if (m != null) {
-            val cand = m.groupValues[1].replace("\\/", "/")
-            val norm = normalizeStreamUrl(cand)
-            if (norm != null) {
-                Log.d("HDCH", "JSON içinden stream çözüldü: $norm")
-                return norm
-            }
-        }
-        // fallback: JSON içinde herhangi bir doğrudan stream URL
-        val urlRegex = Regex("""https?://[^\s"']+\.m3u8[^\s"']*|https?://[^\s"']+master\.txt[^\s"']*|https?://[^\s"']+\.mp4[^\s"']*""", RegexOption.IGNORE_CASE)
-        val fallback = urlRegex.find(text)?.value
-        return normalizeStreamUrl(fallback)
-    }
-
-    private fun isMediaPlaylist(text: String): Boolean {
-        // #EXTINF veya #EXT-X-TARGETDURATION varsa bu master değil media playlisttir — ham haliyle oynatılabilir
-        return text.contains("#EXTINF") || text.contains("#EXT-X-TARGETDURATION")
-    }
-
-    private suspend fun fetchPlaylistText(
-        playlistUrl: String,
-        embedHeaders: Map<String, String>
-    ): String? {
-        // 1. embed Origin ile dene
-        try {
-            val t = app.get(playlistUrl, headers = embedHeaders, interceptor = interceptor).text
-            if (t.isNotBlank()) {
-                // 403 HTML ise 2. denemeye geç
-                val lower = t.lowercase()
-                val isHtmlError = t.trim().startsWith("<") && (lower.contains("403") || lower.contains("forbidden") || lower.contains("access denied") || lower.contains("not found"))
-                if (!isHtmlError) return t
-                Log.w("HDCH", "embed Origin ile liste html hata döndü, kendi hostu denenecek: $playlistUrl")
-            }
-        } catch (e: Exception) {
-            Log.w("HDCH", "embed Origin liste açılamadı: ${e.message}")
-        }
-        // 2. kendi hostunun Referer/Origin ile dene
-        val ownOrigin = originOf(playlistUrl)
-        val embedOrigin = embedHeaders["Origin"]
-        if (ownOrigin != null && ownOrigin != embedOrigin) {
-            try {
-                val altHeaders = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$ownOrigin/",
-                    "Origin" to ownOrigin
-                )
-                val t2 = app.get(playlistUrl, headers = altHeaders, interceptor = interceptor).text
-                if (t2.isNotBlank()) {
-                    Log.d("HDCH", "kendi hostu ile liste alındı: $playlistUrl")
-                    return t2
-                }
-            } catch (e: Exception) {
-                Log.w("HDCH", "kendi hostu ile de açılamadı: ${e.message}")
-            }
-        }
-        return null
-    }
-
-    private fun pickVariants(
-        listText: String,
-        baseUrl: String
-    ): List<Pair<String, Int>> {
-        // JSON ise tek aday
-        extractJsonStream(listText)?.let { jsonUrl ->
-            return listOf(jsonUrl to 999999)
-        }
-        // media playlist ise çözme — ham haliyle M3U8 verilsin
-        if (isMediaPlaylist(listText)) {
-            Log.d("HDCH", "media playlist tespit edildi, çözülmeden ham verilecek")
-            return emptyList()
-        }
-        val candidates = mutableListOf<Pair<String, Int>>()
-        var pendingScore = -1
-        for (line in listText.lines()) {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) continue
-            if (trimmed.startsWith("#EXT-X-STREAM-INF")) {
-                pendingScore = variantScore(trimmed)
-                continue
-            }
-            if (trimmed.startsWith("#")) continue
-            val cleanedLine = trimmed.replace("\\/", "/").trim('"', '\'')
-            val abs = absolutizeUrl(cleanedLine, baseUrl) ?: continue
-            // .ts segmentleri aday değil
-            if (isTsSegment(abs)) continue
-            if (!abs.contains(".m3u8") && !abs.contains("master.txt")) continue
-            val score = if (pendingScore >= 0) pendingScore else nameScore(abs)
-            candidates.add(abs to score)
-            pendingScore = -1
-        }
-        return candidates.sortedByDescending { it.second }
-    }
-
     /**
-     * master.txt / master.m3u8 listesini açıp içindeki gerçek .m3u8 adreslerini seçer.
-     * Yeni davranış:
-     * - JSON gövde → alan adlarından çöz
-     * - .ts segmentleri elenir, media playlist çözülmez
-     * - çift Origin denemesi
-     * - ilk 2-3 varyant ayrı link olarak döner
-     * Çözülemezse null döner, çağıran ham adresle devam eder.
+     * İmzalı master HLS adresini aynen oynatıcıya aktarır.
+     *
+     * Master listesini burada açmak, göreli varyantlara geçerken base URL'deki
+     * query token'ını düşürür ve EXT-X-MEDIA ses gruplarını yok eder. HLS
+     * oynatıcı zaten master listesini çözebildiğinden ayrı varyant üretmiyoruz.
      */
     private suspend fun resolveStreamUrl(
         streamUrl: String,
         headers: Map<String, String>
     ): List<Pair<String, Map<String, String>>>? {
-        if (!streamUrl.contains("master.txt") && !streamUrl.contains(".m3u8")) return null
-        val listText = fetchPlaylistText(streamUrl, headers) ?: run {
-            Log.e("HDCH", "master listesi acilamadi: $streamUrl")
-            return null
-        }
-        // JSON tek aday olabilir
-        extractJsonStream(listText)?.let { jsonUrl ->
-            val norm = normalizeStreamUrl(jsonUrl) ?: return@let
-            val streamOrigin = originOf(norm)
-            val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(streamUrl)) {
-                mapOf("User-Agent" to USER_AGENT, "Referer" to "$streamOrigin/", "Origin" to streamOrigin)
-            } else headers
-            return listOf(norm to streamHeaders)
-        }
-        if (isMediaPlaylist(listText)) return null
-
-        val variants = pickVariants(listText, streamUrl)
-        if (variants.isEmpty()) return null
-        // ilk 2-3 varyantı ayrı link olarak ver
-        val top = variants.take(3)
-        Log.d("HDCH", "master listesi çözüldü (${top.size} varyant): ${top.joinToString { it.first }}")
-        return top.map { (url, _) ->
-            val streamOrigin = originOf(url)
-            val streamHeaders = if (streamOrigin != null && streamOrigin != originOf(streamUrl)) {
-                mapOf("User-Agent" to USER_AGENT, "Referer" to "$streamOrigin/", "Origin" to streamOrigin)
-            } else headers
-            url to streamHeaders
-        }
-    }
-
-    // Geriye uyum: tekilleştirilmiş eski çağrılar için
-    private suspend fun resolveStreamUrlSingle(
-        streamUrl: String,
-        headers: Map<String, String>
-    ): Pair<String, Map<String, String>>? {
-        return resolveStreamUrl(streamUrl, headers)?.firstOrNull()
-    }
-
-    private fun variantScore(streamInfLine: String): Int {
-        val resolution = """RESOLUTION=(\d+)x(\d+)""".toRegex().find(streamInfLine)
-        if (resolution != null) {
-            val height = resolution.groupValues[2].toIntOrNull() ?: 0
-            return height * 1000
-        }
-        val bandwidth = """BANDWIDTH=(\d+)""".toRegex().find(streamInfLine)
-        return ((bandwidth?.groupValues?.get(1)?.toLongOrNull() ?: 0L) / 1000).toInt()
-    }
-
-    private fun nameScore(url: String): Int {
-        val match = """(\d{3,4})p""".toRegex().find(url.lowercase()) ?: return 0
-        return (match.groupValues[1].toIntOrNull() ?: 0) * 1000
+        val path = streamUrl.substringBefore('?').lowercase()
+        if (!path.endsWith(".m3u8") && !path.endsWith("master.txt")) return null
+        return listOf(streamUrl to headers)
     }
 
     private fun siteLooksAlive(finalUrl: String, body: String, marker: String, required: List<String>): Boolean {
@@ -858,10 +709,14 @@ class HDFilmCehennemi : MainAPI() {
                 return
             }
 
+            // CDN imza kontrolü rplayer sayfasının Referer'ını bekliyor; Origin
+            // ise sitenin kök origin'i olmalı. Bu başlıklar master playlist'teki
+            // token ile birlikte doğrudan video isteklerine taşınır.
+            val playerOrigin = originOf(url) ?: mainUrl
             val embedHeaders = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Referer" to "$mainUrl/",
-                "Origin" to mainUrl
+                "Referer" to url,
+                "Origin" to playerOrigin
             )
             val variants = resolveStreamUrl(streamUrl, embedHeaders)
             if (!variants.isNullOrEmpty()) {
@@ -882,6 +737,7 @@ class HDFilmCehennemi : MainAPI() {
                             type = linkTypeFor(norm)
                         ) {
                             quality = q
+                            this.referer = url
                             headers = variantHeaders
                         }
                     )
@@ -892,6 +748,7 @@ class HDFilmCehennemi : MainAPI() {
                 callback.invoke(
                     newExtractorLink(source = source, name = source, url = norm, type = linkTypeFor(norm)) {
                         quality = Qualities.P1080.value
+                        this.referer = url
                         headers = embedHeaders
                     }
                 )

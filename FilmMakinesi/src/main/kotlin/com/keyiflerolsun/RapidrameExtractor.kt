@@ -4,6 +4,7 @@ import android.util.Base64
 import android.util.Log
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -37,14 +38,33 @@ class Rapidrame : ExtractorApi() {
 
             val encoded = Regex("""av\(['"]([^'"]+)['"]\)""").find(page)?.groupValues?.get(1)
             Log.d("FLMM_TANI", "[rapidrame $url] av() yuku: " + (encoded ?: "<yok>"))
-            val decoded = encoded?.let(::decodeRapidUrl)
+            // /rplayer/ sayfaları her zaman av('...') kullanmıyor; kaynak bazen
+            // eval(function(p,a,c,k,e,d)) ile paketleniyor. Önce gerçek player
+            // formatını çözen saf Kotlin decoder'ı çalıştır.
+            val packedDecoded = RplayerDecoder.extractStreamUrl(page)
+            Log.d("FLMM_TANI", "[rapidrame $url] packed kaynak: ${packedDecoded ?: "<yok>"}")
+            val decoded = packedDecoded
+                ?: encoded?.let(::decodeRapidUrl)
                 ?: Regex("""https?://[^\s"'<>]+\.(?:m3u8|mp4)(?:\?[^\s"'<>]*)?""", RegexOption.IGNORE_CASE)
                     .find(page)?.value
             Log.d("FLMM_TANI", "[rapidrame $url] cozulen adres: ${decoded ?: "<yok>"}")
+
+            RplayerDecoder.extractTracks(page).forEach { track ->
+                val subtitleUrl = runCatching { java.net.URI(url).resolve(track.file).toString() }.getOrNull()
+                    ?: return@forEach
+                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
+                subtitleCallback(newSubtitleFile(label, subtitleUrl))
+            }
+
             if (decoded.isNullOrBlank()) {
                 Log.e("Rapidrame", "JWPlayer kaynak URL'si bulunamadı: $url")
                 return
             }
+
+            val playerOrigin = runCatching {
+                val uri = java.net.URI(url)
+                "${uri.scheme}://${uri.host}"
+            }.getOrNull() ?: mainUrl
 
             callback(
                 newExtractorLink(
@@ -53,11 +73,15 @@ class Rapidrame : ExtractorApi() {
                     url = decoded,
                     type = if (decoded.substringBefore('?').endsWith(".mp4", true)) ExtractorLinkType.VIDEO else ExtractorLinkType.M3U8
                 ) {
-                    this.referer = referer ?: "$mainUrl/"
+                    // HLS segment is protected by the rplayer-page Referer;
+                    // Origin remains the embedding site's origin. Keep the full
+                    // signed master URL (including query token) unchanged.
+                    this.referer = url
                     this.quality = Qualities.Unknown.value
                     headers = mapOf(
                         "User-Agent" to USER_AGENT,
-                        "Referer" to (referer ?: "$mainUrl/")
+                        "Referer" to url,
+                        "Origin" to playerOrigin
                     )
                 }
             )

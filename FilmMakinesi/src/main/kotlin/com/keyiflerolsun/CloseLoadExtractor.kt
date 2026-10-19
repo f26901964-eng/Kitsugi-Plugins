@@ -78,10 +78,10 @@ class CloseLoad : ExtractorApi() {
             Log.d("FLMM_TANI", "[closeload $url] cozulen adres: ${realUrl ?: "<yok>"}")
 
             if (!realUrl.isNullOrBlank() && realUrl.startsWith("http")) {
-                // ! playmix.uno artık master.txt'yi oynatıcıya HAM vermiyor: liste
-                // ! açılıp içindeki gerçek .m3u8 adresi seçiliyor. Origin embed
-                // ! sunucusuna sabit; eksik kalınca uygulama onu playmix.uno yapıyor
-                // ! ve yayın 5004 ile düşüyordu.
+                // CloseLoad master'ını değiştirmeden oynatıcıya veriyoruz. İmzalı
+                // query token'ı, relative URL çözümlemesinde kaybolmamalı; master'daki
+                // ses grupları da (dublaj/orijinal) CloudStream HLS oynatıcısına kalmalı.
+                // Origin ve Referer embed host'undan alınır.
                 val playlistHeaders = mapOf(
                     "User-Agent" to USER_AGENT,
                     "Referer" to "$origin/",
@@ -93,7 +93,14 @@ class CloseLoad : ExtractorApi() {
                 } else if (normalized.startsWith("httpshttp://") || isTsSegment(normalized)) {
                     Log.w("Kekik_${this.name}", "çöp adres elendi: $normalized")
                 } else {
-                    val variants = resolveMasterPlaylist(normalized, playlistHeaders)
+                    // Signed HLS master URLs must be passed through untouched:
+                    // resolving relative variants can drop query tokens and omit
+                    // audio renditions. Let the player's HLS engine read the master.
+                    val variants = if (isHlsPlaylistUrl(normalized)) {
+                        listOf(normalized to playlistHeaders)
+                    } else {
+                        resolveMasterPlaylist(normalized, playlistHeaders)
+                    }
                     if (variants != null && variants.isNotEmpty()) {
                         variants.forEachIndexed { idx, pair ->
                             val (streamUrl, streamHeaders) = pair
@@ -157,6 +164,11 @@ class CloseLoad : ExtractorApi() {
      * ! Doğrusu: null geçmek. `newExtractorLink` type parametresi zaten
      * ! nullable; null verildiğinde kütüphane tipi adresten çıkarır.
      */
+    private fun isHlsPlaylistUrl(url: String): Boolean {
+        val path = url.substringBefore('?').lowercase()
+        return path.endsWith(".m3u8") || path.endsWith("master.txt")
+    }
+
     private fun linkTypeFor(url: String): ExtractorLinkType? {
         val lower = url.lowercase().substringBefore("?")
         return when {
