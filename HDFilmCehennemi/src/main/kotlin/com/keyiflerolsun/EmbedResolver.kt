@@ -61,8 +61,16 @@ object EmbedResolver {
      * Oynatıcı kapsayıcısındaki lazy iframe kaynaklarını döndürür.
      * Bu adaylar sayfadaki alternatif düğme kimliklerinden önce denenmelidir;
      * `data-src` mutlaksa değeri değiştirilmeden korunur.
+     *
+     * ! GÜNCELLEME (2026-10-19): Site artık SPA (Next.js) ve oynatıcı
+     * ! `[aria-label='Player'] iframe` içinde saklanıyor. Eski
+     * ! `.video-container` kontrolüne ek olarak aria-label da taranıyor.
+     * ! Ayrıca `src` ve `data-lazy-src` varyantları da eklenir.
      */
-    fun preferredPlayerDataSrcs(document: org.jsoup.nodes.Document): List<String> =
+    fun preferredPlayerDataSrcs(document: org.jsoup.nodes.Document): List<String> {
+        val out = mutableListOf<String>()
+
+        // Eski yapı: video-container / hdmv-play-container / player
         document.select("iframe[data-src]")
             .filter { frame ->
                 frame.parents().any {
@@ -70,9 +78,24 @@ object EmbedResolver {
                         it.hasClass("player") || it.hasClass("video-player")
                 }
             }
-            .map { it.attr("data-src").trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
+            .mapTo(out) { it.attr("data-src").trim() }
+
+        // Yeni SPA yapı: [aria-label='Player'] içindeki iframe'ler
+        document.select("[aria-label='Player'] iframe")
+            .mapTo(out) {
+                val v = it.attr("data-src").ifBlank { it.attr("src") }.ifBlank { it.attr("data-lazy-src") }
+                v.trim()
+            }
+
+        // Genel fallback: aria-label içeren herhangi bir player kapsayıcısı
+        document.select("[aria-label='Alternative tab content'] iframe, [aria-label='Play video'] ~ iframe, .player iframe[data-src], .video-player iframe[data-src]")
+            .mapTo(out) {
+                val v = it.attr("data-src").ifBlank { it.attr("src") }
+                v.trim()
+            }
+
+        return out.filter { it.isNotBlank() }.distinct()
+    }
 
     /**
      * /video/{id}/ yanıtından embed (oynatıcı) adresini çıkarır.
