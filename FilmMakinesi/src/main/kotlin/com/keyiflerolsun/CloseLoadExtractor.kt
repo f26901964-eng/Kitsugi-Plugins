@@ -53,23 +53,41 @@ class CloseLoad : ExtractorApi() {
             // ! TANI: embed sayfasının ham içeriği (kaynak nerede?).
             Log.d("FLMM_TANI", "[closeload $url] " + html.replace("\r", " ").replace("\n", " ").take(1200))
 
-            // 1. JS deşifre algoritmasını dene.
-            var realUrl = decryptNative(html)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            // ! Sayfada şifreli/obfüskeli oynatıcı var mı? Varsa contentUrl gibi
+            // ! düz fallback'ler YALNIZCA şifre çözülemezse değil, hiç
+            // ! kullanılmamalı: o adresler bayat (404) olabiliyor.
+            val packedPlayer = RplayerDecoder.hasPackedPlayer(html)
+
+            // 1. Paketli eval/dc_ kaynağını contentUrl fallback'inden ÖNCE dene.
+            var realUrl = RplayerDecoder.extractPackedStreamUrl(html)
+                ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
+            // 2. JS deşifre algoritmasını dene (paketlenmemiş dc_ gövdeleri).
+            if (realUrl.isNullOrBlank()) {
+                realUrl = decryptNative(html)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            }
 
             // CloseLoad'un güncel embed'i kaynak URL'sini base64 (aHR0...) olarak
             // gömüyor. Eski extractor bu alanı hiç çözmediği için player'a link
             // gönderemiyordu; önce doğrudan bu URL'yi çıkar.
             if (realUrl.isNullOrBlank()) realUrl = extractBase64StreamUrl(html)
 
-            // 2. Fallback: JSON-LD / JWPlayer'daki şifresiz contentUrl veya file.
             if (realUrl.isNullOrBlank()) {
-                Log.w("Kekik_${this.name}", "Native deşifre başarısız, Fallback JSON-LD aranıyor...")
-                val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
-                realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
+                if (packedPlayer) {
+                    // ! Şifreli blok var ama çözülemedi. Bayat contentUrl/master
+                    // ! adresini kaynak diye göndermiyoruz; aksi hâlde uygulama
+                    // ! 404'lük sahte bir link üretip oynatıcıda hata veriyordu.
+                    Log.e("Kekik_${this.name}", "Şifreli oynatıcı çözülemedi; bayat fallback gönderilmedi.")
+                } else {
+                    // 3. Fallback: JSON-LD / JWPlayer'daki şifresiz contentUrl veya file.
+                    Log.w("Kekik_${this.name}", "Native deşifre başarısız, Fallback JSON-LD aranıyor...")
+                    val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
+                    realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
+                }
             }
 
-            // 3. Fallback: master.txt veya .m3u8 doğrudan akış linki ara
-            if (realUrl.isNullOrBlank()) {
+            // 4. Fallback: master.txt veya .m3u8 doğrudan akış linki ara
+            if (realUrl.isNullOrBlank() && !packedPlayer) {
                 val txtMatch = """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(html)?.value
                     ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(html)?.value
                 realUrl = txtMatch
@@ -393,7 +411,11 @@ class CloseLoad : ExtractorApi() {
             try {
                 var padded = candidate
                 while (padded.length % 4 != 0) padded += "="
-                val decoded = String(Base64.decode(padded, Base64.DEFAULT), Charsets.UTF_8)
+                // ! - ve _ URL-safe alfabeye aittir; standart çözücü bunlarda
+                // ! hata verir, bu yüzden URL_SAFE'e de düşülür.
+                val bytes = runCatching { Base64.decode(padded, Base64.DEFAULT) }
+                    .getOrElse { Base64.decode(padded, Base64.URL_SAFE) }
+                val decoded = String(bytes, Charsets.UTF_8)
                     .replace("\\/", "/").trim()
                 if ((decoded.startsWith("http://") || decoded.startsWith("https://")) &&
                     runCatching { java.net.URI(decoded).host }.getOrNull() != null) {
@@ -480,7 +502,14 @@ class CloseLoad : ExtractorApi() {
                         while (paddedResult.length % 4 != 0) {
                             paddedResult += "="
                         }
-                        result = String(Base64.decode(paddedResult, Base64.NO_WRAP), Charsets.ISO_8859_1)
+                        // ! URL-safe karakterler (- / _) standart çözücüde hata
+                        // ! verir; olmazsa URL_SAFE denenir.
+                        val bytes = runCatching {
+                            Base64.decode(paddedResult, Base64.NO_WRAP)
+                        }.getOrElse {
+                            Base64.decode(paddedResult, Base64.URL_SAFE)
+                        }
+                        result = String(bytes, Charsets.ISO_8859_1)
                     }
                     "rot" -> {
                         // Statik 13 yerine dinamik 'rotShift' kullanıyoruz

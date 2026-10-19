@@ -578,7 +578,14 @@ class HDFilmCehennemi : MainAPI() {
                         while (paddedResult.length % 4 != 0) {
                             paddedResult += "="
                         }
-                        result = String(android.util.Base64.decode(paddedResult, android.util.Base64.NO_WRAP), Charsets.ISO_8859_1)
+                        // ! URL-safe alfabe (- ve _) standart çözücüde hata verir;
+                        // ! önce standart, olmazsa URL_SAFE denenir.
+                        val bytes = runCatching {
+                            android.util.Base64.decode(paddedResult, android.util.Base64.NO_WRAP)
+                        }.getOrElse {
+                            android.util.Base64.decode(paddedResult, android.util.Base64.URL_SAFE)
+                        }
+                        result = String(bytes, Charsets.ISO_8859_1)
                     }
                     "rot" -> {
                         val rotShift = action.rotShift
@@ -617,12 +624,18 @@ class HDFilmCehennemi : MainAPI() {
 
     /** CloseLoad encodes its playable stream URL as a base64 token in the embed HTML. */
     private fun extractBase64StreamUrl(html: String): String? {
+        // ! _ ve - URL-safe alfabeye aittir; padding de eksik gelebilir.
         val candidates = Regex("""aHR0[A-Za-z0-9+/_=-]{12,}""").findAll(html)
         for (match in candidates) {
             try {
                 var encoded = match.value.trimEnd('=', ';', ',')
                 while (encoded.length % 4 != 0) encoded += "="
-                val decoded = String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT), Charsets.UTF_8)
+                val bytes = runCatching {
+                    android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
+                }.getOrElse {
+                    android.util.Base64.decode(encoded, android.util.Base64.URL_SAFE)
+                }
+                val decoded = String(bytes, Charsets.UTF_8)
                     .replace("\\/", "/").trim()
                 if ((decoded.startsWith("http://") || decoded.startsWith("https://")) &&
                     runCatching { java.net.URI(decoded).host }.getOrNull() != null) return decoded
@@ -777,27 +790,41 @@ class HDFilmCehennemi : MainAPI() {
             val html = app.get(url, headers = headers, interceptor = interceptor).text
 
             // CloseLoad and Rapidrame each use a different obfuscated source format.
-            var realUrl = extractRapidStreamUrl(html) ?: extractBase64StreamUrl(html)
+            // ! Önce ŞİFRELİ kaynak yolları (av/base64/paketli eval-dc_) denenir.
+            var realUrl = extractRapidStreamUrl(html)
+                ?: extractBase64StreamUrl(html)
+                ?: RplayerDecoder.extractPackedStreamUrl(html)
 
-            // JSON-LD contentUrl fallback
-            if (realUrl.isNullOrBlank()) {
-                val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
-                realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
-            }
-
-            // 2. Direct master.txt / m3u8
-            if (realUrl.isNullOrBlank()) {
-                val txtMatch = """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(html)?.value
-                    ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(html)?.value
-                realUrl = txtMatch
-            }
-
-            // 3. Some Rapidrame/CloseLoad embeds pack their player script first.
-            if (realUrl.isNullOrBlank() && (html.contains("function dc_") || html.contains("eval(function"))) {
+            // ! Sayfa paketliyse (eval/dc_) önce açıp yeniden dene.
+            val packedPlayer = RplayerDecoder.hasPackedPlayer(html)
+            if (realUrl.isNullOrBlank() && packedPlayer) {
                 val unpacked = getAndUnpack(html)
                 realUrl = extractRapidStreamUrl(unpacked)
                     ?: extractBase64StreamUrl(unpacked)
+                    ?: RplayerDecoder.extractPackedStreamUrl(unpacked)
                     ?: decryptLocalUrl(unpacked)
+            }
+
+            // ! DÜZ fallback (contentUrl / master.txt / m3u8) YALNIZCA sayfada
+            // ! şifreli oynatıcı YOKKEN kullanılır. Şifreli blok varken çözüm
+            // ! başarısızsa contentUrl bayat (404) olabilir; onu kaynak diye
+            // ! göndermek "boş kaynak → oynatıcı hatası" zincirini kuruyordu.
+            if (realUrl.isNullOrBlank()) {
+                if (packedPlayer) {
+                    Log.e("HDCH", "sifreli oynatici cozulemedi; bayat fallback gonderilmedi: $url")
+                    return
+                }
+
+                // JSON-LD contentUrl fallback
+                val ldJsonMatch = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(html)
+                realUrl = ldJsonMatch?.groupValues?.get(1)?.replace("\\/", "/")
+
+                // 2. Direct master.txt / m3u8
+                if (realUrl.isNullOrBlank()) {
+                    val txtMatch = """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(html)?.value
+                        ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(html)?.value
+                    realUrl = txtMatch
+                }
             }
 
             val normalizedReal = normalizeStreamUrl(realUrl)
@@ -888,16 +915,26 @@ class HDFilmCehennemi : MainAPI() {
             it.contains("sources:") || it.contains("jwSetup.sources") || it.contains("av(") || it.contains("function dc_")
         }
         Log.d("HDCH", "source script found » ${script != null}")
-        var decryptedUrl: String? = extractRapidStreamUrl(pageText) ?: extractBase64StreamUrl(pageText)
+        // ! Önce şifreli/paketli yollar; contentUrl en sona (ve yalnızca
+        // ! sayfada şifreli blok yokken) bırakıldı.
+        var decryptedUrl: String? = extractRapidStreamUrl(pageText)
+            ?: extractBase64StreamUrl(pageText)
+            ?: RplayerDecoder.extractPackedStreamUrl(pageText)
+        val packedPlayer = RplayerDecoder.hasPackedPlayer(pageText)
         if (decryptedUrl.isNullOrBlank() && script != null) {
             val unpackedScript = getAndUnpack(script)
             decryptedUrl = extractRapidStreamUrl(unpackedScript)
                 ?: extractBase64StreamUrl(unpackedScript)
+                ?: RplayerDecoder.extractPackedStreamUrl(unpackedScript)
                 ?: decryptLocalUrl(unpackedScript)
         }
 
         // Fallback: Check for contentUrl or master.txt or m3u8 in pageText
         if (decryptedUrl.isNullOrBlank()) {
+            if (packedPlayer) {
+                Log.e("HDCH", "sifreli oynatici cozulemedi; bayat fallback gonderilmedi: $url")
+                return
+            }
             decryptedUrl = """"contentUrl"\s*:\s*"([^"]+)"""".toRegex().find(pageText)?.groupValues?.get(1)?.replace("\\/", "/")
                 ?: """https?://[^\s"']+/master\.txt[^\s"']*""".toRegex().find(pageText)?.value
                 ?: """https?://[^\s"']+\.m3u8[^\s"']*""".toRegex().find(pageText)?.value

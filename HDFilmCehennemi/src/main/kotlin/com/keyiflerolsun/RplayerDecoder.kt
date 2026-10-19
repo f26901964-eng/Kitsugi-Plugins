@@ -87,10 +87,16 @@ object RplayerDecoder {
     // ── Genel giriş noktası ────────────────────────────────────────────────
 
     /**
-     * rplayer sayfasından gerçek akış adresini (master m3u8) çözer.
+     * Sayfadaki ŞİFRELİ/PAKETLİ kaynağı çözer (eval packer ve file_link yolları).
+     *
+     * ! `extractStreamUrl`den farkı: düz (şifresiz) m3u8 ARAMAZ. Eklentiler
+     * ! contentUrl/master.txt geri dönüşünden ÖNCE bunu çağırır; böylece
+     * ! sayfada şifreli bir blok varken JSON-LD'deki bayat contentUrl
+     * ! "çözülmüş kaynak" sanılıp oynatıcıya gönderilmez.
+     *
      * @return çözülemezse null
      */
-    fun extractStreamUrl(html: String): String? {
+    fun extractPackedStreamUrl(html: String): String? {
         if (html.isBlank()) return null
 
         // ! 1) Sayfadaki paketlenmiş eval bloklarını sırayla dene.
@@ -116,14 +122,28 @@ object RplayerDecoder {
                     .firstOrNull { isValidStreamUrl(it) }?.let { return it }
             }
         }
+        return null
+    }
 
-        // ! 3) Son çare: sayfada düz bir m3u8/master.txt adresi var mı?
+    /**
+     * rplayer sayfasından gerçek akış adresini (master m3u8) çözer.
+     * ! Önce şifreli kaynak, sonra düz adres (son çare).
+     * @return çözülemezse null
+     */
+    fun extractStreamUrl(html: String): String? {
+        extractPackedStreamUrl(html)?.let { return it }
+
+        // ! Son çare: sayfada düz bir m3u8/master.txt adresi var mı?
         PLAIN_STREAM_RE.find(html)?.groupValues?.getOrNull(1)?.let { raw ->
             val url = raw.replace("\\/", "/").trim()
             if (isValidStreamUrl(url)) return url
         }
         return null
     }
+
+    /** Sayfada şifreli/obfüskeli oynatıcı scripti var mı? */
+    fun hasPackedPlayer(html: String): Boolean =
+        html.contains("function dc_") || html.contains("eval(function")
 
     /** rplayer sayfasındaki altyazı kayıtlarını döndürür. */
     fun extractTracks(html: String): List<Track> {
@@ -283,7 +303,7 @@ object RplayerDecoder {
     // ── Yardımcılar ────────────────────────────────────────────────────────
 
     private val FILE_LINK_RE = Regex("""file_link\s*=\s*"([^"]+)" """.trim())
-    private val PLAIN_STREAM_RE = Regex("""https?://[^\s"'<>]+\.(?:m3u8|mp4)(?:\?[^\s"'<>]*)?""")
+    private val PLAIN_STREAM_RE = Regex("""(https?://[^\s"'<>]+\.(?:m3u8|mp4)(?:\?[^\s"'<>]*)?)""")
 
     private fun quotedValues(raw: String): List<String> {
         val doubles = DOUBLE_QUOTED_RE.findAll(raw).map { it.groupValues[1] }.toList()

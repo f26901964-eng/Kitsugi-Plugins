@@ -2,6 +2,8 @@ package com.keyiflerolsun
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -24,6 +26,20 @@ class RplayerDecoderTest {
                 "&srv=s430&i=0.0&sp=0&p1=s231&p2=s231",
             result
         )
+    }
+
+    @Test
+    fun `paketli cozucu contentUrl'i cozmus saymaz`() {
+        // ! dc_ çözülemediğinde bayat contentUrl'in kaynak sanılmasını engeller.
+        val html = """
+            <html><body>
+            <script>function dc_TEST(){ /* sifreli govde */ }</script>
+            <script type="application/ld+json">{"contentUrl":"https://cdn.example.com/eski/master.m3u8"}</script>
+            </body></html>
+        """.trimIndent()
+        assertNull(RplayerDecoder.extractPackedStreamUrl(html))
+        assertTrue(RplayerDecoder.hasPackedPlayer(html))
+        assertEquals("https://cdn.example.com/eski/master.m3u8", RplayerDecoder.extractStreamUrl(html))
     }
 
     @Test
