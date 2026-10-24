@@ -28,15 +28,14 @@ import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
-import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
 import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.AppUtils
 import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.getAndUnpack
-import com.lagradost.cloudstream3.utils.newExtractorLink
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.jsoup.Jsoup
@@ -177,116 +176,6 @@ class HDFilmCehennemi : MainAPI() {
         } catch (e: Exception) {
             null
         }
-    }
-
-    /**
-     * Altyazı adresini mutlaklaştırır ve sonundaki eğik çizgiyi atar.
-     * ! O eğik çizgi .vtt dosyasını 404 yaptırıyordu.
-     */
-    private fun subtitleUrlOf(file: String): String? {
-        val value = file.replace("\\/", "/").trim().trim('"', '\'')
-        if (value.isBlank()) return null
-        val absolute = when {
-            value.startsWith("http") -> value
-            value.startsWith("//") -> "https:$value"
-            else -> absolutizeUrl(value, mainUrl) ?: return null
-        }
-        return absolute.trimEnd('/')
-    }
-
-    /** Göreli adresi (index.m3u8, ../x/y.m3u8) tam adrese çevirir. */
-    private fun absolutizeUrl(raw: String, baseUrl: String): String? {
-        val value = raw.trim()
-        if (value.isBlank()) return null
-        if (value.startsWith("http://") || value.startsWith("https://")) return value
-        if (value.startsWith("//")) return "https:$value"
-        return try {
-            java.net.URI(baseUrl).resolve(value).toString()
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    // === Oynatıcı düzeltmeleri: kör M3U8 + 4 delik ===
-
-    /**
-     * Akış tipi. Bilinen uzantılar için ExtractorLinkType, bilinmeyen adresler için null.
-     *
-     * ! DİKKAT — burası oynatmayı tamamen öldüren delikti:
-     * ! CloudStream kütüphanesinde `val INFER_TYPE: ExtractorLinkType? = null`
-     * ! (ExtractorApi.kt:447) tanımlı. Yani `INFER_TYPE!!` yazmak DERLEME HATASI
-     * ! vermiyor ama ÇALIŞMA ANINDA her seferinde NullPointerException fırlatıyor.
-     * ! O NPE eklentinin kendi try/catch'inde yutulduğu için callback hiç
-     * ! çağrılmıyor, uygulama "0 kaynak" gösteriyor ve oynatıcı hata veriyordu.
-     * ! Uzantısız adresler (master.txt varyantları, JSON'dan çözülen CDN
-     * ! adresleri, token'lı /play) tam olarak bu dala düşüyordu.
-     * ! Doğrusu: null geçmek. `newExtractorLink` type parametresi zaten
-     * ! nullable; null verildiğinde kütüphane tipi adresten çıkarır.
-     */
-    private fun linkTypeFor(url: String): ExtractorLinkType? {
-        val lower = url.lowercase().substringBefore("?")
-        return when {
-            lower.contains(".m3u8") || lower.contains("master.txt") || lower.contains(".m3u") -> ExtractorLinkType.M3U8
-            lower.endsWith(".mpd") -> ExtractorLinkType.DASH
-            lower.contains(".mp4") || lower.contains(".m4v") || lower.contains(".mkv") ||
-                lower.contains(".webm") || lower.contains(".mov") || lower.contains(".avi") -> ExtractorLinkType.VIDEO
-            else -> null
-        }
-    }
-
-    /**
-     * Ham .ts SEGMENT adresi mi? Yalnızca gerçek dosya uzantısına bakar.
-     * ! `contains(".ts")` çok genişti: "cdn.vod.ts.net/..." ve "lists.tsx/..."
-     * ! gibi geçerli adresleri de eliyordu. Sorgu dizesi de hesaba katılır.
-     */
-    private fun isTsSegment(url: String): Boolean =
-        url.substringBefore("?").trim().lowercase().endsWith(".ts")
-
-    private fun normalizeStreamUrl(raw: String?): String? {
-        if (raw.isNullOrBlank()) return null
-        var cleaned = raw.trim().replace("\\/", "/")
-        // JSON içinde tırnaklı değer olabilir, regex ile ilk geçerli http adresini çıkar
-        val urlRegex = Regex("""https?://[^\s"'<>]+""")
-        val match = urlRegex.find(cleaned) ?: return null
-        var url = match.value.trimEnd(',', '"', 39.toChar(), ')', ']', '}', ';').replace("\\", "")
-        // substringAfter("https") hatası: httpshttp:// → düzelt
-        if (url.startsWith("httpshttp://")) url = "http://" + url.removePrefix("httpshttp://")
-        if (url.startsWith("httpshttps://")) url = "https://" + url.removePrefix("httpshttps://")
-        // genel çift şema: httpshttps, httpshttp
-        if (url.contains("httpshttp://")) {
-            val idx = url.indexOf("http://")
-            if (idx > 0) url = url.substring(idx)
-        }
-        if (url.contains("httpshttps://")) {
-            val idx = url.lastIndexOf("https://")
-            if (idx > 0) url = url.substring(idx)
-        }
-        return try {
-            val uri = java.net.URI(url)
-            val host = uri.host ?: return null
-            if (host.isBlank()) return null
-            if (!url.startsWith("http://") && !url.startsWith("https://")) return null
-            url
-        } catch (e: Exception) {
-            Log.w("HDCH", "normalizeStreamUrl bozuk: $raw -> $url (${e.message})")
-            null
-        }
-    }
-
-    /**
-     * İmzalı master HLS adresini aynen oynatıcıya aktarır.
-     *
-     * Master listesini burada açmak, göreli varyantlara geçerken base URL'deki
-     * query token'ını düşürür ve EXT-X-MEDIA ses gruplarını yok eder. HLS
-     * oynatıcı zaten master listesini çözebildiğinden ayrı varyant üretmiyoruz.
-     */
-    private suspend fun resolveStreamUrl(
-        streamUrl: String,
-        headers: Map<String, String>
-    ): List<Pair<String, Map<String, String>>>? {
-        val path = streamUrl.substringBefore('?').lowercase()
-        if (!path.endsWith(".m3u8") && !path.endsWith("master.txt")) return null
-        return listOf(streamUrl to headers)
     }
 
     private fun siteLooksAlive(finalUrl: String, body: String, marker: String, required: List<String>): Boolean {
@@ -656,557 +545,16 @@ class HDFilmCehennemi : MainAPI() {
         }
     }
 
-    data class DecOp(val name: String, val rotShift: Int = 0)
-
-    private fun decryptLocalUrl(unpackedScript: String): String? {
-        try {
-            // 1. Extract parts array
-            val partsMatch = """\(\[\s*((?:['"][^'"]+['"]\s*,?\s*)+)\]\)""".toRegex().find(unpackedScript)
-            val parts = partsMatch?.groupValues?.get(1)?.split(",")?.map { 
-                it.trim().trim('\'', '"').replace("\\/", "/") 
-            } ?: return null
-
-            // 2. Extract magicNum and magicOffset
-            val moduloMatch = """(\d+)\s*%\s*\(i\s*\+\s*(\d+)\)""".toRegex().find(unpackedScript)
-            val magicNum = moduloMatch?.groupValues?.get(1)?.toLongOrNull() ?: 399756995L
-            val magicOffset = moduloMatch?.groupValues?.get(2)?.toIntOrNull() ?: 5
-
-            // 3. Isolate function body
-            val funcBody = unpackedScript.substringAfter("function dc_").substringBefore("function d1x")
-
-            // 4. Extract operations and their shift values in execution order
-            val operations = mutableListOf<Pair<Int, DecOp>>()
-
-            var index = funcBody.indexOf("atob(")
-            while (index >= 0) {
-                operations.add(Pair(index, DecOp("atob")))
-                index = funcBody.indexOf("atob(", index + 1)
-            }
-
-            index = funcBody.indexOf("reverse")
-            while (index >= 0) {
-                operations.add(Pair(index, DecOp("reverse")))
-                index = funcBody.indexOf("reverse", index + 1)
-            }
-
-            index = funcBody.indexOf("replace")
-            while (index >= 0) {
-                val block = funcBody.substring(index, minOf(index + 300, funcBody.length))
-                var shift = 13
-                val rotShiftMatch = """charCodeAt\(0\)\s*\+\s*(\d+)""".toRegex().find(block)
-                if (rotShiftMatch != null) {
-                    shift = rotShiftMatch.groupValues[1].toInt()
-                } else {
-                    val rotShiftMatch2 = """o\s*-\s*base\s*([+-])\s*(\d+)""".toRegex().find(block)
-                    if (rotShiftMatch2 != null) {
-                        val sign = rotShiftMatch2.groupValues[1]
-                        val num = rotShiftMatch2.groupValues[2].toInt()
-                        shift = if (sign == "-") (26 - num) % 26 else num
-                    }
-                }
-                operations.add(Pair(index, DecOp("rot", shift)))
-                index = funcBody.indexOf("replace", index + 1)
-            }
-
-            operations.sortBy { it.first }
-
-            var result = parts.joinToString("")
-
-            // Execute operations in order
-            for (op in operations) {
-                val action = op.second
-                when (action.name) {
-                    "reverse" -> {
-                        result = result.reversed()
-                    }
-                    "atob" -> {
-                        var paddedResult = result
-                        while (paddedResult.length % 4 != 0) {
-                            paddedResult += "="
-                        }
-                        // ! URL-safe alfabe (- ve _) standart çözücüde hata verir;
-                        // ! önce standart, olmazsa URL_SAFE denenir.
-                        val bytes = runCatching {
-                            android.util.Base64.decode(paddedResult, android.util.Base64.NO_WRAP)
-                        }.getOrElse {
-                            android.util.Base64.decode(paddedResult, android.util.Base64.URL_SAFE)
-                        }
-                        result = String(bytes, Charsets.ISO_8859_1)
-                    }
-                    "rot" -> {
-                        val rotShift = action.rotShift
-                        val rot = StringBuilder()
-                        for (c in result) {
-                            if (c in 'a'..'z') {
-                                val shifted = c.code + rotShift
-                                rot.append(if (shifted > 'z'.code) (shifted - 26).toChar() else shifted.toChar())
-                            } else if (c in 'A'..'Z') {
-                                val shifted = c.code + rotShift
-                                rot.append(if (shifted > 'Z'.code) (shifted - 26).toChar() else shifted.toChar())
-                            } else {
-                                rot.append(c)
-                            }
-                        }
-                        result = rot.toString()
-                    }
-                }
-            }
-
-            // 5. Modulo Unmix
-            val unmix = StringBuilder()
-            for (i in result.indices) {
-                val charCode = result[i].code.toLong()
-                val decryptedCode = (charCode - (magicNum % (i + magicOffset)) + 256) % 256
-                unmix.append(decryptedCode.toInt().toChar())
-            }
-
-            return unmix.toString()
-
-        } catch (e: Exception) {
-            Log.e("HDCH", "decryptLocalUrl Error: ${e.message}")
-            return null
-        }
-    }
-
-    /** CloseLoad encodes its playable stream URL as a base64 token in the embed HTML. */
-    private fun extractBase64StreamUrl(html: String): String? {
-        // ! _ ve - URL-safe alfabeye aittir; padding de eksik gelebilir.
-        val candidates = Regex("""aHR0[A-Za-z0-9+/_=-]{12,}""").findAll(html)
-        for (match in candidates) {
-            try {
-                var encoded = match.value.trimEnd('=', ';', ',')
-                while (encoded.length % 4 != 0) encoded += "="
-                val bytes = runCatching {
-                    android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
-                }.getOrElse {
-                    android.util.Base64.decode(encoded, android.util.Base64.URL_SAFE)
-                }
-                val decoded = String(bytes, Charsets.UTF_8)
-                    .replace("\\/", "/").trim()
-                if ((decoded.startsWith("http://") || decoded.startsWith("https://")) &&
-                    runCatching { java.net.URI(decoded).host }.getOrNull() != null) return decoded
-            } catch (_: Exception) {
-                // Ignore unrelated base64 data and continue.
-            }
-        }
-        return null
-    }
-
-    /** RapidVid/Rapidrame JWPlayer's av('...') URL obfuscation used by the host. */
-    private fun extractRapidStreamUrl(html: String): String? {
-        val encoded = Regex("""av\(['"]([^'"]+)['"]\)""").find(html)?.groupValues?.get(1)
-            ?: return null
-        return try {
-            fun decodeBase64(value: String): String {
-                var padded = value
-                while (padded.length % 4 != 0) padded += "="
-                val bytes = runCatching { android.util.Base64.decode(padded, android.util.Base64.DEFAULT) }
-                    .getOrElse { android.util.Base64.decode(padded, android.util.Base64.URL_SAFE) }
-                return String(bytes, Charsets.ISO_8859_1)
-            }
-            val first = decodeBase64(encoded.reversed())
-            val key = "K9L"
-            val shifted = buildString {
-                first.forEachIndexed { index, char ->
-                    val offset = key[index % key.length].code % 5 + 1
-                    append((char.code - offset).toChar())
-                }
-            }
-            val decoded = decodeBase64(shifted).replace("\\/", "/").trim()
-            decoded.takeIf { (it.startsWith("http://") || it.startsWith("https://")) &&
-                runCatching { java.net.URI(it).host }.getOrNull() != null }
-        } catch (e: Exception) {
-            Log.w("HDCH", "Rapidrame URL çözülemedi: ${e.message}")
-            null
-        }
-    }
-
     /**
-     * /rplayer/ sayfasındaki paketli kaynağı çözer.
+     * Video kaynakları.
      *
-     * ! Sayfa JW Player kurar; gerçek m3u8 adresi "Dean Edwards packer" ile
-     * ! paketlenmiş bir JS bloğunun içindedir. RplayerDecoder bloğu açar,
-     * ! işlemleri (atob / reverse / harf-kaydırma) KAYNAK SIRASINA göre
-     * ! uygular ve son adımdaki sayısal bayt kaydırmayı yapar. Tuzak
-     * ! (decoy) fonksiyonlar sayıma katılmaz. Altyazılar aynı sayfada düz
-     * ! (paketlenmemiş) "tracks:" JSON'undadır.
+     * 1) Sayfadaki dil sekmesi + kaynak düğmeleri (Close / Rapidrame) okunur.
+     * 2) Her düğme için `/video/{id}/` API'sinden oynatıcı iframe'i alınır
+     *    (Close → hdfilmcehennemi.mobi/video/embed/..., Rapidrame → /rplayer/...).
+     * 3) Oynatıcı sayfaları paralel çözülür: [PlayerDecoder] sayfanın kendi
+     *    karartılmış çözücüsünü çalıştırıp jwplayer `sources` değerini alır.
+     *    (JSON-LD contentUrl / playmix adresi TUZAKTIR, kullanılmaz.)
      */
-    private suspend fun extractRplayerSource(
-        source: String,
-        url: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        try {
-            val html = fetchText(url, "$mainUrl/") ?: run {
-                Log.e("HDCH", "rplayer sayfasi alinamadi: $url")
-                return
-            }
-
-            // ! TANI: paketli script'in TAMAMI (logcat satır sınırı için parçalı).
-            // ! Yeni dc_ biçimini çözebilmek için bu log şart: 1200 karakterlik
-            // ! parçalar hâlinde yazılır, çözücüye girdi olarak kullanılabilir.
-            val packedAt = listOf("eval(function(p,a,c,k,e,d)", "function dc_")
-                .map { html.indexOf(it) }
-                .filter { it >= 0 }
-                .minOrNull() ?: -1
-            if (packedAt >= 0) {
-                logScriptChunks("HDCH_TANI", "rplayer[${url.substringAfterLast('/').ifBlank { "x" }}]", html.substring(packedAt))
-            } else {
-                Log.d("HDCH_TANI", "rplayer $url paketli script: <yok>")
-            }
-            Log.d("HDCH_TANI", "rplayer tracks: " + html.substringAfter("tracks:", "").take(300).replace("\n", " "))
-
-            // ! Altyazılar: önce `tracks:` JSON'u, yoksa `<track src>` etiketleri.
-            // ! Canlı embed sayfası altyazıları `<track>` olarak veriyor.
-            val playerTracks = (
-                RplayerDecoder.extractTracks(html) +
-                    RplayerDecoder.extractTrackTags(html, url)
-                ).distinctBy { it.file }
-            playerTracks.forEach { track ->
-                val subUrl = subtitleUrlOf(track.file) ?: return@forEach
-                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
-                subtitleCallback(newSubtitleFile(label, subUrl))
-            }
-
-            // ! Yeni çözücü; eski yöntem yedek olarak bırakıldı.
-            val streamUrl = RplayerDecoder.extractStreamUrl(html)
-                ?: decryptLocalUrl(getAndUnpack(html))
-            Log.d("HDCH_TANI", "rplayer cozulen adres: $streamUrl")
-            if (streamUrl.isNullOrBlank()) {
-                Log.e("HDCH", "rplayer kaynagi cozulemedi: $url")
-                return
-            }
-
-            // CDN imza kontrolü rplayer sayfasının Referer'ını bekliyor; Origin
-            // ise sitenin kök origin'i olmalı. Bu başlıklar master playlist'teki
-            // token ile birlikte doğrudan video isteklerine taşınır.
-            val playerOrigin = originOf(url) ?: mainUrl
-            val embedHeaders = mapOf(
-                "User-Agent" to USER_AGENT,
-                "Referer" to url,
-                "Origin" to playerOrigin
-            )
-            val variants = resolveStreamUrl(streamUrl, embedHeaders)
-            if (!variants.isNullOrEmpty()) {
-                variants.take(3).forEachIndexed { index, (variantUrl, variantHeaders) ->
-                    val norm = normalizeStreamUrl(variantUrl) ?: return@forEachIndexed
-                    // ! Not: "quality" adı link kalitesi değişkeniyle çakışırdı
-                    // ! (ExtractorLink.quality ataması yerel val'e düşüyordu).
-                    val q = when (index) {
-                        0 -> Qualities.P1080.value
-                        1 -> Qualities.P720.value
-                        else -> Qualities.P480.value
-                    }
-                    callback.invoke(
-                        newExtractorLink(
-                            source = source,
-                            name = if (variants.size > 1) "$source - ${index + 1}" else source,
-                            url = norm,
-                            type = linkTypeFor(norm)
-                        ) {
-                            quality = q
-                            this.referer = url
-                            headers = variantHeaders
-                        }
-                    )
-                    Log.d("HDCH", "link [$index] » $norm type=${linkTypeFor(norm)}")
-                }
-            } else {
-                val norm = normalizeStreamUrl(streamUrl) ?: return
-                callback.invoke(
-                    newExtractorLink(source = source, name = source, url = norm, type = linkTypeFor(norm)) {
-                        quality = Qualities.P1080.value
-                        this.referer = url
-                        headers = embedHeaders
-                    }
-                )
-                Log.d("HDCH", "link » $norm type=${linkTypeFor(norm)}")
-            }
-        } catch (e: Exception) {
-            Log.e("HDCH", "extractRplayerSource error: ${e.message}")
-        }
-    }
-
-    /**
-     * Düz (şifresiz) yedek adayları — contentUrl / master.txt / .m3u8 — DOĞRULAR.
-     *
-     * ! Eski davranış: paketli kaynak çözülemeyince JSON-LD'deki contentUrl
-     * ! doğrudan oynatıcıya gönderiliyordu. O adres çoğu zaman bayat (404)
-     * ! olduğu için uygulama "boş kaynak → oynatıcı hatası" veriyordu.
-     * ! Yeni davranış: adaylar tek tek sunucuda denenir; yalnızca gerçekten
-     * ! cevap veren (2xx/3xx) adres döndürülür. Hiçbiri yayında değilse null.
-     */
-    private suspend fun verifiedFallbackUrl(html: String, headers: Map<String, String>): String? {
-        // ! Aday seçimi FallbackCandidates'te: JSON-LD'deki contentUrl çoğu
-        // ! zaman AFİŞ (thumbnail) adresidir ve video sanılmamalıdır.
-        val candidates = FallbackCandidates.plainCandidates(html)
-
-        for (candidate in candidates) {
-            val norm = normalizeStreamUrl(candidate) ?: continue
-            if (isUrlAlive(norm, headers)) {
-                Log.d("HDCH", "yedek adres yayinda, kullanilacak: $norm")
-                return norm
-            }
-            Log.w("HDCH", "bayat yedek adres elendi (yayinda degil): $norm")
-        }
-        return null
-    }
-
-    /** Adres gerçekten cevap veriyor mu? (404'lük linki oynatıcıya göndermemek için.) */
-    private suspend fun isUrlAlive(url: String, headers: Map<String, String>): Boolean {
-        return try {
-            // ! HEAD bazı CDN'lerde 405 dönüyor; küçük Range'li GET daha güvenilir.
-            val res = app.get(
-                url,
-                headers = headers + mapOf("Range" to "bytes=0-1", "Accept" to "*/*"),
-                allowRedirects = true,
-                interceptor = interceptor
-            )
-            if (!(res.isSuccessful || res.code in 300..399)) return false
-
-            // ! Görsel dönen adres yayın değildir (afişler 200 döner!).
-            val contentType = res.headers["Content-Type"].orEmpty().lowercase()
-            if (contentType.startsWith("image/") || FallbackCandidates.isImageUrl(url)) return false
-            if (contentType.contains("text/html") || contentType.contains("application/json")) return false
-
-            // ! HLS uzantılı bir HTML hata sayfası da yayın sayılmamalı.
-            val path = url.substringBefore('?').lowercase()
-            val looksHls = path.endsWith(".m3u8") || path.endsWith("master.txt") || path.contains(".urlset")
-            if (!looksHls) return true
-            val preview = res.text.take(2048)
-            preview.contains("#EXTM3U") || preview.contains("#EXT-X")
-        } catch (e: Exception) {
-            Log.w("HDCH", "adres dogrulanamadi: $url (${e.message})")
-            false
-        }
-    }
-
-    /**
-     * Uzun script'i logcat satır sınırını (~4 KB) aşmayacak parçalara bölerek yazar.
-     * ! Tanı için: yeni dc_ biçiminin ham JavaScript'i ancak böyle tam okunabilir.
-     */
-    private fun logScriptChunks(tag: String, label: String, text: String, chunk: Int = 1200, limit: Int = 30000) {
-        val body = if (text.length > limit) text.substring(0, limit) + "…<kesildi>" else text
-        var index = 0
-        var part = 1
-        while (index < body.length) {
-            Log.d(tag, "$label #$part " + body.substring(index, minOf(index + chunk, body.length)))
-            index += chunk
-            part++
-        }
-    }
-
-    private suspend fun extractMobiOrCloseLoad(
-        source: String,
-        url: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ) {
-        try {
-            // ! Origin/Referer embed host'una sabitlenir. Eksik kalınca uygulama
-            // ! onu playmix.uno yapıyor ve yayın 5004 ile düşüyordu.
-            val origin = originOf(url) ?: mainUrl
-            val headers = mapOf(
-                "User-Agent" to USER_AGENT,
-                "Referer" to "$origin/",
-                "Origin" to origin
-            )
-            val html = app.get(url, headers = headers, interceptor = interceptor).text
-
-            // CloseLoad and Rapidrame each use a different obfuscated source format.
-            // ! Önce ŞİFRELİ kaynak yolları (av/base64/paketli eval-dc_) denenir.
-            var realUrl = extractRapidStreamUrl(html)
-                ?: extractBase64StreamUrl(html)
-                ?: RplayerDecoder.extractPackedStreamUrl(html)
-
-            // ! Sayfa paketliyse (eval/dc_) önce açıp yeniden dene.
-            val packedPlayer = RplayerDecoder.hasPackedPlayer(html)
-            if (realUrl.isNullOrBlank() && packedPlayer) {
-                val unpacked = getAndUnpack(html)
-                realUrl = extractRapidStreamUrl(unpacked)
-                    ?: extractBase64StreamUrl(unpacked)
-                    ?: RplayerDecoder.extractPackedStreamUrl(unpacked)
-                    ?: decryptLocalUrl(unpacked)
-            }
-
-            // ! Düz adaylar (contentUrl / master.txt / m3u8) görsel/bayat URL'leri
-            // ! elemek için tek tek doğrulanır; şifreli oynatıcı çözülemezse bile
-            // ! yayındaki, gerçek yedek kaynak kaybedilmez.
-            if (realUrl.isNullOrBlank()) {
-                if (packedPlayer) {
-                    Log.w("HDCH", "sifreli oynatici cozulemedi, dogrulanmis yedekler denenecek: $url")
-                }
-                realUrl = verifiedFallbackUrl(html, headers)
-            }
-
-            val normalizedReal = normalizeStreamUrl(realUrl)
-            if (!normalizedReal.isNullOrBlank()) {
-                val variants = resolveStreamUrl(normalizedReal, headers)
-                if (variants != null && variants.isNotEmpty()) {
-                    variants.forEachIndexed { idx, pair ->
-                        val (streamUrl, streamHeaders) = pair
-                        val norm = normalizeStreamUrl(streamUrl) ?: return@forEachIndexed
-                        if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
-                            Log.w("HDCH", "çöp adres elendi: $norm")
-                            return@forEachIndexed
-                        }
-                        val label = if (variants.size > 1) "$source - ${idx + 1}" else source
-                        val q = when (idx) { 0 -> Qualities.P1080.value; 1 -> Qualities.P720.value; else -> Qualities.P480.value }
-                        callback.invoke(
-                            newExtractorLink(
-                                source = source,
-                                name = label,
-                                url = norm,
-                                type = linkTypeFor(norm)
-                            ) {
-                                quality = q
-                                this.headers = streamHeaders
-                            }
-                        )
-                        Log.d("HDCH", "link [${idx}] » $norm type=${linkTypeFor(norm)}")
-                    }
-                } else {
-                    val norm = normalizedReal
-                    if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
-                        Log.w("HDCH", "çöp adres elendi: $norm")
-                    } else {
-                        callback.invoke(
-                            newExtractorLink(
-                                source = source,
-                                name = source,
-                                url = norm,
-                                type = linkTypeFor(norm)
-                            ) {
-                                quality = Qualities.P1080.value
-                                this.headers = headers
-                            }
-                        )
-                        Log.d("HDCH", "link » $norm type=${linkTypeFor(norm)}")
-                    }
-                }
-            } else if (!realUrl.isNullOrBlank()) {
-                Log.w("HDCH", "normalizeStreamUrl bozuk, elendi: $realUrl")
-            }
-
-            // ! Altyazılar: `tracks:` JSON'u ve/veya göreli adresli `<track>`
-            // ! etiketleri. Canlı embed sayfası ikincisini kullanıyor.
-            val subTracks = (
-                RplayerDecoder.extractTracks(html) + RplayerDecoder.extractTrackTags(html, url)
-                ).distinctBy { it.file }
-            subTracks.forEach { track ->
-                val subtitleUrl = subtitleUrlOf(track.file) ?: return@forEach
-                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
-                subtitleCallback(newSubtitleFile(label, subtitleUrl))
-            }
-        } catch (e: Exception) {
-            Log.e("HDCH", "extractMobiOrCloseLoad error: ${e.message}")
-        }
-    }
-
-    private suspend fun invokeLocalSource(source: String, url: String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit ) {
-        val origin = originOf(url) ?: mainUrl
-        val pageText = try {
-            app.get(
-                url,
-                referer = "$origin/",
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Referer" to "$origin/",
-                    "Origin" to origin
-                ),
-                interceptor = interceptor
-            ).text
-        } catch (e: Exception) {
-            return
-        }
-        val script = Jsoup.parse(pageText).select("script").find {
-            val code = it.data()
-            code.contains("sources:") || code.contains("jwSetup.sources") ||
-                code.contains("av(") || code.contains("eval(function") || code.contains("function dc_")
-        }?.data() ?: pageText.takeIf {
-            it.contains("sources:") || it.contains("jwSetup.sources") || it.contains("av(") || it.contains("function dc_")
-        }
-        Log.d("HDCH", "source script found » ${script != null}")
-        // ! Önce şifreli/paketli yollar; düz yedekler en sonda ve doğrulanarak denenir.
-        var decryptedUrl: String? = extractRapidStreamUrl(pageText)
-            ?: extractBase64StreamUrl(pageText)
-            ?: RplayerDecoder.extractPackedStreamUrl(pageText)
-        val packedPlayer = RplayerDecoder.hasPackedPlayer(pageText)
-        val embedHeaders = mapOf("User-Agent" to USER_AGENT, "Referer" to "$origin/", "Origin" to origin)
-        if (decryptedUrl.isNullOrBlank() && script != null) {
-            val unpackedScript = getAndUnpack(script)
-            decryptedUrl = extractRapidStreamUrl(unpackedScript)
-                ?: extractBase64StreamUrl(unpackedScript)
-                ?: RplayerDecoder.extractPackedStreamUrl(unpackedScript)
-                ?: decryptLocalUrl(unpackedScript)
-        }
-
-        // ! Düz adresler yalnızca aday filtresi ve sunucu doğrulamasından sonra kullanılır.
-        if (decryptedUrl.isNullOrBlank()) {
-            if (packedPlayer) {
-                Log.w("HDCH", "sifreli oynatici cozulemedi, dogrulanmis yedekler denenecek: $url")
-            }
-            decryptedUrl = verifiedFallbackUrl(pageText, embedHeaders)
-        }
-        if (decryptedUrl.isNullOrBlank()) return
-        val rawStream = normalizeStreamUrl(decryptedUrl)
-        if (rawStream.isNullOrBlank()) {
-            Log.w("HDCH", "normalizeStreamUrl bozuk, elendi: $decryptedUrl")
-            return
-        }
-        if (rawStream.startsWith("httpshttp://") || isTsSegment(rawStream)) {
-            Log.w("HDCH", "çöp adres elendi: $rawStream")
-            return
-        }
-        val variants = resolveStreamUrl(rawStream, embedHeaders)
-        val subData = pageText.substringAfter("tracks: [", "").substringBefore("]")
-        if (subData.isNotBlank()) {
-            AppUtils.tryParseJson<List<SubSource>>("[${subData}]")?.filter { it.kind == "captions" || it.kind == "subtitles" }?.forEach {
-                val subFile = it.file ?: return@forEach
-                val subtitleUrl = subtitleUrlOf(subFile) ?: return@forEach
-                subtitleCallback(newSubtitleFile(it.language ?: "Türkçe", subtitleUrl))
-            }
-        }
-        if (variants != null && variants.isNotEmpty()) {
-            variants.forEachIndexed { idx, pair ->
-                val (u, h) = pair
-                val norm = normalizeStreamUrl(u) ?: return@forEachIndexed
-                if (norm.startsWith("httpshttp://") || isTsSegment(norm)) {
-                    Log.w("HDCH", "çöp varyant elendi: $norm")
-                    return@forEachIndexed
-                }
-                val label = if (variants.size > 1) "$source - ${idx + 1}" else source
-                val q = when (idx) { 0 -> Qualities.P1080.value; 1 -> Qualities.P720.value; else -> Qualities.P480.value }
-                callback.invoke(
-                    newExtractorLink(
-                        source = source,
-                        name = label,
-                        url = norm,
-                        type = linkTypeFor(norm)
-                    ) {
-                        headers = h
-                        quality = q
-                    }
-                )
-                Log.d("HDCH", "link [$idx] » $norm type=${linkTypeFor(norm)}")
-            }
-        } else {
-            callback.invoke(
-                newExtractorLink(
-                    source = source,
-                    name = source,
-                    url = rawStream,
-                    type = linkTypeFor(rawStream)
-                ) {
-                    headers = embedHeaders
-                    quality = Qualities.Unknown.value
-                }
-            )
-            Log.d("HDCH", "link » $rawStream type=${linkTypeFor(rawStream)}")
-        }
-    }
-
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -1215,410 +563,83 @@ class HDFilmCehennemi : MainAPI() {
     ): Boolean {
         resolveDomain()
         val pageUrl = migrateUrl(data)
-        Log.d("HDCH", "data » $pageUrl")
-        // ! Sayfa cevabındaki lazy player iframe'lerini ve video source etiketlerini
-        // ! alabilmek için tarayıcı UA + sayfanın ana domain referer'ı ile iste.
         val document = app.get(
             pageUrl,
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
-                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
             ),
             referer = "$mainUrl/",
-            interceptor = interceptor
+            interceptor = interceptor,
+            timeout = 20L
         ).document
-        var linkFound = false
 
-        // ! Artık yalnızca eski "alternative-link" düğmesine bakılmıyor: kaynak
-        // ! düğmesi bulunamayınca boş liste dönüyordu. Sayfadaki iframe, data-video
-        // ! ve gömülü adresler de taranıyor; /video/{id}/ ile Rapidrame rplayer yolu deneniyor.
-        // ! GÜNCELLEME (2026-10-19): Site SPA oldu, yeni aria-label tabanlı butonlar da taranır.
-        // ! TANI: sayfadaki kaynak butonları ve data-video değerleri (eski + yeni).
-        document.select("div.alternative-links button.alternative-link, [aria-label='Alternative tab content'] button, [aria-label='Language tab menu'] button, button[data-video]").forEach { b ->
-            Log.d("HDCH_TANI", "kaynak butonu: etiket=${b.text().trim().take(40)} data-video=${b.attr("data-video")} data-lang=${b.attr("data-lang")} aria=${b.attr("aria-label")}")
+        val buttons = HdfcSources.buttons(document)
+        Log.d("HDCH", "kaynak düğmeleri: " + buttons.joinToString(" | ") { "${it.label}=${it.videoId}" })
+
+        val embeds = ArrayList<HdfcSources.Embed>()
+        val fromApi = coroutineScope {
+            buttons.map { button ->
+                async { withTimeoutOrNull(20_000L) { fetchEmbed(button, pageUrl) } }
+            }.awaitAll()
         }
-        // ! TANI: iframe ve oynatıcıyla ilgili script blokları (Player aria-label dahil).
-        document.select("iframe, [aria-label='Player'] iframe").take(8).forEach { f ->
-            Log.d("HDCH_TANI", "iframe: src=${f.attr("src")} data-src=${f.attr("data-src")} class=${f.attr("class")} aria-parent=${f.parents().find { it.hasAttr("aria-label") }?.attr("aria-label")}")
-        }
-        document.select("script").forEach { sc ->
-            val code = sc.data()
-            if (code.contains("sources:") || code.contains("jwplayer") || code.contains("jwSetup") ||
-                code.contains("m3u8") || code.contains("master.txt") || code.contains("rplayer") ||
-                code.contains("eval(function") || code.contains("function dc_") || code.contains("av(")
-            ) {
-                Log.d("HDCH_TANI", "script: " + code.replace("\n", " ").take(1200))
+        fromApi.filterNotNull().forEach { e -> if (embeds.none { it.url == e.url }) embeds.add(e) }
+
+        // API yanıt vermezse: sayfadaki varsayılan oynatıcı + rapidrame_id'den Rapidrame.
+        val language = buttons.firstOrNull()?.language
+        for (e in HdfcSources.pageEmbeds(document, pageUrl, mainUrl)) {
+            if (embeds.none { it.url == e.url }) {
+                embeds.add(if (language.isNullOrBlank()) e else e.copy(label = "${e.label} · $language"))
             }
         }
-        val candidates = collectLinkCandidates(document, pageUrl)
-        Log.d("HDCH", "aday kaynak: ${candidates.size}")
-        Log.d("HDCH_TANI", "adaylar: " + candidates.joinToString(" | ") { "vid=${it.videoId} url=${it.url}" })
-        val tried = mutableSetOf<String>()
+        Log.d("HDCH", "oynatıcılar: " + embeds.joinToString(" | ") { "${it.label} -> ${it.url}" })
+        if (embeds.isEmpty()) return false
 
-        candidates.forEach { candidate ->
-            var embedUrl: String? = null
-
-            // 1) /video/{id}/ → iframe (eski alternative-link akışı + Rapidrame rplayer)
-            val videoId = candidate.videoId
-            if (!videoId.isNullOrBlank() && !videoId.contains("://")) {
-                try {
-                    val apiGet = app.get(
-                        "${mainUrl}/video/$videoId/", interceptor = interceptor,
-                        headers = mapOf(
-                            "Content-Type" to "application/json",
-                            "X-Requested-With" to "fetch",
-                            "User-Agent" to USER_AGENT,
-                            "Referer" to pageUrl
-                        ),
-                        referer = pageUrl
-                    ).text
-                    Log.d("HDCH", "Found videoID: $videoId")
-                    // ! TANI: ham API yanıtının ilk 900 karakteri (yapıyı görmek için).
-                    Log.d("HDCH_TANI", "video/$videoId/ yanit: " + apiGet.take(900).replace("\n", " "))
-                    embedUrl = extractEmbedUrl(apiGet)
-                    Log.d("HDCH_TANI", "video/$videoId/ embed: $embedUrl")
-                    // ! Site bazen harici adres + ?rapidrame_id= veriyor; site-içi
-                    // ! rplayer adresine çevriliyor ve sondaki / ekleniyor.
-                    embedUrl = embedUrl?.let { toPlayerUrl(it) }
-                } catch (e: Exception) {
-                    Log.e("HDCH", "Error loading videoID $videoId: ${e.message}")
-                }
-            }
-
-            // 2) Aday adresin kendisi zaten gömülü oynatıcı mı?
-            if (embedUrl.isNullOrBlank()) embedUrl = candidate.url.takeIf { it.isNotBlank() }
-
-            // 3) rplayer sayfası kendi içinde paketli kaynağı taşır; bir seviye
-            //    daha çıkmaya gerek yok (içinde iframe yok, kaynak gizli JS'te).
-
-            val target = embedUrl?.trim()
-            if (target.isNullOrBlank() || target == "about:blank" || !target.startsWith("http")) return@forEach
-            if (!tried.add(target)) return@forEach
-            Log.d("HDCH", "${candidate.source} » $target")
-
-            val source = candidate.source
-            val wrapped: (ExtractorLink) -> Unit = { link ->
-                linkFound = true
-                Log.d("HDCH_TANI", "link » ${link.name} type=${link.type} url=${link.url}")
-                callback(link)
-            }
-
-            // ! HTML'de doğrudan <video>/<source> veya JSON-LD video URL'si varsa
-            // ! onu embed sayfası gibi tekrar GET etme; doğrudan yayın linki olarak ver.
-            val directStream = normalizeStreamUrl(target)?.takeIf { EmbedResolver.isDirectMediaUrl(it) }
-            if (directStream != null) {
-                val pageOrigin = originOf(pageUrl) ?: mainUrl
-                wrapped(
-                    newExtractorLink(
-                        source = source,
-                        name = source,
-                        url = directStream,
-                        type = linkTypeFor(directStream)
-                    ) {
-                        quality = Qualities.Unknown.value
-                        this.referer = pageUrl
-                        headers = mapOf(
-                            "User-Agent" to USER_AGENT,
-                            "Referer" to pageUrl,
-                            "Origin" to pageOrigin
-                        )
-                    }
-                )
-                return@forEach
-            }
-
-            val lowerTarget = target.lowercase()
-            val looksLikeEmbed = lowerTarget.contains("mobi") || lowerTarget.contains("closeload") ||
-                lowerTarget.contains("/embed/") || lowerTarget.contains("rplayer") || lowerTarget.contains("rapidrame") ||
-                lowerTarget.contains("rapidvid")
-
-            // ! rplayer sayfası kendi paketli çözücüsüyle ele alınır.
-            val isRplayer = lowerTarget.contains("/rplayer/") || lowerTarget.contains("/playerr/")
-            if (isRplayer) {
-                extractRplayerSource(source, target, subtitleCallback, wrapped)
-            } else if (looksLikeEmbed) {
-                extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
-            } else {
-                invokeLocalSource(source, target, subtitleCallback, wrapped)
-            }
-
-            // ! İlk yol boş dönerse aynı adres diğer çözümleyiciyle de denenir.
-            if (!linkFound) {
-                if (isRplayer) {
-                    extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
-                } else if (looksLikeEmbed) {
-                    invokeLocalSource(source, target, subtitleCallback, wrapped)
-                } else {
-                    extractMobiOrCloseLoad(source, target, subtitleCallback, wrapped)
-                }
-            }
+        val resolved = coroutineScope {
+            embeds.map { e ->
+                async { withTimeoutOrNull(35_000L) { PlayerResolver.resolve(e.url, pageUrl, e.label, interceptor) } }
+            }.awaitAll()
         }
 
-        Log.d("HDCH", "linkFound » $linkFound")
-        return linkFound
+        var found = false
+        val seenSubtitles = HashSet<String>()
+        val seenStreams = HashSet<String>()
+        for (r in resolved) {
+            if (r == null || !seenStreams.add(r.link.url)) continue
+            r.subtitles.forEach { if (seenSubtitles.add(it.url)) subtitleCallback(it) }
+            callback(r.link)
+            found = true
+        }
+        return found
     }
 
-    private val VIDEO_DATA_ATTRIBUTES = listOf(
-        "data-video", "data-video-url", "data-video_url", "data-video-id", "data-video_id",
-        "data-src", "data-url", "data-embed", "data-embed-url", "data-player",
-        "data-player-url", "data-player-id", "data-server", "data-id"
-    )
-    private val VIDEO_DATA_SELECTOR = VIDEO_DATA_ATTRIBUTES
-        .filterNot { it == "data-id" }
-        .joinToString(", ") { "[$it]" } + ", button[data-id], a[data-id]"
-
-    private fun Element.videoDataValue(): String? = VIDEO_DATA_ATTRIBUTES
-        .asSequence()
-        .map { attr(it).trim() }
-        .firstOrNull { it.isNotBlank() }
-
-    private data class LinkCandidate(val source: String, val url: String, val videoId: String? = null)
-
-    /** Sayfadaki tüm kaynak adaylarını toplar: player düğmeleri, iframe'ler, video etiketleri ve gömülü adresler. */
-    private fun collectLinkCandidates(document: org.jsoup.nodes.Document, pageUrl: String): List<LinkCandidate> {
-        val candidates = mutableListOf<LinkCandidate>()
-
-        // ! Öncelik: gerçek oynatıcı kapsayıcısındaki iframe[data-src].
-        // ! Mutlak harici adres aynen korunur; rapidrame_id ile site-içi rplayer'a çevrilmez.
-        // ! GÜNCELLEME (2026-10-19): Yeni SPA'da [aria-label='Player'] de önceliklidir.
-        EmbedResolver.preferredPlayerDataSrcs(document).forEach { raw ->
-            val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
-            candidates.add(LinkCandidate("iframe", normalized))
-        }
-
-        // 1) Eski yol: alternative-links düğmeleri (data-video → /video/{id}/)
-        //    GÜNCELLEME: Yeni aria-label tabanlı butonlar da desteklenir.
-        val altGroups = mutableListOf<org.jsoup.nodes.Element>()
-        altGroups.addAll(document.select("div.alternative-links"))
-        altGroups.addAll(document.select("[aria-label='Alternative tab content']"))
-        altGroups.addAll(document.select("[aria-label='Language tab menu']"))
-        // Eğer hiç grup bulunamazsa, doğrudan butonları tara
-        val altButtons = if (altGroups.isNotEmpty()) {
-            altGroups.flatMap { g ->
-                g.select("button.alternative-link, a.alternative-link, button[data-video], button[data-video-url], button[data-video_url], button[data-video-id], button[data-video_id], button[data-id], a[data-video], a[data-video-url], a[data-video_url], a[data-video-id], a[data-video_id], a[data-id], a[href*='/video/']")
-            }
-        } else {
-            document.select("[aria-label='Alternative tab content'] button, [aria-label='Language tab menu'] button, button.alternative-link, a.alternative-link, button[data-video], button[data-video-id], button[data-id], a[data-video], a[data-video-id], a[data-id], a[href*='/video/']")
-        }
-
-        // Gruplu işleme (langCode korunur)
-        altGroups.forEach { element ->
-            val langCode = element.attr("data-lang").uppercase()
-            element.select("button.alternative-link, a.alternative-link, button[data-video], button[data-video-url], button[data-video_url], button[data-video-id], button[data-video_id], button[data-id], a[data-video], a[data-video-url], a[data-video_url], a[data-video-id], a[data-video_id], a[data-id], a[href*='/video/']").forEach { button ->
-                val label = button.text().replace("(HDrip Xbet)", "").trim()
-                    .ifBlank { button.attr("data-name").trim() }
-                    .ifBlank { button.attr("aria-label").trim() }
-                    .ifBlank { "Kaynak" }
-                val source = if (langCode.isNotBlank()) "$label $langCode" else label
-                val vid = button.videoDataValue()
-                    ?: button.attr("href").trim().takeIf {
-                        EmbedResolver.videoIdFrom(it) != null || it.contains("/embed/", ignoreCase = true)
-                    }
-                    ?: return@forEach
-                val normalized = normalizeEmbed(vid, pageUrl)
-                val rawId = EmbedResolver.videoIdFrom(vid)
-                if (normalized != null) {
-                    candidates.add(LinkCandidate(source, normalized, rawId))
-                } else if (rawId != null) {
-                    candidates.add(LinkCandidate(source, "", rawId))
-                }
-            }
-        }
-        // Gruplu butonlar boş kalmışsa diye, etiketli/düz kontrolleri de tara.
-        if (altButtons.isNotEmpty()) {
-            altButtons.forEach { button ->
-                val label = button.text().replace("(HDrip Xbet)", "").trim()
-                    .ifBlank { button.attr("data-name").trim() }
-                    .ifBlank { button.attr("aria-label").trim() }
-                    .ifBlank { "Kaynak" }
-                val vid = button.videoDataValue()
-                    ?: button.attr("href").trim().takeIf {
-                        EmbedResolver.videoIdFrom(it) != null || it.contains("/embed/", ignoreCase = true)
-                    }
-                    ?: return@forEach
-                val normalized = normalizeEmbed(vid, pageUrl)
-                val rawId = EmbedResolver.videoIdFrom(vid)
-                if (normalized != null) {
-                    candidates.add(LinkCandidate(label, normalized, rawId))
-                } else if (rawId != null) {
-                    candidates.add(LinkCandidate(label, "", rawId))
-                }
-            }
-        }
-
-        // 2) data-video / data-video_url / data-src / data-url taşıyan tüm öğeler
-        document.select("$VIDEO_DATA_SELECTOR, a[href*='/video/']").forEach { element ->
-            // ! iframe'ler 3. adımda ayrıca işlenir; burada tekrar eklenmesin.
-            if (element.tagName().equals("iframe", ignoreCase = true)) return@forEach
-            val raw = element.videoDataValue()
-                ?: element.attr("href").trim().takeIf {
-                    EmbedResolver.videoIdFrom(it) != null || it.contains("/embed/", ignoreCase = true)
-                }
-                ?: return@forEach
-            val label = element.text().trim().take(40)
-                .ifBlank { element.attr("title").trim() }
-                .ifBlank { element.attr("aria-label").trim() }
-                .ifBlank { "Kaynak" }
-            val normalized = normalizeEmbed(raw, pageUrl)
-            val rawId = EmbedResolver.videoIdFrom(raw)
-            if (normalized != null) {
-                candidates.add(LinkCandidate(label, normalized, rawId))
-            } else if (rawId != null) {
-                // IDs are resolved through the site's /video/{id}/ endpoint.
-                candidates.add(LinkCandidate(label, "", rawId))
-            }
-        }
-
-        // 3) iframe'ler (src / data-src / data-lazy-src)
-        // ! SAYFADAKİ TEK GERÇEK KAYNAK BUDUR (canlı sayfa ile doğrulandı):
-        // !   <div class="video-container" hidden>
-        // !     <iframe class="close" data-src="https://hdfilmcehennemi.mobi/video/embed/ID/?rapidrame_id=...">
-        // ! Sayfada contentUrl / master.txt / .m3u8 YOKTUR; bu yüzden iframe
-        // ! bulunamazsa "0 kaynak" kaçınılmazdır.
-        // ! Adres MUTLAK'tır ve host'u mainUrl'den FARKLIDIR; bu yüzden
-        // ! olduğu gibi korunur, rplayer/embed adresine ÇEVRİLMEZ.
-        // ! GÜNCELLEME (2026-10-19): SPA'da [aria-label='Player'] önceliklidir.
-        val frames = document.select("iframe, [aria-label='Player'] iframe").sortedByDescending { frame ->
-            val inPlayer = frame.parents().any {
-                it.hasClass("video-container") || it.hasClass("hdmv-play-container") ||
-                    it.hasClass("player") || it.hasClass("video-player") ||
-                    it.hasAttr("aria-label") && it.attr("aria-label").contains("Player", ignoreCase = true) ||
-                    it.attr("aria-label").contains("Alternative", ignoreCase = true)
-            } || frame.hasAttr("data-src") // data-src'li iframe'ler öncelikli
-            inPlayer
-        }
-        frames.forEach { frame ->
-            val raw = listOf(
-                frame.attr("data-src"),
-                frame.attr("src"),
-                frame.attr("data-lazy-src")
-            ).firstOrNull { it.isNotBlank() } ?: return@forEach
-            val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
-            candidates.add(LinkCandidate("iframe", normalized, EmbedResolver.videoIdFrom(raw)))
-        }
-
-        // ! Bazı sayfalarda iframe yerine doğrudan <video>/<source> kullanılır.
-        // ! Bunları ayrı aday olarak topla; loadLinks aşağıda doğrudan ExtractorLink
-        // ! üretir ve m3u8/mp4 adresini bir HTML sayfası gibi indirmez.
-        EmbedResolver.embeddedMediaSources(document).forEach { raw ->
-            val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
-            candidates.add(LinkCandidate("Doğrudan video", normalized))
-        }
-
-        // 4) Sayfanın ham HTML'inde gömülü duran oynatıcı ve yayın adresleri.
-        // ! JSON/JS içindeki \/ ve \u002f kaçışları çözülür; bunlar regex'in
-        // ! URL'yi kaçırmasına ve sayfanın 0 kaynak görünmesine yol açabiliyordu.
-        val html = document.html()
-            .replace("\\/", "/")
-            .replace("\\u002f", "/", ignoreCase = true)
-            .replace("\\u003a", ":", ignoreCase = true)
-            .replace("\\u0026", "&", ignoreCase = true)
-        listOf(
-            """"file"\s*:\s*"([^"]+\.(?:m3u8|m3u|mpd|mp4|m4v|mkv|webm|mov|avi)[^"]*)"""".toRegex(RegexOption.IGNORE_CASE),
-            """https?://[^\s"'<>]+(?:master\.txt|\.(?:m3u8|m3u|mpd|mp4|m4v|mkv|webm|mov|avi))[^\s"'<>]*""".toRegex(RegexOption.IGNORE_CASE),
-            """https?://[^\s"'<>]*(?:rplayer|rapidvid|rapidrame)[^\s"'<>]*""".toRegex(RegexOption.IGNORE_CASE)
-        ).forEach { regex ->
-            regex.findAll(html).forEach { match ->
-                val value = match.groupValues.getOrElse(1) { match.value }
-                val normalized = normalizeEmbed(value, pageUrl) ?: return@forEach
-                candidates.add(LinkCandidate("Gömülü", normalized))
-            }
-        }
-
-        // JSON-LD'deki `contentUrl` video olabilir; poster ImageObject değerleri
-        // FallbackCandidates tarafından burada da elenir.
-        FallbackCandidates.contentUrls(html)
-            .filter { EmbedResolver.isDirectMediaUrl(it) }
-            .forEach { raw ->
-                val normalized = normalizeEmbed(raw, pageUrl) ?: return@forEach
-                candidates.add(LinkCandidate("JSON-LD video", normalized))
-            }
-
-        // 5) SPA fallback: JSON içindeki video alanları (Next.js/__NEXT_DATA__).
-        if (candidates.isEmpty()) {
-            val jsonVideoValue = Regex(
-                """["'](?:data-video|data-video-url|data-video-id|videoId|video_id|video-id)["']\s*:\s*["']([^"']+)["']""",
-                RegexOption.IGNORE_CASE
-            )
-            jsonVideoValue.findAll(html).forEach { match ->
-                val value = match.groupValues[1].trim()
-                val videoId = EmbedResolver.videoIdFrom(value)
-                if (videoId != null) {
-                    candidates.add(LinkCandidate("SPA", "", videoId))
-                } else {
-                    val normalized = normalizeEmbed(value, pageUrl) ?: return@forEach
-                    candidates.add(LinkCandidate("SPA", normalized))
-                }
-            }
-            Regex("""/video/([A-Za-z0-9_-]+)/""").findAll(html).forEach { match ->
-                val videoId = EmbedResolver.videoIdFrom(match.value) ?: return@forEach
-                candidates.add(LinkCandidate("Regex", "", videoId))
-            }
-        }
-
-        return candidates.distinctBy { candidate ->
-            candidate.videoId?.let { "id:$it" } ?: candidate.url
-        }
-    }
-
-    /**
-     * /video/{id}/ yanıtından gömülü oynatıcı adresini çıkarır.
-     *
-     * ! SİTE YANITI JSON'DUR ve HTML İÇİNDE KAÇIŞLI SLASH KULLANIR:
-     * !   {"data":{"html":"<iframe data-src=\"https:\/\/site\/rplayer\/ID\/\">"}}
-     * !
-     * ! Eski regex (data-src=\\?"([^"\\]+)") kaçışlı slash'te duruyor ve
-     * ! kapanış tırnağı gelmediği için HİÇ EŞLEŞMİYORDU → embed bulunamıyor
-     * ! → uygulama "0 kaynak" gösteriyordu. Bu yüzden önce JSON'daki "html"
-     * ! alanı çözülüyor, kaçışlar geri alınıyor, sonra HTML'den data-src okunuyor.
-     */
-    private fun extractEmbedUrl(rawResponse: String?): String? = EmbedResolver.extractEmbedUrl(rawResponse)
-
-    /** JSON gövdesindeki "html" alanını çözer (JSON kaçışlarını geri alır). */
-    private fun jsonHtmlField(raw: String): String? = EmbedResolver.jsonHtmlField(raw)
-
-    /**
-     * iframe adresinden oynatıcı sayfasının adresini kurar.
-     *
-     * ! Site bazen doğrudan site-içi /rplayer/<id>/ adresi verir; bazen de
-     * ! harici bir adres verip rapidrame_id'sini sorgu dizesinde taşır
-     * ! (canlıda test edilmiş scraper'lar bu yolu kullanıyor). Harici
-     * ! adresteki rapidrame_id, site-içi rplayer adresine çevrilir.
-     * !
-     * ! rplayer adresi SONDA / ile olmalı: sonda / yoksa sunucu 301
-     * ! yönlendiriyor ve oynatıcı sayfası boş dönüyor.
-     */
-    private fun toPlayerUrl(iframe: String): String = EmbedResolver.toPlayerUrl(iframe, mainUrl)
-
-    private fun normalizeEmbed(raw: String, pageUrl: String?): String? =
-        EmbedResolver.normalizeEmbed(raw, pageUrl, mainUrl)
-
-    /** Siteye ait oynatıcı yolları — kendi host'unda olsalar da geçerli kaynaktır. */
-    private fun isPlayerPath(url: String): Boolean = EmbedResolver.isPlayerPath(url)
-
-    private suspend fun fetchText(url: String, referer: String): String? {
-        return try {
-            val origin = originOf(url) ?: mainUrl
+    /** `/video/{id}/` → oynatıcı iframe adresi. */
+    private suspend fun fetchEmbed(button: HdfcSources.Button, pageUrl: String): HdfcSources.Embed? {
+        val body = try {
             app.get(
-                url,
+                "${mainUrl.trimEnd('/')}/video/${button.videoId}/",
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
-                    "Referer" to "$referer",
-                    "Origin" to origin
+                    "X-Requested-With" to "fetch",
+                    "Accept" to "*/*",
+                    "Content-Type" to "application/json"
                 ),
-                interceptor = interceptor
+                referer = pageUrl,
+                interceptor = interceptor,
+                timeout = 15L
             ).text
         } catch (e: Exception) {
-            Log.e("HDCH", "fetchText error ($url): ${e.message}")
-            null
+            Log.w("HDCH", "video API hatası (${button.videoId}): ${e.message}")
+            return null
         }
+        val url = HdfcSources.embedFromApi(body, pageUrl)
+        if (url == null) {
+            Log.w("HDCH", "video API iframe yok (${button.videoId}): ${body.take(200)}")
+            return null
+        }
+        return HdfcSources.Embed(button.label, url)
     }
-    private data class SubSource(
-        @JsonProperty("file")    val file: String?  = null,
-        @JsonProperty("label")   val label: String? = null,
-        @JsonProperty("language") val language: String? = null,
-        @JsonProperty("kind")    val kind: String?  = null
-    )
 
     data class Results(
         @JsonProperty("results") val results: List<String> = arrayListOf()

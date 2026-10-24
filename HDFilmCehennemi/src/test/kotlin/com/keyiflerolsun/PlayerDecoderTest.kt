@@ -1,0 +1,105 @@
+// ! Oynatıcı çözücü regresyon testleri (HDFilmCehennemi).
+// ! Fixture'lar 24-25 Ekim 2026'da TR çıkışlı bağlantıyla CANLI siteden
+// ! alındı (src/test/resources/live). Beklenen adresler aynı sayfaların
+// ! gerçek tarayıcı JS'iyle (Node vm) çalıştırılmasıyla elde edildi ve
+// ! CDN'den 200 + #EXTM3U döndüğü doğrulandı.
+
+package com.keyiflerolsun
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+class PlayerDecoderTest {
+
+    private fun live(name: String): String {
+        val stream = javaClass.getResourceAsStream("/live/$name")
+        if (stream != null) return stream.use { it.readBytes().toString(Charsets.UTF_8) }
+        val file = File("src/test/resources/live/$name")
+        if (file.exists()) return file.readText(Charsets.UTF_8)
+        error("Fixture bulunamadı: $name")
+    }
+
+    private data class Case(val fixture: String, val pageUrl: String, val expected: String, val usesHostname: Boolean)
+
+    private val cases = listOf(
+        // Close: hdfilmcehennemi.mobi/video/embed (çözücü anahtarı location.hostname ile karışık)
+        Case(
+            "hd_close_1.html",
+            "https://hdfilmcehennemi.mobi/video/embed/uYHaTijMbIV/?rapidrame_id=mviazhjhc2rx",
+            "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt",
+            true
+        ),
+        // Rapidrame: /rplayer/ (bu örnekte şablon host adını kullanmıyor)
+        Case(
+            "hd_rapid_1.html",
+            "https://www.hdfilmcehennemi.nl/rplayer/rsyi6h14btcs/",
+            "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+            false
+        ),
+        // Aynı Rapid oynatıcısının host adını kullanan şablon varyantı
+        Case(
+            "rapid_hostname_1.html",
+            "https://rapid.filmmakinesi.to/embed-rsyi6h14btcs/",
+            "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+            true
+        )
+    )
+
+    @Test
+    fun `gercek yayin adresi cozulur`() {
+        for (c in cases) {
+            val decoded = PlayerDecoder.decode(live(c.fixture), c.pageUrl)
+            assertNotNull("${c.fixture}: çözülemedi", decoded)
+            assertEquals(c.fixture, c.expected, decoded!!.file)
+            assertEquals(c.fixture, "sources", decoded.method)
+        }
+    }
+
+    @Test
+    fun `genel yol (tum sayfa + jwplayer setup) ayni adresi verir`() {
+        for (c in cases) {
+            val decoded = PlayerDecoder.decode(live(c.fixture), c.pageUrl, targeted = false)
+            assertNotNull("${c.fixture}: genel yol çözemedi", decoded)
+            assertEquals(c.fixture, c.expected, decoded!!.file)
+        }
+    }
+
+    @Test
+    fun `tuzak adres asla donmez`() {
+        val html = live("hd_close_1.html")
+        // Sayfada tuzak adres gerçekten var (JSON-LD contentUrl) ...
+        assertTrue(html.contains("playmix.uno"))
+        // ... ama çözücü onu döndürmez.
+        val file = PlayerDecoder.decode(html, cases[0].pageUrl)!!.file
+        assertFalse(file.contains("playmix.uno"))
+        assertFalse(file.contains("filmakinesimp4"))
+    }
+
+    @Test
+    fun `anahtar host adina bagli - yanlis hostta sahte adres uretilmez`() {
+        for (c in cases.filter { it.usesHostname }) {
+            val wrongHost = c.pageUrl.replace(java.net.URI(c.pageUrl).host, "example.org")
+            assertNull(c.fixture, PlayerDecoder.decode(live(c.fixture), wrongHost))
+        }
+    }
+
+    @Test
+    fun `altyazilar cikarilir`() {
+        val close = PlayerDecoder.decode(live("hd_close_1.html"), cases[0].pageUrl)!!
+        assertTrue(close.tracks.any { it.label == "Turkish" })
+        assertTrue(close.tracks.all { it.file.startsWith("https://hdfilmcehennemi.mobi/vtt/") })
+        val rapid = PlayerDecoder.decode(live("hd_rapid_1.html"), cases[1].pageUrl)!!
+        assertEquals(
+            listOf(
+                "https://www.hdfilmcehennemi.nl/srt/00037/rsyi6h14btcs_English.vtt",
+                "https://www.hdfilmcehennemi.nl/srt/00037/rsyi6h14btcs_Turkish.vtt"
+            ),
+            rapid.tracks.map { it.file }
+        )
+    }
+}
