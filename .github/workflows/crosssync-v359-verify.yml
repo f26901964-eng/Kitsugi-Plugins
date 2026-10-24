@@ -2,6 +2,12 @@ name: CrossSync v359 patch verification
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - arena/583b8e7d-kitsugi-plugins
+    paths:
+      - .ci/crosssync-v359.patch
+      - .github/workflows/crosssync-v359-verify.yml
 
 permissions:
   contents: read
