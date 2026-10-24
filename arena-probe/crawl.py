@@ -62,40 +62,66 @@ def to_requests_proxy(p):
     return {"http": p, "https": p}
 
 
-def fetch(url, headers=None, label="", timeout=30, allow_redirects=True, stream_peek=False):
-    """Proxy havuzunu dolasarak istek atar. Basarili yaniti dondurur."""
+import concurrent.futures as _cf
+
+_POOL = _cf.ThreadPoolExecutor(max_workers=48)
+_DOMAIN_POOL = _cf.ThreadPoolExecutor(max_workers=10)
+STATS = {}
+
+
+def _one(url, hdrs, p, timeout, allow_redirects, stream_peek):
+    t0 = time.time()
+    r = requests.get(url, headers=hdrs, proxies=to_requests_proxy(p), timeout=timeout,
+                     allow_redirects=allow_redirects, stream=stream_peek)
+    if stream_peek:
+        raw = b""
+        for chunk in r.iter_content(4096):
+            raw += chunk
+            if len(raw) >= 65536:
+                break
+        r.close()
+        r._content = raw
+    body = r.text
+    low = body[:4000].lower()
+    if r.status_code == 451 or "unavailable in your region" in low:
+        raise RuntimeError("geo-blocked via proxy")
+    if r.status_code in (407, 502, 503, 504) and "proxy" in low:
+        raise RuntimeError(f"proxy error {r.status_code}")
+    return r, time.time() - t0
+
+
+def fetch(url, headers=None, label="", timeout=25, allow_redirects=True, stream_peek=False, rounds=3):
+    """Ayni istegi en iyi 4 proxy uzerinden ESZAMANLI atar; ilk saglam yaniti alir."""
     hdrs = {"User-Agent": UA, "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
     if headers:
         hdrs.update(headers)
-    tried = 0
-    last_exc = None
-    while tried < min(len(PROXIES), 8):
-        p = PROXIES[CUR["i"] % len(PROXIES)]
+    # basarili proxy'ler one alinir
+    ranked = sorted(PROXIES, key=lambda p: -STATS.get(p, 0))
+    for round_idx in range(rounds):
+        batch = ranked[round_idx * 4:(round_idx + 1) * 4]
+        if not batch:
+            break
+        futs = {_POOL.submit(_one, url, hdrs, p, timeout, allow_redirects, stream_peek): p for p in batch}
+        best = None
         try:
-            t0 = time.time()
-            r = requests.get(url, headers=hdrs, proxies=to_requests_proxy(p), timeout=timeout,
-                             allow_redirects=allow_redirects, stream=stream_peek)
-            if stream_peek:
-                raw = b""
-                for chunk in r.iter_content(4096):
-                    raw += chunk
-                    if len(raw) >= 65536:
-                        break
-                r.close()
-                r._content = raw
-            body = r.text
-            low = body[:4000].lower()
-            if r.status_code == 451 or "unavailable in your region" in low:
-                raise RuntimeError("geo-blocked via proxy")
-            log(f"[GET]{label} {r.status_code} {len(body)}b {time.time()-t0:.1f}s via={p} {url[:150]} -> {r.url[:150]}")
-            return r
-        except Exception as exc:
-            last_exc = exc
-            log(f"[GET-FAIL]{label} via={p} {url[:120]} :: {type(exc).__name__}: {str(exc)[:120]}")
-            CUR["i"] += 1
-            tried += 1
-    log(f"[GET-GIVEUP]{label} {url[:150]} :: {last_exc}")
+            for fut in _cf.as_completed(futs, timeout=timeout + 10):
+                p = futs[fut]
+                try:
+                    r, dt = fut.result()
+                except Exception as exc:
+                    STATS[p] = STATS.get(p, 0) - 1
+                    log(f"[GET-FAIL]{label} via={p} {url[:110]} :: {type(exc).__name__}: {str(exc)[:100]}")
+                    continue
+                STATS[p] = STATS.get(p, 0) + 2
+                log(f"[GET]{label} {r.status_code} {len(r.text)}b {dt:.1f}s via={p} {url[:150]} -> {r.url[:150]}")
+                best = r
+                break
+        except _cf.TimeoutError:
+            log(f"[GET-TIMEOUT]{label} round={round_idx} {url[:120]}")
+        if best is not None:
+            return best
+    log(f"[GET-GIVEUP]{label} {url[:150]}")
     return None
 
 
@@ -124,6 +150,8 @@ def record_response(kind, label, r, fname, extra=None):
     if extra:
         entry.update(extra)
     MANIFEST["pages" if kind == "page" else "embeds"].append(entry)
+    json.dump(MANIFEST, open(os.path.join(OUT, "manifest.json"), "w"), indent=1)
+    save("_crawl_report.txt", "\n".join(REPORT))
 
 
 # ───────────────────────── FilmMakinesi ─────────────────────────
@@ -132,7 +160,7 @@ def fm():
     base = None
     for cand in ["https://filmmakinesi.to", "https://filmmakinesi.film", "https://filmmakinesi.com",
                  "https://filmmakinesi.net", "https://filmmakinesi.tv", "https://filmmakinesi.pw"]:
-        r = fetch(cand + "/", label=" fm-domain")
+        r = fetch(cand + "/", label=" fm-domain", rounds=(3 if cand.endswith(".to") else 1))
         if r is not None and r.status_code == 200 and "filmmakinesi" in r.text.lower() and len(r.text) > 5000:
             base = origin_of(r.url)
             save("fm_home.html", r.text)
@@ -210,8 +238,13 @@ HD_CANDS = [
 def hd():
     log("\n=================== HDFILMCEHENNEMI ===================")
     base = None
+    futs = {c: _DOMAIN_POOL.submit(fetch, c + "/", None, " hd-domain", 25, True, False, 1) for c in HD_CANDS}
     for cand in HD_CANDS:
-        r = fetch(cand + "/", label=" hd-domain", timeout=25)
+        try:
+            r = futs[cand].result()
+        except Exception as exc:
+            log(f"[HD] {cand} hata {exc}")
+            continue
         if r is None:
             continue
         low = r.text.lower()
@@ -220,8 +253,7 @@ def hd():
             base = origin_of(r.url)
             save("hd_home.html", r.text)
             record_response("page", "hd_home", r, "hd_home.html")
-            break
-        else:
+        elif base is None:
             save(f"hd_domain_{urllib.parse.urlsplit(cand).netloc}.html", r.text)
     if not base:
         log("[HD] canli domain yok")

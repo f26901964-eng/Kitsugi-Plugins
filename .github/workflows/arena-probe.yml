@@ -49,6 +49,8 @@ jobs:
           fi
 
       - name: Sayfalari tara
+        timeout-minutes: 18
+        continue-on-error: true
         run: cd arena-probe && python crawl.py
 
       - name: Oynatici JS'ini calistir
