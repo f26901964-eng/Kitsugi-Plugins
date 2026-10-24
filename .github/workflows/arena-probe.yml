@@ -25,13 +25,13 @@ jobs:
           pip install -U requests cloudscraper
       - name: Kesif
         run: |
-          python arena-probe/probe.py || true
-          du -sh arena-probe/out || true
+          python arena-probe/probe2.py || true
+          du -sh arena-probe/out2 || true
       - name: Sonuclari dala push et
         if: always()
         run: |
           set -e
-          cd arena-probe/out
+          cd arena-probe/out2
           git init -q .
           git config user.email "probe@arena.local"
           git config user.name "Arena Probe"
