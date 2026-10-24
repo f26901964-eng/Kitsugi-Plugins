@@ -1,0 +1,295 @@
+[
+ {
+  "label": "fm_embed_0_0",
+  "embed": "https://closeload.filmmakinesi.to/video/embed/EWeEdu0Ig0q/?imdb_id=tt22084616",
+  "file": "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/master.txt",
+  "tests": [
+   {
+    "combo": "embed-ref+origin",
+    "status": 200,
+    "final": "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/master.txt",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"group_closedual\",NAME=\"Turkish\",DEFAULT=YES,URI=\"sublist_aud1.txt\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"group_closedual\",NAME=\"Original Audio\",DEFAULT=NO,URI=\"sublist_aud2.txt\"\n#EXT-X-STREAM-INF:BANDWIDTH=1835604,RESOLUTION=1920x800,CODECS=\"avc1.640028,mp4a.40.2\",AUDIO=\"group_closedual\"\nsublist_2.txt\n\n",
+    "variant": {
+     "url": "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/sublist_2.txt",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:8\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:7.007467,\nhttps://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_0.jpg\n#EXTINF:7.007467,\nhttps://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_1.jpg\n#EXTINF:7.007467,\nhttps://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_2.jpg\n#EXTINF:7.007467,\nh"
+    },
+    "segment": {
+     "url": "https://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_0.jpg",
+     "status": 200,
+     "ctype": "image/jpeg",
+     "len_peek": 37036,
+     "magic": "474011100042f046"
+    }
+   },
+   {
+    "combo": "embed-origin-ref",
+    "status": 200,
+    "final": "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/master.txt",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"group_closedual\",NAME=\"Turkish\",DEFAULT=YES,URI=\"sublist_aud1.txt\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"group_closedual\",NAME=\"Original Audio\",DEFAULT=NO,URI=\"sublist_aud2.txt\"\n#EXT-X-STREAM-INF:BANDWIDTH=1835604,RESOLUTION=1920x800,CODECS=\"avc1.640028,mp4a.40.2\",AUDIO=\"group_closedual\"\nsublist_2.txt\n\n",
+    "variant": {
+     "url": "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/sublist_2.txt",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:8\n#EXT-X-MEDIA-SEQUENCE:0\n#EXTINF:7.007467,\nhttps://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_0.jpg\n#EXTINF:7.007467,\nhttps://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_1.jpg\n#EXTINF:7.007467,\nhttps://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_2.jpg\n#EXTINF:7.007467,\nh"
+    },
+    "segment": {
+     "url": "https://srv9.cdnimages2788.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/image2_0.jpg",
+     "status": 200,
+     "ctype": "image/jpeg",
+     "len_peek": 37036,
+     "magic": "474011100042f046"
+    }
+   },
+   {
+    "combo": "no-ref",
+    "status": null
+   }
+  ]
+ },
+ {
+  "label": "fm_embed_0_1",
+  "embed": "https://rapid.filmmakinesi.to/embed-rsyi6h14btcs/",
+  "file": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+  "tests": [
+   {
+    "combo": "embed-ref+origin",
+    "status": 200,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"T\u00fcrk\u00e7e\",LANGUAGE=\"tr\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"index-f1-a1.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"English\",LANGUAGE=\"en\",AUTOSELECT=NO,DEFAULT=NO,CHANNELS=\"2\",URI=\"index-f1-a2.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231\"\n\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1316311,RESOLUTION=1152x480,FRAME-RATE=23.974,CODECS=\"avc1.640020,mp4a.40.2\",VIDEO-RANGE=SDR,AUDIO=\"audio0\"\nindex-f1-v1-a2",
+    "variant": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/index-f1-v1-a2.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-2-f1-v1-a2.ts?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70"
+    },
+    "segment": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "video/MP2T",
+     "len_peek": 65536,
+     "magic": "474000100000b00d"
+    }
+   },
+   {
+    "combo": "embed-origin-ref",
+    "status": 200,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"T\u00fcrk\u00e7e\",LANGUAGE=\"tr\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"index-f1-a1.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"English\",LANGUAGE=\"en\",AUTOSELECT=NO,DEFAULT=NO,CHANNELS=\"2\",URI=\"index-f1-a2.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231\"\n\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1316311,RESOLUTION=1152x480,FRAME-RATE=23.974,CODECS=\"avc1.640020,mp4a.40.2\",VIDEO-RANGE=SDR,AUDIO=\"audio0\"\nindex-f1-v1-a2",
+    "variant": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/index-f1-v1-a2.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-2-f1-v1-a2.ts?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70"
+    },
+    "segment": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "video/MP2T",
+     "len_peek": 65536,
+     "magic": "474000100000b00d"
+    }
+   },
+   {
+    "combo": "no-ref",
+    "status": 404,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231",
+    "ctype": "text/html",
+    "head": "Not Found"
+   }
+  ]
+ },
+ {
+  "label": "fm_embed_1_0",
+  "embed": "https://closeload.filmmakinesi.to/video/embed/t8ZxnA5918H/?imdb_id=tt36983905",
+  "file": "https://srv9.cdnimages2042.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/txt/master.txt",
+  "tests": [
+   {
+    "combo": "embed-ref+origin",
+    "status": 200,
+    "final": "https://srv9.cdnimages2042.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/txt/master.txt",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-TARGETDURATION:8\n#EXTINF:7.090422,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image000.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image001.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image002.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image003.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages1906.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image004.jpg\n#EXT",
+    "variant": {
+     "url": "https://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image000.jpg",
+     "status": 200,
+     "ctype": "image/jpeg",
+     "head": "G@\u0011\u0010\u0000B\ufffd/\u0000\u0001\ufffd\u0000\u0000\ufffd\u0001\ufffd\u0000\u0001\ufffd\ufffd\u001eH\u001c\u0001\u0006FFmpeg\u0013The Uprising (2026)\ufffdU\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdG@\u0000\u0010\u0000\u0000\ufffd\r\u0000\u0001\ufffd\u0000\u0000\u0000\u0001\ufffd\u0000*\ufffd\u0004\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdGP\u0000\u0010\u0000\u0002\ufffd\u001d\u0000\u0001\ufffd\u0000\u0000\ufffd\u0000\ufffd\u0000\u001b\ufffd\u0000\ufffd\u0000\u000f\ufffd\u0001\ufffd\u0006\n\u0004eng\u0000\ufffd\ufffd\ufffd\u0007\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
+    }
+   },
+   {
+    "combo": "embed-origin-ref",
+    "status": 200,
+    "final": "https://srv9.cdnimages2042.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/txt/master.txt",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-TARGETDURATION:8\n#EXTINF:7.090422,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image000.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image001.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image002.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image003.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages1906.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image004.jpg\n#EXT",
+    "variant": {
+     "url": "https://srv9.cdnimages2240.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/image000.jpg",
+     "status": 200,
+     "ctype": "image/jpeg",
+     "head": "G@\u0011\u0010\u0000B\ufffd/\u0000\u0001\ufffd\u0000\u0000\ufffd\u0001\ufffd\u0000\u0001\ufffd\ufffd\u001eH\u001c\u0001\u0006FFmpeg\u0013The Uprising (2026)\ufffdU\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdG@\u0000\u0010\u0000\u0000\ufffd\r\u0000\u0001\ufffd\u0000\u0000\u0000\u0001\ufffd\u0000*\ufffd\u0004\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdGP\u0000\u0010\u0000\u0002\ufffd\u001d\u0000\u0001\ufffd\u0000\u0000\ufffd\u0000\ufffd\u0000\u001b\ufffd\u0000\ufffd\u0000\u000f\ufffd\u0001\ufffd\u0006\n\u0004eng\u0000\ufffd\ufffd\ufffd\u0007\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
+    }
+   },
+   {
+    "combo": "no-ref",
+    "status": 404,
+    "final": "https://srv9.cdnimages2042.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/txt/master.txt",
+    "ctype": "text/html",
+    "head": "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n<center><h1>404 Not Found</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n"
+   }
+  ]
+ },
+ {
+  "label": "fm_embed_1_1",
+  "embed": "https://rapid.filmmakinesi.to/embed-ma9kx7ys9744/",
+  "file": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/master.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+  "tests": [
+   {
+    "combo": "embed-ref+origin",
+    "status": 200,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/master.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1326874,RESOLUTION=888x480,FRAME-RATE=23.974,CODECS=\"avc1.640020,mp4a.40.2\",VIDEO-RANGE=SDR\nindex-f1-v1-a1.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3524510,RESOLUTION=1920x1040,FRAME-RATE=23.974,CODECS=\"avc1.640028,mp4a.40.2\",VIDEO-RANGE=SDR\nindex-f2-v1-a1.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231\n\n#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=53135,RESOLUTION=888x480,CODECS=\"avc1.640020\",URI=\"iframes-f1-v1-a1.m3u8?t=8yHxmrpra9",
+    "variant": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/index-f1-v1-a1.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/seg-1-f1-v1-a1.ts?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/seg-2-f1-v1-a1.ts?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ"
+    },
+    "segment": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/seg-1-f1-v1-a1.ts?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "video/MP2T",
+     "len_peek": 65536,
+     "magic": "474000100000b00d"
+    }
+   },
+   {
+    "combo": "embed-origin-ref",
+    "status": 200,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/master.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1326874,RESOLUTION=888x480,FRAME-RATE=23.974,CODECS=\"avc1.640020,mp4a.40.2\",VIDEO-RANGE=SDR\nindex-f1-v1-a1.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=3524510,RESOLUTION=1920x1040,FRAME-RATE=23.974,CODECS=\"avc1.640028,mp4a.40.2\",VIDEO-RANGE=SDR\nindex-f2-v1-a1.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231\n\n#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=53135,RESOLUTION=888x480,CODECS=\"avc1.640020\",URI=\"iframes-f1-v1-a1.m3u8?t=8yHxmrpra9",
+    "variant": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/index-f1-v1-a1.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/seg-1-f1-v1-a1.ts?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/seg-2-f1-v1-a1.ts?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ"
+    },
+    "segment": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/seg-1-f1-v1-a1.ts?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "video/MP2T",
+     "len_peek": 65536,
+     "magic": "474000100000b00d"
+    }
+   },
+   {
+    "combo": "no-ref",
+    "status": 404,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/master.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231",
+    "ctype": "text/html",
+    "head": "Not Found"
+   }
+  ]
+ },
+ {
+  "label": "hd_embed_0_0",
+  "embed": "https://hdfilmcehennemi.mobi/video/embed/uYHaTijMbIV/?rapidrame_id=mviazhjhc2rx",
+  "file": "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt",
+  "tests": [
+   {
+    "combo": "embed-ref+origin",
+    "status": 200,
+    "final": "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-TARGETDURATION:8\n#EXTINF:7.090422,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image000.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image001.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image002.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image003.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2322.cyou/hls/insidiousoutofthefurth",
+    "variant": {
+     "url": "https://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image000.jpg",
+     "status": 200,
+     "ctype": "image/jpeg",
+     "head": "G@\u0011\u0010\u0000B\ufffd%\u0000\u0001\ufffd\u0000\u0000\ufffd\u0001\ufffd\u0000\u0001\ufffd\ufffd\u0014H\u0012\u0001\u0006FFmpeg\tService01w|C\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdG@\u0000\u0010\u0000\u0000\ufffd\r\u0000\u0001\ufffd\u0000\u0000\u0000\u0001\ufffd\u0000*\ufffd\u0004\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdGP\u0000\u0010\u0000\u0002\ufffd\u001d\u0000\u0001\ufffd\u0000\u0000\ufffd\u0000\ufffd\u0000\u001b\ufffd\u0000\ufffd\u0000\u000f\ufffd\u0001\ufffd\u0006\n\u0004eng\u0000\ufffd\ufffd\ufffd\u0007\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
+    }
+   },
+   {
+    "combo": "embed-origin-ref",
+    "status": 200,
+    "final": "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-TARGETDURATION:8\n#EXTINF:7.090422,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image000.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image001.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image002.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image003.jpg\n#EXTINF:7.007000,\nhttps://srv9.cdnimages2322.cyou/hls/insidiousoutofthefurth",
+    "variant": {
+     "url": "https://srv9.cdnimages890.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/image000.jpg",
+     "status": 200,
+     "ctype": "image/jpeg",
+     "head": "G@\u0011\u0010\u0000B\ufffd%\u0000\u0001\ufffd\u0000\u0000\ufffd\u0001\ufffd\u0000\u0001\ufffd\ufffd\u0014H\u0012\u0001\u0006FFmpeg\tService01w|C\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdG@\u0000\u0010\u0000\u0000\ufffd\r\u0000\u0001\ufffd\u0000\u0000\u0000\u0001\ufffd\u0000*\ufffd\u0004\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdGP\u0000\u0010\u0000\u0002\ufffd\u001d\u0000\u0001\ufffd\u0000\u0000\ufffd\u0000\ufffd\u0000\u001b\ufffd\u0000\ufffd\u0000\u000f\ufffd\u0001\ufffd\u0006\n\u0004eng\u0000\ufffd\ufffd\ufffd\u0007\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd"
+    }
+   },
+   {
+    "combo": "no-ref",
+    "status": 404,
+    "final": "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt",
+    "ctype": "text/html",
+    "head": "<html>\r\n<head><title>404 Not Found</title></head>\r\n<body>\r\n<center><h1>404 Not Found</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n<!-- a padding to disable MSIE and Chrome friendly error page -->\r\n"
+   }
+  ]
+ },
+ {
+  "label": "hd_embed_1_1",
+  "embed": "https://www.hdfilmcehennemi.nl/rplayer/rsyi6h14btcs/",
+  "file": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+  "tests": [
+   {
+    "combo": "embed-ref+origin",
+    "status": 200,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"T\u00fcrk\u00e7e\",LANGUAGE=\"tr\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"index-f1-a1.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"English\",LANGUAGE=\"en\",AUTOSELECT=NO,DEFAULT=NO,CHANNELS=\"2\",URI=\"index-f1-a2.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231\"\n\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1316311,RESOLUTION=1152x480,FRAME-RATE=23.974,CODECS=\"avc1.640020,mp4a.40.2\",VIDEO-RANGE=SDR,AUDIO=\"audio0\"\nindex-f1-v1-a2",
+    "variant": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/index-f1-v1-a2.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-2-f1-v1-a2.ts?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY"
+    },
+    "segment": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "video/MP2T",
+     "len_peek": 65536,
+     "magic": "474000100000b00d"
+    }
+   },
+   {
+    "combo": "embed-origin-ref",
+    "status": 200,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+    "ctype": "application/vnd.apple.mpegurl",
+    "head": "#EXTM3U\n\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"T\u00fcrk\u00e7e\",LANGUAGE=\"tr\",AUTOSELECT=YES,DEFAULT=YES,CHANNELS=\"2\",URI=\"index-f1-a1.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231\"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio0\",NAME=\"English\",LANGUAGE=\"en\",AUTOSELECT=NO,DEFAULT=NO,CHANNELS=\"2\",URI=\"index-f1-a2.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231\"\n\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=1316311,RESOLUTION=1152x480,FRAME-RATE=23.974,CODECS=\"avc1.640020,mp4a.40.2\",VIDEO-RANGE=SDR,AUDIO=\"audio0\"\nindex-f1-v1-a2",
+    "variant": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/index-f1-v1-a2.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "application/vnd.apple.mpegurl",
+     "head": "#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXT-X-ALLOW-CACHE:YES\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-VERSION:3\n#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231\n#EXTINF:10.010,\nhttps://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-2-f1-v1-a2.ts?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY"
+    },
+    "segment": {
+     "url": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/seg-1-f1-v1-a2.ts?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+     "status": 200,
+     "ctype": "video/MP2T",
+     "len_peek": 65536,
+     "magic": "474000100000b00d"
+    }
+   },
+   {
+    "combo": "no-ref",
+    "status": 404,
+    "final": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231",
+    "ctype": "text/html",
+    "head": "Not Found"
+   }
+  ]
+ }
+]

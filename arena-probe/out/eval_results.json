@@ -1,0 +1,826 @@
+[
+ {
+  "label": "fm_embed_0_0",
+  "url": "https://closeload.filmmakinesi.to/video/embed/EWeEdu0Ig0q/?imdb_id=tt22084616",
+  "referer": "https://filmmakinesi.to/film/orumcek-adam-yepyeni-bir-gun-2026-fm3/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4112,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 1820,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"SpiderManBrandNewDay-2026-WEBDL-TRDUAL-tt22084616.mp4\",\r\n\t\t\t\t\"description\": \"SpiderManBrandNewDay-2026-WEBDL-TRDUAL-tt22084616.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://closeload.filmmakinesi.to/img/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-05T18:24:58+03:00\",\r\n\t\t\t\t\"duration\": \"PT2H25M1S\",\r\n\t\t\t\t\"embedUrl\": \"https://closeload.filmmakinesi.to/video/embed/EWeEdu0Ig0q/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://closeload.filmmakinesi.to/img/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.jpg",
+     "tracks": [
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/EWeEdu0Ig0q-en-os12862741-spidermanbrandnewday2026webdltrdualtt220.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/EWeEdu0Ig0q-tur-spidermanbrandnewday-2026-webdl-trdual-tt22084616_subtitles01.tur.vtt",
+       "kind": "captions",
+       "label": "Forced",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/EWeEdu0Ig0q-fr-os12887148-spidermanbrandnewday2026webdltrdualtt220.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/EWeEdu0Ig0q-pt-os12865313-spidermanbrandnewday2026webdltrdualtt220.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/EWeEdu0Ig0q-es-sd-143487-57920-spidermanbrandnewday2026webdltrdualtt220.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/EWeEdu0Ig0q-tur-spidermanbrandnewday-2026-webdl-trdual-tt22084616_subtitles02.tur.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "z6e6",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "ew0",
+    "https://srv9.cdnimages2312.cyou/hls/spidermanbrandnewday-2026-webdl-trdual-tt22084616mp4-EWeEdu0Ig0q.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "fm_embed_0_1",
+  "url": "https://rapid.filmmakinesi.to/embed-rsyi6h14btcs/",
+  "referer": "https://filmmakinesi.to/film/orumcek-adam-yepyeni-bir-gun-2026-fm3/",
+  "scripts": [
+   {
+    "len": 49,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 24839,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/lib/devtools-console-detectv2.js?v=1.00e",
+   "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.36.2/jwplayer.js",
+   "/jwplayer-cast-sender.js?v=1.04"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=4rrNkWyH2exNvO7Fq_0xr7u1MrpY2UHxWtU8km69q70&s=1792878421&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=oprbostr0qf9hq43&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/rsyi6h14btcs_English.vtt",
+       "label": "İngilizce Altyazı",
+       "language": "en",
+       "kind": "captions",
+       "default": true
+      },
+      {
+       "file": "/srt/00037/rsyi6h14btcs_Turkish.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      },
+      {
+       "file": "/dl?op=get_slides&length=8700.73&url=https://s430.rapidrame.com/i/01/00037/rsyi6h14btcs0000.jpg",
+       "kind": "thumbnails"
+      }
+     ],
+     "image": "https://s430.rapidrame.com/i/01/00037/rsyi6h14btcs.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": false,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "_jwCastRedirect",
+    "https://filmmakinesi.to"
+   ]
+  ]
+ },
+ {
+  "label": "fm_embed_1_0",
+  "url": "https://closeload.filmmakinesi.to/video/embed/t8ZxnA5918H/?imdb_id=tt36983905",
+  "referer": "https://filmmakinesi.to/film/the-uprising-2026/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4249,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 1573,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"TheUprising-2026-WEBDL-tt36983905.mp4\",\r\n\t\t\t\t\"description\": \"TheUprising-2026-WEBDL-tt36983905.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://closeload.filmmakinesi.to/img/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-09-29T15:15:06+03:00\",\r\n\t\t\t\t\"duration\": \"PT2H8M4S\",\r\n\t\t\t\t\"embedUrl\": \"https://closeload.filmmakinesi.to/video/embed/t8ZxnA5918H/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv9.cdnimages2042.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://closeload.filmmakinesi.to/img/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.jpg",
+     "tracks": [
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/t8ZxnA5918H-eng-theuprising-2026-webdl-tt36983905_subtitles01.eng.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/t8ZxnA5918H-fre-theuprising-2026-webdl-tt36983905_subtitles03.fre.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/t8ZxnA5918H-pt-os12865856-theuprising2026webdltt36983905mp4.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/t8ZxnA5918H-spa-theuprising-2026-webdl-tt36983905_subtitles02.spa.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/t8ZxnA5918H-tr-9924473-tu20261080pamznweb-dlddp51h264-kyogo-engtr.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "r9qg",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "xi7",
+    "https://srv9.cdnimages2042.cyou/hls/theuprising-2026-webdl-tt36983905mp4-t8ZxnA5918H.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "fm_embed_1_1",
+  "url": "https://rapid.filmmakinesi.to/embed-ma9kx7ys9744/",
+  "referer": "https://filmmakinesi.to/film/the-uprising-2026/",
+  "scripts": [
+   {
+    "len": 49,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 25283,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/lib/devtools-console-detectv2.js?v=1.00e",
+   "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.36.2/jwplayer.js",
+   "/jwplayer-cast-sender.js?v=1.04"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/ma9kx7ys9744_,l,n,.urlset/master.m3u8?t=8yHxmrpra9WLT1QTFj6fPMPhHdxOA1ZAMlR1xCj1HRQ&s=1792878459&e=14400&f=185624&srv=s429&i=0.0&sp=0&n=4tjzxsu6s6ohn3do&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/ma9kx7ys9744_Turkish.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      },
+      {
+       "file": "/dl?op=get_slides&length=7692.70&url=https://s429.rapidrame.com/i/01/00037/ma9kx7ys97440000.jpg",
+       "kind": "thumbnails"
+      }
+     ],
+     "image": "https://s429.rapidrame.com/i/01/00037/ma9kx7ys9744.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": false,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "_jwCastRedirect",
+    "https://filmmakinesi.to"
+   ]
+  ]
+ },
+ {
+  "label": "hd_embed_0_0",
+  "url": "https://hdfilmcehennemi.mobi/video/embed/uYHaTijMbIV/?rapidrame_id=mviazhjhc2rx",
+  "referer": "https://www.hdfilmcehennemi.nl/insidious-out-of-the-further-26/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 3933,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4127,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 456,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"InsidiousOutOfTheFurther-2026-WEBDL-tt32393988.mp4\",\r\n\t\t\t\t\"description\": \"InsidiousOutOfTheFurther-2026-WEBDL-tt32393988.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-06T04:20:14+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H46M2S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/uYHaTijMbIV/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://hdfilmcehennemi.mobi/img/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.jpg",
+     "tracks": [
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-ara-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles02.ara.vtt",
+       "kind": "captions",
+       "label": "Arabic",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-bul-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles03.bul.vtt",
+       "kind": "captions",
+       "label": "Bulgarian",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-dan-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles04.dan.vtt",
+       "kind": "captions",
+       "label": "Danish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-dut-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles12.dut.vtt",
+       "kind": "captions",
+       "label": "Dutch",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-eng-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles01.eng.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-fin-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles08.fin.vtt",
+       "kind": "captions",
+       "label": "Finnish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-fre-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles09.fre.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-ger-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles05.ger.vtt",
+       "kind": "captions",
+       "label": "German",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-gre-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles06.gre.vtt",
+       "kind": "captions",
+       "label": "Greek",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-ita-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles10.ita.vtt",
+       "kind": "captions",
+       "label": "Italian",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-nor-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles11.nor.vtt",
+       "kind": "captions",
+       "label": "Norwegian",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-pol-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles13.pol.vtt",
+       "kind": "captions",
+       "label": "Polish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-por-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles14.por.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-rom-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles15.rom.vtt",
+       "kind": "captions",
+       "label": "Romanian",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-spa-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles07.spa.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-swe-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles16.swe.vtt",
+       "kind": "captions",
+       "label": "Swedish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-tr-6873966-iootf20261080pamznweb-dlddp51h264-kyogo-engtr.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/uYHaTijMbIV-ukr-insidiousoutofthefurther-2026-webdl-tt32393988_subtitles17.ukr.vtt",
+       "kind": "captions",
+       "label": "Ukrainian",
+       "default": false
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "qr9",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "ue75y",
+    "https://srv9.cdnimages1912.cyou/hls/insidiousoutofthefurther-2026-webdl-tt32393988mp4-uYHaTijMbIV.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "hd_embed_1_1",
+  "url": "https://www.hdfilmcehennemi.nl/rplayer/rsyi6h14btcs/",
+  "referer": "https://www.hdfilmcehennemi.nl/spider-man-brand-new-day-2/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 20431,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 150,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 101,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
+   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
+   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/rsyi6h14btcs_,l,n,.urlset/master.m3u8?t=mmC1_YtDaa81V7zTS6dlBh5ZnMQVsdjaAq-0cK4cVmY&s=1792878917&e=14400&f=185925&srv=s430&i=0.0&sp=0&n=r97qgif14t9xn0ex&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/rsyi6h14btcs_English.vtt",
+       "label": "İngilizce Altyazı",
+       "language": "en",
+       "kind": "captions",
+       "default": true
+      },
+      {
+       "file": "/srt/00037/rsyi6h14btcs_Turkish.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      }
+     ],
+     "image": "https://s430.rapidrame.com/i/01/00037/rsyi6h14btcs.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": true,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": []
+ }
+]
