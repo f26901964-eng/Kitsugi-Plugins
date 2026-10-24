@@ -112,6 +112,20 @@ class RplayerDecoderTest {
     }
 
     @Test
+    fun `canli dc_ oynaticisi dogrudan cozulur`() {
+        // ! Canlı embed sayfasındaki `dc_<rastgele>([...])` çağrısı:
+        // ! reverse → atob → rot13 → (magic % (i+n)) çıkarma.
+        assertEquals(
+            "https://balancehls12.playmix.uno/hls/insideout2015bluray1080pdualmp4-STE1E4AiQ5O.mp4/master.txt",
+            RplayerDecoder.decodeKnownPlayer(loadFixture("embed_closeload_1.html"))
+        )
+        assertEquals(
+            "https://hls12.playmix.uno/hls/theskeletonkey-2005-bluray-trdualmp4-WM13Evo0UqR.mp4/master.txt",
+            RplayerDecoder.decodeKnownPlayer(loadFixture("embed_closeload_2.html"))
+        )
+    }
+
+    @Test
     fun `track etiketlerinden altyazi cozulur`() {
         // ! Canlı embed sayfasında altyazılar `tracks:` JSON'u değil,
         // ! göreli adresli `<track src=...>` etiketleriyle geliyor.

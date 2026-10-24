@@ -127,6 +127,9 @@ object RplayerDecoder {
         if (html.isBlank()) return null
         val normalized = unescapeHtml(html)
 
+        // 0) Bilinen `dc_*` oynatıcı biçimleri — doğrudan ve kesin.
+        decodeKnownPlayer(normalized)?.let { return it }
+
         // 1) Paketlenmiş bloklar + ham metin, sırayla taranır.
         val sources = mutableListOf<String>()
         PACKER_RE.findAll(normalized).forEach { match ->
@@ -240,6 +243,137 @@ object RplayerDecoder {
             else -> java.net.URI(base).resolve(raw).toString()
         }
     }.getOrNull()
+
+    /**
+     * Sitenin hazır `dc_*` oynatıcı biçimlerini DOĞRUDAN çözer.
+     *
+     * ! Yapısal çözücü sayfadaki işlemleri "tahmin eder"; buradaki üç biçim
+     * ! ise sitenin bilinen oynatıcı aileleridir (Kekik/HDFilmCehennemi
+     * ! kaynaklarından birebir):
+     * !   dc_hello("base64")   → base64 → ters → base64 → son '+'/' '/'|' sonrası
+     * !   dc_xxx(["a","b"...]) → ROT20 → base64 → base64 → XOR akışı (acc)
+     * !   dc_xxx(["a","b"...]) → base64 → ters → ROT13 → magic % (i+n) çıkarma
+     * ! Üçü de http(s) doğrulamasından geçmezse sonuç yok sayılır.
+     */
+    fun decodeKnownPlayer(html: String): String? {
+        if (html.isBlank()) return null
+        val normalized = unescapeHtml(html)
+        val script = StringBuilder(normalized)
+        PACKER_RE.findAll(normalized).forEach { match ->
+            script.append('\n').append(
+                packerUnpack(
+                    unescapeJsSingleQuoted(match.groupValues[2]),
+                    match.groupValues[3].toIntOrNull() ?: 62,
+                    match.groupValues[4].toIntOrNull() ?: 0,
+                    match.groupValues[5].split("|")
+                )
+            )
+        }
+        val text = script.toString()
+
+        DC_HELLO_RE.find(text)?.groupValues?.getOrNull(1)?.let { encoded ->
+            dcHello(encoded)?.let { return it }
+        }
+
+        DC_PARTS_RE.findAll(text).forEach { match ->
+            val parts = QUOTED_RE.findAll(match.groupValues[1])
+                .mapNotNull { it.groupValues[1].ifBlank { it.groupValues[2] } }
+                .toList()
+            if (parts.isEmpty()) return@forEach
+            val joined = parts.joinToString("")
+            dcAcc(joined, text)?.let { return it }
+            dcNew(joined, text)?.let { return it }
+        }
+        return null
+    }
+
+    private val DC_HELLO_RE = Regex("""dc_hello\(\s*['"]([^'"]+)['"]""", RegexOption.IGNORE_CASE)
+    private val DC_PARTS_RE = Regex("""dc_[A-Za-z0-9_$]*\(\s*\[(.*?)\]\s*\)""", RegexOption.DOT_MATCHES_ALL)
+
+    /** `dc_hello`: base64 → ters → base64 → son ayırıcıdan sonrası. */
+    private fun dcHello(encoded: String): String? {
+        val once = decodeBase64(encoded) ?: return null
+        val twice = decodeBase64(once.reversed()) ?: return null
+        val link = when {
+            twice.contains('+') -> twice.substringAfterLast('+')
+            twice.contains(' ') -> twice.substringAfterLast(' ')
+            twice.contains('|') -> twice.substringAfterLast('|')
+            else -> twice
+        }
+        return cleanDecoded(link)
+    }
+
+    /** ROT20 → base64 → base64 → XOR akışı (`var acc = 141`, `acc + 6`). */
+    private fun dcAcc(joined: String, script: String): String? {
+        val rotated = StringBuilder(joined.length)
+        for (c in joined) {
+            rotated.append(
+                when (c) {
+                    in 'a'..'z' -> ('a'.code + (c.code - 'a'.code + 20) % 26).toChar()
+                    in 'A'..'Z' -> ('A'.code + (c.code - 'A'.code + 20) % 26).toChar()
+                    else -> c
+                }
+            )
+        }
+        val first = decodeBase64(rotated.toString()) ?: return null
+        val second = decodeBase64(first) ?: return null
+        val cipher = decodeBase64(second) ?: return null
+        val start = ACC_START_RE.find(script)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 141
+        val step = ACC_STEP_RE.find(script)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 6
+        var acc = start
+        val out = StringBuilder(cipher.length)
+        for (c in cipher) {
+            val value = c.code and 0xFF
+            acc = (acc + step) and 0xFF
+            out.append(((value xor acc) and 0xFF).toChar())
+            acc = (acc + value) and 0xFF
+        }
+        return cleanDecoded(out.toString())
+    }
+
+    /**
+     * base64 / ters / ROT → `magic % (i + n)` çıkarma.
+     *
+     * ! Sıra sitenin sürümüne göre değişiyor: canlı embed sayfası
+     * ! `reverse → atob → rot13` yazarken eski oynatıcı `atob → reverse → rot13`
+     * ! yazıyor. Hangi sıranın tuttuğu ancak denemeyle anlaşılır; sonuç
+     * ! http(s) doğrulamasından geçmezse sıradaki denenir.
+     */
+    private fun dcNew(joined: String, script: String): String? {
+        val (magic, offset, sign) = parseShift(script)
+        val orders = listOf(
+            listOf<Op>(Op.Reverse, Op.Atob, Op.Rot(13)),
+            listOf<Op>(Op.Atob, Op.Reverse, Op.Rot(13)),
+            listOf<Op>(Op.Reverse, Op.Atob, Op.Rot(15)),
+            listOf<Op>(Op.Reverse, Op.Rot(13), Op.Atob),
+            listOf<Op>(Op.Reverse, Op.Rot(15), Op.Atob),
+            listOf<Op>(Op.Atob, Op.Reverse, Op.Rot(15))
+        )
+        for (ops in orders) {
+            val text = applyOps(joined, ops) ?: continue
+            if (text.isBlank()) continue
+            for (s in shiftSigns(sign)) {
+                cleanDecoded(byteShift(text, magic, offset, s))?.let { return it }
+                if (magic != DEFAULT_MAGIC || offset != DEFAULT_OFFSET) {
+                    cleanDecoded(byteShift(text, DEFAULT_MAGIC, DEFAULT_OFFSET, s))?.let { return it }
+                }
+            }
+        }
+        return null
+    }
+
+    private val ACC_START_RE = Regex("""acc\s*=\s*(\d{1,6})(?!\s*[+-])""")
+    private val ACC_STEP_RE = Regex("""acc\s*\+\s*(\d{1,6})""")
+
+    /** Çözülen metinden geçerli http(s) adresini ayıklar. */
+    private fun cleanDecoded(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val index = raw.indexOf("http")
+        val candidate = if (index >= 0) raw.substring(index) else raw
+        val cut = candidate.indexOfFirst { it == ' ' || it == '"' || it == '\'' || it == '<' || it == '>' || it.code < 32 }
+        val url = (if (cut >= 0) candidate.substring(0, cut) else candidate).trim()
+        return url.takeIf { isValidStreamUrl(it) }
+    }
 
     // ── Kaynak tarama ─────────────────────────────────────────────────────
 

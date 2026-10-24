@@ -258,10 +258,115 @@ def decode_payload(parts, body, whole):
     return None
 
 
+
+DC_HELLO_RE = re.compile(r"dc_hello\(\s*['\"]([^'\"]+)['\"]", re.I)
+DC_PARTS_RE = re.compile(r"dc_[A-Za-z0-9_$]*\(\s*\[(.*?)\]\s*\)", re.S)
+ACC_START_RE = re.compile(r"acc\s*=\s*(\d{1,6})(?!\s*[+-])")
+ACC_STEP_RE = re.compile(r"acc\s*\+\s*(\d{1,6})")
+
+
+def clean_decoded(raw):
+    if not raw:
+        return None
+    idx = raw.find("http")
+    cand = raw[idx:] if idx >= 0 else raw
+    for i, ch in enumerate(cand):
+        if ch in " \"'<>" or ord(ch) < 32:
+            cand = cand[:i]
+            break
+    url = cand.strip()
+    return url if valid_url(url) else None
+
+
+def dc_hello(enc):
+    twice = b64d(b64d(enc)[::-1])
+    for sep in ("+", " ", "|"):
+        pass
+    link = twice
+    for sep in ("+", " ", "|"):
+        if sep in twice:
+            link = twice.rsplit(sep, 1)[1]
+            break
+    return clean_decoded(link)
+
+
+def dc_acc(joined, script):
+    rot = "".join(
+        chr((ord(c) - 97 + 20) % 26 + 97) if "a" <= c <= "z"
+        else chr((ord(c) - 65 + 20) % 26 + 65) if "A" <= c <= "Z" else c
+        for c in joined)
+    cipher = b64d(b64d(b64d(rot)))
+    if not cipher:
+        return None
+    m = ACC_START_RE.search(script)
+    acc = int(m.group(1)) if m else 141
+    m = ACC_STEP_RE.search(script)
+    step = int(m.group(1)) if m else 6
+    out = []
+    for ch in cipher:
+        value = ord(ch) & 0xFF
+        acc = (acc + step) & 0xFF
+        out.append(chr(value ^ acc))
+        acc = (acc + value) & 0xFF
+    return clean_decoded("".join(out))
+
+
+def dc_new(joined, script):
+    magic, off, sign = parse_shift(script)
+    orders = [
+        [("reverse",), ("atob",), ("rot", 13)],
+        [("atob",), ("reverse",), ("rot", 13)],
+        [("reverse",), ("atob",), ("rot", 15)],
+        [("reverse",), ("rot", 13), ("atob",)],
+        [("reverse",), ("rot", 15), ("atob",)],
+        [("atob",), ("reverse",), ("rot", 15)],
+    ]
+    for ops in orders:
+        text = apply_ops(joined, ops)
+        if not text.strip():
+            continue
+        for s in shift_signs(sign):
+            u = clean_decoded(byte_shift(text, magic, off, s))
+            if u:
+                return u
+            if magic != DEFAULT_MAGIC or off != DEFAULT_OFFSET:
+                u = clean_decoded(byte_shift(text, DEFAULT_MAGIC, DEFAULT_OFFSET, s))
+                if u:
+                    return u
+    return None
+
+
+def decode_known(html):
+    if not html.strip():
+        return None
+    normalized = unescape_html(html)
+    script = normalized
+    for m in PACKER_RE.finditer(normalized):
+        script += "\n" + packer_unpack(js_unescape(m.group(2)), int(m.group(3)),
+                                       int(m.group(4)), m.group(5).split("|"))
+    m = DC_HELLO_RE.search(script)
+    if m:
+        u = dc_hello(m.group(1))
+        if u:
+            return u
+    for m in DC_PARTS_RE.finditer(script):
+        parts = [a if a else b for a, b in QUOTED_RE.findall(m.group(1))]
+        if not parts:
+            continue
+        joined = "".join(parts)
+        u = dc_acc(joined, script) or dc_new(joined, script)
+        if u:
+            return u
+    return None
+
+
 def extract_packed(html):
     if not html.strip():
         return None
     normalized = unescape_html(html)
+    u = decode_known(normalized)
+    if u:
+        return u
     sources = []
     for m in PACKER_RE.finditer(normalized):
         sources.append(packer_unpack(js_unescape(m.group(2)), int(m.group(3)),
