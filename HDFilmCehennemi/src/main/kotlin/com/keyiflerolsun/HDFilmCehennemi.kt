@@ -857,8 +857,13 @@ class HDFilmCehennemi : MainAPI() {
             }
             Log.d("HDCH_TANI", "rplayer tracks: " + html.substringAfter("tracks:", "").take(300).replace("\n", " "))
 
-            // ! Altyazılar: düz tracks JSON'undan.
-            RplayerDecoder.extractTracks(html).forEach { track ->
+            // ! Altyazılar: önce `tracks:` JSON'u, yoksa `<track src>` etiketleri.
+            // ! Canlı embed sayfası altyazıları `<track>` olarak veriyor.
+            val playerTracks = (
+                RplayerDecoder.extractTracks(html) +
+                    RplayerDecoder.extractTrackTags(html, url)
+                ).distinctBy { it.file }
+            playerTracks.forEach { track ->
                 val subUrl = subtitleUrlOf(track.file) ?: return@forEach
                 val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
                 subtitleCallback(newSubtitleFile(label, subUrl))
@@ -1084,15 +1089,15 @@ class HDFilmCehennemi : MainAPI() {
                 Log.w("HDCH", "normalizeStreamUrl bozuk, elendi: $realUrl")
             }
 
-            // Parse subtitles if present in embed
-            val subData = html.substringAfter("tracks: [", "").substringBefore("]")
-            if (subData.isNotBlank()) {
-                AppUtils.tryParseJson<List<SubSource>>("[${subData}]")?.filter { it.kind == "captions" || it.kind == "subtitles" }?.forEach {
-                    val subFile = it.file ?: return@forEach
-                    // ! Sonundaki "/" kaldırıldı: o eğik çizgi .vtt dosyasını 404 yaptırıyordu.
-                    val subtitleUrl = subtitleUrlOf(subFile) ?: return@forEach
-                    subtitleCallback(newSubtitleFile(it.language ?: "Türkçe", subtitleUrl))
-                }
+            // ! Altyazılar: `tracks:` JSON'u ve/veya göreli adresli `<track>`
+            // ! etiketleri. Canlı embed sayfası ikincisini kullanıyor.
+            val subTracks = (
+                RplayerDecoder.extractTracks(html) + RplayerDecoder.extractTrackTags(html, url)
+                ).distinctBy { it.file }
+            subTracks.forEach { track ->
+                val subtitleUrl = subtitleUrlOf(track.file) ?: return@forEach
+                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
+                subtitleCallback(newSubtitleFile(label, subtitleUrl))
             }
         } catch (e: Exception) {
             Log.e("HDCH", "extractMobiOrCloseLoad error: ${e.message}")

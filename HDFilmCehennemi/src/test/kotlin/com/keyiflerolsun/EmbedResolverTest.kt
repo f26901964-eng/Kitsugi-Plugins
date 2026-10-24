@@ -82,6 +82,16 @@ class EmbedResolverTest {
     }
 
     @Test
+    fun `video embed adresi oldugu gibi korunur`() {
+        // ! Canlı sayfada iframe bu biçimde geliyor (Ekim 2026):
+        // !   <iframe data-src="https://hdfilmcehennemi.mobi/video/embed/ID/?rapidrame_id=ID">
+        // ! Eskiden bu adres <mainUrl>/rplayer/ID/ biçimine çevriliyordu ve
+        // ! oynatıcı sayfası 404 dönüyordu.
+        val iframe = "https://hdfilmcehennemi.mobi/video/embed/cq1EFva4kjM7/?rapidrame_id=yse2jx3h2wrc"
+        assertEquals(iframe, EmbedResolver.toPlayerUrl(iframe, mainUrl))
+    }
+
+    @Test
     fun `oynatici adresi sonunda egik cizgi alir`() {
         // ! Sondaki / yoksa sunucu 301 yonlendiriyor ve sayfa bos donuyor.
         assertEquals(

@@ -477,8 +477,13 @@ private fun Element.toSearchResult(): SearchResponse? {
             // ! adresler eskiden hiçbir çözümleyiciye gitmiyordu ("DUAL Rapid"
             // ! düğmesi sessizce kayboluyordu).
             when (SourceLinks.routeFor(url)) {
-                SourceLinks.Route.CLOSELOAD ->
+                SourceLinks.Route.CLOSELOAD -> {
+                    val hadLinkBefore = produced
                     CloseLoad().getUrl(url, referer, subtitleCallback, wrapped)
+                    // ! Kendi çözücümüz kaynak veremezse CloudStream'in genel
+                    // ! extractor'ı son şans olarak denenir.
+                    if (produced == hadLinkBefore) loadExtractor(url, referer, subtitleCallback, wrapped)
+                }
                 SourceLinks.Route.RAPID -> {
                     val hadLinkBefore = produced
                     Rapidrame().getUrl(url, referer, subtitleCallback, wrapped)

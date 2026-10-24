@@ -92,4 +92,56 @@ class RplayerDecoderTest {
         assertEquals(null, RplayerDecoder.extractStreamUrl("<html></html>"))
         assertTrue(RplayerDecoder.extractTracks("<html></html>").isEmpty())
     }
+
+    // ── Gerçek arşiv oynatıcı sayfaları ──────────────────────────────────
+    // ! hdfilmcehennemi.mobi/video/embed/… sayfalarından alınmış GERÇEK
+    // ! bloklardır. İkisi de aynı işlemi farklı söz dizimiyle yazıyor:
+    // !   varyant 1: reverse → atob → ROT13 (mod YOK) → bayt kaydırma
+    // !   varyant 2: reverse → ROT13 → atob → bayt kaydırma
+    // ! Eski çözücü yalnızca "%26'lı" rot biçimini tanıdığı için ikisinde de
+    // ! null dönüyordu; bu testler o regresyonu yakalar.
+
+    @Test
+    fun `arsiv closeload varyant 1 cozulur`() {
+        val html = loadFixture("embed_closeload_1.html")
+        assertTrue(RplayerDecoder.hasPackedPlayer(html))
+        assertEquals(
+            "https://balancehls12.playmix.uno/hls/insideout2015bluray1080pdualmp4-STE1E4AiQ5O.mp4/master.txt",
+            RplayerDecoder.extractPackedStreamUrl(html)
+        )
+    }
+
+    @Test
+    fun `canli dc_ oynaticisi dogrudan cozulur`() {
+        // ! Canlı embed sayfasındaki `dc_<rastgele>([...])` çağrısı:
+        // ! reverse → atob → rot13 → (magic % (i+n)) çıkarma.
+        assertEquals(
+            "https://balancehls12.playmix.uno/hls/insideout2015bluray1080pdualmp4-STE1E4AiQ5O.mp4/master.txt",
+            RplayerDecoder.decodeKnownPlayer(loadFixture("embed_closeload_1.html"))
+        )
+        assertEquals(
+            "https://hls12.playmix.uno/hls/theskeletonkey-2005-bluray-trdualmp4-WM13Evo0UqR.mp4/master.txt",
+            RplayerDecoder.decodeKnownPlayer(loadFixture("embed_closeload_2.html"))
+        )
+    }
+
+    @Test
+    fun `track etiketlerinden altyazi cozulur`() {
+        // ! Canlı embed sayfasında altyazılar `tracks:` JSON'u değil,
+        // ! göreli adresli `<track src=...>` etiketleriyle geliyor.
+        val tracks = RplayerDecoder.extractTrackTags(loadFixture("embed_closeload_1.html"), "https://hdfilmcehennemi.mobi/video/embed/STE1E4AiQ5O/")
+        assertEquals(3, tracks.size)
+        assertEquals("https://hdfilmcehennemi.mobi/vtt/STE1E4AiQ5O-tr-7854660-insideout2015bluray1080pdualtr.vtt", tracks.last().file)
+        assertEquals("Turkish", tracks.last().label)
+        assertEquals("tr", tracks.last().language)
+    }
+
+    @Test
+    fun `arsiv closeload varyant 2 cozulur`() {
+        val html = loadFixture("embed_closeload_2.html")
+        assertEquals(
+            "https://hls12.playmix.uno/hls/theskeletonkey-2005-bluray-trdualmp4-WM13Evo0UqR.mp4/master.txt",
+            RplayerDecoder.extractStreamUrl(html)
+        )
+    }
 }
