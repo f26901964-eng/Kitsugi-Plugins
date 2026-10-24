@@ -10,7 +10,9 @@ on:
       - .github/workflows/crosssync-v359-verify.yml
 
 permissions:
-  contents: read
+  # Temporary evidence handoff: signed Actions log downloads are unreachable from
+  # the analysis sandbox, so the job commits only its log/JUnit artifacts here.
+  contents: write
 
 jobs:
   targeted-tests:
@@ -93,3 +95,25 @@ jobs:
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit temporary test evidence
+        if: always()
+        working-directory: patch-carrier
+        run: |
+          mkdir -p .ci/results
+          if [ -f ../app/crosssync-tests.log ]; then
+            cp ../app/crosssync-tests.log ".ci/results/crosssync-tests-${GITHUB_RUN_ID}.log"
+          else
+            echo "Gradle did not produce crosssync-tests.log; job status: ${{ job.status }}" > ".ci/results/crosssync-tests-${GITHUB_RUN_ID}.log"
+          fi
+          if [ -d ../app/app/build/test-results/testFossDebugUnitTest ]; then
+            tar -czf ".ci/results/test-results-${GITHUB_RUN_ID}.tar.gz" -C ../app/app/build/test-results/testFossDebugUnitTest .
+          fi
+          git config user.name "Arena CrossSync CI"
+          git config user.email "arena-crosssync-ci@localhost"
+          git add .ci/results
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "test: collect CrossSync evidence ${GITHUB_RUN_ID}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
