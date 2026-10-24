@@ -45,13 +45,22 @@ def main():
             diff += 1
         rows.append({"label": label, "kotlin": k["file"], "node": n, "same": ok,
                      "fallback_same": k["fallback"] == k["file"], "ms": k["ms"]})
+    # Karsilastirma ozetini hemen yaz (yayin testleri zaman asimina ugrasa da kalsin)
+    json.dump({"rows": rows, "kotlin_eq_node": same, "kotlin_ne_node": diff, "kotlin_null": knull},
+              open(os.path.join(OUT2, "kotlin_compare.json"), "w"), indent=1)
+    log(f"[KCHECK] karsilastirma: ayni={same} farkli={diff} bos={knull} / {len(kres)}")
     # Yayin dogrulamasi: eklentinin basliklari (Referer = oynatici sayfasi, Origin = kok)
     streams = []
     seen = set()
+    per_group = {}
     for label, k in kres.items():
         f = k["file"]
         if not f or f in seen:
             continue
+        group = label.rsplit("_", 1)[0]  # ayni oynaticinin tekrarlarindan biri yeter
+        if per_group.get(group):
+            continue
+        per_group[group] = True
         seen.add(f)
         hdrs = {"Referer": k["url"], "Origin": origin_of(k["url"]), "Accept": "*/*"}
         r = crawl.fetch(f, headers=hdrs, label=f" kstream[{label}]", timeout=25, stream_peek=True, rounds=2)
@@ -74,6 +83,7 @@ def main():
                 elif vr is not None:
                     item["segment_magic"] = vr.content[:4].hex()
         streams.append(item)
+        json.dump(streams, open(os.path.join(OUT2, "kotlin_streams.json"), "w"), indent=1)
     summary = {
         "samples": len(kres), "kotlin_eq_node": same, "kotlin_ne_node": diff, "kotlin_null": knull,
         "fallback_eq_targeted": sum(1 for r in rows if r["fallback_same"]),

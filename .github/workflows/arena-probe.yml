@@ -59,7 +59,7 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
         env:
-          SAMPLE_REPEAT: "3"
+          SAMPLE_REPEAT: "2"
         run: cd arena-probe && python sample.py
 
       - name: Gercek tarayici JS'i (Node) ile cozum
@@ -86,10 +86,12 @@ jobs:
           git config user.email "arena-probe@users.noreply.github.com"
           git add -f arena-probe/out2 || true
           git commit -m "chore(probe): canli dogrulama ciktisi (run ${{ github.run_id }})" || exit 0
-          for i in 1 2 3 4 5; do
-            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" && break
+          git checkout -- . 2>/dev/null || true
+          for i in 1 2 3 4 5 6; do
+            if git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"; then exit 0; fi
             sleep 7
           done
+          exit 1
 
   build:
     runs-on: ubuntu-latest
@@ -127,7 +129,9 @@ jobs:
           git config user.email "arena-probe@users.noreply.github.com"
           git add -f arena-probe/ci || true
           git commit -m "chore(probe): derleme/test ciktisi (run ${{ github.run_id }})" || exit 0
-          for i in 1 2 3 4 5; do
-            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" && break
+          git checkout -- . 2>/dev/null || true
+          for i in 1 2 3 4 5 6; do
+            if git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"; then exit 0; fi
             sleep 11
           done
+          exit 1
