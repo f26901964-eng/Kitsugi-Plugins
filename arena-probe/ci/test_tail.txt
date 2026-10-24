@@ -1,0 +1,150 @@
+
+HdfcSourcesTest > dil sekmesi ve kaynak dugmeleri okunur PASSED
+
+HdfcSourcesTest > video API yanitindan oynatici adresi cikar PASSED
+
+HdfcSourcesTest > sayfadaki varsayilan oynatici ve rapidrame_id yedegi PASSED
+
+HdfcSourcesTest > json metin alani cozulur PASSED
+
+MiniJsTest > metin islemleri PASSED
+
+MiniJsTest > jwplayer setup yakalanir PASSED
+
+MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+
+MiniJsTest > dizi islemleri PASSED
+
+MiniJsTest > packer acilir PASSED
+
+MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+
+MiniJsTest > kontrol akisi PASSED
+
+MiniJsTest > tarayici ortami PASSED
+
+MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+
+PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+
+PlayerDecoderTest > tuzak adres asla donmez PASSED
+
+PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+
+PlayerDecoderTest > altyazilar cikarilir PASSED
+
+PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+
+> Task :HDFilmCehennemi:preReleaseUnitTestBuild UP-TO-DATE
+> Task :HDFilmCehennemi:javaPreCompileRelease
+> Task :HDFilmCehennemi:generateReleaseUnitTestStubRFile
+> Task :HDFilmCehennemi:javaPreCompileReleaseUnitTest
+> Task :HDFilmCehennemi:compileReleaseKotlin
+> Task :HDFilmCehennemi:compileReleaseJavaWithJavac NO-SOURCE
+> Task :HDFilmCehennemi:bundleLibRuntimeToJarRelease
+> Task :HDFilmCehennemi:bundleLibCompileToJarRelease
+> Task :HDFilmCehennemi:processReleaseJavaRes
+> Task :FilmMakinesi:compileReleaseKotlin
+> Task :FilmMakinesi:compileReleaseJavaWithJavac NO-SOURCE
+> Task :FilmMakinesi:bundleLibRuntimeToJarRelease
+> Task :FilmMakinesi:processReleaseJavaRes
+> Task :FilmMakinesi:bundleLibCompileToJarRelease
+> Task :HDFilmCehennemi:compileReleaseUnitTestKotlin
+> Task :HDFilmCehennemi:compileReleaseUnitTestJavaWithJavac NO-SOURCE
+> Task :HDFilmCehennemi:processReleaseUnitTestJavaRes
+> Task :FilmMakinesi:compileReleaseUnitTestKotlin
+
+> Task :HDFilmCehennemi:testReleaseUnitTest
+
+HdfcSourcesTest > dil sekmesi ve kaynak dugmeleri okunur PASSED
+
+HdfcSourcesTest > video API yanitindan oynatici adresi cikar PASSED
+
+HdfcSourcesTest > sayfadaki varsayilan oynatici ve rapidrame_id yedegi PASSED
+
+HdfcSourcesTest > json metin alani cozulur PASSED
+
+MiniJsTest > metin islemleri PASSED
+
+MiniJsTest > jwplayer setup yakalanir PASSED
+
+MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+
+MiniJsTest > dizi islemleri PASSED
+
+MiniJsTest > packer acilir PASSED
+
+MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+
+MiniJsTest > kontrol akisi PASSED
+
+MiniJsTest > tarayici ortami PASSED
+
+MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+
+PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+
+PlayerDecoderTest > tuzak adres asla donmez PASSED
+
+PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+
+PlayerDecoderTest > altyazilar cikarilir PASSED
+
+PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+
+> Task :FilmMakinesi:compileReleaseUnitTestJavaWithJavac NO-SOURCE
+> Task :FilmMakinesi:processReleaseUnitTestJavaRes
+
+> Task :FilmMakinesi:testReleaseUnitTest
+
+MiniJsTest > metin islemleri PASSED
+
+MiniJsTest > jwplayer setup yakalanir PASSED
+
+MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+
+MiniJsTest > dizi islemleri PASSED
+
+MiniJsTest > packer acilir PASSED
+
+MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+
+MiniJsTest > kontrol akisi PASSED
+
+MiniJsTest > tarayici ortami PASSED
+
+MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+
+PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+
+PlayerDecoderTest > tuzak adres asla donmez PASSED
+
+PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+
+PlayerDecoderTest > altyazilar cikarilir PASSED
+
+PlayerDecoderTest > yayin adresi dogrulamasi PASSED
+
+PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+
+SourceLinksTest > adres normalizasyonu PASSED
+
+SourceLinksTest > bolum sayfasinda tek iframe kaynagi bulunur PASSED
+
+SourceLinksTest > film sayfasinda Close ve Rapid bulunur PASSED
+
+SourceLinksTest > kaynak adi bahis kelimelerinden arindirilir PASSED
+
+> Task :FilmMakinesi:test
+> Task :HDFilmCehennemi:test
+
+[Incubating] Problems report is available at: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.12/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 43s
+60 actionable tasks: 48 executed, 12 up-to-date

@@ -1,0 +1,77 @@
+3:> Task :FilmMakinesi:checkKotlinGradlePluginConfigurationErrors SKIPPED
+26:> Task :HDFilmCehennemi:checkKotlinGradlePluginConfigurationErrors SKIPPED
+60:MiniJsTest > metin islemleri PASSED
+62:MiniJsTest > jwplayer setup yakalanir PASSED
+64:MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+66:MiniJsTest > dizi islemleri PASSED
+68:MiniJsTest > packer acilir PASSED
+70:MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+72:MiniJsTest > kontrol akisi PASSED
+74:MiniJsTest > tarayici ortami PASSED
+76:MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+78:PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+80:PlayerDecoderTest > tuzak adres asla donmez PASSED
+82:PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+84:PlayerDecoderTest > altyazilar cikarilir PASSED
+86:PlayerDecoderTest > yayin adresi dogrulamasi PASSED
+88:PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+90:SourceLinksTest > adres normalizasyonu PASSED
+92:SourceLinksTest > bolum sayfasinda tek iframe kaynagi bulunur PASSED
+94:SourceLinksTest > film sayfasinda Close ve Rapid bulunur PASSED
+96:SourceLinksTest > kaynak adi bahis kelimelerinden arindirilir PASSED
+103:HdfcSourcesTest > dil sekmesi ve kaynak dugmeleri okunur PASSED
+105:HdfcSourcesTest > video API yanitindan oynatici adresi cikar PASSED
+107:HdfcSourcesTest > sayfadaki varsayilan oynatici ve rapidrame_id yedegi PASSED
+109:HdfcSourcesTest > json metin alani cozulur PASSED
+111:MiniJsTest > metin islemleri PASSED
+113:MiniJsTest > jwplayer setup yakalanir PASSED
+115:MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+117:MiniJsTest > dizi islemleri PASSED
+119:MiniJsTest > packer acilir PASSED
+121:MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+123:MiniJsTest > kontrol akisi PASSED
+125:MiniJsTest > tarayici ortami PASSED
+127:MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+129:PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+131:PlayerDecoderTest > tuzak adres asla donmez PASSED
+133:PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+135:PlayerDecoderTest > altyazilar cikarilir PASSED
+137:PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+160:HdfcSourcesTest > dil sekmesi ve kaynak dugmeleri okunur PASSED
+162:HdfcSourcesTest > video API yanitindan oynatici adresi cikar PASSED
+164:HdfcSourcesTest > sayfadaki varsayilan oynatici ve rapidrame_id yedegi PASSED
+166:HdfcSourcesTest > json metin alani cozulur PASSED
+168:MiniJsTest > metin islemleri PASSED
+170:MiniJsTest > jwplayer setup yakalanir PASSED
+172:MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+174:MiniJsTest > dizi islemleri PASSED
+176:MiniJsTest > packer acilir PASSED
+178:MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+180:MiniJsTest > kontrol akisi PASSED
+182:MiniJsTest > tarayici ortami PASSED
+184:MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+186:PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+188:PlayerDecoderTest > tuzak adres asla donmez PASSED
+190:PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+192:PlayerDecoderTest > altyazilar cikarilir PASSED
+194:PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+201:MiniJsTest > metin islemleri PASSED
+203:MiniJsTest > jwplayer setup yakalanir PASSED
+205:MiniJsTest > fonksiyonlar kapanislar ve kaldirma PASSED
+207:MiniJsTest > dizi islemleri PASSED
+209:MiniJsTest > packer acilir PASSED
+211:MiniJsTest > sayilar ve bit islemleri JS gibi PASSED
+213:MiniJsTest > kontrol akisi PASSED
+215:MiniJsTest > tarayici ortami PASSED
+217:MiniJsTest > adim siniri sonsuz donguyu durdurur PASSED
+219:PlayerDecoderTest > genel yol (tum sayfa + jwplayer setup) ayni adresi verir PASSED
+221:PlayerDecoderTest > tuzak adres asla donmez PASSED
+223:PlayerDecoderTest > anahtar host adina bagli - yanlis hostta sahte adres uretilmez PASSED
+225:PlayerDecoderTest > altyazilar cikarilir PASSED
+227:PlayerDecoderTest > yayin adresi dogrulamasi PASSED
+229:PlayerDecoderTest > gercek yayin adresi cozulur PASSED
+231:SourceLinksTest > adres normalizasyonu PASSED
+233:SourceLinksTest > bolum sayfasinda tek iframe kaynagi bulunur PASSED
+235:SourceLinksTest > film sayfasinda Close ve Rapid bulunur PASSED
+237:SourceLinksTest > kaynak adi bahis kelimelerinden arindirilir PASSED
+250:BUILD SUCCESSFUL in 43s
