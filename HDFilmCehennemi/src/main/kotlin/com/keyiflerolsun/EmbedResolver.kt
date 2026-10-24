@@ -160,6 +160,18 @@ object EmbedResolver {
                 v.trim()
             }
 
+        // ! Kapsayıcı sınıfı değişse bile oynatıcı adresini yakala:
+        // ! /video/embed/, rplayer, playerr, closeload, rapidrame, /embed/
+        document.select("iframe[data-src], iframe[src]").forEach { frame ->
+            val value = frame.attr("data-src").ifBlank { frame.attr("src") }.trim()
+            if (value.isBlank()) return@forEach
+            val lower = value.lowercase()
+            val playerLike = lower.contains("/video/embed/") || lower.contains("/embed/") ||
+                lower.contains("rplayer") || lower.contains("playerr") ||
+                lower.contains("closeload") || lower.contains("rapidrame") || lower.contains("rapidvid")
+            if (playerLike) out.add(value)
+        }
+
         return out.filter { it.isNotBlank() }.distinct()
     }
 

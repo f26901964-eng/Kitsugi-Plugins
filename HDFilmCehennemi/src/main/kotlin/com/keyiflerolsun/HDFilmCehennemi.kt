@@ -1089,15 +1089,15 @@ class HDFilmCehennemi : MainAPI() {
                 Log.w("HDCH", "normalizeStreamUrl bozuk, elendi: $realUrl")
             }
 
-            // Parse subtitles if present in embed
-            val subData = html.substringAfter("tracks: [", "").substringBefore("]")
-            if (subData.isNotBlank()) {
-                AppUtils.tryParseJson<List<SubSource>>("[${subData}]")?.filter { it.kind == "captions" || it.kind == "subtitles" }?.forEach {
-                    val subFile = it.file ?: return@forEach
-                    // ! Sonundaki "/" kaldırıldı: o eğik çizgi .vtt dosyasını 404 yaptırıyordu.
-                    val subtitleUrl = subtitleUrlOf(subFile) ?: return@forEach
-                    subtitleCallback(newSubtitleFile(it.language ?: "Türkçe", subtitleUrl))
-                }
+            // ! Altyazılar: `tracks:` JSON'u ve/veya göreli adresli `<track>`
+            // ! etiketleri. Canlı embed sayfası ikincisini kullanıyor.
+            val subTracks = (
+                RplayerDecoder.extractTracks(html) + RplayerDecoder.extractTrackTags(html, url)
+                ).distinctBy { it.file }
+            subTracks.forEach { track ->
+                val subtitleUrl = subtitleUrlOf(track.file) ?: return@forEach
+                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
+                subtitleCallback(newSubtitleFile(label, subtitleUrl))
             }
         } catch (e: Exception) {
             Log.e("HDCH", "extractMobiOrCloseLoad error: ${e.message}")
