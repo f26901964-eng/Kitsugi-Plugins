@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   targeted-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout patch carrier
@@ -36,7 +36,7 @@ jobs:
           java-version: '17'
 
       - name: Set up Android command-line tools
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

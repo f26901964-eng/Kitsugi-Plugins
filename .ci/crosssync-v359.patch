@@ -773,7 +773,7 @@ index 0000000..80eaeaa
 +    }
 +}
 diff --git a/app/src/main/java/com/kitsugi/animelist/ui/app/AuthViewModel.kt b/app/src/main/java/com/kitsugi/animelist/ui/app/AuthViewModel.kt
-index c437856..2c43a64 100644
+index c437856..fa3d5a9 100644
 --- a/app/src/main/java/com/kitsugi/animelist/ui/app/AuthViewModel.kt
 +++ b/app/src/main/java/com/kitsugi/animelist/ui/app/AuthViewModel.kt
 @@ -643,11 +643,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
@@ -919,22 +919,25 @@ index c437856..2c43a64 100644
                      if (identityVerdict is com.kitsugi.animelist.data.auth.CrossSyncIdentityGuard.Verdict.Rejected) {
                          logEvent(
                              context.getString(R.string.cross_sync_log_category_matching),
-@@ -1304,10 +1349,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1304,11 +1349,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                          com.kitsugi.animelist.data.auth.CrossSyncMergePolicy
                              .dirtyFieldsFor(current, merge, provider)
  
 -                    if (realMalId != null && item.bangumi != null) {
 -                        com.kitsugi.animelist.data.remote.BangumiIdNamespace.rawIdFromStable(item.bangumi?.malId)?.let { subjectId ->
 +                    val trustedBangumi = item.bangumi?.takeIf { !item.isIdentityReviewed(it) }
-+                    if (realMalId != null && trustedBangumi != null) {
++                    // Reddedilen MAL adayı kalıcı eşleme önbelleğine kanıt olarak yazılamaz.
++                    if (guardedMalId != null && trustedBangumi != null) {
 +                        com.kitsugi.animelist.data.remote.BangumiIdNamespace.rawIdFromStable(trustedBangumi.malId)?.let { subjectId ->
                              runCatching {
 -                                val bangumiSubjectType = com.kitsugi.animelist.data.remote.BangumiIdNamespace.subjectTypeFor(item.bangumi!!.type)
+-                                com.kitsugi.animelist.data.remote.BangumiLocalMappingCache.put(context, realMalId, bangumiSubjectType, subjectId)
 +                                val bangumiSubjectType = com.kitsugi.animelist.data.remote.BangumiIdNamespace.subjectTypeFor(trustedBangumi.type)
-                                 com.kitsugi.animelist.data.remote.BangumiLocalMappingCache.put(context, realMalId, bangumiSubjectType, subjectId)
++                                com.kitsugi.animelist.data.remote.BangumiLocalMappingCache.put(context, guardedMalId, bangumiSubjectType, subjectId)
                              }
                          }
-@@ -1341,12 +1387,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+                     }
+@@ -1341,12 +1388,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                      if (isAniList && isAnimeOrManga) {
                          kotlinx.coroutines.currentCoroutineContext().ensureActive()
                          val current = item.aniList
@@ -956,7 +959,7 @@ index c437856..2c43a64 100644
                              if (res.isSuccess && res.getOrNull() != null) {
                                  statsMap["AniList"] = statsMap["AniList"]!!.let { it.copy(addedCount = it.addedCount + 1) }
                                  logEvent("AniList", context.getString(R.string.cross_sync_log_added, "AniList", mergedEntry.title, bestStatus.plainLabel()), isAddition = true, details = mappingDetails)
-@@ -1372,13 +1425,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1372,13 +1426,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                              // `ToggleFavourite` mutasyonudur. Yalnız favori değiştiyse liste
                              // kaydına içi boş bir mutasyon göndermek anlamsızdır (E42/E48).
                              val listFields = dirty - com.kitsugi.animelist.data.auth.SyncField.FAVORITE
@@ -978,7 +981,7 @@ index c437856..2c43a64 100644
                                      )
                                  }
                                  writeOk = res.isSuccess && res.getOrNull() != null
-@@ -1393,20 +1452,35 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1393,20 +1453,35 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                                  // Toggle TERSİNE dönebilir bir işlemdir: yazmadan önce uzak
                                  // durum okunur, yalnız farklıysa çağrılır. Hiçbir kaynakta
                                  // favori alanı yoksa kaldırma yönünde yazım YAPILMAZ.
@@ -1020,7 +1023,7 @@ index c437856..2c43a64 100644
                              }
                              if (writeOk) {
                                  statsMap["AniList"] = statsMap["AniList"]!!.let { it.copy(updatedCount = it.updatedCount + 1) }
-@@ -1418,10 +1492,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1418,10 +1493,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                      // ── 2. MyAnimeList Eşitleme (Anime & Manga, MAL ID gerektirir) ──
                      if (isMal && isAnimeOrManga) {
                          kotlinx.coroutines.currentCoroutineContext().ensureActive()
@@ -1035,7 +1038,7 @@ index c437856..2c43a64 100644
                              if (current == null) {
                                  // MAL'da eksik -> EKLE! (kimlik güvencesinden geçti)
                                  com.kitsugi.animelist.data.auth.PlatformRateLimiter.acquire("mal")
-@@ -1472,7 +1548,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1472,7 +1549,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                      if (isSimkl && (mergedEntry.type == MediaType.Anime || mergedEntry.type == MediaType.TvShow || mergedEntry.type == MediaType.Movie)) {
                          kotlinx.coroutines.currentCoroutineContext().ensureActive()
                          val current = item.simkl
@@ -1046,7 +1049,7 @@ index c437856..2c43a64 100644
                              recordIdentitySkip("Simkl", mergedEntry.title)
                          } else if (current == null) {
                              simklEntriesToSync.add(mergedEntry)
-@@ -1490,7 +1568,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1490,7 +1569,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                          val current = item.kitsu
                          // Kitsu sentetik kimlik aralığı 300M–400M; 400M+ Shikimori'ye ait, yanlışlıkla Kitsu ID sanılmasın.
                          val knownKitsuId = current?.malId?.takeIf { it in 300_000_001..399_999_999 }?.let { it - 300_000_000 }
@@ -1057,7 +1060,7 @@ index c437856..2c43a64 100644
                              recordIdentitySkip("Kitsu", mergedEntry.title)
                          } else if (current == null) {
                              // Kitsu'da eksik -> EKLE! (hız sınırı artık KitsuApiClient içinde her istek için uygulanıyor)
-@@ -1552,10 +1632,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1552,10 +1633,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                      // ── 5. Shikimori Eşitleme (Anime & Manga, MAL ID gerektirir) ──
                      if (isShikimori && isAnimeOrManga) {
                          kotlinx.coroutines.currentCoroutineContext().ensureActive()
@@ -1072,7 +1075,7 @@ index c437856..2c43a64 100644
                              if (current == null) {
                                  // Shikimori'de eksik -> EKLE! (kimlik güvencesinden geçti)
                                  com.kitsugi.animelist.data.auth.PlatformRateLimiter.acquire("shikimori")
-@@ -1610,13 +1692,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1610,13 +1693,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                      if (isBangumi && BangumiSyncManager.supportsMediaType(mergedEntry.type)) {
                          kotlinx.coroutines.currentCoroutineContext().ensureActive()
                          val current = item.bangumi
@@ -1092,7 +1095,7 @@ index c437856..2c43a64 100644
                              val res = outcome.getOrNull()
                              if (res != null && res.errors.isEmpty()) {
                                  statsMap["Bangumi"] = statsMap["Bangumi"]!!.let { it.copy(addedCount = it.addedCount + 1) }
-@@ -1643,7 +1729,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
+@@ -1643,7 +1730,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                                  val target = mergedEntry.copy(malId = current.malId ?: (guardedMalId ?: realMalId))
                                  val outcome = runSyncCatching {
                                      BangumiSyncManager.syncEntryToBangumi(
