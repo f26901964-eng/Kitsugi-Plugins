@@ -2290,7 +2290,7 @@ index 6b250b4..49b70e4 100644
      <string name="cross_sync_log_local_update_failed">Yerel liste güncellenemedi: %1$s</string>
      <string name="cross_sync_log_match_summary">Toplam %1$d tekil içerik bulundu. Eşitleme başlatılıyor...</string>
 diff --git a/app/src/main/res/values-en/strings.xml b/app/src/main/res/values-en/strings.xml
-index b25e166..9464bc2 100644
+index b25e166..c6102c0 100644
 --- a/app/src/main/res/values-en/strings.xml
 +++ b/app/src/main/res/values-en/strings.xml
 @@ -7340,7 +7340,9 @@
@@ -2300,7 +2300,7 @@ index b25e166..9464bc2 100644
 -    <string name="cross_sync_log_identity_review">Not sent to external accounts because identity verification is required: %1$s</string>
 +    <string name="cross_sync_log_identity_review">Some source records require identity review; suspicious targets will not be written: %1$s</string>
 +    <string name="cross_sync_reason_identity_review_target">This target record requires identity review; other trusted sources can still sync</string>
-+    <string name="cross_sync_detail_identity_review_target">Writing only to this target was stopped because the row does not agree with the cluster's trusted identity core. The row was also excluded from the merged values used by other sources.</string>
++    <string name="cross_sync_detail_identity_review_target">Writing only to this target was stopped because the row does not agree with the cluster\'s trusted identity core. The row was also excluded from the merged values used by other sources.</string>
      <string name="cross_sync_log_imported_entries">%1$s library: %2$d entries received.</string>
      <string name="cross_sync_log_local_update_failed">Could not update the local list: %1$s</string>
      <string name="cross_sync_log_match_summary">Found %1$d unique entries. Starting sync...</string>
