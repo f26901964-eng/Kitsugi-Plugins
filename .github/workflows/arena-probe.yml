@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   probe:
@@ -26,10 +26,15 @@ jobs:
       - name: Kesif
         run: |
           python arena-probe/probe.py || true
-      - name: Yukle
+          du -sh arena-probe/out || true
+      - name: Sonuclari dala push et
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: probe-out
-          path: arena-probe/out
-          retention-days: 3
+        run: |
+          set -e
+          cd arena-probe/out
+          git init -q .
+          git config user.email "probe@arena.local"
+          git config user.name "Arena Probe"
+          git add -A
+          git commit -qm "probe cikti"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/arena/probe-out
