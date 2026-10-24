@@ -1,0 +1,1038 @@
+[
+ {
+  "label": "hd_0_0_0",
+  "url": "https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d",
+  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4139,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 1744,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 456,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"description\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-15T12:32:07+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H41M1S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg",
+     "tracks": [
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-en-sd-143775-36160-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles01.tur.vtt",
+       "kind": "captions",
+       "label": "Forced",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-fr-sd-143775-32384-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-pt-os12922139-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-es-sd-143775-16128-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles02.tur.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "a9a",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "nt5d",
+    "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "hd_0_0_1",
+  "url": "https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d",
+  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4147,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 1743,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 456,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"description\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-15T12:32:07+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H41M1S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg",
+     "tracks": [
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-en-sd-143775-36160-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles01.tur.vtt",
+       "kind": "captions",
+       "label": "Forced",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-fr-sd-143775-32384-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-pt-os12922139-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-es-sd-143775-16128-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles02.tur.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "n1220",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "sh2",
+    "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "hd_0_1_0",
+  "url": "https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/",
+  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 20467,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 150,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 101,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
+   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
+   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/bpe2vpobze9d_English.vtt",
+       "label": "İngilizce Altyazı",
+       "language": "en",
+       "kind": "captions",
+       "default": true
+      },
+      {
+       "file": "/srt/00037/bpe2vpobze9d_Turkish.vtt",
+       "label": "Forced",
+       "language": "forced",
+       "kind": "captions"
+      },
+      {
+       "file": "/srt/00037/bpe2vpobze9d_Turkish2.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      }
+     ],
+     "image": "https://s429.rapidrame.com/i/01/00037/bpe2vpobze9d.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": true,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": []
+ },
+ {
+  "label": "hd_0_1_1",
+  "url": "https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/",
+  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 20273,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 150,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 101,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
+   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
+   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=uG3ph3hIszbST3WlSBgydNDOazAv4liNF4166my2BfE&s=1792883211&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=c1yapynt3zem2cnw&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/bpe2vpobze9d_English.vtt",
+       "label": "İngilizce Altyazı",
+       "language": "en",
+       "kind": "captions",
+       "default": true
+      },
+      {
+       "file": "/srt/00037/bpe2vpobze9d_Turkish.vtt",
+       "label": "Forced",
+       "language": "forced",
+       "kind": "captions"
+      },
+      {
+       "file": "/srt/00037/bpe2vpobze9d_Turkish2.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      }
+     ],
+     "image": "https://s429.rapidrame.com/i/01/00037/bpe2vpobze9d.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": true,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": []
+ },
+ {
+  "label": "hd_2_0_0",
+  "url": "https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4",
+  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4173,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 1780,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 456,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"description\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-14T16:23:24+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H51M19S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg",
+     "tracks": [
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-en-os12920787-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles01.tur.vtt",
+       "kind": "captions",
+       "label": "Forced",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-fr-sd-143764-38592-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-pt-ss-143764-10269927-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-es-sd-143764-40000-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles02.tur.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "in9d",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "t86",
+    "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "hd_2_0_1",
+  "url": "https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4",
+  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4123,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 1780,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 11575,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 456,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "/Tema/v1/js/tasarim/devtools-console-detectv2.js?v=1.04b",
+   "/Tema/v1/js/jquery-2.1.1.min.js",
+   "/Tema/v1/js/jquery-migrate.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"description\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-14T16:23:24+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H51M19S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+  ],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+       "type": "hls"
+      }
+     ],
+     "image": "https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg",
+     "tracks": [
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-en-os12920787-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "English",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles01.tur.vtt",
+       "kind": "captions",
+       "label": "Forced",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-fr-sd-143764-38592-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "French",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-pt-ss-143764-10269927-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "Portuguese",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-es-sd-143764-40000-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "kind": "captions",
+       "label": "Spanish",
+       "default": false
+      },
+      {
+       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles02.tur.vtt",
+       "kind": "captions",
+       "label": "Turkish",
+       "default": true
+      }
+     ],
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 15,
+      "fontFamily": "sans-serif",
+      "backgroundOpacity": 0,
+      "edgeStyle": "none",
+      "fontOpacity": 100
+     },
+     "playbackRateControls": true,
+     "playbackRates": [
+      0.5,
+      0.75,
+      1,
+      1.15,
+      1.25,
+      1.5
+     ],
+     "preload": "metadata",
+     "horizontalVolumeSlider": true,
+     "autostart": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": [
+   [
+    "n6u",
+    "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
+   ],
+   [
+    "zg9",
+    "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt"
+   ]
+  ]
+ },
+ {
+  "label": "hd_2_1_0",
+  "url": "https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/",
+  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 20320,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 150,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 101,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
+   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
+   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/0sfc5ngm6ba4_English.vtt",
+       "label": "İngilizce Altyazı",
+       "language": "en",
+       "kind": "captions",
+       "default": true
+      },
+      {
+       "file": "/srt/00037/0sfc5ngm6ba4_Turkish.vtt",
+       "label": "Forced",
+       "language": "forced",
+       "kind": "captions"
+      },
+      {
+       "file": "/srt/00037/0sfc5ngm6ba4_Turkish2.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      }
+     ],
+     "image": "https://s429.rapidrame.com/i/01/00037/0sfc5ngm6ba4.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": true,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": []
+ },
+ {
+  "label": "hd_2_1_1",
+  "url": "https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/",
+  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "scripts": [
+   {
+    "len": 64,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 4117,
+    "ok": true,
+    "attempts": 2,
+    "error": null
+   },
+   {
+    "len": 20442,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 150,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 101,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
+   {
+    "len": 921,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   }
+  ],
+  "externalScripts": [
+   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
+   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
+   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
+   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+  ],
+  "ldjson": [],
+  "captured": {
+   "setups": [
+    {
+     "sources": [
+      {
+       "file": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=EULInmq1yLAdrd2NfGQRuezwNlE0x9AlB3rTCb7bJRY&s=1792883373&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=eo6ub0eucd0q93uy&p1=s231&p2=s231"
+      }
+     ],
+     "tracks": [
+      {
+       "file": "/srt/00037/0sfc5ngm6ba4_English.vtt",
+       "label": "İngilizce Altyazı",
+       "language": "en",
+       "kind": "captions",
+       "default": true
+      },
+      {
+       "file": "/srt/00037/0sfc5ngm6ba4_Turkish.vtt",
+       "label": "Forced",
+       "language": "forced",
+       "kind": "captions"
+      },
+      {
+       "file": "/srt/00037/0sfc5ngm6ba4_Turkish2.vtt",
+       "label": "Türkçe Altyazı",
+       "language": "tr",
+       "kind": "captions"
+      }
+     ],
+     "image": "https://s429.rapidrame.com/i/01/00037/0sfc5ngm6ba4.jpg",
+     "type": "hls",
+     "captions": {
+      "color": "#FFFFFF",
+      "fontSize": 16,
+      "fontFamily": "Arial",
+      "backgroundOpacity": 0,
+      "edgeStyle": "uniform",
+      "fontOpacity": 90
+     },
+     "qualityLabels": {
+      "570": "Normal Kalite",
+      "2282": "Yüksek Kalite"
+     },
+     "playbackRateControls": true,
+     "preload": "auto",
+     "autostart": true,
+     "stagevideo": false,
+     "rightclick": false,
+     "primary": "html5"
+    }
+   ],
+   "hls": [],
+   "playerjs": [],
+   "videojs": [],
+   "clappr": [],
+   "xhr": [],
+   "fetch": [],
+   "ajax": [],
+   "windowOpen": [],
+   "locationSets": [],
+   "logs": [],
+   "errors": [],
+   "sourcesCalls": []
+  },
+  "urlVars": []
+ }
+]

@@ -1,0 +1,42 @@
+[
+ {
+  "label": "hd_0_0_0",
+  "file": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+  "status": 200,
+  "m3u8": true,
+  "first_child": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/sublist_2.txt",
+  "child_status": 200,
+  "segment_status": 200,
+  "segment_magic": "47401110"
+ },
+ {
+  "label": "hd_0_1_0",
+  "file": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231",
+  "status": 200,
+  "m3u8": true,
+  "first_child": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/index-f1-v1-a1.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=1863",
+  "child_status": 200,
+  "segment_status": 200,
+  "segment_magic": "47400010"
+ },
+ {
+  "label": "hd_2_0_0",
+  "file": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+  "status": 200,
+  "m3u8": true,
+  "first_child": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/sublist_2.txt",
+  "child_status": 200,
+  "segment_status": 200,
+  "segment_magic": "47401110"
+ },
+ {
+  "label": "hd_2_1_0",
+  "file": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231",
+  "status": 200,
+  "m3u8": true,
+  "first_child": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/index-f1-v1-a1.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=1863",
+  "child_status": 200,
+  "segment_status": 200,
+  "segment_magic": "47400010"
+ }
+]

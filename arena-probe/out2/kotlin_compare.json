@@ -1,0 +1,71 @@
+{
+ "rows": [
+  {
+   "label": "hd_0_0_0",
+   "kotlin": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+   "node": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+   "same": true,
+   "fallback_same": true,
+   "ms": 125
+  },
+  {
+   "label": "hd_0_0_1",
+   "kotlin": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+   "node": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+   "same": true,
+   "fallback_same": true,
+   "ms": 21
+  },
+  {
+   "label": "hd_0_1_0",
+   "kotlin": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231",
+   "node": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231",
+   "same": true,
+   "fallback_same": true,
+   "ms": 16
+  },
+  {
+   "label": "hd_0_1_1",
+   "kotlin": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=uG3ph3hIszbST3WlSBgydNDOazAv4liNF4166my2BfE&s=1792883211&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=c1yapynt3zem2cnw&p1=s231&p2=s231",
+   "node": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=uG3ph3hIszbST3WlSBgydNDOazAv4liNF4166my2BfE&s=1792883211&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=c1yapynt3zem2cnw&p1=s231&p2=s231",
+   "same": true,
+   "fallback_same": true,
+   "ms": 13
+  },
+  {
+   "label": "hd_2_0_0",
+   "kotlin": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+   "node": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+   "same": true,
+   "fallback_same": true,
+   "ms": 10
+  },
+  {
+   "label": "hd_2_0_1",
+   "kotlin": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+   "node": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+   "same": true,
+   "fallback_same": true,
+   "ms": 9
+  },
+  {
+   "label": "hd_2_1_0",
+   "kotlin": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231",
+   "node": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231",
+   "same": true,
+   "fallback_same": true,
+   "ms": 11
+  },
+  {
+   "label": "hd_2_1_1",
+   "kotlin": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=EULInmq1yLAdrd2NfGQRuezwNlE0x9AlB3rTCb7bJRY&s=1792883373&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=eo6ub0eucd0q93uy&p1=s231&p2=s231",
+   "node": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=EULInmq1yLAdrd2NfGQRuezwNlE0x9AlB3rTCb7bJRY&s=1792883373&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=eo6ub0eucd0q93uy&p1=s231&p2=s231",
+   "same": true,
+   "fallback_same": true,
+   "ms": 14
+  }
+ ],
+ "kotlin_eq_node": 8,
+ "kotlin_ne_node": 0,
+ "kotlin_null": 0
+}
