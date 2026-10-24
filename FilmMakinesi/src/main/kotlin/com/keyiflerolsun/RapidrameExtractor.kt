@@ -50,7 +50,10 @@ class Rapidrame : ExtractorApi() {
                     .find(page)?.value
             Log.d("FLMM_TANI", "[rapidrame $url] cozulen adres: ${decoded ?: "<yok>"}")
 
-            RplayerDecoder.extractTracks(page).forEach { track ->
+            val tracks = (
+                RplayerDecoder.extractTracks(page) + RplayerDecoder.extractTrackTags(page, url)
+                ).distinctBy { it.file }
+            tracks.forEach { track ->
                 val subtitleUrl = runCatching { java.net.URI(url).resolve(track.file).toString() }.getOrNull()
                     ?: return@forEach
                 val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
