@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const OUT = path.join(__dirname, 'out');
+const OUT = process.env.PROBE_OUT ? path.resolve(process.env.PROBE_OUT) : path.join(__dirname, 'out');
 
 function extractScripts(html) {
   const out = [];

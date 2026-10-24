@@ -1,7 +1,10 @@
-# GECICI arastirma akisi — canli siteleri TR cikisli proxy ile inceler.
-# Sandbox artifact/log indiremedigi icin cikti AYNI dala (arena/af53f8ad-...)
-# arena-probe/out/ altina commit edilir. Is bitince bu dosya ve arena-probe/
-# klasoru silinecek.
+# GECICI dogrulama akisi — is bitince bu dosya ve arena-probe/ silinecek.
+#  live : TR cikisli proxy ile taze oynatici sayfalari toplar, eklentinin
+#         Kotlin cozucusunu (MiniJs/PlayerDecoder) bunlar uzerinde calistirir,
+#         gercek tarayici JS'i (Node) ile karsilastirir ve bulunan yayinlari
+#         eklentinin basliklariyla dogrular.
+#  build: iki eklentiyi Gradle ile derler ve birim testlerini kosar.
+# Sandbox artifact/log indiremedigi icin ciktilar AYNI dala commit edilir.
 name: Arena Probe (gecici)
 
 on:
@@ -11,7 +14,10 @@ on:
     paths:
       - "arena-probe/*.py"
       - "arena-probe/*.js"
+      - "arena-probe/kcheck/**"
       - "arena-probe/RUN"
+      - "FilmMakinesi/src/**"
+      - "HDFilmCehennemi/src/**"
       - ".github/workflows/arena-probe.yml"
 
 concurrency:
@@ -22,68 +28,106 @@ permissions:
   contents: write
 
 jobs:
-  probe:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Bagimliliklar
+        run: |
+          pip install -U "requests[socks]" pysocks
+          curl -sSL -o /tmp/kc.zip https://github.com/JetBrains/kotlin/releases/download/v2.1.0/kotlin-compiler-2.1.0.zip
+          unzip -q /tmp/kc.zip -d /tmp/kc
+
+      - name: TR proxy bul
+        run: python arena-probe/find_proxy.py
+
+      - name: Taze oynatici ornekleri
+        timeout-minutes: 20
+        continue-on-error: true
+        env:
+          SAMPLE_REPEAT: "3"
+        run: cd arena-probe && python sample.py
+
+      - name: Gercek tarayici JS'i (Node) ile cozum
+        env:
+          PROBE_OUT: arena-probe/out2
+        run: node arena-probe/eval_player.js || true
+
+      - name: Eklentinin Kotlin cozucusu ile cozum
+        run: |
+          S=FilmMakinesi/src/main/kotlin/com/keyiflerolsun
+          /tmp/kc/kotlinc/bin/kotlinc $S/MiniJs.kt $S/MiniJsBuiltins.kt $S/PlayerDecoder.kt arena-probe/kcheck/KotlinCheck.kt \
+            -include-runtime -d /tmp/kcheck.jar 2>&1 | grep -v "^warning" | head -40
+          java -jar /tmp/kcheck.jar arena-probe/out2 | tail -80 || true
+
+      - name: Karsilastir + yayinlari dogrula
+        timeout-minutes: 10
+        continue-on-error: true
+        run: cd arena-probe && python check_kotlin.py
+
+      - name: Ciktiyi dala yaz
+        if: always()
+        run: |
+          git config user.name "arena-probe"
+          git config user.email "arena-probe@users.noreply.github.com"
+          git add -f arena-probe/out2 || true
+          git commit -m "chore(probe): canli dogrulama ciktisi (run ${{ github.run_id }})" || exit 0
+          for i in 1 2 3 4 5; do
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" && break
+            sleep 7
+          done
+
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-java@v4.6.0
         with:
-          python-version: "3.11"
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Python bagimliliklari
-        run: pip install -U "requests[socks]" pysocks
-
-      - name: TR proxy bul
-        run: python arena-probe/find_proxy.py
-
-      - name: Proxy yoksa VPN Gate dene
+          distribution: temurin
+          java-version: 17
+      - name: Android SDK lisanslari
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null 2>&1 || true
+      - name: Derle + test
         run: |
-          N=$(python -c "import json;print(len(json.load(open('arena-probe/out/proxies.json'))))")
-          echo "calisan proxy: $N"
-          if [ "$N" = "0" ]; then
-            sudo apt-get install -y openvpn >/dev/null 2>&1 || true
-            python arena-probe/vpngate.py || true
-          fi
-
-      - name: Sayfalari tara
-        timeout-minutes: 18
-        continue-on-error: true
-        run: cd arena-probe && python crawl.py
-
-      - name: Oynatici JS'ini calistir
-        run: cd arena-probe && node eval_player.js || true
-
-      - name: Yayin adreslerini dogrula
-        timeout-minutes: 8
-        continue-on-error: true
-        run: cd arena-probe && python verify_streams.py || true
-
-      - name: Gercek tarayici (istege bagli)
-        if: ${{ hashFiles('arena-probe/BROWSER') != '' }}
-        continue-on-error: true
-        timeout-minutes: 15
-        run: |
-          cd arena-probe && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null
-          timeout 420 npx playwright install --with-deps chromium || true
-          timeout 600 node browser_probe.js || true
-
-      - name: Ciktiyi ayni dala yaz
+          chmod +x gradlew
+          mkdir -p arena-probe/ci
+          set +e
+          ./gradlew --no-daemon :FilmMakinesi:make :HDFilmCehennemi:make makePluginsJson > /tmp/build.log 2>&1
+          echo "BUILD_EXIT=$?" > arena-probe/ci/status.txt
+          ./gradlew --no-daemon :FilmMakinesi:test :HDFilmCehennemi:test > /tmp/test.log 2>&1
+          echo "TEST_EXIT=$?" >> arena-probe/ci/status.txt
+          set -e
+          grep -nE "^e: |error:|warning:.*(Unresolved|unused)|FAILED|FAILURE|What went wrong|BUILD " /tmp/build.log | head -150 > arena-probe/ci/build_errors.txt || true
+          tail -n 120 /tmp/build.log > arena-probe/ci/build_tail.txt
+          grep -nE "PASSED|FAILED|SKIPPED|expected|AssertionError|Exception|BUILD |tests completed" /tmp/test.log | head -250 > arena-probe/ci/test_summary.txt || true
+          tail -n 150 /tmp/test.log > arena-probe/ci/test_tail.txt
+          ls -la FilmMakinesi/build/*.cs3 HDFilmCehennemi/build/*.cs3 >> arena-probe/ci/status.txt 2>&1 || true
+          cat arena-probe/ci/status.txt
+      - name: Ciktiyi dala yaz
         if: always()
         run: |
           git config user.name "arena-probe"
           git config user.email "arena-probe@users.noreply.github.com"
-          rm -rf arena-probe/node_modules arena-probe/package*.json
-          git add -f arena-probe/out
-          git commit -m "chore(probe): canli tarama ciktisi (run ${{ github.run_id }})" || exit 0
-          for i in 1 2 3; do
+          git add -f arena-probe/ci || true
+          git commit -m "chore(probe): derleme/test ciktisi (run ${{ github.run_id }})" || exit 0
+          for i in 1 2 3 4 5; do
             git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" && break
-            sleep 5
+            sleep 11
           done

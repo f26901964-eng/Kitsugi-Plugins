@@ -2,7 +2,6 @@
 
 package com.keyiflerolsun
 
-import android.util.Base64
 import android.util.Log
 import com.fasterxml.jackson.annotation.JsonProperty
 import org.jsoup.nodes.Element
@@ -11,6 +10,10 @@ import com.lagradost.cloudstream3.syncproviders.SyncIdName
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 
 // TMDB genel (public) API anahtarı — IMDb ID → başlık çözümlemesi için.
 private const val TMDB_API_KEY = "c4ffcab48dfaa7b41625ac13d61aec31"
@@ -156,15 +159,6 @@ class FilmMakinesi : MainAPI() {
     private fun absoluteUrl(path: String): String {
         if (path.startsWith("http://") || path.startsWith("https://")) return path
         return mainUrl.trimEnd('/') + "/" + path.trimStart('/')
-    }
-
-    /**
-     * TANI (teşhis) logu — oynatıcıyla ilgili ham HTML dilimlerini logcat'e basar.
-     * ! Hedef: `adb logcat -s FLMM_TANI` ile sitenin o anki yapısını gözlemlemek.
-     */
-    private fun tani(label: String, text: String, limit: Int = 900) {
-        val clean = text.replace("\r", " ").replace("\n", " ").replace(Regex("\\s{2,}"), " ").trim()
-        Log.d("FLMM_TANI", "[$label] $clean".take(limit + label.length + 4))
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -397,11 +391,23 @@ private fun Element.toSearchResult(): SearchResponse? {
     }
 
 
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    /**
+     * Video kaynakları.
+     *
+     * Sayfadaki iki oynatıcı (Close = closeload, Rapid = rapidrame) aynı anda
+     * çözülür. Her oynatıcı sayfasında video adresi karartılmış JS ile
+     * üretilir; [PlayerResolver]/[PlayerDecoder] sitenin kendi çözücüsünü
+     * çalıştırıp jwplayer `sources` değerini alır (tuzak adres elenir).
+     */
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
         resolveDomain()
         val pageUrl = migrateUrl(data)
-        Log.d("FLMM", "data » $pageUrl")
-        val response = app.get(
+        val document = app.get(
             pageUrl,
             headers = mapOf(
                 "User-Agent" to USER_AGENT,
@@ -409,89 +415,42 @@ private fun Element.toSearchResult(): SearchResponse? {
                 "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8"
             ),
-            interceptor = FilmMakinesiHttp.interceptor
-        )
-        val pageText = response.text
-        val document = response.document
+            interceptor = FilmMakinesiHttp.interceptor,
+            timeout = 20L
+        ).document
 
-        // ── TANI: oynatıcıyla ilgili ham HTML dilimleri ──────────────────
-        // ! Amaç: tahmin etmek yerine sitenin O AN ne döndürdüğünü gözlemek.
-        // ! `adb logcat -s FLMM_TANI FLMM` ile okunur.
-        tani("film sayfasi $pageUrl (${pageText.length} bayt)", pageText, 400)
-        document.select("iframe, video, source").take(10).forEach { tani("player/media", it.outerHtml(), 400) }
-        document.select("[data-video_url], [data-video-url], [data-video], [data-video-id], [data-embed], [data-player], [data-server]")
-            .take(10)
-            .forEach { tani("data-video", it.outerHtml(), 400) }
-        document.select(".video-parts, .video-options").take(4).forEach { tani("video-parts", it.outerHtml(), 600) }
-        document.select("script").forEach { s ->
-            val code = s.data()
-            if (code.contains("m3u8") || code.contains("master.txt") || code.contains("closeload") ||
-                code.contains("rapidrame") || code.contains("rapidvid") || code.contains("jwplayer") ||
-                code.contains("sources:") || code.contains("av(")
-            ) {
-                tani("script", code, 1400)
-            }
-        }
+        val sources = SourceLinks.collect(document, pageUrl)
+        Log.d("FLMM", "kaynaklar (${sources.size}): " + sources.joinToString(" | ") { "${it.label} -> ${it.url}" })
+        if (sources.isEmpty()) return false
 
-        val allUrls = SourceLinks.pageCandidates(document, pageUrl)
-        tani("aday adresler (${allUrls.size})", allUrls.joinToString(" | "), 1200)
-
-        var produced = false
-        val wrapped: (ExtractorLink) -> Unit = { link ->
-            produced = true
-            Log.d("FLMM_TANI", "link » ${link.name} type=${link.type} url=${link.url}")
-            callback(link)
-        }
-        allUrls.forEach { url ->
-            Log.d("FLMM", "Processing URL: $url")
-
-            // ! Sayfada doğrudan HLS/MP4 varsa loadExtractor'a (HTML extractor'ı)
-            // ! gönderme; geçerli stream'i doğrudan kaynak olarak döndür.
-            if (SourceLinks.isDirectStreamUrl(url)) {
-                val path = url.substringBefore('?').substringBefore('#').lowercase()
-                val type = when {
-                    path.endsWith(".m3u8") || path.endsWith(".m3u") || path.endsWith("master.txt") -> ExtractorLinkType.M3U8
-                    path.endsWith(".mpd") -> ExtractorLinkType.DASH
-                    path.endsWith(".mp4") || path.endsWith(".m4v") || path.endsWith(".mkv") ||
-                        path.endsWith(".webm") || path.endsWith(".mov") || path.endsWith(".avi") -> ExtractorLinkType.VIDEO
-                    else -> null
-                }
-                val pageOrigin = originOf(pageUrl) ?: mainUrl
-                wrapped(
-                    newExtractorLink(source = name, name = name, url = url, type = type) {
-                        quality = Qualities.Unknown.value
-                        this.referer = pageUrl
-                        headers = mapOf(
-                            "User-Agent" to USER_AGENT,
-                            "Referer" to pageUrl,
-                            "Origin" to pageOrigin
-                        )
+        val players = sources.filter { it.kind != SourceLinks.Kind.OTHER }
+        val resolved = coroutineScope {
+            players.map { src ->
+                async {
+                    withTimeoutOrNull(35_000L) {
+                        PlayerResolver.resolve(src.url, pageUrl, src.label, FilmMakinesiHttp.interceptor)
                     }
-                )
-                return@forEach
-            }
+                }
+            }.awaitAll()
+        }
 
-            // ! CloseLoad referer'ı embed adresinin kendi host'undan alır.
-            val referer = (originOf(url) ?: mainUrl).trimEnd('/') + "/"
-            // ! Rota konak adından belirlenir: "rapid.filmmakinesi.to" gibi
-            // ! adresler eskiden hiçbir çözümleyiciye gitmiyordu ("DUAL Rapid"
-            // ! düğmesi sessizce kayboluyordu).
-            when (SourceLinks.routeFor(url)) {
-                SourceLinks.Route.CLOSELOAD -> {
-                    val hadLinkBefore = produced
-                    CloseLoad().getUrl(url, referer, subtitleCallback, wrapped)
-                    // ! Kendi çözücümüz kaynak veremezse CloudStream'in genel
-                    // ! extractor'ı son şans olarak denenir.
-                    if (produced == hadLinkBefore) loadExtractor(url, referer, subtitleCallback, wrapped)
-                }
-                SourceLinks.Route.RAPID -> {
-                    val hadLinkBefore = produced
-                    Rapidrame().getUrl(url, referer, subtitleCallback, wrapped)
-                    if (produced == hadLinkBefore) loadExtractor(url, referer, subtitleCallback, wrapped)
-                }
-                SourceLinks.Route.GENERIC -> loadExtractor(url, referer, subtitleCallback, wrapped)
+        var found = false
+        val seenSubtitles = HashSet<String>()
+        for (r in resolved) {
+            if (r == null) continue
+            r.subtitles.forEach { if (seenSubtitles.add(it.url)) subtitleCallback(it) }
+            callback(r.link)
+            found = true
+        }
+
+        // Tanınmayan barındırıcılar için CloudStream'in genel çözücüleri.
+        for (src in sources.filter { it.kind == SourceLinks.Kind.OTHER }) {
+            try {
+                if (loadExtractor(src.url, pageUrl, subtitleCallback) { link -> found = true; callback(link) }) found = true
+            } catch (e: Exception) {
+                Log.w("FLMM", "genel çözücü başarısız: ${src.url} (${e.message})")
             }
         }
-        return produced
+        return found
     }
 }
