@@ -1,0 +1,86 @@
+name: CrossSync v359 patch verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout patch carrier
+        uses: actions/checkout@v4
+        with:
+          path: patch-carrier
+
+      - name: Checkout pristine Kitsugi-Beta v359
+        uses: actions/checkout@v4
+        with:
+          repository: f26901964-eng/Kitsugi-Beta
+          ref: a8d7aaf6a7e450edc6095c5dcd5aaf913f7a4b03
+          path: app
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Verify and apply patch
+        working-directory: app
+        run: |
+          test "$(git rev-parse HEAD)" = "a8d7aaf6a7e450edc6095c5dcd5aaf913f7a4b03"
+          git apply --check ../patch-carrier/.ci/crosssync-v359.patch
+          git apply ../patch-carrier/.ci/crosssync-v359.patch
+          git diff --check
+          git status --short
+
+      - name: Run CrossSync regression tests
+        working-directory: app
+        env:
+          GRADLE_OPTS: -Dfile.encoding=UTF-8
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon :app:testFossDebugUnitTest \
+            --tests 'com.kitsugi.animelist.data.auth.*' \
+            --tests 'com.kitsugi.animelist.data.platform.*' \
+            --tests 'com.kitsugi.animelist.data.remote.BangumiIdNamespaceTest' \
+            --tests 'com.kitsugi.animelist.data.remote.BangumiMalCrosswalkTest' \
+            --tests 'com.kitsugi.animelist.data.remote.SimklSyncContractTest' \
+            --tests 'com.kitsugi.animelist.model.*' \
+            --stacktrace --console=plain 2>&1 | tee crosssync-tests.log
+
+      - name: Publish result summary
+        if: always()
+        working-directory: app
+        run: |
+          {
+            echo '# CrossSync v359 verification'
+            echo
+            echo "Baseline: $(git rev-parse HEAD)"
+            echo "Job status: ${{ job.status }}"
+            echo
+            echo 'Changed paths:'
+            echo '```'
+            git status --short
+            echo '```'
+            if [ -f crosssync-tests.log ]; then
+              echo
+              echo 'Final test log lines:'
+              echo '```text'
+              tail -n 60 crosssync-tests.log
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
