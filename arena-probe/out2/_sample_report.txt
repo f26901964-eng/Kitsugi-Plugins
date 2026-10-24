@@ -1,53 +1,25 @@
-[GET-FAIL] fm-home via=http://176.88.65.164:8080 https://filmmakinesi.to/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: / (Caused by P
-[GET-FAIL] fm-home via=http://212.252.73.13:8080 https://filmmakinesi.to/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: / (Caused by P
-[GET-FAIL] fm-home via=http://188.132.222.134:8080 https://filmmakinesi.to/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: / (Caused by P
-[GET-FAIL] fm-home via=http://212.175.50.85:8085 https://filmmakinesi.to/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: / (Caused by P
-[GET-FAIL] fm-home via=http://195.142.250.46:8080 https://filmmakinesi.to/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: / (Caused by P
-[GET-GIVEUP] fm-home https://filmmakinesi.to/
-[S-FM] ana sayfa yok
-[GET] hd-load-film 200 101766b 11.7s via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/load/page/2/home/ -> https://www.hdfilmcehennemi.nl/load/page/2/home/
-[GET-FAIL] hd-load-series via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/load/page/1/home-series/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /load/p
-[GET-FAIL] hd-load-series via=http://212.252.73.13:8080 https://www.hdfilmcehennemi.nl/load/page/1/home-series/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /load/p
-[GET-FAIL] hd-load-series via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/load/page/1/home-series/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /load/p
-[GET-FAIL] hd-load-series via=http://212.175.50.85:8085 https://www.hdfilmcehennemi.nl/load/page/1/home-series/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /load/p
-[GET-FAIL] hd-load-series via=http://195.142.250.46:8080 https://www.hdfilmcehennemi.nl/load/page/1/home-series/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /load/p
-[GET-GIVEUP] hd-load-series https://www.hdfilmcehennemi.nl/load/page/1/home-series/
-[S-HD] sayfalar: ['https://www.hdfilmcehennemi.nl/the-storm-2026/', 'https://www.hdfilmcehennemi.nl/gajab-raat-2026/', 'https://www.hdfilmcehennemi.nl/love-of-your-life-2/']
-[GET-FAIL] hd-page0 via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/the-storm-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /the-st
-[GET-FAIL] hd-page0 via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/the-storm-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /the-st
-[GET-FAIL] hd-page0 via=http://212.252.73.13:8080 https://www.hdfilmcehennemi.nl/the-storm-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /the-st
-[GET-FAIL] hd-page0 via=http://212.175.50.85:8085 https://www.hdfilmcehennemi.nl/the-storm-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /the-st
-[GET] hd-page0 200 88045b 5.5s via=http://195.142.250.46:8080 https://www.hdfilmcehennemi.nl/the-storm-2026/ -> https://www.hdfilmcehennemi.nl/the-storm-2026/
-[GET] hd-api0.0 200 210b 6.5s via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/video/326290/ -> https://www.hdfilmcehennemi.nl/video/326290/
-[GET] hd-api0.1 200 186b 4.1s via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/video/326214/ -> https://www.hdfilmcehennemi.nl/video/326214/
-[S-HD] page0 https://www.hdfilmcehennemi.nl/the-storm-2026/ vids=['326290', '326214'] -> ['https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d', 'https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/']
-[GET] hd-embed0.0.0 200 31298b 2.3s via=http://176.88.65.164:8080 https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d -> https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d
-[GET-FAIL] hd-embed0.0.1 via=http://188.132.222.134:8080 https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d :: ProxyError: HTTPSConnectionPool(host='hdfilmcehennemi.mobi', port=443): Max retries exceeded with url: /video/em
-[GET-FAIL] hd-embed0.0.1 via=http://195.142.250.46:8080 https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d :: ProxyError: HTTPSConnectionPool(host='hdfilmcehennemi.mobi', port=443): Max retries exceeded with url: /video/em
-[GET-FAIL] hd-embed0.0.1 via=http://176.88.65.164:8080 https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d :: ProxyError: HTTPSConnectionPool(host='hdfilmcehennemi.mobi', port=443): Max retries exceeded with url: /video/em
-[GET-FAIL] hd-embed0.0.1 via=http://212.252.73.13:8080 https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d :: ProxyError: HTTPSConnectionPool(host='hdfilmcehennemi.mobi', port=443): Max retries exceeded with url: /video/em
-[GET] hd-embed0.0.1 200 31305b 2.9s via=http://212.175.50.85:8085 https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d -> https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d
-[GET] hd-embed0.1.0 200 37507b 9.0s via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/ -> https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/
-[GET] hd-embed0.1.1 200 37313b 8.5s via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/ -> https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/
-[GET-FAIL] hd-page1 via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/gajab-raat-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /gajab-
-[GET-FAIL] hd-page1 via=http://212.175.50.85:8085 https://www.hdfilmcehennemi.nl/gajab-raat-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /gajab-
-[GET-FAIL] hd-page1 via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/gajab-raat-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /gajab-
-[GET-FAIL] hd-page1 via=http://195.142.250.46:8080 https://www.hdfilmcehennemi.nl/gajab-raat-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /gajab-
-[GET-FAIL] hd-page1 via=http://212.252.73.13:8080 https://www.hdfilmcehennemi.nl/gajab-raat-2026/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /gajab-
-[GET-GIVEUP] hd-page1 https://www.hdfilmcehennemi.nl/gajab-raat-2026/
-[GET-FAIL] hd-page2 via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/love-of-your-life-2/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /love-o
-[GET-FAIL] hd-page2 via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/love-of-your-life-2/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /love-o
-[GET-FAIL] hd-page2 via=http://212.175.50.85:8085 https://www.hdfilmcehennemi.nl/love-of-your-life-2/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /love-o
-[GET-FAIL] hd-page2 via=http://195.142.250.46:8080 https://www.hdfilmcehennemi.nl/love-of-your-life-2/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /love-o
-[GET] hd-page2 200 128912b 9.1s via=http://212.252.73.13:8080 https://www.hdfilmcehennemi.nl/love-of-your-life-2/ -> https://www.hdfilmcehennemi.nl/love-of-your-life-2/
-[GET] hd-api2.0 200 210b 22.8s via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/video/326042/ -> https://www.hdfilmcehennemi.nl/video/326042/
-[GET-FAIL] hd-api2.1 via=http://176.88.65.164:8080 https://www.hdfilmcehennemi.nl/video/326045/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /video/
-[GET-FAIL] hd-api2.1 via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/video/326045/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /video/
-[GET-FAIL] hd-api2.1 via=http://212.175.50.85:8085 https://www.hdfilmcehennemi.nl/video/326045/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /video/
-[GET-FAIL] hd-api2.1 via=http://212.252.73.13:8080 https://www.hdfilmcehennemi.nl/video/326045/ :: ProxyError: HTTPSConnectionPool(host='www.hdfilmcehennemi.nl', port=443): Max retries exceeded with url: /video/
-[GET] hd-api2.1 200 186b 6.4s via=http://195.142.250.46:8080 https://www.hdfilmcehennemi.nl/video/326045/ -> https://www.hdfilmcehennemi.nl/video/326045/
-[S-HD] page2 https://www.hdfilmcehennemi.nl/love-of-your-life-2/ vids=['326042', '326045'] -> ['https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4', 'https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/']
-[GET] hd-embed2.0.0 200 31405b 6.3s via=http://188.132.222.134:8080 https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4 -> https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4
-[GET] hd-embed2.0.1 200 31355b 6.7s via=http://195.142.250.46:8080 https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4 -> https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4
-[GET] hd-embed2.1.0 200 37360b 2.3s via=http://188.132.222.134:8080 https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/ -> https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/
-[GET] hd-embed2.1.1 200 37482b 8.0s via=http://195.142.250.46:8080 https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/ -> https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/
+[GET] fm-home 200 75479b 13.5s via=socks5://95.3.92.2:1080 https://filmmakinesi.to/ -> https://filmmakinesi.to/
+[GET-FAIL] fm-series via=http://212.115.17.196:9090 https://filmmakinesi.to/dizi/happys-place-izle-2024/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: /dizi/happys-p
+[GET-FAIL] fm-series via=socks5://95.3.92.2:1080 https://filmmakinesi.to/dizi/happys-place-izle-2024/ :: ConnectTimeout: SOCKSHTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: /dizi/hap
+[GET-GIVEUP] fm-series https://filmmakinesi.to/dizi/happys-place-izle-2024/
+[S-FM] sayfalar: ['https://filmmakinesi.to/film/sinirsiz-2026/', 'https://filmmakinesi.to/film/ask-hipotezi-2026/', 'https://filmmakinesi.to/film/mayday-2026/', 'https://filmmakinesi.to/film/ifsa-gunu-2026/']
+[GET] fm-page0 200 59495b 3.8s via=socks5://95.3.92.2:1080 https://filmmakinesi.to/film/sinirsiz-2026/ -> https://filmmakinesi.to/film/sinirsiz-2026/
+[S-FM] page0 https://filmmakinesi.to/film/sinirsiz-2026/ -> ['https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844', 'https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/']
+[GET] fm-embed0.0.0 200 31311b 6.7s via=socks5://95.3.92.2:1080 https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844 -> https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844
+[GET] fm-embed0.0.1 200 30958b 1.7s via=socks5://95.3.92.2:1080 https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844 -> https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844
+[GET-FAIL] fm-embed0.1.0 via=socks5://95.3.92.2:1080 https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/ :: ConnectTimeout: SOCKSHTTPSConnectionPool(host='rapid.filmmakinesi.to', port=443): Max retries exceeded with url: /em
+[GET-FAIL] fm-embed0.1.0 via=http://212.115.17.196:9090 https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/ :: ProxyError: HTTPSConnectionPool(host='rapid.filmmakinesi.to', port=443): Max retries exceeded with url: /embed-h
+[GET-GIVEUP] fm-embed0.1.0 https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/
+[GET] fm-embed0.1.1 200 40893b 12.9s via=socks5://95.3.92.2:1080 https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/ -> https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/
+[GET-FAIL] fm-page1 via=http://212.115.17.196:9090 https://filmmakinesi.to/film/ask-hipotezi-2026/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: /film/ask-hipo
+[GET-FAIL] fm-page1 via=socks5://95.3.92.2:1080 https://filmmakinesi.to/film/ask-hipotezi-2026/ :: ConnectTimeout: SOCKSHTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: /film/ask
+[GET-GIVEUP] fm-page1 https://filmmakinesi.to/film/ask-hipotezi-2026/
+[GET-FAIL] fm-page2 via=socks5://95.3.92.2:1080 https://filmmakinesi.to/film/mayday-2026/ :: ConnectTimeout: SOCKSHTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: /film/may
+[GET-FAIL] fm-page2 via=http://212.115.17.196:9090 https://filmmakinesi.to/film/mayday-2026/ :: ProxyError: HTTPSConnectionPool(host='filmmakinesi.to', port=443): Max retries exceeded with url: /film/mayday-2
+[GET-GIVEUP] fm-page2 https://filmmakinesi.to/film/mayday-2026/
+[GET] fm-page3 200 59659b 12.7s via=socks5://95.3.92.2:1080 https://filmmakinesi.to/film/ifsa-gunu-2026/ -> https://filmmakinesi.to/film/ifsa-gunu-2026/
+[S-FM] page3 https://filmmakinesi.to/film/ifsa-gunu-2026/ -> ['https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880', 'https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/']
+[GET] fm-embed3.0.0 200 31512b 1.6s via=socks5://95.3.92.2:1080 https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880 -> https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880
+[GET] fm-embed3.0.1 200 31771b 7.4s via=socks5://95.3.92.2:1080 https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880 -> https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880
+[GET] fm-embed3.1.0 200 41115b 13.0s via=socks5://95.3.92.2:1080 https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/ -> https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/
+[GET] fm-embed3.1.1 200 41251b 2.7s via=socks5://95.3.92.2:1080 https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/ -> https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/

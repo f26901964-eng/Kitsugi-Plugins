@@ -1,30 +1,28 @@
 {
- "samples": 8,
- "kotlin_eq_node": 8,
+ "samples": 7,
+ "kotlin_eq_node": 7,
  "kotlin_ne_node": 0,
  "kotlin_null": 0,
- "fallback_eq_targeted": 8,
+ "fallback_eq_targeted": 7,
  "streams_tested": 4,
  "streams_ok": 4,
- "max_ms": 125
+ "max_ms": 192
 }
-OK  hd_0_0_0  kotlin=https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt
-                node=https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt
-OK  hd_0_0_1  kotlin=https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt
-                node=https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt
-OK  hd_0_1_0  kotlin=https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231
-                node=https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231
-OK  hd_0_1_1  kotlin=https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=uG3ph3hIszbST3WlSBgydNDOazAv4liNF4166my2BfE&s=1792883211&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=c1yapynt3zem2cnw&p1=s231&p2=s231
-                node=https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=uG3ph3hIszbST3WlSBgydNDOazAv4liNF4166my2BfE&s=1792883211&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=c1yapynt3zem2cnw&p1=s231&p2=s231
-OK  hd_2_0_0  kotlin=https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt
-                node=https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt
-OK  hd_2_0_1  kotlin=https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt
-                node=https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt
-OK  hd_2_1_0  kotlin=https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231
-                node=https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231
-OK  hd_2_1_1  kotlin=https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=EULInmq1yLAdrd2NfGQRuezwNlE0x9AlB3rTCb7bJRY&s=1792883373&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=eo6ub0eucd0q93uy&p1=s231&p2=s231
-                node=https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=EULInmq1yLAdrd2NfGQRuezwNlE0x9AlB3rTCb7bJRY&s=1792883373&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=eo6ub0eucd0q93uy&p1=s231&p2=s231
-STREAM 200 m3u8=True child=200 seg=200 magic=47401110 https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt
-STREAM 200 m3u8=True child=200 seg=200 magic=47400010 https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8z
-STREAM 200 m3u8=True child=200 seg=200 magic=47401110 https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt
-STREAM 200 m3u8=True child=200 seg=200 magic=47400010 https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR
+OK  fm_0_0_0  kotlin=https://srv9.cdnimages1667.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt
+                node=https://srv9.cdnimages1667.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt
+OK  fm_0_0_1  kotlin=https://srv9.cdnimages1480.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt
+                node=https://srv9.cdnimages1480.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt
+OK  fm_0_1_1  kotlin=https://s231.rapidrame.com/hls2/01/00037/hqu0z7s9qwsk_,l,n,.urlset/master.m3u8?t=3e8pXa6B_A-6VUvwe4wWBUxv8fS-hDS65x9le3wOQY8&s=1792883833&e=14400&f=185585&srv=s429&i=0.0&sp=0&n=kyau8myqv4d3l03e&p1=s231&p2=s231
+                node=https://s231.rapidrame.com/hls2/01/00037/hqu0z7s9qwsk_,l,n,.urlset/master.m3u8?t=3e8pXa6B_A-6VUvwe4wWBUxv8fS-hDS65x9le3wOQY8&s=1792883833&e=14400&f=185585&srv=s429&i=0.0&sp=0&n=kyau8myqv4d3l03e&p1=s231&p2=s231
+OK  fm_3_0_0  kotlin=https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt
+                node=https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt
+OK  fm_3_0_1  kotlin=https://srv10.cdnimages2328.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt
+                node=https://srv10.cdnimages2328.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt
+OK  fm_3_1_0  kotlin=https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=namWpSHnizoBFRHEkWDUKuAGdsP5WOETfe7tk-K3-9s&s=1792883918&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=99zq1h806ehbc835&p1=s231&p2=s231
+                node=https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=namWpSHnizoBFRHEkWDUKuAGdsP5WOETfe7tk-K3-9s&s=1792883918&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=99zq1h806ehbc835&p1=s231&p2=s231
+OK  fm_3_1_1  kotlin=https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=jc8LmVU4nuXhZwmq0vP_z2Q65KzgFXxspf-HIF3L6vE&s=1792883921&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=c13213z2b56xhui8&p1=s231&p2=s231
+                node=https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=jc8LmVU4nuXhZwmq0vP_z2Q65KzgFXxspf-HIF3L6vE&s=1792883921&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=c13213z2b56xhui8&p1=s231&p2=s231
+STREAM 200 m3u8=True child=200 seg=None magic=47401110 https://srv9.cdnimages1667.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt
+STREAM 200 m3u8=True child=None seg=None magic=None https://s231.rapidrame.com/hls2/01/00037/hqu0z7s9qwsk_,l,n,.urlset/master.m3u8?t=3e8pXa6B_A-6VUvwe4wWBUxv8fS-hDS65x9le3w
+STREAM 200 m3u8=True child=None seg=None magic=None https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt
+STREAM 200 m3u8=True child=None seg=None magic=None https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=namWpSHnizoBFRHEkWDUKuAGdsP5WOETfe7tk-K

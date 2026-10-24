@@ -1,8 +1,8 @@
 [
  {
-  "label": "hd_0_0_0",
-  "url": "https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d",
-  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "label": "fm_0_0_0",
+  "url": "https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844",
+  "referer": "https://filmmakinesi.to/film/sinirsiz-2026/",
   "scripts": [
    {
     "len": 64,
@@ -11,25 +11,25 @@
     "error": null
    },
    {
-    "len": 4139,
+    "len": 4459,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 1744,
+    "len": 1544,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 11575,
+    "len": 11576,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 456,
+    "len": 921,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -41,55 +41,48 @@
    "/Tema/v1/js/jquery-migrate.js",
    "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
    "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
-   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03"
   ],
   "ldjson": [
-   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"description\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-15T12:32:07+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H41M1S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"Runner-2026-WEBDL-tt31349844.mp4\",\r\n\t\t\t\t\"description\": \"Runner-2026-WEBDL-tt31349844.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://closeload.filmmakinesi.to/img/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-09-28T01:52:09+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H38M46S\",\r\n\t\t\t\t\"embedUrl\": \"https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
   ],
   "captured": {
    "setups": [
     {
      "sources": [
       {
-       "file": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+       "file": "https://srv9.cdnimages1667.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt",
        "type": "hls"
       }
      ],
-     "image": "https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg",
+     "image": "https://closeload.filmmakinesi.to/img/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.jpg",
      "tracks": [
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-en-sd-143775-36160-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-en-os12840428-runner2026webdltt31349844mp4.vtt",
        "kind": "captions",
        "label": "English",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles01.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-ita-runner-2026-webdl-tt31349844_subtitles01.ita.vtt",
        "kind": "captions",
-       "label": "Forced",
+       "label": "Italian",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-fr-sd-143775-32384-thestorm2026webdltrdualtt37070354mp4.vtt",
-       "kind": "captions",
-       "label": "French",
-       "default": false
-      },
-      {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-pt-os12922139-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/0DCWIdeeLp08-pt-os12838264-runner2026webdltt31349844mp4.vtt",
        "kind": "captions",
        "label": "Portuguese",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-es-sd-143775-16128-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-es-os12861479-runner2026webdltt31349844mp4.vtt",
        "kind": "captions",
        "label": "Spanish",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles02.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-tr-9648626-r20261080pamznweb-dlddp51h264-kyogo-engtr.vtt",
        "kind": "captions",
        "label": "Turkish",
        "default": true
@@ -134,19 +127,19 @@
   },
   "urlVars": [
    [
-    "a9a",
+    "t2h5",
     "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
    ],
    [
-    "nt5d",
-    "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt"
+    "glt3e",
+    "https://srv9.cdnimages1667.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt"
    ]
   ]
  },
  {
-  "label": "hd_0_0_1",
-  "url": "https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/?rapidrame_id=bpe2vpobze9d",
-  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "label": "fm_0_0_1",
+  "url": "https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/?imdb_id=tt31349844",
+  "referer": "https://filmmakinesi.to/film/sinirsiz-2026/",
   "scripts": [
    {
     "len": 64,
@@ -155,25 +148,25 @@
     "error": null
    },
    {
-    "len": 4147,
+    "len": 4108,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 1743,
+    "len": 1542,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 11575,
+    "len": 11576,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 456,
+    "len": 921,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -185,55 +178,48 @@
    "/Tema/v1/js/jquery-migrate.js",
    "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
    "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
-   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03"
   ],
   "ldjson": [
-   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"description\": \"TheStorm-2026-WEBDL-TRDUAL-tt37070354.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-15T12:32:07+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H41M1S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/fajbPUMwjk8/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"Runner-2026-WEBDL-tt31349844.mp4\",\r\n\t\t\t\t\"description\": \"Runner-2026-WEBDL-tt31349844.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://closeload.filmmakinesi.to/img/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-09-28T01:52:09+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H38M46S\",\r\n\t\t\t\t\"embedUrl\": \"https://closeload.filmmakinesi.to/video/embed/0DCWIdeeLp08/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
   ],
   "captured": {
    "setups": [
     {
      "sources": [
       {
-       "file": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+       "file": "https://srv9.cdnimages1480.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt",
        "type": "hls"
       }
      ],
-     "image": "https://hdfilmcehennemi.mobi/img/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.jpg",
+     "image": "https://closeload.filmmakinesi.to/img/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.jpg",
      "tracks": [
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-en-sd-143775-36160-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-en-os12840428-runner2026webdltt31349844mp4.vtt",
        "kind": "captions",
        "label": "English",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles01.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-ita-runner-2026-webdl-tt31349844_subtitles01.ita.vtt",
        "kind": "captions",
-       "label": "Forced",
+       "label": "Italian",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-fr-sd-143775-32384-thestorm2026webdltrdualtt37070354mp4.vtt",
-       "kind": "captions",
-       "label": "French",
-       "default": false
-      },
-      {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-pt-os12922139-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/0DCWIdeeLp08-pt-os12838264-runner2026webdltt31349844mp4.vtt",
        "kind": "captions",
        "label": "Portuguese",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-es-sd-143775-16128-thestorm2026webdltrdualtt37070354mp4.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-es-os12861479-runner2026webdltt31349844mp4.vtt",
        "kind": "captions",
        "label": "Spanish",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/fajbPUMwjk8-tur-thestorm-2026-webdl-trdual-tt37070354_subtitles02.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/09/0DCWIdeeLp08-tr-9648626-r20261080pamznweb-dlddp51h264-kyogo-engtr.vtt",
        "kind": "captions",
        "label": "Turkish",
        "default": true
@@ -278,20 +264,26 @@
   },
   "urlVars": [
    [
-    "n1220",
+    "z7w",
     "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
    ],
    [
-    "sh2",
-    "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt"
+    "wl2",
+    "https://srv9.cdnimages1480.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt"
    ]
   ]
  },
  {
-  "label": "hd_0_1_0",
-  "url": "https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/",
-  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "label": "fm_0_1_1",
+  "url": "https://rapid.filmmakinesi.to/embed-hqu0z7s9qwsk/",
+  "referer": "https://filmmakinesi.to/film/sinirsiz-2026/",
   "scripts": [
+   {
+    "len": 49,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
    {
     "len": 64,
     "ok": true,
@@ -305,19 +297,7 @@
     "error": null
    },
    {
-    "len": 20467,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 150,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 101,
+    "len": 24742,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -330,10 +310,11 @@
    }
   ],
   "externalScripts": [
-   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
-   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
-   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/lib/devtools-console-detectv2.js?v=1.00e",
+   "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.36.2/jwplayer.js",
+   "/jwplayer-cast-sender.js?v=1.04"
   ],
   "ldjson": [],
   "captured": {
@@ -341,31 +322,22 @@
     {
      "sources": [
       {
-       "file": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231"
+       "file": "https://s231.rapidrame.com/hls2/01/00037/hqu0z7s9qwsk_,l,n,.urlset/master.m3u8?t=3e8pXa6B_A-6VUvwe4wWBUxv8fS-hDS65x9le3wOQY8&s=1792883833&e=14400&f=185585&srv=s429&i=0.0&sp=0&n=kyau8myqv4d3l03e&p1=s231&p2=s231"
       }
      ],
      "tracks": [
       {
-       "file": "/srt/00037/bpe2vpobze9d_English.vtt",
-       "label": "İngilizce Altyazı",
-       "language": "en",
-       "kind": "captions",
-       "default": true
-      },
-      {
-       "file": "/srt/00037/bpe2vpobze9d_Turkish.vtt",
-       "label": "Forced",
-       "language": "forced",
-       "kind": "captions"
-      },
-      {
-       "file": "/srt/00037/bpe2vpobze9d_Turkish2.vtt",
+       "file": "/srt/00037/hqu0z7s9qwsk_Turkish.vtt",
        "label": "Türkçe Altyazı",
        "language": "tr",
        "kind": "captions"
+      },
+      {
+       "file": "/dl?op=get_slides&length=5926.01&url=https://s429.rapidrame.com/i/01/00037/hqu0z7s9qwsk0000.jpg",
+       "kind": "thumbnails"
       }
      ],
-     "image": "https://s429.rapidrame.com/i/01/00037/bpe2vpobze9d.jpg",
+     "image": "https://s429.rapidrame.com/i/01/00037/hqu0z7s9qwsk.jpg",
      "type": "hls",
      "captions": {
       "color": "#FFFFFF",
@@ -381,7 +353,7 @@
      },
      "playbackRateControls": true,
      "preload": "auto",
-     "autostart": true,
+     "autostart": false,
      "stagevideo": false,
      "rightclick": false,
      "primary": "html5"
@@ -400,12 +372,17 @@
    "errors": [],
    "sourcesCalls": []
   },
-  "urlVars": []
+  "urlVars": [
+   [
+    "_jwCastRedirect",
+    "https://filmmakinesi.to"
+   ]
+  ]
  },
  {
-  "label": "hd_0_1_1",
-  "url": "https://www.hdfilmcehennemi.nl/rplayer/bpe2vpobze9d/",
-  "referer": "https://www.hdfilmcehennemi.nl/the-storm-2026/",
+  "label": "fm_3_0_0",
+  "url": "https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880",
+  "referer": "https://filmmakinesi.to/film/ifsa-gunu-2026/",
   "scripts": [
    {
     "len": 64,
@@ -414,128 +391,13 @@
     "error": null
    },
    {
-    "len": 4117,
-    "ok": true,
-    "attempts": 2,
-    "error": null
-   },
-   {
-    "len": 20273,
+    "len": 4125,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 150,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 101,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 921,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   }
-  ],
-  "externalScripts": [
-   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
-   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
-   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
-  ],
-  "ldjson": [],
-  "captured": {
-   "setups": [
-    {
-     "sources": [
-      {
-       "file": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=uG3ph3hIszbST3WlSBgydNDOazAv4liNF4166my2BfE&s=1792883211&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=c1yapynt3zem2cnw&p1=s231&p2=s231"
-      }
-     ],
-     "tracks": [
-      {
-       "file": "/srt/00037/bpe2vpobze9d_English.vtt",
-       "label": "İngilizce Altyazı",
-       "language": "en",
-       "kind": "captions",
-       "default": true
-      },
-      {
-       "file": "/srt/00037/bpe2vpobze9d_Turkish.vtt",
-       "label": "Forced",
-       "language": "forced",
-       "kind": "captions"
-      },
-      {
-       "file": "/srt/00037/bpe2vpobze9d_Turkish2.vtt",
-       "label": "Türkçe Altyazı",
-       "language": "tr",
-       "kind": "captions"
-      }
-     ],
-     "image": "https://s429.rapidrame.com/i/01/00037/bpe2vpobze9d.jpg",
-     "type": "hls",
-     "captions": {
-      "color": "#FFFFFF",
-      "fontSize": 16,
-      "fontFamily": "Arial",
-      "backgroundOpacity": 0,
-      "edgeStyle": "uniform",
-      "fontOpacity": 90
-     },
-     "qualityLabels": {
-      "570": "Normal Kalite",
-      "2282": "Yüksek Kalite"
-     },
-     "playbackRateControls": true,
-     "preload": "auto",
-     "autostart": true,
-     "stagevideo": false,
-     "rightclick": false,
-     "primary": "html5"
-    }
-   ],
-   "hls": [],
-   "playerjs": [],
-   "videojs": [],
-   "clappr": [],
-   "xhr": [],
-   "fetch": [],
-   "ajax": [],
-   "windowOpen": [],
-   "locationSets": [],
-   "logs": [],
-   "errors": [],
-   "sourcesCalls": []
-  },
-  "urlVars": []
- },
- {
-  "label": "hd_2_0_0",
-  "url": "https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4",
-  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
-  "scripts": [
-   {
-    "len": 64,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 4173,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 1780,
+    "len": 1992,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -547,7 +409,7 @@
     "error": null
    },
    {
-    "len": 456,
+    "len": 921,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -559,55 +421,60 @@
    "/Tema/v1/js/jquery-migrate.js",
    "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
    "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
-   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03"
   ],
   "ldjson": [
-   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"description\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-14T16:23:24+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H51M19S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"DisclosureDay-2026-BLURAY-TRDUAL-tt15047880.mp4\",\r\n\t\t\t\t\"description\": \"DisclosureDay-2026-BLURAY-TRDUAL-tt15047880.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://closeload.filmmakinesi.to/img/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-08-15T22:30:32+03:00\",\r\n\t\t\t\t\"duration\": \"PT2H25M34S\",\r\n\t\t\t\t\"embedUrl\": \"https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
   ],
   "captured": {
    "setups": [
     {
      "sources": [
       {
-       "file": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+       "file": "https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt",
        "type": "hls"
       }
      ],
-     "image": "https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg",
+     "image": "https://closeload.filmmakinesi.to/img/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.jpg",
      "tracks": [
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-en-os12920787-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-en-os12656569-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "English",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles01.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-tur-disclosureday-2026-bluray-trdual-tt15047880_subtitles01.tur.vtt",
        "kind": "captions",
        "label": "Forced",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-fr-sd-143764-38592-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-fr-os12676164-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "French",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-pt-ss-143764-10269927-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/MoDEXaHfsVY-ger-disclosureday-2026-webdl-tt15047880_subtitles02.ger-k133876.vtt",
+       "kind": "captions",
+       "label": "German",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-pt-os12676717-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "Portuguese",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-es-sd-143764-40000-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-es-os12675899-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "Spanish",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles02.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-tur-disclosureday-2026-bluray-trdual-tt15047880_subtitles02.tur.vtt",
        "kind": "captions",
        "label": "Turkish",
        "default": true
@@ -652,19 +519,19 @@
   },
   "urlVars": [
    [
-    "in9d",
+    "tu9m",
     "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
    ],
    [
-    "t86",
-    "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt"
+    "b26d",
+    "https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt"
    ]
   ]
  },
  {
-  "label": "hd_2_0_1",
-  "url": "https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/?rapidrame_id=0sfc5ngm6ba4",
-  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "label": "fm_3_0_1",
+  "url": "https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/?imdb_id=tt15047880",
+  "referer": "https://filmmakinesi.to/film/ifsa-gunu-2026/",
   "scripts": [
    {
     "len": 64,
@@ -673,13 +540,13 @@
     "error": null
    },
    {
-    "len": 4123,
+    "len": 4385,
     "ok": true,
     "attempts": 1,
     "error": null
    },
    {
-    "len": 1780,
+    "len": 1991,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -691,7 +558,7 @@
     "error": null
    },
    {
-    "len": 456,
+    "len": 921,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -703,55 +570,60 @@
    "/Tema/v1/js/jquery-migrate.js",
    "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
    "https://ssl.p.jwpcdn.com/player/v/8.39.3/jwplayer.js",
-   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/Tema/v1/js/closeplayer/jwplayer/jwplayer-cast-sender.js?v=1.03"
   ],
   "ldjson": [
-   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"description\": \"LoveofYourLife-2026-WEBDL-TRDUAL-tt34384900.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-10-14T16:23:24+03:00\",\r\n\t\t\t\t\"duration\": \"PT1H51M19S\",\r\n\t\t\t\t\"embedUrl\": \"https://hdfilmcehennemi.mobi/video/embed/q9UcWwDzBNa/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
+   "\r\n\t\t\t{\r\n\t\t\t\t\"@context\": \"http://schema.org\",\r\n\t\t\t\t\"@type\": \"VideoObject\",\r\n\t\t\t\t\"name\": \"DisclosureDay-2026-BLURAY-TRDUAL-tt15047880.mp4\",\r\n\t\t\t\t\"description\": \"DisclosureDay-2026-BLURAY-TRDUAL-tt15047880.mp4\",\r\n\t\t\t\t\"thumbnailUrl\": [\r\n\t\t\t\t\t\"https://closeload.filmmakinesi.to/img/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.jpg\"\r\n\t\t\t\t],\r\n\t\t\t\t\"uploadDate\": \"2026-08-15T22:30:32+03:00\",\r\n\t\t\t\t\"duration\": \"PT2H25M34S\",\r\n\t\t\t\t\"embedUrl\": \"https://closeload.filmmakinesi.to/video/embed/MoDEXaHfsVY/\",\r\n\t\t\t\t\"contentUrl\": \"https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt\"\r\n\t\t\t}\r\n\t\t\t"
   ],
   "captured": {
    "setups": [
     {
      "sources": [
       {
-       "file": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+       "file": "https://srv10.cdnimages2328.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt",
        "type": "hls"
       }
      ],
-     "image": "https://hdfilmcehennemi.mobi/img/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.jpg",
+     "image": "https://closeload.filmmakinesi.to/img/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.jpg",
      "tracks": [
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-en-os12920787-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-en-os12656569-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "English",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles01.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-tur-disclosureday-2026-bluray-trdual-tt15047880_subtitles01.tur.vtt",
        "kind": "captions",
        "label": "Forced",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-fr-sd-143764-38592-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-fr-os12676164-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "French",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-pt-ss-143764-10269927-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/10/MoDEXaHfsVY-ger-disclosureday-2026-webdl-tt15047880_subtitles02.ger-k133876.vtt",
+       "kind": "captions",
+       "label": "German",
+       "default": false
+      },
+      {
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-pt-os12676717-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "Portuguese",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-es-sd-143764-40000-loveofyourlife2026webdltrdualtt34384900m.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-es-os12675899-disclosureday2026bluraytrdualtt15047880m.vtt",
        "kind": "captions",
        "label": "Spanish",
        "default": false
       },
       {
-       "file": "https://hdfilmcehennemi.mobi/vtt/2026/10/q9UcWwDzBNa-tur-loveofyourlife-2026-webdl-trdual-tt34384900_subtitles02.tur.vtt",
+       "file": "https://closeload.filmmakinesi.to/vtt/2026/08/MoDEXaHfsVY-tur-disclosureday-2026-bluray-trdual-tt15047880_subtitles02.tur.vtt",
        "kind": "captions",
        "label": "Turkish",
        "default": true
@@ -796,20 +668,26 @@
   },
   "urlVars": [
    [
-    "n6u",
+    "gt6b",
     "https://hls8.playmix.uno/hls/filmakinesimp4-f9gx1M12BwC.mp4/master.txt"
    ],
    [
-    "zg9",
-    "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt"
+    "k7t",
+    "https://srv10.cdnimages2328.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt"
    ]
   ]
  },
  {
-  "label": "hd_2_1_0",
-  "url": "https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/",
-  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "label": "fm_3_1_0",
+  "url": "https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/",
+  "referer": "https://filmmakinesi.to/film/ifsa-gunu-2026/",
   "scripts": [
+   {
+    "len": 49,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
    {
     "len": 64,
     "ok": true,
@@ -823,19 +701,7 @@
     "error": null
    },
    {
-    "len": 20320,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 150,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 101,
+    "len": 24964,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -848,10 +714,11 @@
    }
   ],
   "externalScripts": [
-   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
-   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
-   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/lib/devtools-console-detectv2.js?v=1.00e",
+   "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.36.2/jwplayer.js",
+   "/jwplayer-cast-sender.js?v=1.04"
   ],
   "ldjson": [],
   "captured": {
@@ -859,31 +726,35 @@
     {
      "sources": [
       {
-       "file": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231"
+       "file": "https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=namWpSHnizoBFRHEkWDUKuAGdsP5WOETfe7tk-K3-9s&s=1792883918&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=99zq1h806ehbc835&p1=s231&p2=s231"
       }
      ],
      "tracks": [
       {
-       "file": "/srt/00037/0sfc5ngm6ba4_English.vtt",
+       "file": "/srt/00036/dc6xkw7mtjf0_English.vtt",
        "label": "İngilizce Altyazı",
        "language": "en",
        "kind": "captions",
        "default": true
       },
       {
-       "file": "/srt/00037/0sfc5ngm6ba4_Turkish.vtt",
+       "file": "/srt/00036/dc6xkw7mtjf0_Turkish.vtt",
        "label": "Forced",
        "language": "forced",
        "kind": "captions"
       },
       {
-       "file": "/srt/00037/0sfc5ngm6ba4_Turkish2.vtt",
+       "file": "/srt/00036/dc6xkw7mtjf0_Turkish2.vtt",
        "label": "Türkçe Altyazı",
        "language": "tr",
        "kind": "captions"
+      },
+      {
+       "file": "/dl?op=get_slides&length=8903.13&url=https://s429.rapidrame.com/i/01/00036/dc6xkw7mtjf00000.jpg",
+       "kind": "thumbnails"
       }
      ],
-     "image": "https://s429.rapidrame.com/i/01/00037/0sfc5ngm6ba4.jpg",
+     "image": "https://s429.rapidrame.com/i/01/00036/dc6xkw7mtjf0.jpg",
      "type": "hls",
      "captions": {
       "color": "#FFFFFF",
@@ -899,7 +770,7 @@
      },
      "playbackRateControls": true,
      "preload": "auto",
-     "autostart": true,
+     "autostart": false,
      "stagevideo": false,
      "rightclick": false,
      "primary": "html5"
@@ -918,13 +789,24 @@
    "errors": [],
    "sourcesCalls": []
   },
-  "urlVars": []
+  "urlVars": [
+   [
+    "_jwCastRedirect",
+    "https://filmmakinesi.to"
+   ]
+  ]
  },
  {
-  "label": "hd_2_1_1",
-  "url": "https://www.hdfilmcehennemi.nl/rplayer/0sfc5ngm6ba4/",
-  "referer": "https://www.hdfilmcehennemi.nl/love-of-your-life-2/",
+  "label": "fm_3_1_1",
+  "url": "https://rapid.filmmakinesi.to/embed-dc6xkw7mtjf0/",
+  "referer": "https://filmmakinesi.to/film/ifsa-gunu-2026/",
   "scripts": [
+   {
+    "len": 49,
+    "ok": true,
+    "attempts": 1,
+    "error": null
+   },
    {
     "len": 64,
     "ok": true,
@@ -938,19 +820,7 @@
     "error": null
    },
    {
-    "len": 20442,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 150,
-    "ok": true,
-    "attempts": 1,
-    "error": null
-   },
-   {
-    "len": 101,
+    "len": 25100,
     "ok": true,
     "attempts": 1,
     "error": null
@@ -963,10 +833,11 @@
    }
   ],
   "externalScripts": [
-   "https://www.hdfilmcehennemi.nl/assets/front/js/devtools-console-detectv2-rapid.js?v=1.01",
-   "https://www.hdfilmcehennemi.nl/assets/front/js/jquery-3.5.1.min.js",
-   "https://ssl.p.jwpcdn.com/player/v/8.41.0/jwplayer.js",
-   "https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092"
+   "/lib/devtools-console-detectv2.js?v=1.00e",
+   "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js",
+   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1",
+   "https://ssl.p.jwpcdn.com/player/v/8.36.2/jwplayer.js",
+   "/jwplayer-cast-sender.js?v=1.04"
   ],
   "ldjson": [],
   "captured": {
@@ -974,31 +845,35 @@
     {
      "sources": [
       {
-       "file": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=EULInmq1yLAdrd2NfGQRuezwNlE0x9AlB3rTCb7bJRY&s=1792883373&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=eo6ub0eucd0q93uy&p1=s231&p2=s231"
+       "file": "https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=jc8LmVU4nuXhZwmq0vP_z2Q65KzgFXxspf-HIF3L6vE&s=1792883921&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=c13213z2b56xhui8&p1=s231&p2=s231"
       }
      ],
      "tracks": [
       {
-       "file": "/srt/00037/0sfc5ngm6ba4_English.vtt",
+       "file": "/srt/00036/dc6xkw7mtjf0_English.vtt",
        "label": "İngilizce Altyazı",
        "language": "en",
        "kind": "captions",
        "default": true
       },
       {
-       "file": "/srt/00037/0sfc5ngm6ba4_Turkish.vtt",
+       "file": "/srt/00036/dc6xkw7mtjf0_Turkish.vtt",
        "label": "Forced",
        "language": "forced",
        "kind": "captions"
       },
       {
-       "file": "/srt/00037/0sfc5ngm6ba4_Turkish2.vtt",
+       "file": "/srt/00036/dc6xkw7mtjf0_Turkish2.vtt",
        "label": "Türkçe Altyazı",
        "language": "tr",
        "kind": "captions"
+      },
+      {
+       "file": "/dl?op=get_slides&length=8903.13&url=https://s429.rapidrame.com/i/01/00036/dc6xkw7mtjf00000.jpg",
+       "kind": "thumbnails"
       }
      ],
-     "image": "https://s429.rapidrame.com/i/01/00037/0sfc5ngm6ba4.jpg",
+     "image": "https://s429.rapidrame.com/i/01/00036/dc6xkw7mtjf0.jpg",
      "type": "hls",
      "captions": {
       "color": "#FFFFFF",
@@ -1014,7 +889,7 @@
      },
      "playbackRateControls": true,
      "preload": "auto",
-     "autostart": true,
+     "autostart": false,
      "stagevideo": false,
      "rightclick": false,
      "primary": "html5"
@@ -1033,6 +908,11 @@
    "errors": [],
    "sourcesCalls": []
   },
-  "urlVars": []
+  "urlVars": [
+   [
+    "_jwCastRedirect",
+    "https://filmmakinesi.to"
+   ]
+  ]
  }
 ]

@@ -1,42 +1,35 @@
 [
  {
-  "label": "hd_0_0_0",
-  "file": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/master.txt",
+  "label": "fm_0_0_0",
+  "file": "https://srv9.cdnimages1667.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/txt/master.txt",
   "status": 200,
   "m3u8": true,
-  "first_child": "https://srv13.cdnimages3564.cyou/hls/thestorm-2026-webdl-trdual-tt37070354mp4-fajbPUMwjk8.mp4/txt/sublist_2.txt",
+  "first_child": "https://srv9.cdnimages1695.cyou/hls/runner-2026-webdl-tt31349844mp4-0DCWIdeeLp08.mp4/image000.jpg",
   "child_status": 200,
-  "segment_status": 200,
   "segment_magic": "47401110"
  },
  {
-  "label": "hd_0_1_0",
-  "file": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/master.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=186380&srv=s429&i=0.0&sp=0&n=uujd4d5nej9q9dg0&p1=s231&p2=s231",
+  "label": "fm_0_1_1",
+  "file": "https://s231.rapidrame.com/hls2/01/00037/hqu0z7s9qwsk_,l,n,.urlset/master.m3u8?t=3e8pXa6B_A-6VUvwe4wWBUxv8fS-hDS65x9le3wOQY8&s=1792883833&e=14400&f=185585&srv=s429&i=0.0&sp=0&n=kyau8myqv4d3l03e&p1=s231&p2=s231",
   "status": 200,
   "m3u8": true,
-  "first_child": "https://s231.rapidrame.com/hls2/01/00037/bpe2vpobze9d_,l,n,.urlset/index-f1-v1-a1.m3u8?t=hqEw7Yw0-xrB7tY2M7HYWZz2Elfv4jM2dnmpc8zLb5k&s=1792883203&e=14400&f=1863",
-  "child_status": 200,
-  "segment_status": 200,
-  "segment_magic": "47400010"
+  "first_child": "https://s231.rapidrame.com/hls2/01/00037/hqu0z7s9qwsk_,l,n,.urlset/index-f1-v1-a1.m3u8?t=3e8pXa6B_A-6VUvwe4wWBUxv8fS-hDS65x9le3wOQY8&s=1792883833&e=14400&f=1855",
+  "child_status": null
  },
  {
-  "label": "hd_2_0_0",
-  "file": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/master.txt",
+  "label": "fm_3_0_0",
+  "file": "https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/master.txt",
   "status": 200,
   "m3u8": true,
-  "first_child": "https://srv13.cdnimages482.cyou/hls/loveofyourlife-2026-webdl-trdual-tt34384900mp4-q9UcWwDzBNa.mp4/txt/sublist_2.txt",
-  "child_status": 200,
-  "segment_status": 200,
-  "segment_magic": "47401110"
+  "first_child": "https://srv10.cdnimages1845.cyou/hls/disclosureday-2026-bluray-trdual-tt15047880mp4-MoDEXaHfsVY.mp4/txt/sublist_2.txt",
+  "child_status": null
  },
  {
-  "label": "hd_2_1_0",
-  "file": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/master.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=186337&srv=s429&i=0.0&sp=0&n=7befc6idnyw37t8d&p1=s231&p2=s231",
+  "label": "fm_3_1_0",
+  "file": "https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/master.m3u8?t=namWpSHnizoBFRHEkWDUKuAGdsP5WOETfe7tk-K3-9s&s=1792883918&e=14400&f=183470&srv=s429&i=0.0&sp=0&n=99zq1h806ehbc835&p1=s231&p2=s231",
   "status": 200,
   "m3u8": true,
-  "first_child": "https://s231.rapidrame.com/hls2/01/00037/0sfc5ngm6ba4_,l,n,.urlset/index-f1-v1-a1.m3u8?t=Io4MHZKcLvq9Q53XwLy932kK9J776M-pMgIlMeR3vGc&s=1792883365&e=14400&f=1863",
-  "child_status": 200,
-  "segment_status": 200,
-  "segment_magic": "47400010"
+  "first_child": "https://s231.rapidrame.com/hls2/01/00036/dc6xkw7mtjf0_,l,n,.urlset/index-f1-v1-a1.m3u8?t=namWpSHnizoBFRHEkWDUKuAGdsP5WOETfe7tk-K3-9s&s=1792883918&e=14400&f=1834",
+  "child_status": null
  }
 ]
