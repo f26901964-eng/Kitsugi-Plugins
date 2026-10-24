@@ -78,7 +78,7 @@ index 3165960..8e57429 100644
          val finalCode = when {
              embeddedError.equals("invalid_token", ignoreCase = true) -> 401
 diff --git a/app/src/main/java/com/kitsugi/animelist/data/auth/BangumiSyncManager.kt b/app/src/main/java/com/kitsugi/animelist/data/auth/BangumiSyncManager.kt
-index 822acde..663ef93 100644
+index 822acde..c683699 100644
 --- a/app/src/main/java/com/kitsugi/animelist/data/auth/BangumiSyncManager.kt
 +++ b/app/src/main/java/com/kitsugi/animelist/data/auth/BangumiSyncManager.kt
 @@ -41,6 +41,14 @@ object BangumiSyncManager {
@@ -86,7 +86,7 @@ index 822acde..663ef93 100644
      )
  
 +    internal fun isLegacyRawBangumiStoredId(
-+        source: String?,
++        source: String,
 +        storedId: Int?,
 +        knownMalId: Int?
 +    ): Boolean = knownMalId == null &&
