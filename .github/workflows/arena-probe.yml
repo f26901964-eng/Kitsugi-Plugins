@@ -1,6 +1,7 @@
 # GECICI arastirma akisi — canli siteleri TR cikisli proxy ile inceler.
-# Hicbir dala push ETMEZ; sonuclar yalnizca artifact olarak yuklenir.
-# Is bitince bu dosya ve arena-probe/ klasoru silinecek.
+# Sandbox artifact/log indiremedigi icin cikti AYNI dala (arena/af53f8ad-...)
+# arena-probe/out/ altina commit edilir. Is bitince bu dosya ve arena-probe/
+# klasoru silinecek.
 name: Arena Probe (gecici)
 
 on:
@@ -8,7 +9,9 @@ on:
     branches:
       - "arena/af53f8ad-kitsugi-plugins"
     paths:
-      - "arena-probe/**"
+      - "arena-probe/*.py"
+      - "arena-probe/*.js"
+      - "arena-probe/RUN"
       - ".github/workflows/arena-probe.yml"
 
 concurrency:
@@ -16,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   probe:
@@ -24,6 +27,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -57,30 +62,28 @@ jobs:
         run: cd arena-probe && node eval_player.js || true
 
       - name: Yayin adreslerini dogrula
+        timeout-minutes: 8
+        continue-on-error: true
         run: cd arena-probe && python verify_streams.py || true
 
-      - name: Sonuclari yukle (tarama)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: probe-out
-          path: arena-probe/out
-          retention-days: 3
-
-      - name: Playwright kur
-        if: ${{ env.SKIP_BROWSER != '1' }}
+      - name: Gercek tarayici (istege bagli)
+        if: ${{ hashFiles('arena-probe/BROWSER') != '' }}
+        continue-on-error: true
+        timeout-minutes: 15
         run: |
           cd arena-probe && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null
-          timeout 600 npx playwright install --with-deps chromium || true
+          timeout 420 npx playwright install --with-deps chromium || true
+          timeout 600 node browser_probe.js || true
 
-      - name: Gercek tarayici ile dogrula
-        run: cd arena-probe && timeout 900 node browser_probe.js || true
-
-      - name: Sonuclari yukle (tarayici)
+      - name: Ciktiyi ayni dala yaz
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: probe-browser
-          path: arena-probe/out/browser_results.json
-          retention-days: 3
-          if-no-files-found: ignore
+        run: |
+          git config user.name "arena-probe"
+          git config user.email "arena-probe@users.noreply.github.com"
+          rm -rf arena-probe/node_modules arena-probe/package*.json
+          git add -f arena-probe/out
+          git commit -m "chore(probe): canli tarama ciktisi (run ${{ github.run_id }})" || exit 0
+          for i in 1 2 3; do
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" && break
+            sleep 5
+          done
