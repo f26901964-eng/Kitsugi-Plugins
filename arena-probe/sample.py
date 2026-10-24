@@ -45,7 +45,11 @@ def fetch_embeds(site, idx, page, embeds):
 
 def fm():
     base = "https://filmmakinesi.to"
-    r = fetch(base + "/", label=" fm-home", rounds=3)
+    r = None
+    for attempt in range(3):
+        r = fetch(base + "/", label=" fm-home", rounds=6)
+        if r is not None:
+            break
     if r is None:
         log("[S-FM] ana sayfa yok")
         return
@@ -137,7 +141,8 @@ def hd():
 
 
 if __name__ == "__main__":
-    for fn in (fm, hd):
+    sites = os.environ.get("SAMPLE_SITES", "fm,hd").split(",")
+    for fn in [f for f in (fm, hd) if f.__name__ in sites]:
         try:
             fn()
         except Exception as exc:

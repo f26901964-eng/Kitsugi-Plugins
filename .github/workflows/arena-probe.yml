@@ -60,6 +60,7 @@ jobs:
         continue-on-error: true
         env:
           SAMPLE_REPEAT: "2"
+          SAMPLE_SITES: "fm"
         run: cd arena-probe && python sample.py
 
       - name: Gercek tarayici JS'i (Node) ile cozum
