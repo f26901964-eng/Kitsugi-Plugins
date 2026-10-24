@@ -1,0 +1,36 @@
+name: CrossSync Rapor Bütünlük Aktarımı (Geçici)
+
+on:
+  push:
+    branches:
+      - arena/583b8e7d-kitsugi-plugins
+    paths:
+      - .github/workflows/CrossSync-Rapor-Gecici.yml
+
+permissions:
+  contents: read
+
+jobs:
+  indir-dogrula-ve-artifact-yukle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Raporu indir ve bütünlüğünü doğrula
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors \
+            'https://drive.google.com/uc?export=download&id=1DdqkHOQUZVeFzQ3wH5D18y61Pjj08udX' \
+            -o Kitsugi_CrossSync_Report_20261024_162739_722.txt
+          printf '%s  %s\n' \
+            '635fa5171b70877fdda5f86c426471f6' \
+            'Kitsugi_CrossSync_Report_20261024_162739_722.txt' | md5sum -c -
+          test "$(wc -c < Kitsugi_CrossSync_Report_20261024_162739_722.txt)" = '8280517'
+          wc -l -c Kitsugi_CrossSync_Report_20261024_162739_722.txt
+          sha256sum Kitsugi_CrossSync_Report_20261024_162739_722.txt
+
+      - name: Doğrulanmış raporu kısa ömürlü artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: crosssync-report-20261024
+          path: Kitsugi_CrossSync_Report_20261024_162739_722.txt
+          retention-days: 1
+          if-no-files-found: error
