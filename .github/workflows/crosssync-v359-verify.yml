@@ -102,16 +102,16 @@ jobs:
         run: |
           mkdir -p .ci/results
           if [ -f ../app/crosssync-tests.log ]; then
-            cp ../app/crosssync-tests.log ".ci/results/crosssync-tests-${GITHUB_RUN_ID}.log"
+            cp ../app/crosssync-tests.log ".ci/results/crosssync-tests-${GITHUB_RUN_ID}.txt"
           else
-            echo "Gradle did not produce crosssync-tests.log; job status: ${{ job.status }}" > ".ci/results/crosssync-tests-${GITHUB_RUN_ID}.log"
+            echo "Gradle did not produce crosssync-tests.log; job status: ${{ job.status }}" > ".ci/results/crosssync-tests-${GITHUB_RUN_ID}.txt"
           fi
           if [ -d ../app/app/build/test-results/testFossDebugUnitTest ]; then
             tar -czf ".ci/results/test-results-${GITHUB_RUN_ID}.tar.gz" -C ../app/app/build/test-results/testFossDebugUnitTest .
           fi
           git config user.name "Arena CrossSync CI"
           git config user.email "arena-crosssync-ci@localhost"
-          git add .ci/results
+          git add -f .ci/results
           if git diff --cached --quiet; then
             exit 0
           fi
