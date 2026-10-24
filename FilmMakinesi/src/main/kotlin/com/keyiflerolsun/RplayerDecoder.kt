@@ -197,6 +197,50 @@ object RplayerDecoder {
         return out
     }
 
+    /**
+     * Oynatıcı sayfasındaki `<track src="…" kind="captions" srclang="tr">`
+     * etiketlerini altyazıya çevirir.
+     *
+     * ! Canlı embed sayfasında altyazılar bu biçimde geliyor ve adresler
+     * ! GÖRELİDİR (`/vtt/…vtt`); embed host'una göre çözülür. Eski kod
+     * ! yalnızca `tracks: [...]` JSON'unu okuyordu, bu yüzden Türkçe altyazı
+     * ! listede hiç görünmüyordu.
+     */
+    fun extractTrackTags(html: String, baseUrl: String): List<Track> {
+        val out = mutableListOf<Track>()
+        TRACK_TAG_RE.findAll(html).forEach { match ->
+            val tag = match.value
+            val file = attribute(tag, "src") ?: return@forEach
+            val kind = attribute(tag, "kind").orEmpty()
+            if (kind.isNotBlank() && kind != "captions" && kind != "subtitles") return@forEach
+            val absolute = absolutize(file, baseUrl) ?: return@forEach
+            out.add(
+                Track(
+                    file = absolute,
+                    label = attribute(tag, "label").orEmpty(),
+                    language = attribute(tag, "srclang").orEmpty(),
+                    kind = kind.ifBlank { "captions" }
+                )
+            )
+        }
+        return out.distinctBy { it.file }
+    }
+
+    private val TRACK_TAG_RE = Regex("""<track\b[^>]*>""", RegexOption.IGNORE_CASE)
+
+    private fun attribute(tag: String, name: String): String? {
+        val match = Regex("""\b$name\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE).find(tag)
+        return match?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun absolutize(raw: String, base: String): String? = runCatching {
+        when {
+            raw.startsWith("http://") || raw.startsWith("https://") -> raw
+            raw.startsWith("//") -> "https:$raw"
+            else -> java.net.URI(base).resolve(raw).toString()
+        }
+    }.getOrNull()
+
     // ── Kaynak tarama ─────────────────────────────────────────────────────
 
     /** `sources:[{file:VAR}]` → VAR */

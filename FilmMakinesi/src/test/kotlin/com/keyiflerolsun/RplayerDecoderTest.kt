@@ -63,6 +63,17 @@ class RplayerDecoderTest {
     }
 
     @Test
+    fun `track etiketlerinden altyazi cozulur`() {
+        // ! Canlı embed sayfasında altyazılar `tracks:` JSON'u değil,
+        // ! göreli adresli `<track src=...>` etiketleriyle geliyor.
+        val tracks = RplayerDecoder.extractTrackTags(loadFixture("embed_closeload_1.html"), "https://hdfilmcehennemi.mobi/video/embed/STE1E4AiQ5O/")
+        assertEquals(3, tracks.size)
+        assertEquals("https://hdfilmcehennemi.mobi/vtt/STE1E4AiQ5O-tr-7854660-insideout2015bluray1080pdualtr.vtt", tracks.last().file)
+        assertEquals("Turkish", tracks.last().label)
+        assertEquals("tr", tracks.last().language)
+    }
+
+    @Test
     fun `arsiv closeload varyant 2 cozulur`() {
         assertEquals(
             "https://hls12.playmix.uno/hls/theskeletonkey-2005-bluray-trdualmp4-WM13Evo0UqR.mp4/master.txt",

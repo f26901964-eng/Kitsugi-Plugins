@@ -857,8 +857,13 @@ class HDFilmCehennemi : MainAPI() {
             }
             Log.d("HDCH_TANI", "rplayer tracks: " + html.substringAfter("tracks:", "").take(300).replace("\n", " "))
 
-            // ! Altyazılar: düz tracks JSON'undan.
-            RplayerDecoder.extractTracks(html).forEach { track ->
+            // ! Altyazılar: önce `tracks:` JSON'u, yoksa `<track src>` etiketleri.
+            // ! Canlı embed sayfası altyazıları `<track>` olarak veriyor.
+            val playerTracks = (
+                RplayerDecoder.extractTracks(html) +
+                    RplayerDecoder.extractTrackTags(html, url)
+                ).distinctBy { it.file }
+            playerTracks.forEach { track ->
                 val subUrl = subtitleUrlOf(track.file) ?: return@forEach
                 val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
                 subtitleCallback(newSubtitleFile(label, subUrl))

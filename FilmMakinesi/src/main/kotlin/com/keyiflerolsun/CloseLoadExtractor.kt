@@ -152,7 +152,7 @@ class CloseLoad : ExtractorApi() {
                 Log.e("Kekik_${this.name}", "Real URL bulunamadı veya deşifre edilemedi.")
             }
 
-            processSubtitles(html, subtitleCallback)
+            processSubtitles(html, url, subtitleCallback)
 
         } catch (e: Exception) {
             Log.e("Kekik_${this.name}", "Hata: ${e.message}")
@@ -641,7 +641,10 @@ class CloseLoad : ExtractorApi() {
     }
 
 
-    private fun processSubtitles(html: String, subtitleCallback: (SubtitleFile) -> Unit) {
+    private fun processSubtitles(html: String, baseUrl: String, subtitleCallback: (SubtitleFile) -> Unit) {
+        // ! Canlı embed sayfasında altyazılar `<track src>` etiketiyle geliyor;
+        // ! eski kod yalnızca `tracks: [...]` JSON'una bakıyordu.
+        var found = false
         try {
             // JWPlayer setup içindeki tracks: [...] JSON bloğu
             val tracksMatch = """tracks\s*:\s*(\[.*?\])""".toRegex(RegexOption.DOT_MATCHES_ALL).find(html)
@@ -658,12 +661,20 @@ class CloseLoad : ExtractorApi() {
 
                     // ! Sonundaki "/" kaldırıldı: o eğik çizgi .vtt dosyasını 404 yaptırıyordu.
                     if (!file.isNullOrBlank() && file.startsWith("http")) {
+                        found = true
                         subtitleCallback.invoke(SubtitleFile(label, file.trimEnd('/')))
                     }
                 }
             }
         } catch (e: Exception) {
             Log.e("Kekik_${this.name}", "Altyazı Çözümleme Hatası: ${e.message}")
+        }
+
+        if (!found) {
+            RplayerDecoder.extractTrackTags(html, baseUrl).forEach { track ->
+                val label = track.label.ifBlank { track.language.ifBlank { "Türkçe" } }
+                subtitleCallback.invoke(SubtitleFile(label, track.file.trimEnd('/')))
+            }
         }
     }
 }
