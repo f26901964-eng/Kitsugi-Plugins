@@ -92,4 +92,31 @@ class RplayerDecoderTest {
         assertEquals(null, RplayerDecoder.extractStreamUrl("<html></html>"))
         assertTrue(RplayerDecoder.extractTracks("<html></html>").isEmpty())
     }
+
+    // ── Gerçek arşiv oynatıcı sayfaları ──────────────────────────────────
+    // ! hdfilmcehennemi.mobi/video/embed/… sayfalarından alınmış GERÇEK
+    // ! bloklardır. İkisi de aynı işlemi farklı söz dizimiyle yazıyor:
+    // !   varyant 1: reverse → atob → ROT13 (mod YOK) → bayt kaydırma
+    // !   varyant 2: reverse → ROT13 → atob → bayt kaydırma
+    // ! Eski çözücü yalnızca "%26'lı" rot biçimini tanıdığı için ikisinde de
+    // ! null dönüyordu; bu testler o regresyonu yakalar.
+
+    @Test
+    fun `arsiv closeload varyant 1 cozulur`() {
+        val html = loadFixture("embed_closeload_1.html")
+        assertTrue(RplayerDecoder.hasPackedPlayer(html))
+        assertEquals(
+            "https://balancehls12.playmix.uno/hls/insideout2015bluray1080pdualmp4-STE1E4AiQ5O.mp4/master.txt",
+            RplayerDecoder.extractPackedStreamUrl(html)
+        )
+    }
+
+    @Test
+    fun `arsiv closeload varyant 2 cozulur`() {
+        val html = loadFixture("embed_closeload_2.html")
+        assertEquals(
+            "https://hls12.playmix.uno/hls/theskeletonkey-2005-bluray-trdualmp4-WM13Evo0UqR.mp4/master.txt",
+            RplayerDecoder.extractStreamUrl(html)
+        )
+    }
 }

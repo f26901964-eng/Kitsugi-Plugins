@@ -1,36 +1,38 @@
-// ! HDFilmCehennemi'nin /rplayer/ sayfasındaki paketlenmiş oynatıcı çözücüsü.
+// ! HDFilmCehennemi / FilmMakinesi ortak oynatıcı çözücüsü (paketli JS).
 //
-// ! NEDEN SAF KOTLIN?
-// ! Bu dosya android.* bağımlılığı İÇERMEZ; böylece gerçek siteden alınmış
-// ! örnek (fixture) üzerinde birim testiyle doğrulanabilir. Testler:
-// !   HDFilmCehennemi/src/test/kotlin/com/keyiflerolsun/RplayerDecoderTest.kt
+// ! NEDEN SIFIRDAN YAZILDI?
+// ! Eski çözücü, sayfadaki JavaScript'i TAM METİN kalıplarıyla arıyordu:
+//!
+//!     result = result.split('').reverse().join('')
+//!     result = atob(result)
+//!     (o - base + 15) % 26
+//!
+//! ! Site tarafında tek bir boşluk, tek bir değişken adı (result → r, i → j)
+//! ! ya da işlem sırası değiştiğinde bu kalıplar tutmuyor; çözücü sessizce
+//! ! null dönüyor ve uygulama "0 kaynak" gösteriyordu.
 //
-// ! SİTE YAPISI (canlıdan doğrulanmış, tahmin değil):
-// !   /rplayer/<hash>/ sayfası JW Player kurar ve kaynak adresi şu biçimdedir:
-//!     var configs = {
-//!       //sources: [{file:atob(file_link)}],   ← decoy (yorumda)
-//!       sources: [{file:s_X2kgHSLHfHs}],        ← gerçek: aşağıdaki paketli çağrı
-//!       tracks: [{ "file":"\/srt\/00035\/..._Turkish.vtt", "language":"tr",
-//!                  "kind":"captions" }],
-//!       type: "hls", ...
-//!     }
-//!     var s_X2kgHSLHfHs = dc_V3LHCHN84DH(["PT1yZmhRYWNaZ", ...]);
-//!
-//!   dc_<rastgele> fonksiyonu "Dean Edwards packer" (a=62) ile paketlenmiş
-//!   bir kaynaktır. İçindeki işlemler (atob / reverse / harf-kaydırma) SAYI ve
-//!   SIRASI itilere göre DEĞİŞİR; son adım daima sayısal bayt-kaydırmadır ve
-//!   kaydırma sabiti (magic/offset) her yüklemede farklıdır. Sayfada ayrıca
-//!   d1x/d2x/d3x gibi TUZAK (decoy) fonksiyonlar bulunur (ör. atob('...')).
-//!
-//!   Bu yüzden: işlemler metin içindeki KESİN kalıplarla bulunur, tuzaklar
-//!   sayıma katılmaz, magic/offset kaynaktan okunur ve sonuç bir URL olarak
-//!   doğrulanır. Doğrulama başarısız olursa çoklu strateji denenir.
+// ! YENİ YAKLAŞIM (yapısal):
+//!   1) Sayfadaki TÜM `eval(function(p,a,c,k,e,d){...}(...))` blokları açılır
+//!      (Dean Edwards packer, a/c parametreleri kaynaktan okunur).
+//!   2) `sources:[{file:VAR}]` hangi değişkeni istiyorsa o değişkenin
+//!      `var VAR = fn(["parça","parça",...])` çağrısı bulunur.
+//!   3) İŞLEMLER, çağrılan fn'in GÖVDESİNDEN sırayla çıkarılır; kalıplar
+//!      değişken adına ve boşluğa duyarsızdır:
+//!         .reverse()          → ters çevir
+//!         atob(...) / btoa(...)→ base64 çöz / kodla
+//!         (x - 65|97 + N) % 26 → harf kaydırma (rot)
+//!         MAGIC % (i ± N)      → sayısal bayt kaydırma (son adım)
+//!   4) Üretilen adres `http(s)://…` doğrulamasından geçmezse, bilinen işlem
+//!      sıraları ve kaydırma yönleri sınırlı sayıda denenir.
+//
+// ! Bu dosya android.* bağımlılığı İÇERMEZ; fixture'lar üzerinde birim
+// ! testiyle doğrulanır (src/test/.../RplayerDecoderTest.kt).
 
 package com.keyiflerolsun
 
 object RplayerDecoder {
 
-    /** Altyazı kaydı (rplayer sayfasındaki `tracks:` dizisinden). */
+    /** Altyazı kaydı (oynatıcı sayfasındaki `tracks:` dizisinden). */
     data class Track(
         val file: String,
         val label: String,
@@ -40,101 +42,130 @@ object RplayerDecoder {
 
     private const val ALPHA = "0123456789abcdefghijklmnopqrstuvwxyz"
 
-    // ! Varsayılanlar: kaynaktan okunamazsa kullanılır (nuvio/hayalet referansı).
+    // ! Kaynaktan okunamazsa kullanılan eski sabitler (geriye dönük uyumluluk).
     private const val DEFAULT_MAGIC = 399756995L
     private const val DEFAULT_OFFSET = 5
 
-    // ! eval(function(p,a,c,k,e,d){ ... }('P',A,C,'K|K|K'.split('|'),0,{}))
+    // ! eval(function(p,a,c,k,e,d){ ... }('PAYLOAD',62,77,'a|b|c'.split('|'),0,{}))
     private val PACKER_RE = Regex(
         """eval\(function\(p,a,c,k,e,d\)\{(.*?)\}\('(.*?)',(\d+),(\d+),'(.*?)'\.split\('\|'\),0,\{\}\)""",
         RegexOption.DOT_MATCHES_ALL
     )
 
-    // ! dc_XXXX(["parça1","parça2",...])
+    // ! `var X = fn(["a","b"])` / `X=fn(['a','b'])` → [değişken, fonksiyon, içerik]
     private val ARRAY_CALL_RE = Regex(
-        """=\s*[A-Za-z0-9_$]+\(\[\s*((?:"[^"]*"\s*,\s*)*"[^"]*")\s*\]\)"""
+        """([A-Za-z0-9_$]+)\s*=\s*([A-Za-z0-9_$]+)\(\s*\[\s*((?:"[^"]*"|'[^']*')(?:\s*,\s*(?:"[^"]*"|'[^']*'))*)\s*\]\s*\)"""
     )
-    private val SINGLE_QUOTED_ARRAY_CALL_RE = Regex(
-        """=\s*[A-Za-z0-9_$]+\(\[\s*((?:'[^']*'\s*,\s*)*'[^']*')\s*\]\)"""
-    )
-    private val DOUBLE_QUOTED_RE = Regex(""""([^"]*)"""")
-    private val SINGLE_QUOTED_RE = Regex("""'([^']*)'""")
+    private val QUOTED_RE = Regex("\"([^\"]*)\"|'([^']*)'")
 
-    // ! İşlem kalıpları — KAYNAK SIRASI önemlidir, tuzak fonksiyonlar eşleşmez.
-    private val OP_REVERSE_RE = Regex("""result\s*=\s*result\.split\(''\)\.reverse\(\)\.join\(''\)""")
-    private val OP_ATOB_RE = Regex("""result\s*=\s*atob\(result\)""")
-    private val OP_ROT_RE = Regex(
-        """result\s*=\s*result\.replace\(/\[a-zA-Z\]/g,function\(\w\)\{[^}]*?\((\w+)\s*-\s*(\w+)\s*([+-])\s*(\d+)"""
+    private val SOURCES_FILE_RE = Regex(
+        """sources\s*:\s*\[\s*\{\s*file\s*:\s*([A-Za-z0-9_$]+)""",
+        RegexOption.IGNORE_CASE
+    )
+    private val VAR_ASSIGN_RE = Regex(
+        """(?:var|let|const)\s+([A-Za-z0-9_$]+)\s*=\s*([A-Za-z0-9_$]+)\("""
     )
 
-    // ! magic/offset: charCode=((charCode-(2833890617%(i+15)))%256+256)%256
-    private val MAGIC_RE = Regex("""\((\d+)%\(i\+(\d+)\)""")
+    // ── İşlem kalıpları (boşluğa ve değişken adına duyarsız) ───────────────
+    private val OP_REVERSE_RE = Regex("""\.reverse\s*\(\s*\)""")
+    private val OP_ATOB_RE = Regex("""(?<![\w$])atob\s*\(""")
+    private val OP_BTOA_RE = Regex("""(?<![\w$])btoa\s*\(""")
+    private val OP_REPLACE_RE = Regex("""\.replace\s*\(""")
 
-    // ! Altyazı: tracks: [{...}]
+    // ! Harf kaydırma (rot) SAYFADA EN AZ ÜÇ FARKLI BİÇİMDE yazılıyor:
+    //!   (o - base + 15) % 26 + base            ← klasik
+    //!   (o - 65 + 15) % 26 + 65
+    //!   (c<='Z'?90:122) >= (c=c.charCodeAt(0)+13) ? c : c-26   ← ROT13, % YOK
+    //! Bu yüzden yalnızca "kaydırma miktarı" okunur; uygulama harf aralığına
+    //! göre yapıldığından base (65/97) hesaba katılmaz.
+    private val ROT_PATTERNS = listOf(
+        Regex("""[A-Za-z_$][\w$]*\s*-\s*(?:base|65|97)\s*\+\s*(\d+)"""),
+        Regex("""[A-Za-z_$][\w$]*\s*=\s*[A-Za-z_$][\w$]*\s*\.charCodeAt\(\s*0\s*\)\s*\+\s*(\d+)"""),
+        Regex("""charCodeAt\(\s*0\s*\)\s*\+\s*(\d+)"""),
+        Regex("""\+\s*(\d+)\s*\)\s*%\s*26""")
+    )
+
+    // ! charCode = ((charCode - (2833890617 % (i + 15))) % 256 + 256) % 256
+    // ! charCode = ((charCode - (2833890617 % (i + 15))) % 256 + 256) % 256
+    // ! Döngü değişkeni her zaman `i` değildir (j, k, n…); ofsetin işareti de
+    // ! `i - 15` olabilir. Bayt kaydırmasının YÖNÜ ise `charCode` ile parantez
+    // ! arasındaki işarettir — ikisi ayrı ayrı okunur.
+    private val SHIFT_RE = Regex(
+        """(\d{5,13})\s*%\s*\(\s*[A-Za-z_$][\w$]*\s*([+-])\s*(\d+)\s*\)"""
+    )
+    private val SHIFT_SIGN_RE = Regex("""([+-])\s*\(*\s*\d{5,13}\s*%""")
+
+    // ── Altyazı kalıpları ─────────────────────────────────────────────────
     private val TRACKS_RE = Regex("""tracks\s*:\s*\[(.*?)\]""", RegexOption.DOT_MATCHES_ALL)
     private val TRACK_BLOCK_RE = Regex("""\{[^{}]*\}""")
-    private val FIELD_FILE_RE = Regex(""""file"\s*:\s*"([^"]+)"""")
-    private val FIELD_LABEL_RE = Regex(""""label"\s*:\s*"([^"]*)"""")
-    private val FIELD_LANGUAGE_RE = Regex(""""language"\s*:\s*"([^"]*)"""")
-    private val FIELD_KIND_RE = Regex(""""kind"\s*:\s*"([^"]*)"""")
+    private val FIELD_FILE_RE = Regex("""\"file\"\s*:\s*\"([^\"]+)\"""")
+    private val FIELD_LABEL_RE = Regex("""\"label\"\s*:\s*\"([^\"]*)\"""")
+    private val FIELD_LANGUAGE_RE = Regex("""\"language\"\s*:\s*\"([^\"]*)\"""")
+    private val FIELD_KIND_RE = Regex("""\"kind\"\s*:\s*\"([^\"]*)\"""")
+
+    private val FILE_LINK_RE = Regex("""file_link\s*=\s*\"([^\"]+)\"""")
+    private val PLAIN_STREAM_RE = Regex(
+        """(https?://[^\s\"'<>]+(?:\.m3u8|\.mp4|master\.txt)(?:\?[^\s\"'<>]*)?)""",
+        RegexOption.IGNORE_CASE
+    )
 
     private sealed class Op {
         object Atob : Op()
+        object Btoa : Op()
         object Reverse : Op()
         class Rot(val shift: Int) : Op()
     }
 
-    // ── Genel giriş noktası ────────────────────────────────────────────────
+    // ── Genel giriş noktaları ─────────────────────────────────────────────
 
     /**
-     * Sayfadaki ŞİFRELİ/PAKETLİ kaynağı çözer (eval packer ve file_link yolları).
-     *
-     * ! `extractStreamUrl`den farkı: düz (şifresiz) m3u8 ARAMAZ. Eklentiler
-     * ! contentUrl/master.txt geri dönüşünden ÖNCE bunu çağırır; böylece
-     * ! sayfada şifreli bir blok varken JSON-LD'deki bayat contentUrl
-     * ! "çözülmüş kaynak" sanılıp oynatıcıya gönderilmez.
-     *
-     * @return çözülemezse null
+     * Sayfadaki ŞİFRELİ/PAKETLİ kaynağı çözer.
+     * ! Düz (şifresiz) m3u8 ARAMAZ: JSON-LD'deki bayat `contentUrl`
+     * ! "çözülmüş kaynak" sanılmamalı.
      */
     fun extractPackedStreamUrl(html: String): String? {
         if (html.isBlank()) return null
+        val normalized = unescapeHtml(html)
 
-        // ! 1) Sayfadaki paketlenmiş eval bloklarını sırayla dene.
-        for (block in PACKER_RE.findAll(html).map { m ->
-            Triple(
-                m.groupValues[2],                 // p
-                m.groupValues[3].toIntOrNull() ?: 62, // a
-                m.groupValues[4].toIntOrNull() ?: 0   // c
-            ) to m.groupValues[5].split("|")
-        }.toList()) {
-            val (packed, a, c) = block.first
-            val dictionary = block.second
-            val unpacked = packerUnpack(unescapeJsSingleQuoted(packed), a, c, dictionary)
-            val decoded = decodeUnpacked(unpacked)
-            if (decoded != null) return decoded
+        // 1) Paketlenmiş bloklar + ham metin, sırayla taranır.
+        val sources = mutableListOf<String>()
+        PACKER_RE.findAll(normalized).forEach { match ->
+            val packed = unescapeJsSingleQuoted(match.groupValues[2])
+            val base = match.groupValues[3].toIntOrNull() ?: 62
+            val count = match.groupValues[4].toIntOrNull() ?: 0
+            val dictionary = match.groupValues[5].split("|")
+            sources.add(packerUnpack(packed, base, count, dictionary))
+        }
+        sources.add(normalized)
+
+        for (source in sources) {
+            val fnName = sourcesFileVariable(source)?.let { variableFunction(source, it) }
+                ?: calledFunctionName(source)
+            val body = fnName?.let { functionBody(source, it) }
+            // ! Sayfadaki alakasız diziler (reklam kimlikleri vb.) için tam
+            // ! deneme yapılmasın: yalnızca ilk 4 dizge dizisi denenir.
+            val payloads = payloads(source, preferVariable = sourcesFileVariable(source))
+            for (parts in payloads.take(4)) {
+                decodePayload(parts, body, source)?.let { return it }
+            }
         }
 
-        // ! 2) file_link = "..." biçimi (paketlenmemiş ama base64/şifreli) — yedek yol.
-        FILE_LINK_RE.find(html)?.groupValues?.getOrNull(1)?.let { raw ->
-            val parts = quotedValues(raw)
-            if (parts.isNotEmpty()) {
-                decodeCandidates(parts, DEFAULT_MAGIC, DEFAULT_OFFSET)
-                    .firstOrNull { isValidStreamUrl(it) }?.let { return it }
+        // 2) file_link = "…" (paketlenmemiş ama base64/şifreli) — yedek yol.
+        FILE_LINK_RE.find(normalized)?.groupValues?.getOrNull(1)?.let { raw ->
+            val values = QUOTED_RE.findAll(raw).mapNotNull { it.groupValues[1].ifBlank { it.groupValues[2] } }
+                .toList()
+            if (values.isNotEmpty()) {
+                decodePayload(values, null, normalized)?.let { return it }
             }
         }
         return null
     }
 
-    /**
-     * rplayer sayfasından gerçek akış adresini (master m3u8) çözer.
-     * ! Önce şifreli kaynak, sonra düz adres (son çare).
-     * @return çözülemezse null
-     */
+    /** rplayer/embed sayfasından gerçek akış adresini çözer. */
     fun extractStreamUrl(html: String): String? {
         extractPackedStreamUrl(html)?.let { return it }
-
-        // ! Son çare: sayfada düz bir m3u8/master.txt adresi var mı?
-        PLAIN_STREAM_RE.find(html)?.groupValues?.getOrNull(1)?.let { raw ->
+        val normalized = unescapeHtml(html)
+        PLAIN_STREAM_RE.find(normalized)?.groupValues?.getOrNull(1)?.let { raw ->
             val url = raw.replace("\\/", "/").trim()
             if (isValidStreamUrl(url)) return url
         }
@@ -143,9 +174,10 @@ object RplayerDecoder {
 
     /** Sayfada şifreli/obfüskeli oynatıcı scripti var mı? */
     fun hasPackedPlayer(html: String): Boolean =
-        html.contains("function dc_") || html.contains("eval(function")
+        html.contains("function dc_") || html.contains("eval(function") ||
+            html.contains("sources:") || html.contains("file_link")
 
-    /** rplayer sayfasındaki altyazı kayıtlarını döndürür. */
+    /** Oynatıcı sayfasındaki altyazı kayıtlarını döndürür. */
     fun extractTracks(html: String): List<Track> {
         val raw = TRACKS_RE.find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
         val out = mutableListOf<Track>()
@@ -165,86 +197,207 @@ object RplayerDecoder {
         return out
     }
 
-    // ── Paketlenmiş kaynağın çözülmesi ─────────────────────────────────────
+    // ── Kaynak tarama ─────────────────────────────────────────────────────
 
-    private fun decodeUnpacked(unpacked: String): String? {
-        val parts = extractParts(unpacked) ?: return null
-        val ops = parseOps(unpacked)
-        val (magic, offset) = parseMagic(unpacked)
+    /** `sources:[{file:VAR}]` → VAR */
+    private fun sourcesFileVariable(source: String): String? =
+        SOURCES_FILE_RE.find(source)?.groupValues?.getOrNull(1)
 
-        // ! Ana yol: kaynaktan okunan işlemler + kaynaktan okunan magic/offset.
-        val text = applyOps(parts.joinToString(""), ops)
-        val shifted = byteShift(text, magic, offset)
-        if (isValidStreamUrl(shifted)) return shifted
-
-        // ! Yedek: işlem sırası/çeşidi farklıysa çoklu strateji dene.
-        return decodeCandidates(parts, magic, offset).firstOrNull { isValidStreamUrl(it) }
+    /** `var VAR = fn(` → fn */
+    private fun variableFunction(source: String, variable: String): String? {
+        VAR_ASSIGN_RE.findAll(source).forEach { match ->
+            if (match.groupValues[1] == variable || match.groupValues[2] == variable) {
+                return match.groupValues[2]
+            }
+        }
+        return null
     }
 
-    /** Kaynaktaki parça dizisini ("...", "...") çıkarır. */
-    private fun extractParts(unpacked: String): List<String>? {
-        ARRAY_CALL_RE.find(unpacked)?.groupValues?.getOrNull(1)?.let { raw ->
-            val values = DOUBLE_QUOTED_RE.findAll(raw).map { it.groupValues[1] }.toList()
-            if (values.isNotEmpty()) return values
-        }
-        SINGLE_QUOTED_ARRAY_CALL_RE.find(unpacked)?.groupValues?.getOrNull(1)?.let { raw ->
-            val values = SINGLE_QUOTED_RE.findAll(raw).map { it.groupValues[1] }.toList()
-            if (values.isNotEmpty()) return values
+    /** Payload dizisini taşıyan çağrının fonksiyon adı. */
+    private fun calledFunctionName(source: String): String? {
+        ARRAY_CALL_RE.find(source)?.let { match ->
+            val variable = match.groupValues[1]
+            variableFunction(source, variable)?.let { return it }
+            return match.groupValues[2]
         }
         return null
     }
 
     /**
-     * İşlemleri kaynak sırasına göre toplar.
-     * ! Tuzak fonksiyonlar (d2x içindeki atob('...') gibi) KESİN kalıplara
-     * ! uymadığı için sayıma katılmaz.
+     * Sayfadaki dizge dizilerini döndürür.
+     * ! `sources:[{file:VAR}]` ile belirtilen değişken ÖNE alınır; aksi halde
+     * ! sayfadaki alakasız diziler (ör. reklam kimlikleri) önce denenip
+     * ! yanlış sonuç üretebilir.
      */
-    private fun parseOps(unpacked: String): List<Op> {
+    private fun payloads(source: String, preferVariable: String?): List<List<String>> {
+        val preferred = mutableListOf<List<String>>()
+        val others = mutableListOf<List<String>>()
+
+        ARRAY_CALL_RE.findAll(source).forEach { match ->
+            val variable = match.groupValues[1]
+            val raw = match.groupValues[3]
+            val values = QUOTED_RE.findAll(raw).mapNotNull {
+                it.groupValues[1].takeIf { v -> v.isNotEmpty() } ?: it.groupValues[2]
+            }.toList()
+            if (values.isEmpty()) return@forEach
+            if (preferVariable != null && variable == preferVariable) preferred.add(values)
+            else others.add(values)
+        }
+        return preferred + others
+    }
+
+    /** `function NAME(...) { ... }` gövdesini (süslü parantez eşleşmesiyle) döndürür. */
+    private fun functionBody(source: String, name: String): String? {
+        val start = source.indexOf("function $name(")
+        if (start < 0) return null
+        val open = source.indexOf('{', start)
+        if (open < 0) return null
+        var depth = 0
+        var index = open
+        while (index < source.length) {
+            when (source[index]) {
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) return source.substring(open, index + 1)
+                }
+            }
+            index++
+        }
+        return source.substring(open)
+    }
+
+    // ── Çözme ─────────────────────────────────────────────────────────────
+
+    private fun decodePayload(parts: List<String>, body: String?, whole: String): String? {
+        val joined = parts.joinToString("")
+        // ! Gerçek payload her zaman base64 parçalarından oluşur ve kısadır;
+        // ! 16 karakterden kısa diziler oynatıcıya ait değildir.
+        if (joined.length < 16) return null
+        if (parts.any { it.length < 3 }) return null
+
+        val (magic, offset, sign) = parseShift(body ?: whole)
+        val detected = detectOps(body)
+
+        // 1) Kaynaktan okunan işlemler + kaynaktan okunan sabitler.
+        if (detected.isNotEmpty()) {
+            applyOps(joined, detected)?.let { text ->
+                for (s in shiftSigns(sign)) {
+                    val out = byteShift(text, magic, offset, s)
+                    if (isValidStreamUrl(out)) return out
+                }
+                // ! Kaydırma sabiti okunamadıysa eski sabitlerle de dene.
+                for (s in shiftSigns(sign)) {
+                    val out = byteShift(text, DEFAULT_MAGIC, DEFAULT_OFFSET, s)
+                    if (isValidStreamUrl(out)) return out
+                }
+            }
+        }
+
+        // 2) Yedek: bilinen işlem sıraları × kaydırma miktarları.
+        val orders = listOf(
+            // ! Canlı arşiv sayfalarında görülen biçimler (bkz. fixture).
+            listOf<Op>(Op.Reverse, Op.Atob, Op.Rot(13)),
+            listOf<Op>(Op.Reverse, Op.Rot(13), Op.Atob),
+            listOf<Op>(Op.Atob, Op.Reverse, Op.Rot(13)),
+            listOf<Op>(Op.Atob, Op.Reverse, Op.Rot(15), Op.Atob),
+            listOf<Op>(Op.Atob, Op.Reverse, Op.Atob),
+            listOf<Op>(Op.Reverse, Op.Atob, Op.Atob),
+            listOf<Op>(Op.Atob, Op.Atob, Op.Reverse),
+            listOf<Op>(Op.Reverse, Op.Atob),
+            listOf<Op>(Op.Atob, Op.Reverse)
+        )
+        for (order in orders) {
+            for (rotShift in intArrayOf(15, 13, 8, 21, 5, 3, 12, 7, 17, 25, 1, 22)) {
+                val ops = order.map { if (it is Op.Rot) Op.Rot(rotShift) else it }
+                val text = applyOps(joined, ops) ?: continue
+                for (s in shiftSigns(sign)) {
+                    byteShift(text, magic, offset, s).let { if (isValidStreamUrl(it)) return it }
+                    byteShift(text, DEFAULT_MAGIC, DEFAULT_OFFSET, s).let {
+                        if (isValidStreamUrl(it)) return it
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun shiftSigns(preferred: Char): List<Char> =
+        if (preferred == '+') listOf('+', '-') else listOf('-', '+')
+
+    /**
+     * Gövdedeki işlemleri KAYNAK SIRASINA göre toplar.
+     * ! Tuzak fonksiyonlar (ör. `function d1x(){return atob('...')}`) ayrı
+     * ! gövdelerde durur; burada yalnızca çağrılan fonksiyonun gövdesi
+     * ! taranır. Yine de `function atob(` tanımı çağrı sayılmaz.
+     */
+    private fun detectOps(body: String?): List<Op> {
+        if (body.isNullOrBlank()) return emptyList()
         val found = mutableListOf<Pair<Int, Op>>()
-        OP_REVERSE_RE.findAll(unpacked).forEach { m ->
-            found.add(m.range.first to Op.Reverse)
+
+        OP_REVERSE_RE.findAll(body).forEach { found.add(it.range.first to Op.Reverse) }
+        OP_ATOB_RE.findAll(body).forEach {
+            val before = body.substring(maxOf(0, it.range.first - 9), it.range.first)
+            if (!before.endsWith("function ")) found.add(it.range.first to Op.Atob)
         }
-        OP_ATOB_RE.findAll(unpacked).forEach { m ->
-            found.add(m.range.first to Op.Atob)
+        OP_BTOA_RE.findAll(body).forEach {
+            val before = body.substring(maxOf(0, it.range.first - 9), it.range.first)
+            if (!before.endsWith("function ")) found.add(it.range.first to Op.Btoa)
         }
-        OP_ROT_RE.findAll(unpacked).forEach { m ->
-            val sign = m.groupValues[3]
-            val number = m.groupValues[4].toIntOrNull() ?: return@forEach
-            val shift = if (sign == "-") (26 - number) % 26 else number
-            found.add(m.range.first to Op.Rot(shift))
+        // ! Harf kaydırma: `replace(...)` bloğunun içinde aranır. Aynı blokta
+        // ! iki ayrı dal (büyük/küçük harf) olsa bile TEK işlem sayılır;
+        // ! aksi halde döndürme iki kez uygulanıp adres bozulurdu.
+        OP_REPLACE_RE.findAll(body).forEach { match ->
+            val block = body.substring(match.range.first, minOf(match.range.first + 400, body.length))
+            val shift = ROT_PATTERNS.asSequence()
+                .mapNotNull { pattern -> pattern.find(block)?.groupValues?.getOrNull(1)?.toIntOrNull() }
+                .firstOrNull()
+            if (shift != null) found.add(match.range.first to Op.Rot(shift))
         }
+
         return found.sortedBy { it.first }.map { it.second }
     }
 
-    /** Kaynaktan magic/offset okur; bulunamazsa varsayılana düşer. */
-    private fun parseMagic(unpacked: String): Pair<Long, Int> {
-        val m = MAGIC_RE.find(unpacked)
-        if (m != null) {
-            val magic = m.groupValues[1].toLongOrNull()
-            val offset = m.groupValues[2].toIntOrNull()
-            if (magic != null && offset != null) return magic to offset
+    /**
+     * Kaynaktan magic/offset ve bayt kaydırma YÖNÜNÜ okur.
+     * @return (magic, offset, charCode'un önündeki işaret)
+     */
+    private fun parseShift(text: String): Triple<Long, Int, Char> {
+        val sign = SHIFT_SIGN_RE.find(text)?.groupValues?.getOrNull(1)?.firstOrNull() ?: '-'
+        val match = SHIFT_RE.find(text)
+        if (match != null) {
+            val magic = match.groupValues[1].toLongOrNull()
+            val offsetSign = match.groupValues[2].firstOrNull() ?: '+'
+            val offsetValue = match.groupValues[3].toIntOrNull()
+            if (magic != null && offsetValue != null) {
+                val offset = if (offsetSign == '-') -offsetValue else offsetValue
+                return Triple(magic, offset, sign)
+            }
         }
-        return DEFAULT_MAGIC to DEFAULT_OFFSET
+        return Triple(DEFAULT_MAGIC, DEFAULT_OFFSET, sign)
     }
 
-    private fun applyOps(text: String, ops: List<Op>): String {
+    private fun applyOps(text: String, ops: List<Op>): String? {
         var result = text
         for (op in ops) {
             result = when (op) {
                 is Op.Reverse -> result.reversed()
-                is Op.Atob -> decodeBase64(result) ?: return ""
+                is Op.Atob -> decodeBase64(result) ?: return null
+                is Op.Btoa -> encodeBase64(result)
                 is Op.Rot -> rotLetters(result, op.shift)
             }
         }
         return result
     }
 
-    /** Son adım: sayısal bayt kaydırma. */
-    private fun byteShift(text: String, magic: Long, offset: Int): String {
+    /** Son adım: sayısal bayt kaydırma (mod 256). */
+    private fun byteShift(text: String, magic: Long, offset: Int, sign: Char): String {
         val out = StringBuilder(text.length)
         for (i in text.indices) {
-            val shift = (magic % (i + offset).toLong()).toInt()
-            var code = text[i].code - shift
+            val divisor = (i + offset).toLong()
+            if (divisor == 0L) return ""
+            val shift = (magic % divisor).toInt()
+            var code = if (sign == '+') text[i].code + shift else text[i].code - shift
             code = ((code % 256) + 256) % 256
             out.append(code.toChar())
         }
@@ -257,14 +410,8 @@ object RplayerDecoder {
         for (c in text) {
             out.append(
                 when {
-                    c in 'a'..'z' -> {
-                        val v = c.code - 'a'.code + shift
-                        (((v % 26) + 26) % 26 + 'a'.code).toChar()
-                    }
-                    c in 'A'..'Z' -> {
-                        val v = c.code - 'A'.code + shift
-                        (((v % 26) + 26) % 26 + 'A'.code).toChar()
-                    }
+                    c in 'a'..'z' -> (((c.code - 'a'.code + shift) % 26 + 26) % 26 + 'a'.code).toChar()
+                    c in 'A'..'Z' -> (((c.code - 'A'.code + shift) % 26 + 26) % 26 + 'A'.code).toChar()
                     else -> c
                 }
             )
@@ -272,60 +419,31 @@ object RplayerDecoder {
         return out.toString()
     }
 
-    /**
-     * Çeşitli işlem sıralarıyla çoklu strateji dener.
-     * ! Önce kaynaktan okunan magic/offset, sonra eski sabit (399756995 / 5).
-     */
-    private fun decodeCandidates(parts: List<String>, magic: Long, offset: Int): List<String> {
-        val joined = parts.joinToString("")
-        val out = mutableListOf<String>()
-
-        // ! Sitenin kullandığı sıralar (atob → reverse → rot → atob vb.).
-        val orders = listOf(
-            listOf(Op.Atob, Op.Reverse, Op.Rot(0), Op.Atob),
-            listOf(Op.Atob, Op.Reverse, Op.Atob),
-            listOf(Op.Reverse, Op.Atob, Op.Atob),
-            listOf(Op.Atob, Op.Atob, Op.Reverse),
-            listOf(Op.Reverse, Op.Atob),
-            listOf(Op.Atob, Op.Reverse)
-        )
-        for (order in orders) {
-            for (rotShift in intArrayOf(15, 13, 8, 21, 5, 3, 12, 7, 17, 25, 1, 22)) {
-                val ops = order.map { if (it is Op.Rot) Op.Rot(rotShift) else it }
-                val text = applyOps(joined, ops)
-                out.add(byteShift(text, magic, offset))
-                out.add(byteShift(text, DEFAULT_MAGIC, DEFAULT_OFFSET))
-            }
-        }
-        return out
-    }
-
-    // ── Yardımcılar ────────────────────────────────────────────────────────
-
-    private val FILE_LINK_RE = Regex("""file_link\s*=\s*"([^"]+)" """.trim())
-    private val PLAIN_STREAM_RE = Regex("""(https?://[^\s"'<>]+\.(?:m3u8|mp4)(?:\?[^\s"'<>]*)?)""")
-
-    private fun quotedValues(raw: String): List<String> {
-        val doubles = DOUBLE_QUOTED_RE.findAll(raw).map { it.groupValues[1] }.toList()
-        if (doubles.isNotEmpty()) return doubles
-        return SINGLE_QUOTED_RE.findAll(raw).map { it.groupValues[1] }.toList()
-    }
+    // ── Yardımcılar ───────────────────────────────────────────────────────
 
     /** Çözülen adres gerçekten bir yayın adresi mi? */
     fun isValidStreamUrl(value: String?): Boolean {
-        if (value.isNullOrBlank() || value.length < 10) return false
+        if (value.isNullOrBlank() || value.length < 12) return false
         for (c in value) {
-            if (c.code <= 8 || (c.code in 14..31)) return false
+            if (c.code <= 8 || (c.code in 14..31) || c.code == 127) return false
         }
-        if (value.startsWith("http://") || value.startsWith("https://")) return true
-        return value.contains(".m3u8") || value.contains("master.txt") || value.contains(".mp4")
+        val lower = value.trim().lowercase()
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) return false
+        val host = lower.substringAfter("://").substringBefore('/').substringBefore('?')
+        return host.isNotBlank() && host.contains('.') && !host.contains(' ')
     }
+
+    private fun unescapeHtml(html: String): String = html
+        .replace("\\/", "/")
+        .replace("\\u002f", "/", ignoreCase = true)
+        .replace("\\u003a", ":", ignoreCase = true)
+        .replace("\\u0026", "&", ignoreCase = true)
+        .replace("&amp;", "&")
 
     /**
      * Base64 çözer.
-     * ! java.util.Base64 Android'de API 26+ gerektirir (minSdk 21) ve
-     * ! android.util.Base64 saf-Kotlin testini engellerdi; bu yüzden elle
-     * ! çözülüyor.
+     * ! java.util.Base64 Android'de API 26+; android.util.Base64 ise saf
+     * ! Kotlin testini engellerdi. Bu yüzden elle çözülüyor.
      */
     private fun decodeBase64(value: String): String? {
         return try {
@@ -350,9 +468,39 @@ object RplayerDecoder {
         }
     }
 
+    private fun encodeBase64(value: String): String {
+        val bytes = value.toByteArray(Charsets.ISO_8859_1)
+        val out = StringBuilder()
+        var index = 0
+        while (index < bytes.size) {
+            val b0 = bytes[index].toInt() and 0xFF
+            val b1 = if (index + 1 < bytes.size) bytes[index + 1].toInt() and 0xFF else -1
+            val b2 = if (index + 2 < bytes.size) bytes[index + 2].toInt() and 0xFF else -1
+            out.append(BASE64_ALPHABET[b0 shr 2])
+            out.append(
+                BASE64_ALPHABET[if (b1 >= 0) ((b0 and 0x03) shl 4) or (b1 shr 4) else (b0 and 0x03) shl 4]
+            )
+            out.append(
+                when {
+                    b1 < 0 -> '='
+                    b2 < 0 -> BASE64_ALPHABET[(b1 and 0x0F) shl 2]
+                    else -> BASE64_ALPHABET[((b1 and 0x0F) shl 2) or (b2 shr 6)]
+                }
+            )
+            out.append(
+                when {
+                    b2 < 0 -> '='
+                    else -> BASE64_ALPHABET[b2 and 0x3F]
+                }
+            )
+            index += 3
+        }
+        return out.toString()
+    }
+
     private const val BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-    /** Dean Edwards packer açma (a=62 varyantı). */
+    /** Dean Edwards packer açma (a/c kaynaktan gelir). */
     private fun packerUnpack(p: String, a: Int, c: Int, dictionary: List<String>): String {
         var out = p
         var i = c
@@ -360,7 +508,7 @@ object RplayerDecoder {
             i--
             if (i < dictionary.size && dictionary[i].isNotEmpty()) {
                 val token = encode(i, a)
-                out = Regex("\\b" + Regex.escape(token) + "\\b").replace(out, dictionary[i])
+                out = Regex("\\\\b" + Regex.escape(token) + "\\\\b").replace(out, dictionary[i])
             }
         }
         return out
@@ -377,11 +525,8 @@ object RplayerDecoder {
         return sb.reverse().toString()
     }
 
-    private fun toChar(x: Int): Char {
-        return if (x > 35) (x + 29).toChar() else ALPHA[x]
-    }
+    private fun toChar(x: Int): Char = if (x > 35) (x + 29).toChar() else ALPHA[x]
 
-    private fun unescapeJsSingleQuoted(s: String): String {
-        return s.replace("\\\\", "\u0000").replace("\\'", "'").replace("\u0000", "\\")
-    }
+    private fun unescapeJsSingleQuoted(s: String): String =
+        s.replace("\\\\", "\u0000").replace("\\'", "'").replace("\u0000", "\\")
 }

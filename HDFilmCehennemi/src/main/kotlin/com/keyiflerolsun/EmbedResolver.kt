@@ -184,8 +184,27 @@ object EmbedResolver {
      * @param mainUrl sitenin kök adresi (sonunda / olmayabilir)
      */
     fun toPlayerUrl(iframe: String, mainUrl: String): String {
+        val value = iframe.trim()
+        val lower = value.lowercase()
+
+        // ! GÜNCELLEME (2026-10): Sitenin iframe'i artık oynatıcının KENDİ
+        // ! mutlak adresidir ve host'u mainUrl'den farklıdır:
+        //!    https://hdfilmcehennemi.mobi/video/embed/<id>/?rapidrame_id=<id>
+        // ! Bu adres `/rplayer/<id>/` biçimine ÇEVRİLMEMELİ; eski dönüşüm
+        // ! geçerli embed adresini 404 bir site-içi yola çeviriyordu
+        // ! ("0 kaynak"). Adres olduğu gibi korunur.
+        if (lower.contains("/video/embed/")) return value
+
+        // ! Site-içi oynatıcı yolu: sonda / şart (yoksa sunucu 301 döndürüyor
+        // ! ve oynatıcı sayfası boş geliyor).
+        if (lower.contains("/rplayer/") || lower.contains("/playerr/")) {
+            return if (value.endsWith("/")) value else "$value/"
+        }
+
+        // ! Eski biçim: harici bir adres oynatıcı kimliğini sorgu dizesinde
+        // ! taşıyor (…?rapidrame_id=<id>). Bu durumda site-içi yola çevrilir.
         val rapidrameId = Regex("""[?&]rapidrame_id=([^&#]+)""", RegexOption.IGNORE_CASE)
-            .find(iframe)
+            .find(value)
             ?.groupValues
             ?.getOrNull(1)
             ?.trim()
@@ -193,10 +212,7 @@ object EmbedResolver {
         if (rapidrameId.isNotBlank()) {
             return "${mainUrl.trimEnd('/')}/rplayer/$rapidrameId/"
         }
-        if (iframe.contains("/rplayer/") || iframe.contains("/playerr/")) {
-            return if (iframe.endsWith("/")) iframe else "$iframe/"
-        }
-        return iframe
+        return value
     }
 
     /** Siteye ait oynatıcı yolları — kendi host'unda olsalar da geçerli kaynaktır. */
