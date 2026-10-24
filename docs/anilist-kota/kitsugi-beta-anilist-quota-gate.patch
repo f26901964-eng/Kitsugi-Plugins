@@ -1,0 +1,825 @@
+diff --git a/app/src/main/java/com/kitsugi/animelist/data/auth/AniListImportManager.kt b/app/src/main/java/com/kitsugi/animelist/data/auth/AniListImportManager.kt
+index 503a55a..ca8e6a6 100644
+--- a/app/src/main/java/com/kitsugi/animelist/data/auth/AniListImportManager.kt
++++ b/app/src/main/java/com/kitsugi/animelist/data/auth/AniListImportManager.kt
+@@ -310,6 +310,12 @@ object AniListImportManager {
+         query: String,
+         variables: JSONObject
+     ): String {
++        if (!com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGateBlocking(
++                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.BACKGROUND
++            )
++        ) {
++            throw IllegalStateException("AniList kotası dolu; içe aktarma sonraki tura ertelendi.")
++        }
+         val payload = JSONObject()
+             .put("query", query)
+             .put("variables", variables)
+diff --git a/app/src/main/java/com/kitsugi/animelist/data/auth/AniListSyncManager.kt b/app/src/main/java/com/kitsugi/animelist/data/auth/AniListSyncManager.kt
+index 78fabe0..03fd1b3 100644
+--- a/app/src/main/java/com/kitsugi/animelist/data/auth/AniListSyncManager.kt
++++ b/app/src/main/java/com/kitsugi/animelist/data/auth/AniListSyncManager.kt
+@@ -856,6 +856,13 @@ object AniListSyncManager {
+         variables: JSONObject,
+         context: Context? = null
+     ): String {
++        // Kotayı görünmez şekilde tüketen doğrudan POST: kapıdan geçir.
++        if (!com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGateBlocking(
++                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.BACKGROUND
++            )
++        ) {
++            throw IllegalStateException("AniList kotası dolu; eşitleme sonraki tura ertelendi.")
++        }
+         val payload = JSONObject()
+             .put("query", query)
+             .put("variables", variables)
+diff --git a/app/src/main/java/com/kitsugi/animelist/data/notifications/NotificationDiagnostics.kt b/app/src/main/java/com/kitsugi/animelist/data/notifications/NotificationDiagnostics.kt
+index ff1e322..bc9722f 100644
+--- a/app/src/main/java/com/kitsugi/animelist/data/notifications/NotificationDiagnostics.kt
++++ b/app/src/main/java/com/kitsugi/animelist/data/notifications/NotificationDiagnostics.kt
+@@ -582,8 +582,17 @@ object NotificationDiagnostics {
+             }
+         }
+ 
+-    private suspend fun httpPostJson(url: String, json: String, token: String): Pair<Int, String> =
+-        withContext(Dispatchers.IO) {
++    private suspend fun httpPostJson(url: String, json: String, token: String): Pair<Int, String> {
++        // Teşhis isteği de AniList kotasından yer: kapıyı atlaması, "teşhis
++        // çalıştırmak" yüzünden kullanıcının bildirimlerinin 429 almasına yol açıyordu.
++        if (url.contains("anilist.co") &&
++            !com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGate(
++                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.BACKGROUND
++            )
++        ) {
++            return Pair(429, "{\"errors\":[{\"message\":\"AniList kotası dolu; teşhis ertelendi.\"}]}")
++        }
++        return withContext(Dispatchers.IO) {
+             val request = Request.Builder()
+                 .url(url)
+                 .header("Accept", "application/json")
+@@ -595,4 +604,5 @@ object NotificationDiagnostics {
+                 Pair(response.code, response.body?.string().orEmpty())
+             }
+         }
++    }
+ }
+diff --git a/app/src/main/java/com/kitsugi/animelist/data/remote/AniListQuotaGate.kt b/app/src/main/java/com/kitsugi/animelist/data/remote/AniListQuotaGate.kt
+new file mode 100644
+index 0000000..4d7df55
+--- /dev/null
++++ b/app/src/main/java/com/kitsugi/animelist/data/remote/AniListQuotaGate.kt
+@@ -0,0 +1,322 @@
++package com.kitsugi.animelist.data.remote
++
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.runBlocking
++import java.util.ArrayDeque
++
++/**
++ * AniList GraphQL için **tek kota kapısı**.
++ *
++ * ## Neden gerekli
++ * AniList, dokümante ettiği 90 istek/dk yerine uzun süredir **30 istek/dk**
++ * (degraded mode, `X-RateLimit-Limit: 30`) uyguluyor ve üstüne **burst limiter**
++ * çalıştırıyor. Limit **IP başına** sayılır; mobil operatörlerin CGNAT'ı yüzünden
++ * aynı public IP'yi başka kullanıcılar da tüketebilir. 429 aldıktan sonra
++ * AniList 1 dakikalık pencere kapatır; bu pencerede yapılan her istek de 429'dur.
++ *
++ * ## Ne yapar
++ * - [WINDOW_MS] kayan pencerede **bütçe** (`limit - rezerv`) kadar isteğe izin verir.
++ * - İki istek arasına `ceil(60_000 / bütçe)` ms **minimum aralık** koyar.
++ *   (`round` kullanılsaydı 2222 ms × 27 aralık = 59 994 ms olur ve 28 istek aynı
++ *   60 sn penceresine sığardı; bu dosyadaki `ceil` bunu matematiksel olarak engeller.)
++ * - **Öncelik** uygular: bütçenin %60'ı dolduktan sonra PREFETCH, %40'ından sonra
++ *   BACKGROUND gönderilmez. Böylece arka plan eşitleme, kullanıcının bildirim
++ *   ekranının önünü kesmez.
++ * - `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` başlıklarını
++ *   öğrenir; `limit` 90 varsayımıyla başlamaz.
++ * - 429'da `Retry-After` (yoksa `X-RateLimit-Reset`, yoksa 60 sn) kadar **kapıyı
++ *   kapatır**; bu süre boyunca hiçbir çağıran istek göndermez.
++ *
++ * ## Ne yapmaz
++ * Kuyruğa sonsuza kadar istek koymaz: [Decision.Rejected] döndürdüğünde çağıran
++ * katman önbellekten/bayat veriden cevap üretmeli, kullanıcıya geri sayım
++ * göstermelidir. "Sessizce bekle" davranışı ANR ve 45 sn'lik iskelet ekranları
++ * üretir; bu kapı bilinçli olarak **fail-fast + geri sayım** seçer.
++ *
++ * ## Doğrulama
++ * `docs/anilist-kota/anilist_kota_sim.py` bu dosyanın algoritma portudur ve
++ * 5 garantiyi (pencere, aralık, Retry-After, öncelik rezervi, başlık öğrenme)
++ * test eder. Sabitleri değiştirirseniz simülasyonu da çalıştırın.
++ *
++ * Tüm erişim `synchronized` altındadır; bekleme **kilit dışında** yapılır, bu
++ * yüzden çağrılar birbirini kilitlemez.
++ */
++object AniListQuotaGate {
++
++    /** İsteğin kullanıcı açısından aciliyeti. Sıra önemlidir (rank büyük = daha az önemli). */
++    enum class Priority(val rank: Int) {
++        /** Kullanıcının beklediği okuma/yazma: bildirim, liste güncelleme, giriş. */
++        CRITICAL(0),
++
++        /** Ekranda görünen içerik: detay, arama sonucu, açık sekme. */
++        INTERACTIVE(1),
++
++        /** Görünmeyen raflar, sonraki sayfa, ısıtma. */
++        PREFETCH(2),
++
++        /** Toplu eşitleme, içe aktarma, periyodik işler (WorkManager). */
++        BACKGROUND(3),
++    }
++
++    /** Kapının kararı. */
++    sealed interface Decision {
++        /** İstek gönderilebilir (bekleme kapı içinde yapıldı). */
++        data object Granted : Decision
++
++        /** İstek **gönderilmedi**. Çağıran önbellek/geri sayım göstermeli. */
++        data class Rejected(val retryInMs: Long, val reason: Reason) : Decision
++    }
++
++    enum class Reason {
++        /** Öncelik rezervi: bütçe arka plan işine ayrılmadı. */
++        QUOTA_RESERVED,
++
++        /** 429 penceresi açık; [Decision.Rejected.retryInMs] kadar beklemek gerek. */
++        COOLDOWN,
++
++        /** Sıra çok uzun; bu istek için beklemek kullanıcıyı kilitleyecekti. */
++        WAIT_TOO_LONG,
++    }
++
++    /** Teşhis paneli / log için anlık görüntü. */
++    data class Snapshot(
++        val limit: Int,
++        val budget: Int,
++        val usedInWindow: Int,
++        val minGapMs: Long,
++        val cooldownRemainingMs: Long,
++        val nextFreeSlotInMs: Long,
++        val lastRemaining: Int?,
++    )
++
++    private const val WINDOW_MS = 60_000L
++    private const val DEFAULT_LIMIT = 30      // doküman 90 diyor; fiili limit 30
++    private const val MIN_LIMIT = 5
++    private const val MAX_LIMIT = 1_000
++    private const val COOLDOWN_MIN_MS = 2_000L
++    private const val COOLDOWN_MAX_MS = 120_000L
++    private const val DEFAULT_PAUSE_MS = 60_000L
++
++    private val lock = Any()
++
++    /** Son 60 sn içinde **planlanmış** istek başlangıçları (ms, epoch). */
++    private val starts = ArrayDeque<Long>()
++
++    private var limit: Int = DEFAULT_LIMIT
++    private var nextSlotAt: Long = 0L
++    private var blockedUntil: Long = 0L
++    private var softBlockedUntil: Long = 0L
++    private var lastRemaining: Int? = null
++
++    // ── türetilmiş değerler (kilit altında okunmalı) ─────────────────────────
++
++    private fun budgetLocked(): Int {
++        val reserve = maxOf(2, limit / 10)          // %10 emniyet payı
++        return maxOf(2, limit - reserve)
++    }
++
++    /**
++     * Minimum istek aralığı. **Yukarı** yuvarlanır: `60_000 / 27 = 2222.2` iken
++     * 2222 ms kullanmak 28 isteği tek pencereye sokar (0, 2222, … 59 994).
++     */
++    private fun minGapLocked(): Long {
++        val budget = budgetLocked()
++        return (WINDOW_MS + budget - 1) / budget
++    }
++
++    private fun pruneLocked(now: Long) {
++        while (starts.isNotEmpty() && starts.first() <= now - WINDOW_MS) {
++            starts.removeFirst()
++        }
++    }
++
++    /**
++     * Bu istek için en erken uygun zamanı hesaplar ve **rezerve eder**.
++     * Temizlik, `now`'a göre değil aday `slot`'un kendi penceresine göre yapılır;
++     * aksi hâlde pencere sınırında 28. istek sızabilir.
++     */
++    private fun planLocked(now: Long): Long {
++        var slot = maxOf(now, nextSlotAt, blockedUntil, softBlockedUntil)
++        val budget = budgetLocked()
++        for (i in 0 until 4) {
++            while (starts.isNotEmpty() && starts.first() <= slot - WINDOW_MS) {
++                starts.removeFirst()
++            }
++            if (starts.size < budget) return slot
++            slot = starts.first() + WINDOW_MS
++        }
++        return slot
++    }
++
++    private fun commitLocked(slot: Long) {
++        starts.addLast(slot)
++        nextSlotAt = slot + minGapLocked()
++    }
++
++    // ── genel API ───────────────────────────────────────────────────────────
++
++    /**
++     * Kapıdan izin ister. İzin verilirse dönüş **ancak sıra geldiğinde** olur
++     * (bekleme bu fonksiyonun içinde, kilit dışında yapılır).
++     *
++     * @param maxWaitMs bu süreden fazla beklemek gerekiyorsa istek hiç
++     *   gönderilmez — çağıran önbellekten cevap vermeli / geri sayım göstermeli.
++     */
++    suspend fun acquire(
++        priority: Priority,
++        maxWaitMs: Long = defaultMaxWaitMs(priority),
++    ): Decision {
++        val now = System.currentTimeMillis()
++        var waitMs = 0L
++        var rejection: Decision.Rejected? = null
++
++        synchronized(lock) {
++            pruneLocked(now)
++            val budget = budgetLocked()
++
++            // 1) Öncelik rezervi: düşük öncelikli iş, kullanıcının bütçesini yemesin.
++            val reserved = when (priority) {
++                Priority.PREFETCH -> (budget * 60) / 100
++                Priority.BACKGROUND -> (budget * 40) / 100
++                else -> Int.MAX_VALUE
++            }
++            if (starts.size >= reserved) {
++                rejection = Decision.Rejected(
++                    retryInMs = DEFAULT_PAUSE_MS,
++                    reason = Reason.QUOTA_RESERVED,
++                )
++                return@synchronized
++            }
++
++            // 2) Sıra hesapla + rezerve et.
++            val slot = planLocked(now)
++            waitMs = slot - now
++            if (waitMs > maxWaitMs) {
++                rejection = Decision.Rejected(
++                    retryInMs = waitMs,
++                    reason = if (blockedUntil > now) Reason.COOLDOWN else Reason.WAIT_TOO_LONG,
++                )
++                return@synchronized
++            }
++            commitLocked(slot)
++        }
++
++        rejection?.let { return it }
++        if (waitMs > 0L) delay(waitMs)
++        return Decision.Granted
++    }
++
++    /**
++     * Bloklayan (suspend olmayan) eski çağrı yerleri için köprü.
++     *
++     * `AniListSyncManager`, `AniListImportManager`, profil ViewModel'leri gibi
++     * doğrudan `graphql.anilist.co`'ya POST atan yollar bu kapıyı atladığı için
++     * bütçeyi görünmez şekilde tüketiyordu. Bu köprü IO thread'inde kullanılmalı.
++     */
++    fun acquireBlocking(
++        priority: Priority,
++        maxWaitMs: Long = 15_000L,
++    ): Decision = runBlocking { acquire(priority, maxWaitMs) }
++
++    /**
++     * HTTP yanıt başlıklarını öğrenir. Her yanıtta (başarılı/başarısız) çağrılmalı.
++     *
++     * @param resetEpochSeconds `X-RateLimit-Reset` (Unix saniye)
++     */
++    fun onHttpResponse(
++        limitHeader: Int?,
++        remainingHeader: Int?,
++        resetEpochSeconds: Long? = null,
++    ) {
++        synchronized(lock) {
++            if (limitHeader != null && limitHeader in MIN_LIMIT..MAX_LIMIT) {
++                limit = limitHeader
++            }
++            lastRemaining = remainingHeader
++            // Kota bitti/bitiyor: pencere sıfırlanana kadar düşük öncelikli iş durur.
++            if (remainingHeader != null && remainingHeader <= 1 && resetEpochSeconds != null) {
++                val resetAt = resetEpochSeconds * 1_000L
++                if (resetAt > System.currentTimeMillis()) {
++                    softBlockedUntil = maxOf(softBlockedUntil, resetAt)
++                }
++            }
++        }
++    }
++
++    /**
++     * 429 alındı. `Retry-After` (ms) varsa ona, yoksa 60 sn'ye kadar kapıyı kapatır.
++     * Bu süre içinde hiçbir öncelik istek göndermez; retry yapmak 429 üretmekten
++     * başka bir şey yapmaz.
++     */
++    fun onRateLimited(retryAfterMs: Long?) {
++        val pause = (retryAfterMs ?: DEFAULT_PAUSE_MS)
++            .coerceIn(COOLDOWN_MIN_MS, COOLDOWN_MAX_MS)
++        synchronized(lock) {
++            blockedUntil = maxOf(blockedUntil, System.currentTimeMillis() + pause)
++        }
++    }
++
++    /** Servis tamamen kapalıysa (403 "temporarily disabled") kapıyı kapatır. */
++    fun onServiceDown(pauseMs: Long = 45_000L) {
++        synchronized(lock) {
++            blockedUntil = maxOf(blockedUntil, System.currentTimeMillis() + pauseMs)
++        }
++    }
++
++    /** Şu an kaç ms sonra istek çıkabilir? UI geri sayımı için. */
++    fun waitEstimateMs(priority: Priority = Priority.INTERACTIVE): Long {
++        val now = System.currentTimeMillis()
++        return synchronized(lock) {
++            pruneLocked(now)
++            val budget = budgetLocked()
++            val reserved = when (priority) {
++                Priority.PREFETCH -> (budget * 60) / 100
++                Priority.BACKGROUND -> (budget * 40) / 100
++                else -> Int.MAX_VALUE
++            }
++            if (starts.size >= reserved) return@synchronized DEFAULT_PAUSE_MS
++            maxOf(0L, planLocked(now) - now)
++        }
++    }
++
++    /** 429/servis kesintisi ne zaman bitiyor? (0 = açık) */
++    fun cooldownRemainingMs(): Long {
++        val now = System.currentTimeMillis()
++        return synchronized(lock) { maxOf(0L, blockedUntil - now) }
++    }
++
++    fun snapshot(): Snapshot {
++        val now = System.currentTimeMillis()
++        return synchronized(lock) {
++            pruneLocked(now)
++            Snapshot(
++                limit = limit,
++                budget = budgetLocked(),
++                usedInWindow = starts.size,
++                minGapMs = minGapLocked(),
++                cooldownRemainingMs = maxOf(0L, blockedUntil - now),
++                nextFreeSlotInMs = maxOf(0L, planLocked(now) - now),
++                lastRemaining = lastRemaining,
++            )
++        }
++    }
++
++    /** Test/teşhis için tüm durumu sıfırlar. Üretimde çağrılmamalı. */
++    fun resetForTest() {
++        synchronized(lock) {
++            starts.clear()
++            limit = DEFAULT_LIMIT
++            nextSlotAt = 0L
++            blockedUntil = 0L
++            softBlockedUntil = 0L
++            lastRemaining = null
++        }
++    }
++
++    private fun defaultMaxWaitMs(priority: Priority): Long = when (priority) {
++        Priority.CRITICAL -> 25_000L     // kullanıcı ekranda bekliyor
++        Priority.INTERACTIVE -> 12_000L  // iskelet gösterilebilir
++        Priority.PREFETCH -> 3_000L
++        Priority.BACKGROUND -> 2_000L
++    }
++}
+diff --git a/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiAniListNotificationClient.kt b/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiAniListNotificationClient.kt
+index 2f6b623..eac19d8 100644
+--- a/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiAniListNotificationClient.kt
++++ b/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiAniListNotificationClient.kt
+@@ -14,6 +14,31 @@ import org.json.JSONObject
+  */
+ class KitsugiAniListNotificationClient {
+ 
++    // ─────────────────────────────────────────────────────────────────────────
++    // Önbellek
++    //
++    // AniList kotası 30 istek/dk. Bildirim ekranı açıldığında eskiden 2 istek
++    // gidiyordu (sayfa + okunmamış sayacı), her sekme değişiminde de yeni bir
++    // istek üretiliyordu. Artık:
++    //  - sayfa + okunmamış sayacı TEK GraphQL belgesinde istenir,
++    //  - 60 sn içindeki tekrarlar önbellekten karşılanır,
++    //  - "Tümü" yanıtı önbellekteyse diğer sekmeler istemci tarafında filtrelenir.
++    // ─────────────────────────────────────────────────────────────────────────
++
++    private data class CachedPage(val page: KitsugiNotificationPage, val storedAtMs: Long)
++
++    private companion object {
++        const val PAGE_TTL_MS = 60_000L
++        const val UNREAD_TTL_MS = 60_000L
++
++        /** Sayfa önbelleği: sınıf örneği her yüklemede yeniden üretildiği için ORTAK. */
++        val pageCache = java.util.concurrent.ConcurrentHashMap<String, CachedPage>()
++
++        /** Son bilinen okunmamış sayısı — fetchNotifications() aynı yanıtta getirir. */
++        @Volatile var lastUnreadCount: Int? = null
++        @Volatile var lastUnreadAtMs: Long = 0L
++    }
++
+     // ─────────────────────────────────────────────────────────────────────────
+     // Veri modelleri
+     // ─────────────────────────────────────────────────────────────────────────
+@@ -75,6 +100,11 @@ class KitsugiAniListNotificationClient {
+      * Token olmadan null döner.
+      */
+     suspend fun fetchUnreadCount(accessToken: String): Int? {
++        // 1) fetchNotifications() aynı belgede sayacı da getiriyor: ek istek YOK.
++        val cached = lastUnreadCount
++        if (cached != null && System.currentTimeMillis() - lastUnreadAtMs <= UNREAD_TTL_MS) {
++            return cached
++        }
+         return withContext(Dispatchers.IO) {
+             val query = """
+                 query UnreadNotificationCount {
+@@ -84,13 +114,20 @@ class KitsugiAniListNotificationClient {
+                 }
+             """.trimIndent()
+             runCatching {
+-                val response = KitsugiApiBase.executeAniListQuery(query, JSONObject(), accessToken)
+-                    ?: return@runCatching null
++                val response = KitsugiApiBase.executeAniListQuery(
++                    query = query,
++                    variables = JSONObject(),
++                    accessToken = accessToken,
++                    priority = AniListQuotaGate.Priority.CRITICAL
++                ) ?: return@runCatching null
+                 JSONObject(response)
+                     .optJSONObject("data")
+                     ?.optJSONObject("Viewer")
+                     ?.optInt("unreadNotificationCount")
+-            }.getOrNull()
++            }.getOrNull()?.also { count ->
++                lastUnreadCount = count
++                lastUnreadAtMs = System.currentTimeMillis()
++            }
+         }
+     }
+ 
+@@ -114,11 +151,29 @@ class KitsugiAniListNotificationClient {
+         group: NotificationGroup = NotificationGroup.ALL,
+         resetCount: Boolean = false
+     ): KitsugiNotificationPage {
++        // 0) Aynı sayfa son 60 sn içinde çekildiyse ağa hiç çıkma.
++        val cacheKey = "anilist:notif:$page:$perPage:${group.name}:$resetCount"
++        pageCache[cacheKey]?.let { cached ->
++            if (System.currentTimeMillis() - cached.storedAtMs <= PAGE_TTL_MS) return cached.page
++        }
++        // 0b) "Tümü" önbellekte ise sekmeleri sunucuda değil, burada filtrele:
++        //     6 sekme gezinmek = 6 istek yerine 0 istek.
++        if (group != NotificationGroup.ALL) {
++            val allKey = "anilist:notif:$page:$perPage:${NotificationGroup.ALL.name}:false"
++            val all = pageCache[allKey]
++            if (all != null && System.currentTimeMillis() - all.storedAtMs <= PAGE_TTL_MS) {
++                val filtered = all.page.notifications.filter { it.type in group.apiTypes }
++                return all.page.copy(notifications = filtered)
++            }
++        }
++
+         return withContext(Dispatchers.IO) {
+             val typeInParam = if (group.apiTypes.isEmpty()) "" else ", \$typeIn: [NotificationType]"
+             val typeInArg   = if (group.apiTypes.isEmpty()) "" else ", type_in: \$typeIn"
+ 
+-            // TASK-108: Tüm bildirim alt tiplerini kapsayan kapsamlı query
++            // TASK-108: Tüm bildirim alt tiplerini kapsayan kapsamlı query.
++            // NOT: `Viewer { unreadNotificationCount }` aynı belgede KARDEŞ kök alandır
++            // (Page kısıtı yalnızca Page içindir). Böylece sayfa + sayaç = 1 istek.
+             val query = """
+                 query Notifications(${'$'}page: Int, ${'$'}perPage: Int$typeInParam, ${'$'}resetCount: Boolean) {
+                     Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+@@ -218,6 +273,7 @@ class KitsugiAniListNotificationClient {
+                         }
+                         pageInfo { currentPage hasNextPage }
+                     }
++                    Viewer { unreadNotificationCount }
+                 }
+             """.trimIndent()
+ 
+@@ -238,9 +294,20 @@ class KitsugiAniListNotificationClient {
+                     accessToken = accessToken,
+                     throwOnServiceDown = true
+                 )
+-                    ?: throw AniListNotificationException(
+-                        "AniList bildirim isteği yanıtsız kaldı (ağ/sunucu hatası)."
+-                    )
++                    ?: run {
++                        // Eskiden burada tek bir "ağ/sunucu hatası" yazıyordu; oysa
++                        // gerçek sebep çoğu zaman kota idi. Kullanıcı kaç saniye
++                        // bekleyeceğini görsün.
++                        val waitMs = AniListQuotaGate.cooldownRemainingMs()
++                            .takeIf { it > 0L }
++                            ?: AniListQuotaGate.waitEstimateMs(AniListQuotaGate.Priority.CRITICAL)
++                        val detail = if (waitMs > 0L) {
++                            "AniList kotası dolu; yaklaşık ${(waitMs / 1000).coerceAtLeast(1)} sn sonra yeniden deneyin."
++                        } else {
++                            "AniList bildirim isteği yanıtsız kaldı (ağ/sunucu hatası)."
++                        }
++                        throw AniListNotificationException(detail, null, waitMs)
++                    }
+ 
+                 // GraphQL hataları daha önce sessizce yutuluyordu; bu yüzden kullanıcı
+                 // "bildirim yok" sanıyordu. Artık hata açıkça fırlatılır.
+@@ -263,6 +330,20 @@ class KitsugiAniListNotificationClient {
+                 val hasNext = pageInfo?.optBoolean("hasNextPage", false) ?: false
+                 val currentP = pageInfo?.optInt("currentPage", page) ?: page
+ 
++                // Aynı yanıtta gelen okunmamış sayacı (varsa) önbelleğe yaz.
++                val unreadFromDoc = root.optJSONObject("data")
++                    ?.optJSONObject("Viewer")
++                    ?.optInt("unreadNotificationCount", -1)
++                    ?.takeIf { it >= 0 }
++                if (resetCount) {
++                    // Sunucu sayacı sıfırladı; rozet hemen düşsün.
++                    lastUnreadCount = 0
++                    lastUnreadAtMs = System.currentTimeMillis()
++                } else if (unreadFromDoc != null) {
++                    lastUnreadCount = unreadFromDoc
++                    lastUnreadAtMs = System.currentTimeMillis()
++                }
++
+                 val list = mutableListOf<KitsugiNotification>()
+                 if (notificationsArr != null) {
+                     for (i in 0 until notificationsArr.length()) {
+@@ -270,7 +351,9 @@ class KitsugiAniListNotificationClient {
+                         list.add(parseNotification(item))
+                     }
+                 }
+-                KitsugiNotificationPage(list, hasNext, currentP)
++                val resultPage = KitsugiNotificationPage(list, hasNext, currentP)
++                pageCache[cacheKey] = CachedPage(resultPage, System.currentTimeMillis())
++                resultPage
+             }.getOrElse { cause ->
+                 // Sessiz boş liste YOK: çağıran katman gerçek nedeni gösterebilsin.
+                 if (cause is AniListNotificationException) throw cause
+@@ -282,9 +365,13 @@ class KitsugiAniListNotificationClient {
+         }
+     }
+ 
+-    /** AniList bildirim akışındaki hataları taşır (ağ, token, GraphQL). */
+-    class AniListNotificationException(message: String, cause: Throwable? = null) :
+-        Exception(message, cause)
++    /** AniList bildirim akışındaki hataları taşır (ağ, token, GraphQL, kota). */
++    class AniListNotificationException(
++        message: String,
++        cause: Throwable? = null,
++        /** Kota nedeniyleyse: kaç ms sonra yeniden denenebilir (0 = bilinmiyor). */
++        val retryInMs: Long = 0L
++    ) : Exception(message, cause)
+ 
+     // ─────────────────────────────────────────────────────────────────────────
+     // Private — JSON parser
+diff --git a/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiApiBase.kt b/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiApiBase.kt
+index fae152b..67ddf03 100644
+--- a/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiApiBase.kt
++++ b/app/src/main/java/com/kitsugi/animelist/data/remote/KitsugiApiBase.kt
+@@ -3,7 +3,9 @@ package com.kitsugi.animelist.data.remote
+ import com.kitsugi.animelist.KitsugiApplication
+ import com.kitsugi.animelist.data.auth.ExternalAuthManager
+ import kotlinx.coroutines.delay
++import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.Semaphore
++import kotlinx.coroutines.sync.withLock
+ import kotlinx.coroutines.sync.withPermit
+ import kotlinx.serialization.json.Json
+ import kotlinx.serialization.json.jsonArray
+@@ -174,7 +176,8 @@ object KitsugiApiBase {
+         val now = System.currentTimeMillis()
+         return now < anilistServiceDownUntil ||
+             now < anilistGatewayDownUntil ||
+-            (anilistRateLimitedUntil - now) > ANILIST_SHORT_COOLDOWN_WAIT_MS
++            (anilistRateLimitedUntil - now) > ANILIST_SHORT_COOLDOWN_WAIT_MS ||
++            AniListQuotaGate.cooldownRemainingMs() > ANILIST_SHORT_COOLDOWN_WAIT_MS
+     }
+ 
+     /**
+@@ -212,6 +215,7 @@ object KitsugiApiBase {
+         }
+         anilistServiceDownReason = cleanReason
+         anilistServiceDownUntil = System.currentTimeMillis() + ANILIST_SERVICE_DOWN_COOLDOWN_MS
++        AniListQuotaGate.onServiceDown(ANILIST_SERVICE_DOWN_COOLDOWN_MS)
+         val fullMessage = "AniList API geçici olarak devre dışı: $cleanReason"
+         com.kitsugi.animelist.data.platform.PlatformFailureRegistry.report(
+             platformLabel = "anilist",
+@@ -224,6 +228,9 @@ object KitsugiApiBase {
+     private fun updateAniListRateHeaders(response: okhttp3.Response) {
+         val limit = response.header("X-RateLimit-Limit")?.toIntOrNull()
+         val remaining = response.header("X-RateLimit-Remaining")?.toIntOrNull()
++        val resetEpoch = response.header("X-RateLimit-Reset")?.toLongOrNull()
++        // Kapı limiti buradan ÖĞRENİR; 90 varsayımıyla başlamaz.
++        AniListQuotaGate.onHttpResponse(limit, remaining, resetEpoch)
+         if (limit != null || remaining != null) {
+             aniListDegradedMode = (limit != null && limit <= 45) || (remaining != null && remaining <= 12)
+         }
+@@ -390,7 +397,8 @@ object KitsugiApiBase {
+         query: String,
+         variables: JSONObject,
+         accessToken: String? = null,
+-        throwOnServiceDown: Boolean = false
++        throwOnServiceDown: Boolean = false,
++        priority: AniListQuotaGate.Priority = AniListQuotaGate.Priority.INTERACTIVE
+     ): String? {
+         val now = System.currentTimeMillis()
+ 
+@@ -418,25 +426,24 @@ object KitsugiApiBase {
+             return null
+         }
+ 
+-        // 3) 429 cooldown kontrolü
+-        val cooldownRemainingMs = anilistRateLimitedUntil - now
+-        if (cooldownRemainingMs > 0L) {
+-            if (cooldownRemainingMs <= ANILIST_SHORT_COOLDOWN_WAIT_MS) {
++        // 3) Kota kapısı — tek doğruluk kaynağı.
++        //    Kapı; kayan 60 sn penceresini, minimum istek aralığını, 429 penceresini
++        //    ve öncelik rezervini birlikte yönetir. Bekleme kapının içinde yapılır,
++        //    bu yüzden kısa cooldown'lar burada ayrıca ele alınmaz.
++        when (val permit = AniListQuotaGate.acquire(priority)) {
++            is AniListQuotaGate.Decision.Granted -> Unit
++            is AniListQuotaGate.Decision.Rejected -> {
+                 android.util.Log.w(
+                     "KitsugiApiBase",
+-                    "AniList 429 cooldown kısa (${cooldownRemainingMs}ms) — bekleyip istek gönderilecek"
+-                )
+-                delay(cooldownRemainingMs)
+-            } else {
+-                android.util.Log.w(
+-                    "KitsugiApiBase",
+-                    "AniList 429 cooldown aktif (${cooldownRemainingMs}ms kaldı) — istek gönderilmedi"
+-                )
+-                com.kitsugi.animelist.data.platform.PlatformFailureRegistry.report(
+-                    platformLabel = "anilist",
+-                    httpCode = 429,
+-                    rawMessage = "HTTP 429 Too Many Requests · graphql.anilist.co"
++                    "AniList kapısı isteği reddetti: ${permit.reason} (${permit.retryInMs}ms sonra)"
+                 )
++                if (permit.reason != AniListQuotaGate.Reason.QUOTA_RESERVED) {
++                    com.kitsugi.animelist.data.platform.PlatformFailureRegistry.report(
++                        platformLabel = "anilist",
++                        httpCode = 429,
++                        rawMessage = "HTTP 429 Too Many Requests · graphql.anilist.co"
++                    )
++                }
+                 return null
+             }
+         }
+@@ -465,9 +472,8 @@ object KitsugiApiBase {
+             }
+ 
+             val currentToken = if (tokenFailed) null else token
++            // Sıra/kota artık AniListQuotaGate'te; burada yalnızca eşzamanlılık sınırlanır.
+             val result = aniListSemaphore.withPermit {
+-                val waitMs = reserveAniListSlotMs()
+-                if (waitMs > 0L) delay(waitMs)
+                 performAniListRequest(requestBody, currentToken)
+             }
+ 
+@@ -523,6 +529,100 @@ object KitsugiApiBase {
+         }
+     }
+ 
++    // ─── Önbellek + tek-uçuş (single-flight) ────────────────────────────────
++    // AniList kotası 30 istek/dk olduğu için "aynı veriyi ikinci kez istemek"
++    // lüks değil. Aynı anda iki ekran aynı sorguyu isterse ikincisi birincinin
++    // sonucunu bekler; TTL içindeki tekrarlar ağa hiç çıkmaz.
++
++    private data class CachedResponse(val body: String, val storedAtMs: Long)
++
++    private val aniListCache = java.util.concurrent.ConcurrentHashMap<String, CachedResponse>()
++    private val aniListKeyLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
++
++    private const val ANILIST_CACHE_MAX_ENTRIES = 250
++
++    /**
++     * [executeAniListQuery] + bellek önbelleği + tek-uçuş.
++     *
++     * @param ttlMs taze kabul edilen süre
++     * @param allowStaleMs kota/429 nedeniyle istek gönderilemezse bu yaşa kadar
++     *   bayat veri döndürülür (kullanıcı boş ekran yerine eski veriyi görür).
++     */
++    suspend fun executeAniListQueryCached(
++        cacheKey: String,
++        ttlMs: Long,
++        query: String,
++        variables: JSONObject,
++        accessToken: String? = null,
++        priority: AniListQuotaGate.Priority = AniListQuotaGate.Priority.INTERACTIVE,
++        allowStaleMs: Long = 0L
++    ): String? {
++        val cached = aniListCache[cacheKey]
++        if (cached != null && System.currentTimeMillis() - cached.storedAtMs <= ttlMs) {
++            return cached.body
++        }
++
++        val mutex = aniListKeyLocks.computeIfAbsent(cacheKey) { Mutex() }
++        return mutex.withLock {
++            val fresh = aniListCache[cacheKey]
++            if (fresh != null && System.currentTimeMillis() - fresh.storedAtMs <= ttlMs) {
++                return@withLock fresh.body
++            }
++            val body = executeAniListQuery(
++                query = query,
++                variables = variables,
++                accessToken = accessToken,
++                priority = priority
++            )
++            if (body != null) {
++                if (aniListCache.size >= ANILIST_CACHE_MAX_ENTRIES) aniListCache.clear()
++                aniListCache[cacheKey] = CachedResponse(body, System.currentTimeMillis())
++                body
++            } else if (allowStaleMs > 0L && fresh != null &&
++                System.currentTimeMillis() - fresh.storedAtMs <= allowStaleMs
++            ) {
++                android.util.Log.w("KitsugiApiBase", "AniList kotası/kesintisi: bayat önbellek kullanıldı ($cacheKey)")
++                fresh.body
++            } else {
++                null
++            }
++        }
++    }
++
++    /** Kota dolduğunda bile gösterilebilecek son veri var mı? */
++    fun peekAniListCache(cacheKey: String): String? = aniListCache[cacheKey]?.body
++
++    /** Mutasyon sonrası ilgili önbellek anahtarlarını düşürür. */
++    fun invalidateAniListCache(prefix: String? = null) {
++        if (prefix == null) {
++            aniListCache.clear()
++            return
++        }
++        aniListCache.keys.filter { it.startsWith(prefix) }.forEach { aniListCache.remove(it) }
++    }
++
++    // ─── Kapı köprüleri ─────────────────────────────────────────────────────
++    // graphql.anilist.co'ya DOĞRUDAN POST atan eski yollar (AniListSyncManager,
++    // AniListImportManager, profil ViewModel'leri, NotificationDiagnostics) bu
++    // köprülerden geçmezse kotaları görünmez şekilde tüketir.
++
++    /**
++     * Bloklayan çağrı yerleri için. `maxWaitMs` bilinçli olarak KISA: bu yollar
++     * ana thread'den çağrılabiliyor; uzun beklemek ANR üretir. Kota yoksa istek
++     * hemen reddedilir ve çağıran işi sonraki tura bırakır.
++     */
++    fun aniListGateBlocking(
++        priority: AniListQuotaGate.Priority,
++        maxWaitMs: Long = 1_500L
++    ): Boolean = AniListQuotaGate.acquireBlocking(priority, maxWaitMs) is
++        AniListQuotaGate.Decision.Granted
++
++    suspend fun aniListGate(priority: AniListQuotaGate.Priority): Boolean =
++        AniListQuotaGate.acquire(priority) is AniListQuotaGate.Decision.Granted
++
++    /** Teşhis paneli için kota durumu. */
++    fun aniListQuotaSnapshot(): AniListQuotaGate.Snapshot = AniListQuotaGate.snapshot()
++
+     private sealed class AniListResult {
+         data class Success(val body: String) : AniListResult()
+         data object Failure : AniListResult()
+@@ -574,6 +674,8 @@ object KitsugiApiBase {
+                             aniListDegradedMode = true
+                             val cooldownMs = (retryAfterMs ?: 5_000L).coerceIn(5_000L, ANILIST_RATE_LIMIT_COOLDOWN_CAP_MS)
+                             anilistRateLimitedUntil = System.currentTimeMillis() + cooldownMs
++                            // Tüm uygulama için tek 429 penceresi: Retry-After / Reset'e uy.
++                            AniListQuotaGate.onRateLimited(retryAfterMs)
+                         } else {
+                             synchronized(aniListSlotLock) {
+                                 consecutiveAniListGatewayFailures++
+diff --git a/app/src/main/java/com/kitsugi/animelist/ui/app/KitsugiProfileViewModel.kt b/app/src/main/java/com/kitsugi/animelist/ui/app/KitsugiProfileViewModel.kt
+index c084a78..758098a 100644
+--- a/app/src/main/java/com/kitsugi/animelist/ui/app/KitsugiProfileViewModel.kt
++++ b/app/src/main/java/com/kitsugi/animelist/ui/app/KitsugiProfileViewModel.kt
+@@ -1234,6 +1234,12 @@ class KitsugiProfileViewModel(application: Application) : AndroidViewModel(appli
+     }
+ 
+     private suspend fun postGraphQl(token: String, query: String, variables: JSONObject): String {
++        if (!com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGate(
++                com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.INTERACTIVE
++            )
++        ) {
++            throw IllegalStateException("AniList kotası dolu; profil isteği ertelendi.")
++        }
+         return withContext(Dispatchers.IO) {
+             val payload = JSONObject()
+                 .put("query", query)
+diff --git a/app/src/main/java/com/kitsugi/animelist/ui/screens/profile/KitsugiUserProfileViewModel.kt b/app/src/main/java/com/kitsugi/animelist/ui/screens/profile/KitsugiUserProfileViewModel.kt
+index 8d02011..9f7435f 100644
+--- a/app/src/main/java/com/kitsugi/animelist/ui/screens/profile/KitsugiUserProfileViewModel.kt
++++ b/app/src/main/java/com/kitsugi/animelist/ui/screens/profile/KitsugiUserProfileViewModel.kt
+@@ -656,6 +656,12 @@ class KitsugiUserProfileViewModel(application: Application) : AndroidViewModel(a
+                 put("query", query)
+                 put("variables", variables)
+             }
++            if (!com.kitsugi.animelist.data.remote.KitsugiApiBase.aniListGate(
++                    com.kitsugi.animelist.data.remote.AniListQuotaGate.Priority.INTERACTIVE
++                )
++            ) {
++                throw IllegalStateException("AniList kotası dolu; kullanıcı profili ertelendi.")
++            }
+             val requestBuilder = Request.Builder()
+                 .url("https://graphql.anilist.co")
+                 .post(jsonBody.toString().toRequestBody("application/json".toMediaTypeOrNull()))
