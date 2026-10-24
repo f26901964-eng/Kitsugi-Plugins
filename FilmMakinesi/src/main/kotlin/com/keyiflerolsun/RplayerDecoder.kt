@@ -508,7 +508,7 @@ object RplayerDecoder {
             i--
             if (i < dictionary.size && dictionary[i].isNotEmpty()) {
                 val token = encode(i, a)
-                out = Regex("\\\\b" + Regex.escape(token) + "\\\\b").replace(out, dictionary[i])
+                out = Regex("\\b" + Regex.escape(token) + "\\b").replace(out, dictionary[i])
             }
         }
         return out
