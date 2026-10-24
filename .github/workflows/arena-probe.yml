@@ -1,0 +1,68 @@
+# GECICI arastirma akisi — canli siteleri TR cikisli proxy ile inceler.
+# Hicbir dala push ETMEZ; sonuclar yalnizca artifact olarak yuklenir.
+# Is bitince bu dosya ve arena-probe/ klasoru silinecek.
+name: Arena Probe (gecici)
+
+on:
+  push:
+    branches:
+      - "arena/af53f8ad-kitsugi-plugins"
+    paths:
+      - "arena-probe/**"
+      - ".github/workflows/arena-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Bagimliliklar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -U "requests[socks]" pysocks
+          cd arena-probe && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null && npx playwright install --with-deps chromium >/dev/null
+
+      - name: TR proxy bul
+        run: python arena-probe/find_proxy.py
+
+      - name: Proxy yoksa VPN Gate dene
+        run: |
+          N=$(python -c "import json;print(len(json.load(open('arena-probe/out/proxies.json'))))")
+          echo "calisan proxy: $N"
+          if [ "$N" = "0" ]; then
+            sudo apt-get install -y openvpn >/dev/null 2>&1 || true
+            python arena-probe/vpngate.py || true
+          fi
+
+      - name: Sayfalari tara
+        run: cd arena-probe && python crawl.py
+
+      - name: Oynatici JS'ini calistir
+        run: cd arena-probe && node eval_player.js || true
+
+      - name: Yayin adreslerini dogrula
+        run: cd arena-probe && python verify_streams.py || true
+
+      - name: Gercek tarayici ile dogrula
+        run: cd arena-probe && timeout 900 node browser_probe.js || true
+
+      - name: Sonuclari yukle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-out
+          path: arena-probe/out
+          retention-days: 3
