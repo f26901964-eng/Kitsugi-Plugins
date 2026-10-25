@@ -1,20 +1,18 @@
-import java.util.zip.ZipOutputStream
-import java.util.zip.ZipEntry
+version = 1
 
-tasks.named("make") {
-    doLast {
-        val buildDir = layout.buildDirectory.get().asFile
-        buildDir.mkdirs()
-        val cs3File = File(buildDir, "${project.name}.cs3")
-        val zipFile = ZipOutputStream(cs3File.outputStream())
-        listOf("manifest.json", "classes.dex").forEach { fileName ->
-            val file = file(fileName)
-            if (file.exists()) {
-                zipFile.putNextEntry(ZipEntry(fileName))
-                file.inputStream().use { it.copyTo(zipFile) }
-                zipFile.closeEntry()
-            }
-        }
-        zipFile.close()
-    }
+cloudstream {
+    authors     = listOf("hexated", "byayzen")
+    language    = "tr"
+    description = "Anizm (puffytr.com) anime arşivi: arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü."
+
+    /**
+     * Status int as the following:
+     * 0: Down
+     * 1: Ok
+     * 2: Slow
+     * 3: Beta only
+    **/
+    status      = 3 // Yeniden yazım — cihaz üzerinde kanıtlanana kadar "Beta only"
+    tvTypes     = listOf("Anime")
+    iconUrl     = "https://www.google.com/s2/favicons?domain=puffytr.com&sz=%size%"
 }
