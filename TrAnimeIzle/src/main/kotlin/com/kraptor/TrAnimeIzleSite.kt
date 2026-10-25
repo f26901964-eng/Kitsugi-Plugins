@@ -156,7 +156,7 @@ internal object TrAnimeIzleSite {
             el.selectFirst("h3, h5, h2")?.text(),
             el.selectFirst("div.bar h4, div.bar .title, p.title, span.title, .anime-title")?.text(),
             el.attr("title").takeIf { it.isNotBlank() },
-            el.selectFirst("img")?.attr("alt").takeIf { it.isNotBlank() }
+            el.selectFirst("img")?.attr("alt")?.takeIf { it.isNotBlank() }
         )
         for (candidate in candidates) {
             val cleaned = TrAnimeIzleMatch.cleanTitle(candidate) ?: continue
