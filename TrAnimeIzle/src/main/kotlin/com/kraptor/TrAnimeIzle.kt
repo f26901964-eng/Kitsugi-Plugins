@@ -74,6 +74,19 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    3) BotKontrol diyaloğu artık çerez seti + sayfa DOM HTML'i döndürür
  *       (WebFetchResult); botKontrolFetch(wipeFirst) taze oturum açar.
  *  - HTTP istekleri Firefox document/XHR imzasıyla (sec-fetch-* başlıkları).
+ *
+ * v21 (cihaz kanıtı: arama + bölüm SAYFASI ÇALIŞIYOR, KAYNAK LİSTESİ BOŞ):
+ *  - sourcePlayer cevabındaki oynatıcı ÜÇ formatta çözümlenir:
+ *    <iframe> (kayıtlı extractor'lar), <video>/<source> düz URL,
+ *    HTML/JS içindeki mp4/m3u8 adresi (site video.js kullanıyor →
+ *    iframe'siz doğrudan oynatıcı mümkün).
+ *  - iframe için kayıtlı extractor yoksa iframe sayfası DOĞRUDAN çekilir
+ *    ve içindeki düz video adresi aranır (host agnostik yedek).
+ *  - fansub/source seçicileri toleranslı (yapı değişse bile data-fid /
+ *    data-id'li öğe bulunur — site.js 22.09.2026 davranışı).
+ *  - Hata artık EKRANDA görünür: her basamağın nedeni kaynak panelinde
+ *    ErrorLoadingException mesajı olarak gösterilir (KTS-CSP-9103 yerine).
+ *  - loadLinks bölüm sayfası da içerik garantili (webViewFallback=true).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -781,32 +794,54 @@ class TrAnimeIzle(
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         if (!TrAnimeIzleHelper.isAllowedVersion) return false
-        return coroutineScope {
-            Log.d(LOG_TAG, "data = $data")
-            val html = fetchHtml(data, mainUrl + "/", ensureSession = true)
-        // (webViewFallback=false: bu sayfa load() akışında zaten doğrulandı)
-            val document = Jsoup.parse(html)
+        val errors = mutableListOf<String>()
+        return try {
+            val result = coroutineScope {
+                Log.d(LOG_TAG, "data = $data")
+                // v21: bölüm sayfası da içerik garantili (WebView DOM katmanı).
+                val html = fetchHtml(data, mainUrl + "/", ensureSession = true, webViewFallback = true)
+                val document = Jsoup.parse(html)
 
-            // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
-            // `animeWatch.initialize(animeId, episodeId, fansubId, ...)` script
-            // çağrısında taşır; input#EpisodeId yoksa buradan çıkılır.
-            val episodeId = document.selectFirst("input#EpisodeId")?.attr("value")?.toIntOrNull()
-                ?: Regex("animeWatch\\.initialize\\(\\s*(\\d+)\\s*,\\s*(\\d+)")
-                    .find(html)?.groupValues?.getOrNull(2)?.toIntOrNull()
-            Log.d(LOG_TAG, "episodeId = $episodeId")
-            val found = AtomicBoolean(false)
+                // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
+                // `animeWatch.initialize(animeId, episodeId, fansubId, ...)` script
+                // çağrısında taşır; input#EpisodeId yoksa buradan çıkılır.
+                val episodeId = document.selectFirst("input#EpisodeId")?.attr("value")?.toIntOrNull()
+                    ?: Regex("animeWatch\\.initialize\\(\\s*(\\d+)\\s*,\\s*(\\d+)")
+                        .find(html)?.groupValues?.getOrNull(2)?.toIntOrNull()
+                Log.d(LOG_TAG, "episodeId = $episodeId")
+                if (episodeId == null) {
+                    errors += "bölüm ID'si bulunamadı (EpisodeId/animeWatch)"
+                }
+                val found = AtomicBoolean(false)
 
-            val fansubItems = document.select("div.playlist-title div.fansubSelector li")
-            Log.d(LOG_TAG, "fansubSelector li sayısı: ${fansubItems.size}")
-            if (fansubItems.isEmpty()) {
-                Log.e(LOG_TAG, "fansubSelector boş — sayfa başı:\n" + html.take(1200))
+                // v21 (site.js 22.09.2026): .fansubSelector öğeleri data-fid /
+                // data-fad / data-furl taşır ve tıklanabilir; yapı değişse bile
+                // data-fid'li öğe bulunur.
+                val fansubItems = document
+                    .select("li.fansubSelector, div.fansubSelector, a.fansubSelector")
+                    .ifEmpty { document.select("[data-fid]") }
+                Log.d(LOG_TAG, "fansub öğesi sayısı: ${fansubItems.size}")
+                if (fansubItems.isEmpty()) {
+                    Log.e(LOG_TAG, "fansub öğesi yok — sayfa ${html.length} karakter, başı:\n" + html.take(800))
+                    errors += "sayfada fansub listesi yok (sayfa ${html.length} karakter)"
+                }
+                coroutineScope {
+                    fansubItems.map { li ->
+                        async { loadFansubSources(li, episodeId, found, errors, subtitleCallback, callback) }
+                    }.awaitAll()
+                }
+                found.get()
             }
-            coroutineScope {
-                fansubItems.map { li ->
-                    async { loadFansubSources(li, episodeId, found, subtitleCallback, callback) }
-                }.awaitAll()
+            // v21: hata EKRANDA görünür (Kitsugi mesajı kaynak panelinde gösterir).
+            if (!result && errors.isNotEmpty()) {
+                throw ErrorLoadingException(errors.distinct().take(3).joinToString(" | "))
             }
-            found.get()
+            result
+        } catch (e: ErrorLoadingException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "loadLinks hatası: ${e.message}")
+            throw ErrorLoadingException("Kaynaklar yüklenemedi: ${e.message}")
         }
     }
 
@@ -814,15 +849,17 @@ class TrAnimeIzle(
         li: Element,
         episodeId: Int?,
         found: AtomicBoolean,
+        errors: MutableList<String>,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         val fansubId = li.attr("data-fid").toIntOrNull()
-        val fansubLabel = li.attr("data-fad")
+        val fansubLabel = li.attr("data-fad").ifBlank { "fid=${fansubId ?: "?"}" }
         val tag = "kraptor_$fansubLabel"
         try {
             // v17 (site.js kanıtı, 22.09.2026): POST /api/fansubSources gövdesi
-            // {EpisodeId, FansubId} — güncel site ile birebir aynı.
+            // {EpisodeId, FansubId} — güncel site ile birebir aynı; cevap
+            // HTML olarak #sourceList'a enjekte edilir.
             val response = app.post(
                 mainUrl + "/api/fansubSources",
                 data = mapOf(
@@ -832,30 +869,37 @@ class TrAnimeIzle(
                 headers = browserHeaders(lastCookie, isXhr = true) +
                     mapOf("Content-Type" to "application/json")
             )
-            val sourceButtons = response.document.select("li.sourceBtn")
-            Log.d(tag, "fansubSources(fid=$fansubId) → ${if (response.isSuccessful) "başarılı" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak")
+            // v21: toleranslı — li.sourceBtn yoksa data-id'li öğe aranır.
+            val sourceButtons = response.document.select("li.sourceBtn, a.sourceBtn")
+                .ifEmpty { response.document.select("[data-id]") }
+            Log.d(tag, "fansubSources(fid=$fansubId, ep=$episodeId) → ${if (response.isSuccessful) "ok" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak")
             if (sourceButtons.isEmpty()) {
                 Log.e(tag, "sourceBtn yok — cevap başı:\n" + (response.text ?: "").take(600))
+                errors += "fansub '$fansubLabel': kaynak listesi ${if (response.isSuccessful) "boş" else "alınamadı (HTTP)"}"
             }
             coroutineScope {
                 sourceButtons.map { btn ->
-                    async { loadSingleSource(btn, found, subtitleCallback, callback) }
+                    async { loadSingleSource(btn, episodeId, found, errors, subtitleCallback, callback) }
                 }.awaitAll()
             }
         } catch (e: Exception) {
             Log.e(tag, "Error loading fansub $fansubLabel: ${e.message}")
+            errors += "fansub '$fansubLabel': ${e.message}"
         }
     }
 
     private suspend fun loadSingleSource(
         btn: Element,
+        episodeId: Int?,
         found: AtomicBoolean,
+        errors: MutableList<String>,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         val sourceId = btn.attr("data-id")
-        val eid = btn.attr("data-eid")
-        val sourceName = btn.selectFirst("p.title")?.text()?.trim() ?: "Bilinmeyen"
+        val eid = btn.attr("data-eid").ifBlank { episodeId?.toString() ?: "" }
+        val sourceName = btn.selectFirst("p.title")?.text()?.trim()
+            ?: btn.text().trim().ifBlank { "Kaynak ${sourceId.ifBlank { "?" }}" }
         try {
             Log.d(LOG_TAG, "Video: $sourceName | ID: $sourceId | EID: $eid")
             // v17 (site.js kanıtı, 22.09.2026): site kendi JS'inde TEK PARAMETRELİ
@@ -866,7 +910,7 @@ class TrAnimeIzle(
                 headers = browserHeaders(lastCookie, isXhr = true) +
                     mapOf("Content-Type" to "application/json")
             )
-            Log.d(LOG_TAG, "sourcePlayer($sourceName) [1 param] → ${if (primary.isSuccessful) "başarılı" else "BAŞARISIZ"}")
+            Log.d(LOG_TAG, "sourcePlayer($sourceName) [1 param] → ${if (primary.isSuccessful) "ok" else "BAŞARISIZ"}")
             val videoApi = try {
                 primary.parsedSafe<VideoApi>()?.takeIf { it.source.isNotBlank() }
             } catch (e: Exception) {
@@ -884,30 +928,121 @@ class TrAnimeIzle(
             }
             if (videoApi == null) {
                 Log.e(LOG_TAG, "sourcePlayer JSON parse hatası: ${(primary.text ?: "").take(500)}")
+                errors += "'$sourceName': sourcePlayer yanıtı boş/parse edilemedi"
                 return
             }
-            val iframe = Jsoup.parse(videoApi.source).selectFirst("iframe")?.attr("src")
-            Log.d(LOG_TAG, "iframe = $iframe")
-            if (iframe.isNullOrBlank()) {
-                Log.e(LOG_TAG, "iframe bulunamadı — source HTML başı:\n" + videoApi.source.take(800))
+            // v21: site video.js ile çalışıyor → oynatıcı HTML'i ÜÇ formatta
+            // olabilir: <iframe>, <video>/<source> düz URL, JS içinde mp4/m3u8.
+            val sourceHtml = videoApi.source
+            val iframe = Jsoup.parse(sourceHtml).selectFirst("iframe")?.attr("src")?.ifBlank { null }
+            val directUrl = directVideoUrlFromHtml(sourceHtml, mainUrl + "/")
+            Log.d(LOG_TAG, "iframe = $iframe | direct = $directUrl")
+            if (iframe == null && directUrl == null) {
+                Log.e(LOG_TAG, "ne iframe ne düz video — source HTML başı:\n" + sourceHtml.take(800))
+                errors += "'$sourceName': oynatıcı HTML'inde iframe/video yok"
                 return
             }
-            // DEX davranışı: luffy embed'in id'si loadExtractor'a verilirdi.
-            // v17: o çalışmazsa TAM iframe URL'si de denenir (kayıtlı
-            // çözücü mainUrl eşleştirmesiyle tutarlı olan standart yol).
-            val luffyId = iframe.substringAfter(LUFFY_PREFIX, "")
-            val candidates = if (luffyId.isNotEmpty()) listOf(luffyId, iframe) else listOf(iframe)
-            for (target in candidates) {
-                if (loadExtractor(target, mainUrl + "/", subtitleCallback, callback)) {
-                    found.set(true)
-                    break
+
+            var ok = false
+            // 1) Düz video adresi varsa en sağlam yol — doğrudan oynat.
+            if (directUrl != null) {
+                callback(
+                    newExtractorLink(source = sourceName, name = sourceName, url = directUrl, type = INFER_TYPE) {
+                        this.headers = mapOf("Referer" to mainUrl + "/")
+                    }
+                )
+                ok = true
+                Log.d(LOG_TAG, "DİREKT video: $directUrl")
+            }
+            // 2) iframe → kayıtlı extractor'lar (DEX davranışı: önce luffy id'si).
+            if (!ok && iframe != null) {
+                val luffyId = iframe.substringAfter(LUFFY_PREFIX, "")
+                val candidates = if (luffyId.isNotEmpty()) listOf(luffyId, iframe) else listOf(iframe)
+                for (target in candidates.distinct()) {
+                    if (loadExtractor(target, mainUrl + "/", subtitleCallback, callback)) {
+                        ok = true
+                        break
+                    }
+                }
+                // 3) v21: extractor eşleşmediyse iframe sayfası doğrudan çekilir
+                //    ve içindeki düz video adresi aranır (host agnostik yedek).
+                if (!ok) {
+                    val genUrl = fetchEmbedVideoUrl(iframe, sourceName)
+                    if (genUrl != null) {
+                        callback(
+                            newExtractorLink(source = sourceName, name = sourceName, url = genUrl, type = INFER_TYPE) {
+                                this.headers = mapOf("Referer" to mainUrl + "/")
+                            }
+                        )
+                        ok = true
+                        Log.d(LOG_TAG, "GENEL embed çözümü: $genUrl")
+                    }
                 }
             }
-            if (!found.get()) {
-                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (adaylar: $candidates)")
+            if (ok) {
+                found.set(true)
+            } else {
+                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (iframe=$iframe)")
+                errors += "'$sourceName': iframe videoya çözülemedi"
             }
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Error loading source $sourceName: ${e.message}")
+            errors += "'$sourceName': ${e.message}"
+        }
+    }
+
+    /**
+     * v21: HTML içindeki DOĞRUDAN video URL'sini bulur.
+     * Sırasıyla: <video src> / <source src> (göreli adres [base] ile çözülür)
+     * → metin/JS içindeki mp4, m3u8 adresleri.
+     */
+    private fun directVideoUrlFromHtml(html: String, base: String? = null): String? {
+        val doc = try {
+            if (base != null) Jsoup.parse(html, base) else Jsoup.parse(html)
+        } catch (_: Exception) {
+            null
+        }
+        doc?.let {
+            val v = it.selectFirst("video[src]")?.attr("abs:src")
+                ?: it.selectFirst("video source[src]")?.attr("abs:src")
+                ?: it.selectFirst("source[src]")?.attr("abs:src")
+            if (!v.isNullOrBlank() && v.startsWith("http")) return v
+        }
+        val patterns = listOf(
+            Regex("(?:file|src|source|url)\s*[:=]\s*[\"']([^\"']+\.mp4[^\"']*)[\"']", RegexOption.IGNORE_CASE),
+            Regex("[\"'](https?://[^\"']+\.m3u8[^\"']*)[\"']", RegexOption.IGNORE_CASE),
+            Regex("[\"'](https?://[^\"']+\.mp4[^\"']*)[\"']", RegexOption.IGNORE_CASE)
+        )
+        for (p in patterns) {
+            p.find(html)?.groupValues?.getOrNull(1)?.takeIf { it.startsWith("http") }?.let { return it }
+        }
+        return null
+    }
+
+    /**
+     * v21: kayıtlı extractor'ın çözemediği iframe sayfasını DOĞRUDAN çekip
+     * içindeki düz video URL'sini arar (host agnostik yedek).
+     */
+    private suspend fun fetchEmbedVideoUrl(iframeUrl: String, sourceName: String): String? {
+        return try {
+            val resp = app.get(
+                iframeUrl,
+                headers = mapOf(
+                    "User-Agent" to BotKontrolKt.UA_FIREFOX,
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Referer" to mainUrl + "/"
+                )
+            )
+            if (!resp.isSuccessful) {
+                Log.e(LOG_TAG, "embed sayfası alınamadı ($sourceName): $iframeUrl")
+                return null
+            }
+            val text = resp.text ?: return null
+            Log.d(LOG_TAG, "embed sayfası çekildi (${text.length} karakter): $iframeUrl")
+            directVideoUrlFromHtml(text, iframeUrl)
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "embed sayfası çekme hatası: ${e.message}")
+            null
         }
     }
 
