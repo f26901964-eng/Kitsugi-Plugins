@@ -14,6 +14,7 @@ import com.lagradost.cloudstream3.utils.StringUtils.decodeUri
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.jsoup.Jsoup
+import java.net.URI
 
 class DiziBox : MainAPI() {
     override var mainUrl              = "https://www.dizibox.live"
@@ -180,127 +181,236 @@ private fun Element.toMainPageResult(): SearchResponse? {
         }
     }
 
-    private suspend fun iframeDecode(data:String, iframe:String, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-        @Suppress("NAME_SHADOWING") var iframe = iframe
+    private val playerCookies = mapOf(
+        "LockUser" to "true",
+        "isTrustedUser" to "true",
+        "dbxu" to "1743289650198",
+    )
+    private val playerUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-        if (iframe.contains("/player/king/king.php")) {
-            iframe = iframe.replace("king.php?v=", "king.php?wmode=opaque&v=")
-            val subDoc = app.get(
-                iframe,
-                referer     = data,
-                cookies     = mapOf(
-                    "LockUser"      to "true",
-                    "isTrustedUser" to "true",
-                    "dbxu"          to "1743289650198"
-                ),
-                interceptor = interceptor
-            ).document
-            val subFrame = subDoc.selectFirst("div#Player iframe")?.attr("src") ?: return false
-
-            val iDoc          = app.get(subFrame, referer="${mainUrl}/").text
-            val cryptData     = Regex("""CryptoJS\.AES\.decrypt\("(.*)","""").find(iDoc)?.groupValues?.get(1) ?: return false
-            val cryptPass     = Regex("""","(.*)"\);""").find(iDoc)?.groupValues?.get(1) ?: return false
-            val decryptedData = CryptoJS.decrypt(cryptPass, cryptData)
-            val decryptedDoc  = Jsoup.parse(decryptedData)
-            val vidUrl        = Regex("""file: '(.*)',""").find(decryptedDoc.html())?.groupValues?.get(1) ?: return false
-
-            callback.invoke(
-                newExtractorLink(
-                    source = this.name,
-                    name = this.name,
-                    url = vidUrl,
-                    type = ExtractorLinkType.M3U8 // Tür olarak M3U8 ayarlandı
-                ) {
-                    headers = mapOf("Referer" to vidUrl) // Referer başlığı ayarlandı
-                    quality = getQualityFromName("4k") // Kalite ayarlandı
-                }
-            )
-
-        } else if (iframe.contains("/player/moly/moly.php")) {
-            iframe = iframe.replace("moly.php?h=", "moly.php?wmode=opaque&h=")
-            var subDoc = app.get(
-                iframe,
-                referer     = data,
-                cookies     = mapOf(
-                    "LockUser"      to "true",
-                    "isTrustedUser" to "true",
-                    "dbxu"          to "1743289650198"
-                ),
-                interceptor = interceptor
-            ).document
-
-            val atobData = Regex("""unescape\("(.*)"\)""").find(subDoc.html())?.groupValues?.get(1)
-            if (atobData != null) {
-                val decodedAtob = atobData.decodeUri()
-                val strAtob     = String(Base64.decode(decodedAtob, Base64.DEFAULT), Charsets.UTF_8)
-                subDoc          = Jsoup.parse(strAtob)
-            }
-
-            val subFrame = subDoc.selectFirst("div#Player iframe")?.attr("src") ?: return false
-
-            loadExtractor(subFrame, "${mainUrl}/", subtitleCallback, callback)
-
-        } else if (iframe.contains("/player/haydi.php")) {
-            iframe = iframe.replace("haydi.php?v=", "haydi.php?wmode=opaque&v=")
-            var subDoc = app.get(
-                iframe,
-                referer     = data,
-                cookies     = mapOf(
-                    "LockUser"      to "true",
-                    "isTrustedUser" to "true",
-                    "dbxu"          to "1743289650198"
-                ),
-                interceptor = interceptor
-            ).document
-
-            val atobData = Regex("""unescape\("(.*)"\)""").find(subDoc.html())?.groupValues?.get(1)
-            if (atobData != null) {
-                val decodedAtob = atobData.decodeUri()
-                val strAtob     = String(Base64.decode(decodedAtob, Base64.DEFAULT), Charsets.UTF_8)
-                subDoc          = Jsoup.parse(strAtob)
-            }
-
-            val subFrame = subDoc.selectFirst("div#Player iframe")?.attr("src") ?: return false
-
-            loadExtractor(subFrame, "${mainUrl}/", subtitleCallback, callback)
-        }
-
-        return true
+    private fun isDiziBoxHost(url: String): Boolean {
+        val host = runCatching { URI(url).host?.lowercase()?.removePrefix("www.") }.getOrNull()
+        val siteHost = runCatching { URI(mainUrl).host?.lowercase()?.removePrefix("www.") }.getOrNull()
+        return !host.isNullOrBlank() && host == siteHost
     }
 
-    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+    private fun originOf(url: String): String? = runCatching {
+        val uri = URI(url)
+        val scheme = uri.scheme ?: return@runCatching null
+        val authority = uri.rawAuthority ?: return@runCatching null
+        "$scheme://$authority"
+    }.getOrNull()
+
+    private fun decodePackedPlayerHtml(html: String): String {
+        val functionStart = html.indexOf("unescape", ignoreCase = true)
+        if (functionStart < 0) return html
+        val openParen = html.indexOf('(', functionStart + "unescape".length)
+        if (openParen < 0) return html
+        val quoteIndex = (openParen + 1 until html.length)
+            .firstOrNull { !html[it].isWhitespace() } ?: return html
+        val quote = html[quoteIndex].takeIf { it == '"' || it.code == 39 } ?: return html
+        val endQuote = html.indexOf(quote, quoteIndex + 1)
+        if (endQuote < 0) return html
+        val packed = html.substring(quoteIndex + 1, endQuote)
+
+        return runCatching {
+            val uriDecoded = packed.decodeUri()
+            String(Base64.decode(uriDecoded, Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrDefault(html)
+    }
+
+    private fun decryptPlayerHtml(html: String): String {
+        val payload = DiziBoxPlayerParser.encryptedPayload(html) ?: return html
+        return runCatching {
+            CryptoJS.decrypt(payload.password, payload.ciphertext)
+        }.getOrDefault(html)
+    }
+
+    private suspend fun iframeDecode(
+        referer: String,
+        iframe: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+        visited: MutableSet<String>,
+        depth: Int = 0,
+    ): Boolean {
+        if (depth > 4) return false
+        val resolvedIframe = DiziBoxPlayerParser.resolveUrl(iframe, referer) ?: return false
+        if (!visited.add(resolvedIframe)) return false
+
+        if (!DiziBoxPlayerParser.isSupportedPlayerUrl(resolvedIframe, mainUrl)) {
+            return loadExtractor(resolvedIframe, referer, subtitleCallback, callback)
+        }
+
+        // The current DBX/MolyStream player returns this route as an HLS endpoint.
+        if (resolvedIframe.contains("/embed/sheila/", ignoreCase = true)) {
+            callback.invoke(
+                newExtractorLink(
+                    source = name,
+                    name = name,
+                    url = resolvedIframe,
+                    type = ExtractorLinkType.M3U8,
+                ) {
+                    headers = buildMap {
+                        put("Referer", referer)
+                        put("User-Agent", playerUserAgent)
+                        originOf(referer)?.let { put("Origin", it) }
+                    }
+                    quality = Qualities.Unknown.value
+                },
+            )
+            return true
+        }
+
+        var playerUrl = resolvedIframe
+        when {
+            playerUrl.contains("/player/king/king.php") ->
+                playerUrl = playerUrl.replace("king.php?v=", "king.php?wmode=opaque&v=")
+            playerUrl.contains("/player/moly/moly.php") ->
+                playerUrl = playerUrl.replace("moly.php?h=", "moly.php?wmode=opaque&h=")
+            playerUrl.contains("/player/haydi.php") ->
+                playerUrl = playerUrl.replace("haydi.php?v=", "haydi.php?wmode=opaque&v=")
+        }
+
+        val html = try {
+            if (isDiziBoxHost(playerUrl)) {
+                app.get(
+                    playerUrl,
+                    headers = mapOf("User-Agent" to playerUserAgent),
+                    referer = referer,
+                    cookies = playerCookies,
+                    interceptor = interceptor,
+                ).text
+            } else {
+                // Do not forward DiziBox cookies to the third-party MolyStream host.
+                app.get(
+                    playerUrl,
+                    headers = mapOf("User-Agent" to playerUserAgent),
+                    referer = referer,
+                ).text
+            }
+        } catch (exception: Exception) {
+            Log.d("DZBX", "Player request failed: ${exception.message}")
+            return loadExtractor(playerUrl, referer, subtitleCallback, callback)
+        }
+
+        val packedHtml = if (
+            playerUrl.contains("/player/moly/moly.php") ||
+            playerUrl.contains("/player/haydi.php")
+        ) decodePackedPlayerHtml(html) else html
+        val playerHtml = decryptPlayerHtml(packedHtml)
+        val playerDocument = Jsoup.parse(playerHtml, playerUrl)
+        var extracted = false
+
+        DiziBoxPlayerParser.mediaSources(playerHtml).forEach { source ->
+            val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
+            when {
+                DiziBoxPlayerParser.isHls(source) -> {
+                    callback.invoke(
+                        newExtractorLink(
+                            source = name,
+                            name = name,
+                            url = mediaUrl,
+                            type = ExtractorLinkType.M3U8,
+                        ) {
+                            headers = buildMap {
+                                put("Referer", playerUrl)
+                                put("User-Agent", playerUserAgent)
+                                originOf(playerUrl)?.let { put("Origin", it) }
+                            }
+                            quality = Qualities.Unknown.value
+                        },
+                    )
+                    extracted = true
+                }
+                DiziBoxPlayerParser.isMp4(source) -> {
+                    callback.invoke(
+                        newExtractorLink(
+                            source = name,
+                            name = name,
+                            url = mediaUrl,
+                            type = ExtractorLinkType.VIDEO,
+                        ) {
+                            headers = mapOf(
+                                "Referer" to playerUrl,
+                                "User-Agent" to playerUserAgent,
+                            )
+                            quality = Qualities.Unknown.value
+                        },
+                    )
+                    extracted = true
+                }
+                else -> {
+                    extracted = loadExtractor(mediaUrl, playerUrl, subtitleCallback, callback) || extracted
+                }
+            }
+        }
+
+        DiziBoxPlayerParser.nestedIframes(playerDocument, playerUrl).forEach { nestedFrame ->
+            if (nestedFrame == playerUrl) return@forEach
+            val found = if (DiziBoxPlayerParser.isSupportedPlayerUrl(nestedFrame, mainUrl)) {
+                iframeDecode(playerUrl, nestedFrame, subtitleCallback, callback, visited, depth + 1)
+            } else {
+                loadExtractor(nestedFrame, playerUrl, subtitleCallback, callback)
+            }
+            extracted = found || extracted
+        }
+
+        if (!extracted) {
+            extracted = loadExtractor(playerUrl, referer, subtitleCallback, callback)
+        }
+        return extracted
+    }
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ): Boolean {
         Log.d("DZBX", "data » $data")
         val document = app.get(
             data,
-            cookies     = mapOf(
-                "LockUser"      to "true",
-                "isTrustedUser" to "true",
-                "dbxu"          to "1743289650198"
-            ),
-            interceptor = interceptor
+            cookies = playerCookies,
+            interceptor = interceptor,
         ).document
-        var iframe = document.selectFirst("div#video-area iframe")?.attr("src")?: return false
-        Log.d("DZBX", "iframe » $iframe")
 
-        iframeDecode(data, iframe, subtitleCallback, callback)
-
-        document.select("div.video-toolbar option[value]").forEach {
-            val altLink = it.attr("value")
-            val subDoc  = app.get(
-                altLink,
-                cookies     = mapOf(
-                    "LockUser"      to "true",
-                    "isTrustedUser" to "true",
-                    "dbxu"          to "1743289650198"
-                ),
-                interceptor = interceptor
-            ).document
-            iframe = subDoc.selectFirst("div#video-area iframe")?.attr("src")?: return false
-            Log.d("DZBX", "iframe » $iframe")
-
-            iframeDecode(data, iframe, subtitleCallback, callback)
+        val pageUrls = (listOf(data) + DiziBoxPlayerParser.alternatePlayerPages(document, data)).distinct()
+        val visitedPages = mutableSetOf<String>()
+        val visitedFrames = mutableSetOf<String>()
+        var emittedLinks = 0
+        val linkCallback: (ExtractorLink) -> Unit = { link ->
+            emittedLinks += 1
+            callback(link)
         }
 
-        return true
+        pageUrls.forEach { pageUrl ->
+            if (!visitedPages.add(pageUrl)) return@forEach
+            val pageDocument = if (pageUrl == data) {
+                document
+            } else {
+                try {
+                    app.get(
+                        pageUrl,
+                        referer = data,
+                        cookies = playerCookies,
+                        interceptor = interceptor,
+                    ).document
+                } catch (exception: Exception) {
+                    Log.d("DZBX", "Alternate player page failed: ${exception.message}")
+                    return@forEach
+                }
+            }
+
+            DiziBoxPlayerParser.playerIframes(pageDocument, pageUrl).forEach { iframe ->
+                Log.d("DZBX", "iframe » $iframe")
+                iframeDecode(pageUrl, iframe, subtitleCallback, linkCallback, visitedFrames)
+            }
+        }
+
+        Log.d("DZBX", "Extracted links: $emittedLinks")
+        return emittedLinks > 0
     }
 }
