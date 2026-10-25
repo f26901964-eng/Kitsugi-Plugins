@@ -52,7 +52,7 @@ import java.net.URLEncoder
  *    `EmbedMediaScanner` kaynaklı KTS-CSP-9110'a düşebiliyor.
  *  - Hiçbir adım istisna fırlatmaz; hata = boş liste + log (uygulama çökmez).
  */
-class Anizm : MainAPI() {
+class Anizm : MainAPI(), AnizmHttp {
 
     override var mainUrl = DEFAULT_BASE
     override var name = "Anizm"
@@ -613,8 +613,9 @@ class Anizm : MainAPI() {
         }
     }
 
-    /** Phase A çıktısı: çözülecek oynatıcı adayı. */
-    private data class Candidate(val url: String, val label: String, val referer: String)
+    // ------------------------------------------------------------------
+    // v5: akış zinciri — AnizmStreams (paralel, WebView'siz, eksiksiz)
+    // ------------------------------------------------------------------
 
     override suspend fun loadLinks(
         data: String,
@@ -623,491 +624,50 @@ class Anizm : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val pageUrl = remapBase(data)
-        val candidates = try {
-            collectCandidates(pageUrl, subtitleCallback)
+        val count = try {
+            AnizmStreams(name, { mainUrl }, this).load(pageUrl, subtitleCallback, callback)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            Log.e(LOG_TAG, "loadLinks aday toplama hatası: ${e.javaClass.simpleName}: ${e.message}")
-            emptyList()
+            Log.e(LOG_TAG, "loadLinks hatası: ${e.javaClass.simpleName}: ${e.message}")
+            0
         }
-        if (candidates.isEmpty()) {
-            Log.w(LOG_TAG, "loadLinks: hiç oynatıcı adayı bulunamadı ($pageUrl)")
-            return false
+        if (count > 0) {
+            Log.d(LOG_TAG, "loadLinks: $count akış yayınlandı")
+            return true
         }
-        Log.d(LOG_TAG, "loadLinks: ${candidates.size} aday çözülecek")
-
-        val emitted = LinkedHashSet<String>()
-        var emittedCount = 0
-        // Yayın callback'i sıralı yapılır: Kitsugi'nin toplama listeleri eşzamanlı
-        // yazıma karşı korumalı değil (ConcurrentModificationException riski).
-        val emitLock = Mutex()
-        for (candidate in candidates) {
-            try {
-                val count = emitLock.withLock {
-                    resolveCandidate(candidate, emitted, subtitleCallback, callback)
-                }
-                emittedCount += count
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                Log.w(LOG_TAG, "aday çözülemedi (${candidate.url.take(90)}): ${e.message}")
-            }
-        }
-        Log.d(LOG_TAG, "loadLinks: $emittedCount akış yayınlandı")
-        return emittedCount > 0
-    }
-
-    /**
-     * Phase A — çevirmen/kaynak listelerini **paralel** toplar.
-     * Üç kuşak API zinciri birlikte denenir; herhangi biri çalışırsa kaynak gelir.
-     */
-    private suspend fun collectCandidates(
-        pageUrl: String,
-        subtitleCallback: (SubtitleFile) -> Unit
-    ): List<Candidate> = coroutineScope {
-        val html = getText(pageUrl, mainUrl + "/") ?: return@coroutineScope emptyList()
-        val doc = Jsoup.parse(html, pageUrl)
-        val out = java.util.Collections.synchronizedList(mutableListOf<Candidate>())
-
-        // Sayfadaki altyazı izleri (<track>) — bölüm sayfası düzeyinde.
-        emitSubtitles(html, pageUrl, subtitleCallback)
-
-        val jobs = mutableListOf<kotlinx.coroutines.Deferred<Unit>>()
-
-        // 1) v3: data-sources (çevirmen) → videos[] → /video/{id}
-        for (element in doc.select("[data-sources], [data-v3-translator], button[data-v3-translator]")) {
-            val sourceUrl = AnizmSite.absolute(pageUrl, element.attr("data-sources")) ?: continue
-            val fansub = element.attr("title").ifBlank { element.text() }.trim().ifBlank { "Kaynak" }
-            jobs += async {
-                collectV3(pageUrl, sourceUrl, fansub, out)
-            }
-        }
-
-        // 2) v2: div#fansec a[translator] / div.episodeTranslators a[translator]
-        for (anchor in doc.select("div#fansec a[translator], div.episodeTranslators a[translator], a[translator]")) {
-            val translatorUrl = AnizmSite.absolute(pageUrl, anchor.attr("translator")) ?: continue
-            val fansub = anchor.text().trim().ifBlank { "Çevirmen" }
-            jobs += async {
-                collectV2(pageUrl, translatorUrl, fansub, out)
-            }
-        }
-
-        // 3) Sayfa düzeyi doğrudan oynatıcılar.
-        for (iframe in doc.select("iframe[src], iframe[data-src]")) {
-            val src = AnizmSite.absolute(pageUrl, iframe.attr("src").ifBlank { iframe.attr("data-src") })
-                ?: continue
-            if (isAdHost(src)) continue
-            out.add(Candidate(src, "Sayfa", pageUrl))
-        }
-        for (anchor in doc.select("a[video], a[data-video]")) {
-            val src = AnizmSite.absolute(pageUrl, anchor.attr("video").ifBlank { anchor.attr("data-video") })
-                ?: continue
-            if (isAdHost(src)) continue
-            out.add(Candidate(src, anchor.text().trim().ifBlank { "Sayfa" }, pageUrl))
-        }
-        for (video in doc.select("video[src], video source[src]")) {
-            val src = AnizmSite.absolute(pageUrl, video.attr("src")) ?: continue
-            out.add(Candidate(src, "Doğrudan", pageUrl))
-        }
-        // Sayfa JS'i doğrudan m3u8/mp4 taşıyorsa.
-        for (media in mediaFromHtml(html, pageUrl)) {
-            out.add(Candidate(media, "Doğrudan", pageUrl))
-        }
-
-        // 4) Genel oynatıcı öznitelikleri (tema/kuşak farkı yedeği):
-        //    data-player / data-video-src / data-iframe / data-embed / data-url.
-        //    Yalnızca gerçekten oynatıcıya benzeyen adresler alınır (resim vb. değil).
-        val pageHost = AnizmSite.hostOf(pageUrl)
-        for (element in doc.select("[data-player], [data-video-src], [data-iframe], [data-embed], [data-url]")) {
-            val raw = element.attr("data-player")
-                .ifBlank { element.attr("data-video-src") }
-                .ifBlank { element.attr("data-iframe") }
-                .ifBlank { element.attr("data-embed") }
-                .ifBlank { element.attr("data-url") }
-            if (raw.isBlank()) continue
-            val target = AnizmSite.absolute(pageUrl, raw) ?: continue
-            if (isAdHost(target)) continue
-            val playerLike = IN_SITE_PLAYER.containsMatchIn(target) ||
-                anizmPlayerHash(target) != null ||
-                looksLikeMedia(target) ||
-                (AnizmSite.hostOf(target).isNotEmpty() && AnizmSite.hostOf(target) != pageHost)
-            if (!playerLike) continue
-            out.add(Candidate(target, "Sayfa", pageUrl))
-        }
-
-        // 5) Sayfadaki site içi oynatıcı bağlantıları (/player/{id}).
-        for (anchor in doc.select("a[href], button[data-href], [data-href]")) {
-            val raw = anchor.attr("href").ifBlank { anchor.attr("data-href") }
-            if (raw.isBlank()) continue
-            val target = AnizmSite.absolute(pageUrl, raw) ?: continue
-            if (!IN_SITE_PLAYER.containsMatchIn(target)) continue
-            if (isAdHost(target)) continue
-            out.add(Candidate(target, "Sayfa", pageUrl))
-        }
-
-        jobs.awaitAll()
-        out.distinctBy { it.url }
-    }
-
-    /** v3 zinciri: `{success, videos:[{id,name}]}` → `/video/{id}` → `{url}`. */
-    private suspend fun collectV3(
-        pageUrl: String,
-        sourceUrl: String,
-        fansub: String,
-        out: MutableList<Candidate>
-    ) {
-        val body = getText(sourceUrl, pageUrl, xhr = true) ?: return
-        val root = try {
-            JSONObject(body)
-        } catch (_: Exception) {
-            Log.d(LOG_TAG, "v3 kaynak listesi JSON değil ($fansub)")
-            return
-        }
-        if (!root.optBoolean("success", true)) {
-            Log.d(LOG_TAG, "v3 kaynak listesi success=false ($fansub)")
-            return
-        }
-        val videos = root.optJSONArray("videos") ?: return
-        for (index in 0 until videos.length()) {
-            val video = videos.optJSONObject(index) ?: continue
-            val id = video.optInt("id", 0)
-            if (id <= 0) continue
-            val server = video.optString("name").ifBlank { "Kaynak ${index + 1}" }
-            val videoUrl = sourceUrl.replace(Regex("/cevirmen/\\d+$"), "/video/$id")
-            val payload = getText(videoUrl, pageUrl, xhr = true) ?: continue
-            val target = try {
-                val videoRoot = JSONObject(payload)
-                if (!videoRoot.optBoolean("success", true)) null
-                else videoRoot.optString("url").ifBlank { null }
-            } catch (_: Exception) {
-                null
-            } ?: continue
-            val absolute = AnizmSite.absolute(videoUrl, target) ?: continue
-            if (isAdHost(absolute)) continue
-            out.add(Candidate(absolute, "$fansub | $server", pageUrl))
-        }
-    }
-
-    /** v2 zinciri: `{data: html}` → `a[video]` → `{player: iframe html}`. */
-    private suspend fun collectV2(
-        pageUrl: String,
-        translatorUrl: String,
-        fansub: String,
-        out: MutableList<Candidate>
-    ) {
-        val body = getText(translatorUrl, pageUrl, xhr = true) ?: return
-        val dataHtml = try {
-            JSONObject(body).optString("data").ifBlank { body }
-        } catch (_: Exception) {
-            body
-        }
-        if (dataHtml.isBlank()) return
-        val buttons = Jsoup.parse(dataHtml, translatorUrl)
-            .select("a[video], a.videoPlayerButtons, a[data-video]")
-        for (button in buttons) {
-            val videoUrl = AnizmSite.absolute(
-                translatorUrl,
-                button.attr("video").ifBlank { button.attr("data-video") }
-            ) ?: continue
-            if (isAdHost(videoUrl)) continue
-            val server = button.attr("data-video-name").ifBlank { button.text() }.trim().ifBlank { "Kaynak" }
-
-            // video sayfası → {player: "<iframe …>"} → iframe src
-            val payload = getText(videoUrl, pageUrl, xhr = true)
-            val iframes = mutableListOf<String>()
-            if (!payload.isNullOrBlank()) {
-                val playerHtml = try {
-                    JSONObject(payload).optString("player")
-                } catch (_: Exception) {
-                    payload
-                }
-                if (playerHtml.isNotBlank()) {
-                    Jsoup.parse(playerHtml, videoUrl).select("iframe[src], iframe[data-src]").forEach { frame ->
-                        AnizmSite.absolute(videoUrl, frame.attr("src").ifBlank { frame.attr("data-src") })
-                            ?.let(iframes::add)
-                    }
-                    // JSON bazı kaynaklarda düz adres taşır.
-                    if (iframes.isEmpty()) iframes.addAll(mediaFromHtml(playerHtml, videoUrl))
-                }
-            }
-            val label = "$fansub | $server"
-
-            // Aniyomi'nin kullandığı asıl yol: /video/{id} → /player/{id} → 302 Location.
-            // (Site oynatıcıyı bu yönlendirme ile açar; hedef gerçek host adresidir.)
-            val playerUrl = videoUrl.replace("/video/", "/player/")
-            if (playerUrl != videoUrl) {
-                val target = followLocation(playerUrl, pageUrl)
-                if (target != null && !isAdHost(target)) {
-                    out.add(Candidate(target, label, pageUrl))
-                }
-            }
-
-            if (iframes.isEmpty()) {
-                // Yedek: dönen gövdenin kendisi oynatıcı olabilir.
-                out.add(Candidate(videoUrl, label, pageUrl))
-            } else {
-                iframes.filterNot(::isAdHost).forEach { out.add(Candidate(it, label, pageUrl)) }
-            }
-        }
-    }
-
-    /** Phase B — tek adayı oynatılabilir akışa çevirir; yayınlanan link sayısını döner. */
-    private suspend fun resolveCandidate(
-        candidate: Candidate,
-        emitted: MutableSet<String>,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Int {
-        val url = candidate.url
-        if (url.isBlank()) return 0
-
-        // 1) Doğrudan medya dosyası.
-        if (looksLikeMedia(url)) {
-            return if (emitMedia(url, candidate.label, candidate.referer, emitted, callback)) 1 else 0
-        }
-
-        // 2) Anizm'in kendi oynatıcısı (anizmplayer.com/video/<hash>).
-        val playerHash = anizmPlayerHash(url)
-        if (playerHash != null) {
-            return resolveAnizmPlayer(playerHash, url, candidate.label, emitted, callback)
-        }
-
-        // 2.5) Site içi oynatıcı yolu (/player/{id} veya /video/{id}) → 302 Location.
-        if (IN_SITE_PLAYER.containsMatchIn(url)) {
-            val target = followLocation(url, candidate.referer)
-            if (target != null && target != url) {
-                val hash = anizmPlayerHash(target)
-                if (hash != null) return resolveAnizmPlayer(hash, target, candidate.label, emitted, callback)
-                val handledTarget = try {
-                    loadExtractor(target, candidate.referer, subtitleCallback, callback)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Throwable) {
-                    false
-                }
-                if (handledTarget) return 1
-                val html = getText(target, candidate.referer)
-                if (html != null) {
-                    var c = 0
-                    for (link in mediaFromHtml(html, target).take(3)) {
-                        if (emitMedia(link, candidate.label, target, emitted, callback)) c++
-                    }
-                    if (c > 0) return c
-                }
-            }
-        }
-
-        // 3) Kütüphane/uygulama extractor'ları (filemoon, sibnet, ok.ru, voe, sendvid…).
-        var count = 0
-        val handled = try {
-            loadExtractor(url, candidate.referer, subtitleCallback, callback)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            Log.d(LOG_TAG, "loadExtractor hatası (${url.take(80)}): ${e.message}")
-            false
-        }
-        if (handled) return 1
-
-        // 3b) Google Drive dosyaları: Aniyomi eklentisi bunları gdriveplayer
-        //     köprüsüne çeviriyor; uygulamada doğrudan çözücü yoksa bu yol denenir.
-        if (url.contains("drive.google") || url.contains("docs.google")) {
-            val bridged = "https://gdriveplayer.to/embed2.php?link=$url"
-            val bridgedOk = try {
-                loadExtractor(bridged, candidate.referer, subtitleCallback, callback)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                false
-            }
-            if (bridgedOk) return 1
-        }
-
-        // 4) Oynatıcı sayfasını çek: içindeki m3u8/mp4 veya iç iframe.
-        val pageHtml = getText(url, candidate.referer) ?: return 0
-        val media = mediaFromHtml(pageHtml, url)
-        for (link in media.take(3)) {
-            if (emitMedia(link, candidate.label, url, emitted, callback)) count++
-        }
-        if (count > 0) return count
-
-        // 5) Bir katman iç iframe (embed → player).
-        val innerFrames = Jsoup.parse(pageHtml, url)
-            .select("iframe[src], iframe[data-src]")
-            .mapNotNull { AnizmSite.absolute(url, it.attr("src").ifBlank { it.attr("data-src") }) }
-            .filterNot(::isAdHost)
-            .take(2)
-        for (frame in innerFrames) {
-            val frameHash = anizmPlayerHash(frame)
-            if (frameHash != null) {
-                count += resolveAnizmPlayer(frameHash, frame, candidate.label, emitted, callback)
-                continue
-            }
-            val frameHtml = getText(frame, url) ?: continue
-            for (link in mediaFromHtml(frameHtml, frame).take(2)) {
-                if (emitMedia(link, candidate.label, frame, emitted, callback)) count++
-            }
-        }
-        return count
-    }
-
-    // ------------------------------------------------------------------
-    // anizmplayer.com (Aincrad / FirePlayer)
-    // ------------------------------------------------------------------
-
-    private fun anizmPlayerHash(url: String): String? {
-        if (!url.contains(PLAYER_HOST, ignoreCase = true)) return null
-        val match = Regex("/video/([A-Za-z0-9_-]{8,64})").find(url) ?: return null
-        return match.groupValues.getOrNull(1)
-    }
-
-    /**
-     * `POST /player/index.php?data=<hash>&do=getVideo` (form: hash, r).
-     * Yanıt: `securedLink` (HLS), `videoSource`, `videoSources[]` veya düz adres.
-     * — Aniyomi `AincradExtractor` `securedLink`, `hexated` `videoSource` kullanıyor;
-     * ikisi de okunur.
-     */
-    private suspend fun resolveAnizmPlayer(
-        hash: String,
-        playerPageUrl: String,
-        label: String,
-        emitted: MutableSet<String>,
-        callback: (ExtractorLink) -> Unit
-    ): Int {
-        val apiUrl = "$PLAYER_HOST/player/index.php?data=$hash&do=getVideo"
-        val body = postText(
-            url = apiUrl,
-            referer = playerPageUrl,
-            xhr = true,
-            form = mapOf("hash" to hash, "r" to (mainUrl + "/")),
-            extraHeaders = mapOf(
-                "Origin" to PLAYER_HOST,
-                "Accept" to "application/json, text/javascript, */*; q=0.01",
-                "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8"
-            ),
-            timeout = 15
+        Log.w(LOG_TAG, "loadLinks: kaynak bulunamadı ($pageUrl)")
+        throw ErrorLoadingException(
+            "Kaynak bulunamadı: site bu bölüm için oynatıcı listesi döndürmedi. " +
+                "Başka bir bölüm deneyin veya eklentiyi güncelleyin."
         )
-        if (body.isNullOrBlank()) {
-            Log.w(LOG_TAG, "anizmplayer yanıt yok: $hash")
-            return 0
-        }
-
-        var count = 0
-        val json = try {
-            JSONObject(body)
-        } catch (_: Exception) {
-            null
-        }
-        if (json != null) {
-            val secured = json.optString("securedLink").ifBlank { json.optString("videoSource") }
-            if (secured.isNotBlank() && looksLikeMedia(secured)) {
-                if (emitMedia(secured, label, playerPageUrl, emitted, callback)) count++
-            }
-            val sources = json.optJSONArray("videoSources")
-            if (sources != null) {
-                for (index in 0 until sources.length()) {
-                    val source = sources.optJSONObject(index) ?: continue
-                    val file = source.optString("file").ifBlank { source.optString("src") }
-                    if (file.isBlank()) continue
-                    val absolute = AnizmSite.absolute(playerPageUrl, file) ?: continue
-                    val quality = source.optString("label").ifBlank { source.optString("quality") }
-                    val sourceLabel = if (quality.isNotBlank()) "$label [$quality]" else label
-                    if (emitMedia(absolute, sourceLabel, playerPageUrl, emitted, callback)) count++
-                }
-            }
-        }
-        // JSON dışı/düz yanıt: içindeki medya adresleri.
-        for (link in mediaFromHtml(body, playerPageUrl).take(3)) {
-            if (emitMedia(link, label, playerPageUrl, emitted, callback)) count++
-        }
-        if (count == 0) Log.w(LOG_TAG, "anizmplayer akış vermedi ($hash): ${body.take(120)}")
-        return count
     }
 
     // ------------------------------------------------------------------
-    // Yardımcılar: medya bulma / yayınlama
+    // AnizmHttp — akış zincirinin HTTP yüzeyi
     // ------------------------------------------------------------------
 
-    private fun looksLikeMedia(url: String): Boolean {
-        val path = url.substringBefore('?').substringBefore('#').lowercase()
-        return path.endsWith(".m3u8") || path.endsWith(".mp4") || path.endsWith(".mkv") ||
-            path.endsWith(".webm") || path.endsWith(".mpd") || path.contains(".m3u8")
-    }
+    override suspend fun get(url: String, referer: String?): String? =
+        getText(url, referer ?: mainUrl + "/", xhr = false, timeout = 12L)
 
-    private fun isAdHost(url: String): Boolean {
-        val lower = url.lowercase()
-        return AD_HOSTS.any { lower.contains(it) }
-    }
+    override suspend fun location(url: String, referer: String?): String? =
+        followLocation(url, referer ?: mainUrl + "/")
 
-    /** HTML/JS içindeki m3u8/mp4 adresleri (kaçışlı `\/` biçimi dahil). */
-    private fun mediaFromHtml(html: String, base: String): List<String> {
-        if (html.isBlank()) return emptyList()
-        val unescaped = html.replace("\\/", "/").replace("\\u002F", "/")
-        val found = LinkedHashSet<String>()
-        val patterns = listOf(
-            Regex("""["'](https?://[^"']+?\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
-            Regex("""file\s*:\s*["']([^"']+?\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
-            Regex("""["'](https?://[^"']+?\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
-            Regex("""file\s*:\s*["']([^"']+?\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
-            Regex("""["'](https?://[^"']+?\.mpd[^"']*)["']""", RegexOption.IGNORE_CASE)
-        )
-        for (pattern in patterns) {
-            for (match in pattern.findAll(unescaped)) {
-                val raw = match.groupValues.lastOrNull()?.trim().orEmpty()
-                if (raw.isEmpty() || raw.startsWith("data:")) continue
-                val absolute = AnizmSite.absolute(base, raw) ?: continue
-                if (isAdHost(absolute)) continue
-                found.add(absolute)
-                if (found.size >= 6) return found.toList()
-            }
-        }
-        return found.toList()
-    }
-
-    private suspend fun emitMedia(
+    override suspend fun postForm(
         url: String,
-        label: String,
-        referer: String,
-        emitted: MutableSet<String>,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val clean = url.trim().replace("\\/", "/")
-        if (!clean.startsWith("http")) return false
-        if (!emitted.add(clean)) return false
-        val isHls = clean.substringBefore('?').lowercase().let { it.endsWith(".m3u8") || it.contains(".m3u8") }
-        val linkRef = referer.ifBlank { mainUrl + "/" }
-        callback(
-            newExtractorLink(
-                source = name,
-                name = label,
-                url = clean,
-                type = if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-            ) {
-                this.referer = linkRef
-                this.headers = mapOf("Referer" to linkRef, "User-Agent" to UA)
-                this.quality = getQualityFromName(label)
-            }
-        )
-        return true
-    }
-
-    /** `<track>` ve `.vtt/.srt` adreslerini altyazı olarak bildirir (varsa). */
-    private fun emitSubtitles(html: String?, base: String, subtitleCallback: (SubtitleFile) -> Unit) {
-        if (html.isNullOrBlank()) return
-        try {
-            val doc = Jsoup.parse(html, base)
-            doc.select("track[src]").forEach { track ->
-                val kind = track.attr("kind").ifBlank { "subtitles" }
-                if (!kind.equals("subtitles", true) && !kind.equals("captions", true)) return@forEach
-                val src = AnizmSite.absolute(base, track.attr("src")) ?: return@forEach
-                val lang = track.attr("srclang").ifBlank { track.attr("label") }.ifBlank { "Altyazı" }
-                subtitleCallback(newSubtitleFile(lang, src))
-            }
-        } catch (e: Exception) {
-            Log.d(LOG_TAG, "altyazı çözümleme hatası: ${e.message}")
-        }
-    }
+        form: Map<String, String>,
+        referer: String?
+    ): String? = postText(
+        url = url,
+        referer = referer ?: mainUrl + "/",
+        xhr = true,
+        form = form,
+        extraHeaders = mapOf(
+            "Origin" to PLAYER_HOST,
+            "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8"
+        ),
+        timeout = 15L
+    )
 
     companion object {
         private const val LOG_TAG = "hexated_Anizm"
