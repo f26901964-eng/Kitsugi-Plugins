@@ -1,20 +1,18 @@
-import java.util.zip.ZipOutputStream
-import java.util.zip.ZipEntry
+version = 16
 
-tasks.named("make") {
-    doLast {
-        val buildDir = layout.buildDirectory.get().asFile
-        buildDir.mkdirs()
-        val cs3File = File(buildDir, "${project.name}.cs3")
-        val zipFile = ZipOutputStream(cs3File.outputStream())
-        listOf("manifest.json", "classes.dex").forEach { fileName ->
-            val file = file(fileName)
-            if (file.exists()) {
-                zipFile.putNextEntry(ZipEntry(fileName))
-                file.inputStream().use { it.copyTo(zipFile) }
-                zipFile.closeEntry()
-            }
-        }
-        zipFile.close()
-    }
+cloudstream {
+    authors     = listOf("kraptor", "byayzen")
+    language    = "tr"
+    description = "TrAnimeIzle anime arşivi: arama, ana sayfa kategorileri, Kitsu ile zenginleştirilmiş detay sayfası ve bölümler; OpTraco/Hdvid/Hexload oynatıcı çözücüler."
+
+    /**
+     * Status int as the following:
+     * 0: Down
+     * 1: Ok
+     * 2: Slow
+     * 3: Beta only
+    **/
+    status  = 3 // Kaynak yeniden yazımı — cihaz üzerinde kanıtlanana kadar "Beta only"
+    tvTypes = listOf("Anime")
+    iconUrl = "https://www.google.com/s2/favicons?domain=tranimeizle.live&sz=%size%"
 }
