@@ -124,6 +124,11 @@ class FilmEkseniPlayerParserTest {
         assertEquals("Français", subtitles.single().label)
         assertEquals("fr", subtitles.single().language)
         assertEquals("https://media.example/fr.vtt", subtitles.single().url)
+
+        val sourceOnly = FilmEkseniPlayerParser.subtitles(
+            "sources: [{ file: \"https://media.example/master.m3u8\" }]",
+        )
+        assertTrue("A source playlist must not be mistaken for a subtitle", sourceOnly.isEmpty())
     }
 
     @Test
