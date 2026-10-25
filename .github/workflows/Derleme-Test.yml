@@ -24,13 +24,11 @@ jobs:
   Derle:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
     steps:
       - name: "Depo Kontrolu"
         uses: actions/checkout@v4.2.2
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: JDK 17 Ayarla
         uses: actions/setup-java@v4.6.0
@@ -162,27 +160,6 @@ jobs:
             HDFilmDelisi/build/HDFilmDelisi.cs3
           if-no-files-found: warn
           retention-days: 14
-
-      - name: İstenen Drive aktarımı için derlenen paketleri geçici olarak PR dalına koy
-        if: success() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('.drive-transfer-request') != ''
-        env:
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-          test -s FilmEkseni/build/FilmEkseni.cs3
-          test -s HDFilmDelisi/build/HDFilmDelisi.cs3
-          mkdir -p .drive-transfer
-          cp FilmEkseni/build/FilmEkseni.cs3 .drive-transfer/FilmEkseni.cs3
-          cp HDFilmDelisi/build/HDFilmDelisi.cs3 .drive-transfer/HDFilmDelisi.cs3
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f .drive-transfer/FilmEkseni.cs3 .drive-transfer/HDFilmDelisi.cs3
-          if git diff --cached --quiet; then
-            echo "Paketler zaten aktarım dizininde."
-            exit 0
-          fi
-          git commit -m "temp: stage validated plugins for requested Drive upload"
-          git push origin "HEAD:${PR_BRANCH}"
 
       - name: Hatayı PR'a Yaz
         if: failure()
