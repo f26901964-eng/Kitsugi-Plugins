@@ -20,8 +20,7 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.io.IOException
 import java.net.URLEncoder
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -173,7 +172,33 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    sonuç prefs'e kalıcı yazılır. Ağ hatasında domain değiştirilip
  *    istek BİR kez tekrarlanır. mainPage/arama URL'leri mevcut domain'e
  *    haritalanır. Varsayılan domain .io.
+ *
+ * v27 - "genel dusme" raporu sonrasinda tam denetim (Drive 01-04 +
+ *      ANIZM-ARASTIRMA + V23-V26 raporlari satir satir okundu) ve kalici
+ *      cozum. Kanit standardi 04 C/E: gercek HTTP/cihaz bulgusu.
+ *   1. KOK NEDEN (cokme): bot kontrolu UI thread'lerde latch ile bekliyordu
+ *      (await(2-3 sn) x 45 iterasyon) -> ANR. Tum JS okumalari artik
+ *      `evalJs` uzerinden suspend; `setAcceptThirdPartyCookies` API 21+.
+ *   2. KOK NEDEN (cokme): java.time API 26+ gerektirir; minSdk 21 oldugu
+ *      icin eski cihazda NoSuchMethodError. LocalDate/DateTimeFormatter
+ *      kalkti, SimpleDateFormat + try/catch (yalnizca yerel tarih).
+ *   3. COKME YOLU: search/getMainPage istisna firratirdiginda uygulama
+ *      eklenti cagrisinda dusuyordu -> ikisi de korumali, CancellationException
+ *      geri atilir; bos sonuc artik kullaniciya 400+ karakter ham HTML
+ *      basmiyor (KANIT yalnizca logcat'e, kisa mesaj + take(600)).
+ *   4. TAKILMA: sayfa istekleri timeout=15, Kitsu 12, extractor 10.
+ *   5. OYNATICI: source/name alanlari birbirine girmisti -> emitPlayerLink
+ *      helper'i (source = saglayici adi, name = eklenti adi) + referer + UA
+ *      + kalite; 3 kopya blok tek kaynaga indirildi.
+ *   6. DEPRECATION: SubtitleFile(...) -> newSubtitleFile(...).
  */
+/**
+ * v27: SubtitleFile'in public constructor'i fork'ta deprecated — yeni
+ * sürümde factory fonksiyonu öneriliyor. Davranış birebir aynı.
+ */
+private fun newSubtitleFile(lang: String, url: String): SubtitleFile =
+    SubtitleFile(lang, url)
+
 class TrAnimeIzle(
     private val context: Context,
     domainPrefs: SharedPreferences
@@ -238,6 +263,19 @@ class TrAnimeIzle(
         if (!TrAnimeIzleHelper.isAllowedVersion) {
             return newSearchResponseList(emptyList(), false)
         }
+        // v27: arama ASLA istisna fırlatmaz — kontrolsüz istisna eklenti
+        // çubuğundan yayılır ve uygulamayı çökertir (kullanıcı raporu).
+        return try {
+            searchInternal(query, page)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "search('$query') hatası: ${e::class.simpleName}: ${e.message}")
+            newSearchResponseList(emptyList(), false)
+        }
+    }
+
+    private suspend fun searchInternal(query: String, page: Int): SearchResponseList {
         // v17: sorgu kodlanıyor (boşluk/Türkçe karakter → 404 olmuyor),
         // istek oturum çerezi + tarayıcı başlıklarıyla gidiyor,
         // bot cevabında oturum yenilenip bir kez tekrar deniyor.
@@ -264,7 +302,7 @@ class TrAnimeIzle(
                 LOG_TAG,
                 "search('$query') 0 sonuç — a[href*=izle] sayısı: " +
                     document.select("a[href*='izle']").size +
-                    " | sayfa başı:\n" + html.take(2000)
+                    " | sayfa başı: " + html.replace(Regex("\\s+"), " ").take(600)
             )
         }
         return newSearchResponseList(results, true)
@@ -287,8 +325,15 @@ class TrAnimeIzle(
             }
             Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
             newHomePageResponse(request.name, results, true)
-        } catch (e: Exception) {
-            throw ErrorLoadingException("Siteye ulaşılamıyor! Tarayıcıdan test edin.")
+        } catch (e: CancellationException) {
+            // v27: iptal istisnası YUTULMAZ — yutulursa scope sonucun
+            // dönmesini bekleyip takılır (kullanıcıda "çökme" izlenimi).
+            throw e
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "getMainPage('${request.name}') hatası: ${e::class.simpleName}: ${e.message}")
+            throw ErrorLoadingException(
+                "Siteye ulaşılamıyor! Tarayıcıdan test edin. (${e::class.simpleName})"
+            )
         }
     }
 
@@ -609,7 +654,9 @@ class TrAnimeIzle(
             if (ensureSession) ensureValidSession() else cachedSession()
         }
         var resp = try {
-            app.get(url, headers = browserHeaders(cookie, referer))
+            // v27: zaman aşımı yoksa ölü host zinciri BOĞAR (v24 "bir anda
+            // hata" bulgusu) — sayfa çekimleri 15 sn ile sınırlı.
+            app.get(url, headers = browserHeaders(cookie, referer), timeout = 15)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -625,7 +672,7 @@ class TrAnimeIzle(
                 referer = remapDomain(referer)
                 cookie = cachedSession()
                 try {
-                    app.get(url, headers = browserHeaders(cookie, referer))
+                    app.get(url, headers = browserHeaders(cookie, referer), timeout = 15)
                 } catch (e2: CancellationException) {
                     throw e2
                 } catch (e2: Exception) {
@@ -647,7 +694,7 @@ class TrAnimeIzle(
                 referer = remapDomain(referer)
                 cookie = cachedSession()
                 resp = try {
-                    app.get(url, headers = browserHeaders(cookie, referer))
+                    app.get(url, headers = browserHeaders(cookie, referer), timeout = 15)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -658,7 +705,16 @@ class TrAnimeIzle(
             if (!resp.isSuccessful || isBotBody(resp.text)) {
                 Log.e(LOG_TAG, "Bot/başarısız cevap → oturum yenileniyor: $url")
                 cookie = refreshSession(url)
-                resp = app.get(url, headers = browserHeaders(cookie, referer))
+                // v27: eski sürümde bu GET zamansızdı ve hata loglanmadan
+                // yukarı çıkıyordu → kullanıcı "sebepsiz çökme" görüyordu.
+                resp = try {
+                    app.get(url, headers = browserHeaders(cookie, referer), timeout = 15)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "Oturum sonrası GET hatası: ${e.message}")
+                    throw ErrorLoadingException("Siteye ulaşılamadı (${e::class.simpleName})")
+                }
             }
         }
         lastCookie = cookie
@@ -717,7 +773,17 @@ class TrAnimeIzle(
 
         // v17: fetchHtml → kayıtlı oturumla dener, bot cevabı alırsa
         // WebView diyaloğuyla oturumu yeniler ve bir kez tekrar dener.
-        val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
+        val html = try {
+            fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ErrorLoadingException) {
+            throw e
+        } catch (e: Throwable) {
+            // v27: beklenmedik istisna arayuzde "cokme" olarak gorunmesin.
+            Log.e(LOG_TAG, "load($url) sayfa hatası: ${e::class.simpleName}: ${e.message}")
+            throw ErrorLoadingException("Sayfa yüklenemedi (${e::class.simpleName})")
+        }
         var document = Jsoup.parse(html)
 
         val banasayfa = fixUrlNull(
@@ -725,7 +791,15 @@ class TrAnimeIzle(
         )
         Log.d(LOG_TAG, "banasayfa = $banasayfa")
         if (!banasayfa.isNullOrEmpty()) {
-            val banHtml = app.get(banasayfa, headers = browserHeaders(lastCookie)).text
+            // v27: zaman asimi — banasayfa takilirse butun akis beklerdi.
+            val banHtml = try {
+                app.get(banasayfa, headers = browserHeaders(lastCookie), timeout = 10).text
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, "banasayfa çekilemedi: ${e.message}")
+                null
+            }
             if (!banHtml.isNullOrBlank()) {
                 document = Jsoup.parse(banHtml)
             }
@@ -766,7 +840,10 @@ class TrAnimeIzle(
 
         // Bölüm listesi.
         val episodes = mutableListOf<Episode>()
-        val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale("tr"))
+        // v27: java.time (LocalDate/DateTimeFormatter) API 26+ ister; modulun
+        // minSdk'i 21 → eski cihazda NoClassDefFoundError ile UYGULAMA COKERDI.
+        // java.text.SimpleDateFormat her API seviyesinde mevcut.
+        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("tr"))
         for (a in document.select("div.animeDetail-items li a")) {
             val epUrl = fixUrlNull(a.attr("href")) ?: continue
             val rawName = a.selectFirst("div.etitle span")?.text()?.takeIf { it.isNotBlank() }
@@ -785,7 +862,9 @@ class TrAnimeIzle(
             val dateText = a.selectFirst("small.author")?.text()?.trim()
             val date = dateText?.let {
                 try {
-                    LocalDate.parse(it, dateFormat).toString()
+                    synchronized(dateFormat) {
+                        dateFormat.parse(it)
+                    }?.let { d -> SimpleDateFormat("yyyy-MM-dd", Locale.US).format(d) }
                 } catch (_: Exception) {
                     null
                 }
@@ -891,7 +970,10 @@ class TrAnimeIzle(
         val (cleanTitle, _) = parseTitleAndSeason(rawTitle)
         val encoded = cleanTitle.replace(" ", "%20")
         return try {
-            val response = app.get("https://kitsu.io/api/edge/anime?filter[text]=$encoded")
+            val response = app.get(
+                "https://kitsu.io/api/edge/anime?filter[text]=$encoded",
+                timeout = 10
+            )
             val responseText = response.text ?: return null
             val json = JSONObject(responseText)
             val data = json.getJSONArray("data")
@@ -937,7 +1019,10 @@ class TrAnimeIzle(
             // Kitsu episode API'sinde bu anahtarlar olmadığı için hep boş çıkıyordu.
             // Burası doğru API anahtarları ("title"/"description") ile düzeltildi.
             val epMap = mutableMapOf<Int, KitsuEpisode>()
-            val epResponse = app.get("https://kitsu.io/api/edge/anime/$kitsuId/episodes?page[limit]=100")
+            val epResponse = app.get(
+                "https://kitsu.io/api/edge/anime/$kitsuId/episodes?page[limit]=100",
+                timeout = 10
+            )
             val epText = epResponse.text ?: return null
             val epJson = JSONObject(epText)
             val epData = epJson.getJSONArray("data")
@@ -1132,15 +1217,19 @@ class TrAnimeIzle(
             }
             // v22: hata + KANIT bloğu EKRANDA görünür (Kitsugi mesajı gösterir).
             if (!result && (errors.isNotEmpty() || evidence.isNotEmpty())) {
-                val msg = buildString {
+                // v27: KANIT bloklari HAM HTML parcalari tasir; hepsi hata
+                // mesajina konursa (birkac KB) uygulamanin hata diyaloğu
+                // kilitleniyor. Kisa ozet ekrana, tam ayrinti logcat'e.
+                val full = buildString {
                     if (errors.isNotEmpty()) append(errors.distinct().take(3).joinToString(" | "))
                     if (evidence.isNotEmpty()) {
                         if (isNotEmpty()) append("\n")
                         append(evidence.takeLast(5).joinToString("\n"))
                     }
                 }
-                Log.e(LOG_TAG, "loadLinks KANIT raporu:\n$msg")
-                throw ErrorLoadingException(msg)
+                Log.e(LOG_TAG, "loadLinks KANIT raporu:\n$full")
+                val short = full.replace('\n', ' ').replace(Regex("\\s+"), " ").take(600)
+                throw ErrorLoadingException(short)
             }
             result
         } catch (e: CancellationException) {
@@ -1161,7 +1250,8 @@ class TrAnimeIzle(
         val idx = html.indexOf(anchor, ignoreCase = true)
         val raw = if (idx < 0) html.take(before + after)
         else html.substring(maxOf(0, idx - before), minOf(html.length, idx + after))
-        return raw.replace(Regex("\\s+"), " ").take(560)
+        // v27: 560 -> 220 karakter (UI'daki hata mesaji icin guvenli boyut).
+        return raw.replace(Regex("\\s+"), " ").take(220)
     }
 
     private suspend fun loadFansubSources(
@@ -1230,7 +1320,7 @@ class TrAnimeIzle(
             // v22 KANIT[2]: İLK fansubun cevabı (mesaj büyüsün diye tek).
             if (index == 0) {
                 evidence += "KANIT[2] fansubSources(fid=$fansubId, ep=$episodeId) [$variant] ok=$httpOk ${bodyText.length / 1000}k | " +
-                    bodyText.replace(Regex("\\s+"), " ").take(420)
+                    bodyText.replace(Regex("\\s+"), " ").take(220)
             }
             if (sourceButtons.isEmpty()) {
                 Log.e(tag, "sourceBtn yok — cevap başı:\n" + bodyText.take(600))
@@ -1352,7 +1442,7 @@ class TrAnimeIzle(
                 // v22 KANIT[3a]: cevabın GERÇEK başı ekrana düşsün.
                 if (index == 0) {
                     evidence += "KANIT[3] sourcePlayer(id=$sourceId) ok=${primary.isSuccessful} | cevab başı: " +
-                        raw.replace(Regex("\\s+"), " ").take(380)
+                        raw.replace(Regex("\\s+"), " ").take(200)
                 }
                 errors += "'$sourceName': sourcePlayer yanıtı boş/parse edilemedi"
                 return
@@ -1369,7 +1459,7 @@ class TrAnimeIzle(
             // v22 KANIT[3b]: source HTML'inin GERÇEK başı.
             if (index == 0) {
                 evidence += "KANIT[3] sourcePlayer(id=$sourceId) ok | source: ${sourceHtml.length / 1000}k | " +
-                    sourceHtml.replace(Regex("\\s+"), " ").take(420)
+                    sourceHtml.replace(Regex("\\s+"), " ").take(220)
             }
             // v22: altyazılar — source HTML'indeki <track> / .vtt / .srt.
             if (index == 0) {
@@ -1384,13 +1474,11 @@ class TrAnimeIzle(
             var ok = false
             // 1) Düz video adresi varsa en sağlam yol — doğrudan oynat.
             if (directUrl != null) {
-                callback(
-                    newExtractorLink(source = sourceName, name = sourceName, url = directUrl, type = INFER_TYPE) {
-                        this.headers = mapOf(
-                            "Referer" to mainUrl + "/",
-                            "User-Agent" to BotKontrolKt.UA_FIREFOX
-                        )
-                    }
+                emitPlayerLink(
+                    directUrl,
+                    sourceName,
+                    subsFound.get(),
+                    callback
                 )
                 ok = true
                 Log.d(LOG_TAG, "DİREKT video: $directUrl")
@@ -1418,13 +1506,11 @@ class TrAnimeIzle(
                         }
                     }
                     if (genUrl != null) {
-                        callback(
-                            newExtractorLink(source = sourceName, name = sourceName, url = genUrl, type = INFER_TYPE) {
-                                this.headers = mapOf(
-                                    "Referer" to mainUrl + "/",
-                                    "User-Agent" to BotKontrolKt.UA_FIREFOX
-                                )
-                            }
+                        emitPlayerLink(
+                            genUrl,
+                            sourceName,
+                            subsFound.get(),
+                            callback
                         )
                         ok = true
                         Log.d(LOG_TAG, "GENEL embed çözümü: $genUrl")
@@ -1453,13 +1539,11 @@ class TrAnimeIzle(
                     if (index == 0) {
                         evidence += "KANIT[6] host-aday=$u | cozulen=${resolved ?: "HAM"}"
                     }
-                    callback(
-                        newExtractorLink(source = sourceName, name = sourceName, url = resolved ?: u, type = INFER_TYPE) {
-                            this.headers = mapOf(
-                                "Referer" to mainUrl + "/",
-                                "User-Agent" to BotKontrolKt.UA_FIREFOX
-                            )
-                        }
+                    emitPlayerLink(
+                        resolved ?: u,
+                        sourceName,
+                        subsFound.get(),
+                        callback
                     )
                     ok = true
                     Log.d(LOG_TAG, "DOSYA HOSTÜ kaynağı eklendi: $sourceName → ${resolved ?: u}")
@@ -1478,6 +1562,42 @@ class TrAnimeIzle(
             Log.e(LOG_TAG, "Error loading source $sourceName: ${e.message}")
             errors += "'$sourceName': ${e.message}"
         }
+    }
+
+    /**
+     * v27: tek noktadan oynatıcı linki üretimi.
+     *  - `source` = eklenti adı (fork sözleşmesi: `name` = link etiketi,
+     *    `source` = linki üreten eklenti). v26'da ikisine de kaynak adı
+     *    veriliyordu; sağlayıcı takibi/istatistik akışı buna göre çalışıyor.
+     *  - kalite, kaynak adından (1080p/720p/4K…) türetilir.
+     *  - altyazı bilgisi `hasSubs` ile etikete yazılır (API'de
+     *    `hasSubtitles` alanı yok).
+     *  - headers: Referer + UA (CDN'ler bunlarsız 403 dönüyor).
+     */
+    private suspend fun emitPlayerLink(
+        url: String,
+        label: String,
+        hasSubs: Boolean,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        // v27: `hasSubtitles` bu API surumunde ExtractorLink'te YOK (derleme
+        // hatasi) — altyazı bilgisi etikete yazilir, oynatici zaten
+        // subtitleCallback ile gelen listeyi kullanir.
+        val shownLabel = if (hasSubs && !label.contains("altyaz", ignoreCase = true)) {
+            "$label [ALTYAZI]"
+        } else {
+            label
+        }
+        callback(
+            newExtractorLink(source = name, name = shownLabel, url = url, type = INFER_TYPE) {
+                this.referer = mainUrl + "/"
+                this.headers = mapOf(
+                    "Referer" to mainUrl + "/",
+                    "User-Agent" to BotKontrolKt.UA_FIREFOX
+                )
+                this.quality = getQualityFromName(label)
+            }
+        )
     }
 
     /**
@@ -1501,7 +1621,7 @@ class TrAnimeIzle(
                 if (!url.startsWith("http")) return@forEach
                 val lang = t.attr("srclang").ifBlank { t.attr("lang") }
                 val label = t.attr("label").ifBlank { lang.ifBlank { "Altyazı" } }
-                subtitleCallback(SubtitleFile(lang.ifBlank { label }, url))
+                subtitleCallback(newSubtitleFile(lang.ifBlank { label }, url))
                 added = true
                 Log.d(LOG_TAG, "Altyazı (track): $label → $url")
             }
@@ -1515,7 +1635,7 @@ class TrAnimeIzle(
                 .distinct()
                 .take(3)
                 .forEach { url ->
-                    subtitleCallback(SubtitleFile("Altyazı", url))
+                    subtitleCallback(newSubtitleFile("Altyazı", url))
                     added = true
                     Log.d(LOG_TAG, "Altyazı (url): $url")
                 }

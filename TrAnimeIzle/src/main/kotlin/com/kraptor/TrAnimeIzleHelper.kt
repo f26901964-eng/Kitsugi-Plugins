@@ -38,7 +38,13 @@ object TrAnimeIzleHelper {
         if (hataliPaketAdlari.contains(pkg)) return
         val hash = imzaHashiniAl(context, pkg)
         isAllowedVersion = izinliImzaHashleri.contains(hash)
-        Log.d(TAG, "Paket: $pkg izinliSurum: $isAllowedVersion")
+        // v27: kapak kapaliyken eklenti sessizce bos sonuc donuyor; kullanici
+        // bunu "eklenti bozuk / coktu" sanuyordu. En azindan sebebi bilelim.
+        if (!isAllowedVersion) {
+            Log.e(TAG, "Eklenti bu uygulama kurulumunda devre disi (imza=$hash). Arama bos doner.")
+        } else {
+            Log.d(TAG, "Paket: $pkg izinliSurum: $isAllowedVersion")
+        }
     }
 
     fun setAllowedVersion(value: Boolean) {

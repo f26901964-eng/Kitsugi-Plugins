@@ -27,7 +27,8 @@ class HdvidExtractor : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            val text = app.get(url).text ?: return
+            // v27: zaman asimi (10 sn) — ölü host (522) akisi bogmasin
+            val text = app.get(url, timeout = 10).text ?: return
             val file = Regex(SOURCES_REGEX).find(text)?.groupValues?.getOrNull(1)
             if (file.isNullOrBlank()) {
                 Log.e(name, "Hdvid: video adresi bulunamadı")
@@ -39,7 +40,8 @@ class HdvidExtractor : ExtractorApi() {
             } catch (_: Exception) {
                 null
             }
-            val linkReferer = host?.let { "https://$it/" } ?: url
+            val linkReferer = referer?.takeIf { it.isNotBlank() }
+                ?: host?.let { "https://$it/" } ?: url
             callback(
                 newExtractorLink(
                     source = name,
@@ -48,7 +50,11 @@ class HdvidExtractor : ExtractorApi() {
                     type = INFER_TYPE
                 ) {
                     this.referer = linkReferer
-                    this.headers = mapOf("Referer" to linkReferer)
+                    // v27: UA eklendi (CDN'ler yalniz referer ile 403 dönüyor)
+                    this.headers = mapOf(
+                        "Referer" to linkReferer,
+                        "User-Agent" to BotKontrolKt.UA_FIREFOX
+                    )
                 }
             )
         } catch (e: Exception) {

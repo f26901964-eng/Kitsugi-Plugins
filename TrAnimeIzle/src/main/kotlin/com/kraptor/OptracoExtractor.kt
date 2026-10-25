@@ -26,15 +26,20 @@ class OptracoExtractor : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            val text = app.get(url).text ?: return
-            var videoUrl = text.substringAfter("file: \"", "").substringBefore("\"")
-            if (!videoUrl.startsWith("http")) {
-                videoUrl = mainUrl + videoUrl
-            }
-            if (videoUrl.isBlank()) {
+            // v27: zaman asimi (10 sn) — ölü host akisi bogmasin
+            val text = app.get(url, timeout = 10).text ?: return
+            val rawFile = text.substringAfter("file: \"", "").substringBefore("\"")
+            // v27: BOS KONTROL ONE ALINDI — v26'da göreli ekleme önce
+            // yapiliyordu, bos sonuc "https://optraco.top" adli sahte bir
+            // "video" olarak oynaticiya gidiyordu (oynatilamaz, bos ekran).
+            if (rawFile.isBlank()) {
                 Log.e(name, "OpTraco: video adresi bulunamadı")
                 return
             }
+            val videoUrl = if (rawFile.startsWith("http")) rawFile else mainUrl + rawFile
+            // v27: referer = cagiranin (bölüm sayfası) adresi; iframe'in kendi
+            // adresi degil. CDN'ler bos/yanlis referer'da 403 dönüyor.
+            val linkReferer = referer?.takeIf { it.isNotBlank() } ?: url
             callback(
                 newExtractorLink(
                     source = name,
@@ -42,8 +47,11 @@ class OptracoExtractor : ExtractorApi() {
                     url = videoUrl,
                     type = INFER_TYPE
                 ) {
-                    this.referer = url
-                    this.headers = mapOf("Referer" to url)
+                    this.referer = linkReferer
+                    this.headers = mapOf(
+                        "Referer" to linkReferer,
+                        "User-Agent" to BotKontrolKt.UA_FIREFOX
+                    )
                 }
             )
         } catch (e: Exception) {

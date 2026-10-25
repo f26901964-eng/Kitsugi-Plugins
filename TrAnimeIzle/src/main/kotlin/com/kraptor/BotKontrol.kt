@@ -14,6 +14,7 @@ import android.webkit.WebView
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.TimeoutCancellationException
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -85,12 +87,126 @@ object BotKontrolKt {
     @Volatile
     private var activeDialog: AlertDialog? = null
 
+    /**
+     * v27: diyalog GERÇEKTEN ekranda mı? (uygulama bağlamında pencere
+     * oluşturulamayan durumlarda false kalır ve akış dialogsız devam eder.)
+     */
+    @Volatile
+    private var dialogShown = false
+
+    /**
+     * v27: `destroy()` çağrılmış WebView üzerinde `evaluateJavascript()`
+     * IllegalArgumentException fırlatır — Android'de "hâlâ canlı mı?" sorgusu
+     * olmadığı için canlılığı kendimiz izliyoruz.
+     */
+    private val ALIVE_WEB_VIEWS =
+        java.util.Collections.synchronizedSet(HashSet<WebView>())
+
+    /**
+     * v27: `isValid()` diye bir WebView API'si YOK (v26 diff'ünde elle
+     * eklenmişti — derlemeyi kırardı); canlılık, destroy() çağrıldığında
+     * kendimiz düşürüyoruz. Nesne düzeyinde: izleme + kurtarma yolları
+     * aynı sorguyu kullanır.
+     */
+    private fun WebView.isLive(): Boolean = ALIVE_WEB_VIEWS.contains(this)
+
+    private fun destroyWebView(webView: WebView) {
+        ALIVE_WEB_VIEWS.remove(webView)
+        try {
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+            webView.destroy()
+        } catch (e: Throwable) {
+            Log.w(TAG, "WebView kapatma hatası: ${e::class.simpleName}: ${e.message}")
+        }
+    }
+
+    /** v27: diyalogu KAPAT (her zaman ana thread'de; hata yutulur). */
+    private fun closeDialog() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { closeDialog() }
+            return
+        }
+        dialogShown = false
+        val d = activeDialog
+        activeDialog = null
+        try {
+            d?.dismiss()
+        } catch (e: Throwable) {
+            Log.w(TAG, "Diyalog kapatma hatası: ${e::class.simpleName}: ${e.message}")
+        }
+    }
+
     private val webViewMutex = Mutex()
 
     /** Tek kullanımlık devam (continuation) kilidi. */
     private class ResumeGuard {
         @Volatile
         var active = true
+    }
+
+    // ------------------------------------------------------------------
+    // v27: UI thread'i KİLİTLEMEYEN JS köprüsü (ANR/çökme düzeltmesi)
+    // ------------------------------------------------------------------
+
+    /**
+     * v27 KRİTİK: v26'da WebView'den JS sonucu okumak için
+     * `CountDownLatch.await(2–3 sn)` kullanılıyordu ve bu okumalar
+     * `MainScope()` (yani ana/UI thread) üzerinde yapılıyordu.
+     * Android'de UI thread ~5 saniyeden uzun kilitlenirse sistem ANR
+     * ("uygulama yanıt vermiyor") üretir ve uygulamayı KAPATIR; izleme
+     * döngüsü 45 tur × 2 sn = ~90 sn UI thread'i bloke edebiliyordu →
+     * kullanıcının bildirdiği çökmenin birincil mekanizması.
+     *
+     * Bu yardımcı, evaluateJavascript'in ValueCallback'ini coroutine
+     * devamlılığı (continuation) ile bekler: ana thread HİÇ bloke olmaz,
+     * WebView çağrıları yine ana thread'de yapılır (WebView bunu şart koşar).
+     *
+     * @return null = zaman aşımı veya çağrı hatası.
+     */
+    private suspend fun evalJs(
+        webView: WebView,
+        script: String,
+        timeoutMs: Long,
+        tag: String
+    ): String? = withContext(Dispatchers.Main) {
+        try {
+            withTimeoutOrNull(timeoutMs) {
+                suspendCancellableCoroutine { cont ->
+                    try {
+                        webView.evaluateJavascript(script) { raw ->
+                            if (cont.isActive) cont.resume(raw)
+                        }
+                    } catch (e: Throwable) {
+                        // WebView artık yok / UI thread değil — hata YUKARI ÇIKMAZ.
+                        Log.e(TAG, "$tag evaluateJavascript hatası: ${e::class.simpleName}: ${e.message}")
+                        if (cont.isActive) cont.resume(null)
+                    }
+                    cont.invokeOnCancellation {
+                        try {
+                            webView.stopLoading()
+                        } catch (_: Throwable) {
+                        }
+                    }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(TAG, "$tag JS beklenemedi: ${e::class.simpleName}: ${e.message}")
+            null
+        }
+    }
+
+    /** JSON stringi ("\"...\"" biçiminde) düz metne çevirir. */
+    private fun jsToText(raw: String?): String {
+        if (raw.isNullOrEmpty() || raw == "null") return ""
+        return try {
+            JSONArray("[$raw]").getString(0)
+        } catch (_: Exception) {
+            raw.removeSurrounding("\"")
+        }
     }
 
     // ------------------------------------------------------------------
@@ -215,33 +331,18 @@ object BotKontrolKt {
 
     /**
      * v20: sayfanın mevcut DOM'undan `document.documentElement.outerHTML`'i
-     * döndürür (en fazla 2 sn bekleme; hata → ""). UI thread'de çağrılır
-     * (monitor/diyalog akışı) — kısa, tek seferlik beklemedir.
+     * döndürür. v27: UI thread'i kilitleyen latch yerine suspend JS köprüsü
+     * kullanılır (bkz. evalJs) — hata/zaman aşımı → "".
      */
-    private fun capturePageHtml(webView: WebView, timeoutSec: Long = 2): String {
-        val ref = java.util.concurrent.atomic.AtomicReference("")
-        val latch = java.util.concurrent.CountDownLatch(1)
-        try {
-            webView.evaluateJavascript(
-                "(function(){try{return document.documentElement?" +
-                    "document.documentElement.outerHTML:''}catch(e){return ''}})()",
-                ValueCallback { raw ->
-                    val decoded = try {
-                        if (raw == null) ""
-                        else JSONArray("[$raw]").getString(0)
-                    } catch (e: Exception) {
-                        raw ?: ""
-                    }
-                    ref.set(decoded)
-                    latch.countDown()
-                }
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "capturePageHtml JS hatası: ${e.message}")
-            return ""
-        }
-        latch.await(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
-        return ref.get()
+    private suspend fun capturePageHtml(webView: WebView, timeoutMs: Long = 2_500): String {
+        val raw = evalJs(
+            webView,
+            "(function(){try{return document.documentElement?" +
+                "document.documentElement.outerHTML:''}catch(e){return ''}})()",
+            timeoutMs,
+            "capturePageHtml"
+        ) ?: return ""
+        return jsToText(raw)
     }
 
     private fun hostOf(url: String): String =
@@ -354,11 +455,11 @@ object BotKontrolKt {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         cont.invokeOnCancellation {
-            activeDialog?.dismiss()
-            activeDialog = null
+            closeDialog()
         }
 
         Handler(Looper.getMainLooper()).post {
+            var webView: WebView? = null
             try {
                 val container = LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
@@ -382,7 +483,7 @@ object BotKontrolKt {
                 }
                 container.addView(statusView)
 
-                val webView = WebView(context).apply {
+                val wv = WebView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(-1, -1)
                     settings.apply {
                         javaScriptEnabled = true
@@ -394,8 +495,18 @@ object BotKontrolKt {
                     setFocusableInTouchMode(true)
                     setBackgroundColor(0xFFFFFFFF.toInt())
                     setInitialScale(100)
+                    // v27: üçüncü taraf (CF) çerezleri kabul et — aksi halde
+                    // challenge çerezleri kutuya hiç düşmüyor. (API 21 = minSdk,
+                    // eski sürüm kontrolüne gerek yok; WebViewException'a karşı korunur.)
+                    try {
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "setAcceptThirdPartyCookies: ${e.message}")
+                    }
                 }
-                container.addView(webView)
+                webView = wv
+                ALIVE_WEB_VIEWS.add(wv)
+                container.addView(wv)
 
                 if (!forceRefresh) {
                     val cached = getSavedCookie(context, url)
@@ -403,37 +514,59 @@ object BotKontrolKt {
                 }
 
                 Log.d(TAG, "İlk URL yükleniyor: $url")
-                webView.loadUrl(url)
+                wv.loadUrl(url)
 
-                val dialog = AlertDialog.Builder(context)
-                    .setView(container)
-                    .setCancelable(false)
-                    .setNegativeButton("İptal") { _, _ ->
-                        Log.w(TAG, "Kullanıcı oturumu iptal etti")
+                // v27: diyalog gösterimi BAŞARISIZ OLSA BİLE akış sürer —
+                // pencere hatası eklenti coroutine'ine fırlatılırsa uygulama
+                // çöküyor (kullanıcı raporundaki "çökme" bulgusu).
+                var shown = false
+                try {
+                    val dialog = AlertDialog.Builder(context)
+                        .setView(container)
+                        .setCancelable(false)
+                        .setNegativeButton("İptal") { _, _ ->
+                            Log.w(TAG, "Kullanıcı oturumu iptal etti")
+                            safeResume(guard, cont, WebFetchResult("", ""))
+                        }
+                        .create()
+                    activeDialog = dialog
+                    dialog.window?.apply {
+                        setBackgroundDrawableResource(android.R.color.transparent)
+                        setDimAmount(0.75f)
+                        setLayout(
+                            WindowManager.LayoutParams.MATCH_PARENT,
+                            WindowManager.LayoutParams.MATCH_PARENT
+                        )
+                        addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    dialog.setOnDismissListener {
                         safeResume(guard, cont, WebFetchResult("", ""))
                     }
-                    .create()
-                activeDialog = dialog
-                dialog.window?.apply {
-                    setBackgroundDrawableResource(android.R.color.transparent)
-                    setDimAmount(0.75f)
-                    setLayout(
-                        WindowManager.LayoutParams.MATCH_PARENT,
-                        WindowManager.LayoutParams.MATCH_PARENT
+                    dialog.show()
+                    shown = true
+                } catch (e: Throwable) {
+                    Log.e(
+                        TAG,
+                        "Oturum diyaloğu gösterilemedi (${e::class.simpleName}: ${e.message}) " +
+                            "— arka planda WebView ile devam ediliyor"
                     )
-                    addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    activeDialog = null
+                    try {
+                        container.removeAllViews()
+                    } catch (_: Throwable) {
+                    }
                 }
-                dialog.setOnDismissListener {
-                    safeResume(guard, cont, WebFetchResult("", ""))
-                }
-                dialog.show()
+                dialogShown = shown
 
-                // Challenge izleme döngüsü (ayrı coroutine, UI thread).
+                // Challenge izleme döngüsü (ayrı coroutine, ana thread'de
+                // YALNIZIZ WebView çağrıları; bloke eden bekleme yok — v27).
                 MainScope().launch {
-                    monitorChallenge(webView, statusView, guard, cont, url, host, prefs)
+                    monitorChallenge(webViewModel = wv, statusView, guard, cont, url, host, prefs)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "WebView başlatılamadı: ${e.message}")
+            } catch (e: Throwable) {
+                Log.e(TAG, "WebView başlatılamadı (${e::class.simpleName}): ${e.message}")
+                closeDialog()
+                webView?.let { destroyWebView(it) }
                 safeResume(guard, cont, WebFetchResult("", ""))
             }
         }
@@ -456,26 +589,18 @@ object BotKontrolKt {
      * v18: CF managed challenge sayfaları "yüklendi" sayılmamalı — WebView
      * (gerçek Chromium) challenge'ı normalde kendiliğinden çözer, o beklenir.
      */
-    private fun pageLoadedBodyLength(webView: WebView): Int {
-        val ref = java.util.concurrent.atomic.AtomicInteger(-1)
-        val latch = java.util.concurrent.CountDownLatch(1)
-        try {
-            webView.evaluateJavascript(
-                "(function(){try{var h=document.body?document.body.innerHTML:'';" +
-                    "if(/just a moment|checking your browser|cf-challenge/i.test(" +
-                    "(document.title||'')+h))return -2;" +
-                    "return (document.readyState==='complete')?h.length:-1" +
-                    "}catch(e){return -1}})()",
-                ValueCallback { raw ->
-                    ref.set(raw?.trim()?.toIntOrNull() ?: -1)
-                    latch.countDown()
-                }
-            )
-        } catch (e: Exception) {
-            return -1
-        }
-        latch.await(2, java.util.concurrent.TimeUnit.SECONDS)
-        return ref.get()
+    private suspend fun pageLoadedBodyLength(webView: WebView): Int {
+        val raw = evalJs(
+            webView,
+            "(function(){try{var h=document.body?document.body.innerHTML:'';" +
+                "if(/just a moment|checking your browser|cf-challenge/i.test(" +
+                "(document.title||'')+h))return -2;" +
+                "return (document.readyState==='complete')?h.length:-1" +
+                "}catch(e){return -1}})()",
+            2_500,
+            "pageLoadedBodyLength"
+        ) ?: return -1
+        return raw.trim().removeSuffix(".0").toIntOrNull() ?: -1
     }
 
     /**
@@ -487,7 +612,7 @@ object BotKontrolKt {
      *      A/B tekrar denenir.
      */
     private suspend fun monitorChallenge(
-        webView: WebView,
+        webViewModel: WebView,
         statusView: TextView,
         guard: ResumeGuard,
         cont: CancellableContinuation<WebFetchResult>,
@@ -495,16 +620,25 @@ object BotKontrolKt {
         host: String,
         prefs: SharedPreferences
     ) {
+        // v27: parametre `webViewModel` olarak adlandırıldı; gövde aynı
+        // `webView` adıyla devam eder (okunabilirlik için yerel takma ad).
+        val webView = webViewModel
         val sizeCache = HashMap<String, Int>()
         var iterations = 0
         var warnedSmallBody = false
 
         while (iterations++ < MONITOR_MAX_ITERATIONS && guard.active) {
             delay(MONITOR_POLL_MS)
-            if (activeDialog == null || !guard.active) break
+            // v27: diyalog artık ZORUNLU değil (pencere açılamayan cihazlarda
+            // dialogsız çalışıyor) — break koşulu guard + WebView geçerliliği.
+            if (!webView.isLive()) {
+                Log.w(TAG, "WebView geçersizleşti — izleme sonlandırılıyor")
+                break
+            }
 
-            // Bu döngü MainScope (UI thread) üzerinde çalışır; WebView okumaları
-            // doğrudan yapılabilir.
+            // Döngü MainScope (ana thread) üzerinde koşar; v27'den itibaren
+            // JS okumaları suspend köprü ile yapıldığı için ana thread
+            // BLOKE EDİLMEZ (latch beklemesi ANR/çökme üretirdi).
             val pageUrl = try {
                 webView.url
             } catch (_: Exception) {
@@ -517,7 +651,7 @@ object BotKontrolKt {
             if (inChallenge) {
                 statusView.text = "Doğrulama sayfası çözümleniyor…"
                 val jarCookie = CookieManager.getInstance().getCookie(url) ?: ""
-                val hashes = withContext(Dispatchers.Main) { getIconHashes(webView) }
+                val hashes = getIconHashes(webView)
                 when {
                     hashes == null ->
                         Log.d(TAG, "DOM'da henüz 5 resim yok, bekleniyor... (JS sonucu yok)")
@@ -627,15 +761,13 @@ object BotKontrolKt {
         } catch (_: Exception) {
             ""
         }
-        val finalHtml = capturePageHtml(webView)
+        val finalHtml = if (webView.isLive()) capturePageHtml(webView) else ""
         if (finalJar.isNotEmpty()) {
             prefs.edit().putString(host, finalJar).apply()
         }
         Log.d(TAG, "Zaman aşımı kurtarma: set=${finalJar.length}, html=${finalHtml.length}")
-        withContext(Dispatchers.Main) {
-            activeDialog?.dismiss()
-            activeDialog = null
-        }
+        closeDialog()
+        destroyWebView(webView)
         safeResume(guard, cont, WebFetchResult(finalJar, finalHtml))
     }
 
@@ -661,51 +793,43 @@ object BotKontrolKt {
         }
         // v20: diyalog kapanırken sayfanın TAM DOM'u kurtarılır
         // (tarayıcı gerçekten bu içeriği render ettiyse HTML de gelir).
-        val html = capturePageHtml(webView)
+        // v27: WebView kapanmışsa DOM okunmaz (IllegalArgumentException patlardı).
+        val html = if (webView.isLive()) capturePageHtml(webView) else ""
         Log.d(TAG, "Sayfa DOM'u kurtarıldı: ${html.length} karakter")
         statusView.text = "Oturum tamamlandı"
         Log.d(TAG, "Diyalog kapatılıyor")
-        withContext(Dispatchers.Main) {
-            activeDialog?.dismiss()
-            activeDialog = null
-        }
+        closeDialog()
         safeResume(guard, cont, WebFetchResult(jar, html))
+        destroyWebView(webView)
     }
 
     /**
      * DOM'daki `[icon-hash]` özniteliklerini döndürür.
      * null = JS çalıştırılamadı / zaman aşımı.
+     * v27: latch (UI thread kilitlemesi) kaldırıldı — suspend JS köprüsü.
      */
-    private fun getIconHashes(webView: WebView): List<String>? {
-        val result = java.util.concurrent.atomic.AtomicReference<List<String>?>()
-        val latch = java.util.concurrent.CountDownLatch(1)
-        try {
-            webView.evaluateJavascript(
-                "(function() { return JSON.stringify(" +
-                    "Array.from(document.querySelectorAll('[icon-hash]'))" +
-                    ".map(el => el.getAttribute('icon-hash'))); })()",
-                ValueCallback { raw ->
-                    try {
-                        val json = raw?.removeSurrounding("\"") ?: "null"
-                        if (json == "null") {
-                            result.set(null)
-                        } else {
-                            val arr = JSONArray(json)
-                            val list = (0 until arr.length()).map { arr.getString(it) }
-                            result.set(list)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "DOM Hash parse hatası: ${e.message}")
-                        result.set(null)
-                    }
-                    latch.countDown()
-                }
-            )
+    private suspend fun getIconHashes(webView: WebView): List<String>? {
+        val raw = evalJs(
+            webView,
+            "(function() { return JSON.stringify(" +
+                "Array.from(document.querySelectorAll('[icon-hash]'))" +
+                ".map(el => el.getAttribute('icon-hash'))); })()",
+            3_500,
+            "getIconHashes"
+        ) ?: return null
+        return try {
+            // evaluateJavascript sonucu JSON'u DÜZ döndürür (bazı WebView
+            // sürümleri tırnaklar) — iki biçimi de kabul et.
+            val json = if (raw.trimStart().startsWith("\"")) jsToText(raw) else raw
+            if (json.isBlank() || json == "null") null
+            else {
+                val arr = JSONArray(json)
+                (0 until arr.length()).map { arr.getString(it) }
+            }
         } catch (e: Exception) {
-            return null
+            Log.e(TAG, "DOM Hash parse hatası: ${e.message}")
+            null
         }
-        val finished = latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
-        return if (finished) result.get() else null
     }
 
     // ------------------------------------------------------------------
