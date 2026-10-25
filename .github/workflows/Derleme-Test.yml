@@ -156,8 +156,8 @@ jobs:
         with:
           name: Kitsugi-Plugins-${{ github.run_id }}
           path: |
-            FilmEkseni/build/FilmEkseni.cs3
-            HDFilmDelisi/build/HDFilmDelisi.cs3
+            DiziBox/build/DiziBox.cs3
+            HDFilmIzle/build/HDFilmIzle.cs3
           if-no-files-found: warn
           retention-days: 14
 

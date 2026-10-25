@@ -1,4 +1,4 @@
-version = 7
+version = 8
 
 cloudstream {
     authors     = listOf("nikyokki")
@@ -19,4 +19,8 @@ cloudstream {
 
 android {
     namespace = "com.nikyokki"
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
 }
