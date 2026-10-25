@@ -440,7 +440,7 @@ class TrAnimeIzle(
         return try {
             val resp = app.get(base, headers = browserHeaders(cachedSession(), base + "/"), timeout = 8)
             val ok = resp.isSuccessful && !isBotBody(resp.text) && izleCount(resp.text) > 0
-            Log.d(LOG_TAG, "domain probe: $base → ${if (ok) "ALIVE" else "DEAD"} (status=${resp.statusCode})")
+            Log.d(LOG_TAG, "domain probe: $base → ${if (ok) "ALIVE" else "DEAD"} (status=${resp.code})")
             ok
         } catch (e: CancellationException) {
             throw e
