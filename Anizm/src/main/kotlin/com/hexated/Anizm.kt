@@ -1,79 +1,60 @@
 package com.hexated
 
-import android.util.Base64 as AndroidBase64 // v27: java.util.Base64 API 26+ (minSdk 21'de cokerdi)
 import android.util.Log
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.nicehttp.JsonAsString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
-import java.io.IOException
 import java.net.URLEncoder
-import java.security.MessageDigest
-import javax.crypto.Cipher
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 /**
- * Anizm (puffytr.com) ana API — tam yeniden yazım (2026-10-25).
+ * Anizm — puffytr.com (eski/paralel adlar: anizm.net, anizm.com.tr, anizle.org).
  *
- * SİTE YAPISI (tümü site'nin kendi HTML/JS arşivleriyle kanıtlandı;
- * kanıtlar research/anizm-capture/ altında):
+ * ## Bu sürümün amacı (v3, 2026-10-25)
+ * Önceki sürüm, sitenin **tek bir tema varsayımına** dayanıyordu: arama `/arama?q=`,
+ * kaynaklar `button[data-v3-translator]`, oynatıcı yalnızca `videoSource`. Site bu
+ * üç noktadan biri değiştiğinde arama 0 sonuç, kaynak listesi boş dönüyordu
+ * (kullanıcı ekranı: "Akış bulunamadı").
  *
- * 1. Arama:  GET /arama?q={sorgu}  → server-rendered `article.v3-catalog-card`
- *    (href, poster, puan, yıl, bölüm sayısı, özet, türler).
- * 2. Katalog: ana sayfa + /kategoriler/{id} (her ikisi ?sayfa=N sayfalı).
- * 3. Detay:  GET /{slug} → h1 a (başlık), itemprop image (poster),
- *    itemprop description (özet), a.ui.label (türler),
- *    `a[href=/{slug}-{n}-bolum-izle]` (bölüm listesi).
- * 4. Bölüm:  GET /{slug}-{n}-bolum-izle → `button[data-v3-translator]`
- *    (data-sources = https://puffytr.com/bolum/{eid}/cevirmen/{tid},
- *    title = fansub adı) + meta[name=csrf-token].
- * 5. Kaynaklar: GET {data-sources} → JSON {success, videos:[{id,name,watchTogether}]}
- *    (kanıt: 2026-10-25 SPN capture — 8 kaynak: Aincrad, Odnoklassniki, GDrive,
- *    Abyss, YourUpload, HDVid, Voe, StreamTape).
- * 6. Video:  GET /bolum/{eid}/video/{vid} → JSON {success, url, source, ...};
- *    url SAME-ORIGIN (https://puffytr.com/player/{pid}) — kanıt: v3-episode.js v1.3.5.
- * 7. Player: GET /player/{pid} → 302 (kanıt: X-Archive-Orig-Location header capture):
- *    - https://anizmplayer.com/video/{token} → KENDİ OYNATICILARI (FirePlayer/JW Player)
- *    - diğer hostlar → harici provider (streamtape, hdvid, ok.ru, ...)
+ * Yeni sürüm **kanıtlanmış iki istemcinin** zincirini birlikte uygular:
+ *  - Aniyomi `src/tr/anizm` (2026-10-25): `/anime-izle?sayfa=N`, `div#episodesMiddle
+ *    div.posterBlock > a`, `h2.anizm_pageTitle`, `div.infoPosterImg > img`,
+ *    `div.episodeListTabContent div > a`, `div#fansec > a[translator]`,
+ *    `a.videoPlayerButtons[video]`, `/video/` → `/player/` 302,
+ *    anizmplayer = `POST /player/index.php?data=<hash>&do=getVideo` → `securedLink`.
+ *  - CloudStream `SalooRepo/Anizm` (2026-10-15) + `hexated` orijinali:
+ *    `/searchAnime?query=..&page=..&type=detailed&limit=..` (XHR başlıkları şart),
+ *    `/getAnimeListForSearch` (tüm katalog, JSON), `/fullViewSearch?search=`.
  *
- * FIREPLAYER PROTOKOLÜ (anizmplayer.com — scripts.php v12 + cryptojs-aes-format.js 2.1.1):
- * - /video/{token} sayfasındaki obfike script DECODE edilirse
- *   `FirePlayer("{token}", {videoSettings})` çağrısı ortaya çıkar.
- *   videoSettings: title (kalite dahil), ck (AES şifresi, \xNN escaped),
- *   tracks (VTT), thumbnail. Decode algoritması node'da BİREBİR doğrulandı.
- * - POST /player/index.php?data={token}&do=getVideo  form: {hash: token, r: referer}
- *   → JSON:
- *     hls=true  → {videoSource: "https://....m3u8"} (düz)
- *     hls=false → {videoSources: [{file: "<AES>", ...}], ck: "<AES şifresi>"}
- * - AES: cryptojs-aes-php formatı {"ct","iv","s"}; anahtar = MD5(şifre + salt)
- *   (EVP_BytesToKey 1 iterasyon), AES-128-CBC, sonuç = JSON string.
+ * Zincir üç kuşak API'yi birlikte dener (hangisi canlıysa o kullanılır):
+ *  1. **v3**: `[data-sources]` → çevirmen JSON'u → `/video/{id}` → `url`
+ *  2. **v2**: `a[translator]` → `{data: html}` → `a[video|videoPlayerButtons]` → `{player: iframe}`
+ *  3. **sayfa**: doğrudan `iframe[src]`, `a[video]`, `<video>` ve JS içindeki m3u8/mp4
  *
- * BOT KORUMASI: Site CF'da yalnızca DATACENTER IP'lerini engeller (1005).
- * Cihaz (rezidans) IP'si engellenmez → düz HTTP yeterli, WebView gerekmez.
- * Yaş duvarı SADECE client-side (sessionStorage/localStorage — kanıt:
- * v3-content-warning.js v1.0.5); video API'lerinde server-side duvar YOK.
- *
- * ALTYAZI: Ayncrad/JW Player kaynaklarında videoSettings.tracks içinde
- * kind=captions olan VTT'ler subtitleCallback ile eklenir (varsa).
- * Diğer fansub videolarında altyazı videoya gömülüdür (sitenin standardı).
+ * ## Uygulama (Kitsugi) uyumu
+ *  - Arama, uygulamanın gönderdiği İngilizce/Türkçe başlıkları [AnizmMatch] ile
+ *    çoklu varyanta çevirir ve sonuçları benzerliğe göre sıralar (site Türkçe/romanize
+ *    ad kullandığı için ham arama sıfır dönüyordu).
+ *  - Bölümlere `episode`/`season` numarası **her zaman** yazılır
+ *    (Kitsugi `CsEpisodeMatcher` numarasız bölümü eşleştiremiyor).
+ *  - `loadLinks` yalnızca **oynatılabilir** adres yayınlar (m3u8/mp4 ya da
+ *    `loadExtractor`'ın çözdüğü host). Oynatıcı sayfası URL'si asla akış olarak
+ *    verilmez — Kitsugi bunu embed tarayıcıya sokuyor ve cihazda
+ *    `EmbedMediaScanner` kaynaklı KTS-CSP-9110'a düşebiliyor.
+ *  - Hiçbir adım istisna fırlatmaz; hata = boş liste + log (uygulama çökmez).
  */
-/**
- * v27: SubtitleFile public constructor'u deprecated; fork'un önerdigi
- * newSubtitleFile ayni nesneyi üretir (Anizm eski API'de kalmisti).
- */
-private fun newSubtitleFile(lang: String, url: String): SubtitleFile =
-    SubtitleFile(lang, url)
-
 class Anizm : MainAPI() {
 
-    override var mainUrl = "https://puffytr.com"
+    override var mainUrl = DEFAULT_BASE
     override var name = "Anizm"
     override val hasMainPage = true
     override val hasQuickSearch = true
@@ -81,279 +62,559 @@ class Anizm : MainAPI() {
     override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA)
     override val hasDownloadSupport = true
 
-    companion object {
-        private const val LOG_TAG = "hexated_Anizm"
-        private const val PLAYER_SERVER = "https://anizmplayer.com"
-        private const val UA =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
-
-        // 2026-10-25 ana sayfa capture'ından doğrulanan kategori listesi (id → ad).
-        private val CATEGORIES: List<Pair<Int, String>> = listOf(
-            1 to "Macera", 2 to "Aksiyon", 3 to "Komedi", 4 to "Dram", 5 to "Romantizm",
-            6 to "Ecchi", 7 to "Askeri", 8 to "Bilim-Kurgu", 9 to "Büyü", 10 to "Dedektif",
-            11 to "Doğaüstü Güçler", 12 to "Dövüş", 13 to "Fantastik", 14 to "Gerilim",
-            15 to "Gizem", 16 to "Harem", 17 to "Hazine-Avcılığı", 18 to "Josei",
-            20 to "Korku", 21 to "Mecha", 22 to "Film", 23 to "Müzik", 24 to "Ninja",
-            25 to "OAD-ONA-OVA", 26 to "Okul", 27 to "Oyun", 28 to "Politik",
-            29 to "Psikolojik", 30 to "Dövüş Sanatları", 31 to "Seinen", 32 to "Shoujo",
-            33 to "Shoujo-Ai", 34 to "Shounen", 35 to "Shounen-Ai", 36 to "Yaşamdan Kesitler",
-            37 to "Spor", 38 to "Süper-Güç", 39 to "Tarihi", 40 to "Tuhaf", 41 to "Uzay",
-            42 to "Vampir", 43 to "Yaoi", 44 to "Yuri", 45 to "Şeytanlar", 46 to "Savaş",
-            47 to "Samuray", 48 to "Parodi", 49 to "Çocuklar", 50 to "Bunama",
-            51 to "Canlı Aksiyon", 52 to "Arabalar", 53 to "Polisiye", 55 to "Hentai",
-            56 to "Erkeklerin Aşkı", 57 to "Kızların Aşkı", 58 to "Ödüllü", 59 to "Gurme",
-            60 to "Erotik", 61 to "Mahou Shoujo"
-        )
-
-        // Anime slug'ı OLMAYAN bilinen path'ler (kart çözümlemede elenir).
-        private val BLOCKED_SLUGS = setOf(
-            "kategoriler", "temalar", "profil", "arama", "girisyap", "uyeol", "listeler",
-            "bolum", "player", "raporver", "storage", "upload", "js", "css", "images",
-            "api", "search", "anasayfa", "home", "index", "hakkimizda", "iletisim",
-            "sss", "duyurular", "gizlilik", "kullanim-sartlari", "cerez", "destek",
-            "kurallar", "haber", "blog", "tv", "yayin", "takvim", "sozluk"
-        )
-
-        private val EPISODE_SUFFIX = Regex("-([0-9]+)-bolum-izle$")
-        private val SLUG_RE = Regex("^[a-z0-9][a-z0-9-]*$")
-    }
+    /** mainPage URI'leri kurulum anındaki domain ile üretilir; domain değişirse haritalanır. */
+    private val mainPageBase: String = mainUrl
 
     override val mainPage = mainPageOf(
-        *(listOf("$mainUrl?sayfa=" to "Son Eklenenler") +
-            CATEGORIES.map { (id, n) -> "$mainUrl/kategoriler/$id?sayfa=" to n }).toTypedArray()
+        "$mainUrl/anime-izle?sayfa={page}" to "Son Eklenenler",
+        "$mainUrl/kategoriler/2?sayfa=" to "Aksiyon",
+        "$mainUrl/kategoriler/1?sayfa=" to "Macera",
+        "$mainUrl/kategoriler/3?sayfa=" to "Komedi",
+        "$mainUrl/kategoriler/4?sayfa=" to "Dram",
+        "$mainUrl/kategoriler/13?sayfa=" to "Fantastik",
+        "$mainUrl/kategoriler/34?sayfa=" to "Shounen",
+        "$mainUrl/kategoriler/8?sayfa=" to "Bilim Kurgu",
+        "$mainUrl/kategoriler/28?sayfa=" to "Romantizm",
+        "$mainUrl/kategoriler/11?sayfa=" to "Doğaüstü Güçler",
+        "$mainUrl/kategoriler/21?sayfa=" to "Mecha",
+        "$mainUrl/kategoriler/30?sayfa=" to "Spor",
+        "$mainUrl/kategoriler/22?sayfa=" to "Film",
+        "$mainUrl/temalar/3?sayfa=" to "Isekai",
+        "$mainUrl/temalar/24?sayfa=" to "Okul",
+        "$mainUrl/temalar/27?sayfa=" to "Oyun"
     )
 
     // ------------------------------------------------------------------
-    // HTTP
+    // HTTP katmanı
     // ------------------------------------------------------------------
 
-    private fun docHeaders(referer: String): Map<String, String> = mapOf(
-        "User-Agent" to UA,
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language" to "tr-TR,tr;q=0.9,en;q=0.8",
-        "Referer" to referer
-    )
-
-    private fun xhrHeaders(referer: String, csrf: String? = null): Map<String, String> = buildMap {
+    private fun headers(referer: String = mainUrl + "/", xhr: Boolean = false): Map<String, String> = buildMap {
         put("User-Agent", UA)
-        put("Accept", "application/json, text/plain, */*")
         put("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8")
         put("Referer", referer)
-        put("X-Requested-With", "XMLHttpRequest")
-        if (csrf != null) put("X-CSRF-TOKEN", csrf)
+        if (xhr) {
+            put("Accept", "application/json, text/javascript, */*; q=0.01")
+            put("X-Requested-With", "XMLHttpRequest")
+            put("sec-fetch-dest", "empty")
+            put("sec-fetch-mode", "cors")
+            put("sec-fetch-site", "same-origin")
+        } else {
+            put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+            put("Upgrade-Insecure-Requests", "1")
+        }
     }
 
-    private suspend fun fetchDoc(url: String, referer: String): String {
-        val resp = try {
-            // v27: zaman asimi ZORUNLU — sinirsiz bekleme "takilma + son anda
-            // hata" mekanizmasinin kacak halidir (TrAnimeIzle v24 kaniti).
-            app.get(url, headers = docHeaders(referer), timeout = 15)
+    /** GET — hata/timeout durumunda null döner (akışı boğmaz). */
+    private suspend fun getText(
+        url: String,
+        referer: String = mainUrl + "/",
+        xhr: Boolean = false,
+        timeout: Long = 12L
+    ): String? {
+        return try {
+            val response = app.get(url, headers = headers(referer, xhr), timeout = timeout)
+            if (!response.isSuccessful) {
+                Log.w(LOG_TAG, "GET ${response.code}: ${url.take(120)}")
+                null
+            } else {
+                response.text
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "GET ağ hatası: $url → ${e.message}")
-            throw ErrorLoadingException("Anizm'e ulaşılamadı: ${e.message}")
+            Log.w(LOG_TAG, "GET hatası (${e.javaClass.simpleName}): ${url.take(120)}")
+            null
         }
-        if (!resp.isSuccessful) {
-            Log.e(LOG_TAG, "GET başarısız: $url → HTTP ${resp.code}")
-            throw ErrorLoadingException(
-                if (resp.code == 403)
-                    "Anizm erişimi engelledi (HTTP 403). Tarayıcıdan test edin."
-                else
-                    "Anizm yanıt vermedi (HTTP ${resp.code})."
-            )
-        }
-        val text = resp.text
-        if (text.isNullOrBlank()) throw ErrorLoadingException("Boş sayfa döndü: $url")
-        return text
     }
 
-    private suspend fun fetchJson(url: String, referer: String, csrf: String? = null): String {
-        val resp = try {
-            app.get(url, headers = xhrHeaders(referer, csrf), timeout = 15)
+    /** POST — JSON gövde, form gövde veya boş gövde. */
+    private suspend fun postText(
+        url: String,
+        referer: String,
+        xhr: Boolean = true,
+        json: String? = null,
+        form: Map<String, String>? = null,
+        extraHeaders: Map<String, String> = emptyMap(),
+        timeout: Long = 12L
+    ): String? {
+        val merged = headers(referer, xhr) + extraHeaders
+        return try {
+            val response = when {
+                json != null -> app.post(url, headers = merged, json = JsonAsString(json), timeout = timeout)
+                form != null -> app.post(url, headers = merged, data = form, timeout = timeout)
+                else -> app.post(url, headers = merged, timeout = timeout)
+            }
+            if (!response.isSuccessful) {
+                Log.w(LOG_TAG, "POST ${response.code}: ${url.take(120)}")
+                null
+            } else {
+                response.text
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "JSON GET ağ hatası: $url → ${e.message}")
-            throw ErrorLoadingException("Kaynak listesi alınamadı (${e::class.simpleName})")
+            Log.w(LOG_TAG, "POST hatası (${e.javaClass.simpleName}): ${url.take(120)}")
+            null
         }
-        if (!resp.isSuccessful) {
-            Log.e(LOG_TAG, "JSON GET başarısız: $url → HTTP ${resp.code}")
-            throw ErrorLoadingException("Kaynak listesi HTTP ${resp.code}")
-        }
-        val text = resp.text
-        if (text.isNullOrBlank()) throw ErrorLoadingException("Kaynak listesi boş yanıt verdi")
-        return text
     }
 
     // ------------------------------------------------------------------
-    // Kart çözümleme (arama + katalog)
+    // Domain çözümleme (site adı sık değişiyor + .com/.com.tr ikizleri var)
     // ------------------------------------------------------------------
 
-    /** href → anime detay URL'si (bölüm linkleri slug'a indirgenir). */
-    private fun toAnimeUrl(href: String): String? {
-        if (href.isBlank()) return null
-        val u = fixUrlNull(href) ?: return null
-        // Yalnız kendi domainimiz kabul edilir (footer'da eski domain linkleri
-        // var). v27: `www.` ve port farkları toleranslı — uygulama mainUrl'i
-        // enjekte ettiğinde (www.'li/portsuz) tüm kartlar eleniyordu.
-        if (hostOf(u) != hostOf(mainUrl)) return null
-        val path = u.substringAfter("://").substringAfter("/").substringBefore("?").substringBefore("#")
-        val slug = EPISODE_SUFFIX.replace(path, "")
-        if (!SLUG_RE.matches(slug) || BLOCKED_SLUGS.contains(slug)) return null
-        return "$mainUrl/$slug"
+    private fun looksBlocked(html: String?): Boolean {
+        if (html.isNullOrBlank()) return true
+        val title = try {
+            Jsoup.parse(html).selectFirst("title")?.text() ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+        val lower = title.lowercase()
+        return lower.contains("just a moment") ||
+            lower.contains("access denied") ||
+            lower.contains("attention required") ||
+            lower.contains("checking your browser") ||
+            lower.contains("bot doğrulama") ||
+            lower.contains("403 forbidden")
     }
 
-    /** v27: şema/www/port bağımsız host adı. */
-    private fun hostOf(url: String): String = url
-        .substringAfter("://", url)
-        .substringBefore("/")
-        .substringBefore(":")
-        .removePrefix("www.")
-        .lowercase()
+    private fun pageHasContent(html: String?): Boolean {
+        if (html.isNullOrBlank()) return false
+        return try {
+            val doc = Jsoup.parse(html)
+            doc.select(
+                "a[href*='-bolum'], div.posterBlock, div.anime-card, a.slideAnimeLink, " +
+                    "div.cat-card, div#episodesMiddle, div.ui.card"
+            ).size >= 3
+        } catch (_: Exception) {
+            false
+        }
+    }
 
-    private fun cleanAlt(alt: String?): String? = alt
-        ?.substringBefore(" - Anizm.TV")
-        ?.substringBefore(" posteri")
-        ?.trim()
-        ?.takeIf { it.length >= 2 }
+    @Volatile
+    private var lastBaseProbeAt = 0L
 
-    private fun parseAnimeCards(doc: Document): List<AnimeSearchResponse> {
-        val out = mutableListOf<AnimeSearchResponse>()
-        val seen = LinkedHashSet<String>()
-        for (a in doc.select("a[href]")) {
-            val url = toAnimeUrl(a.attr("href")) ?: continue
-            if (!seen.add(url)) continue
-            // v3-catalog-card (arama/katalog) + swiper-slide (ana sayfa) + genel yedek
-            val title = a.selectFirst("h3, h6.slideAnimeTitle, h4, h5, .title")?.text()?.trim()?.ifBlank { null }
-                ?: cleanAlt(a.selectFirst("img")?.attr("alt"))
-                ?: continue
-            val poster = a.selectFirst("img")?.let { img ->
-                fixUrlNull(img.attr("src")) ?: fixUrlNull(img.attr("data-src"))
+    @Volatile
+    private var baseResolved = false
+
+    /**
+     * Yaşayan domaini belirler. Mevcut domain sağlıklıysa **tek** istek atar ve
+     * sonucu [BASE_TTL_MS] boyunca hatırlar — her aramada ek gecikme olmaz.
+     */
+    private suspend fun ensureBase(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && baseResolved && now - lastBaseProbeAt < BASE_TTL_MS) return
+        lastBaseProbeAt = now
+        baseResolved = true
+
+        if (probe(mainUrl)) return
+
+        for (candidate in BASE_CANDIDATES) {
+            if (candidate == mainUrl) continue
+            if (probe(candidate)) {
+                Log.i(LOG_TAG, "Domain değişti: $mainUrl → $candidate")
+                mainUrl = candidate
+                return
             }
-            val score = a.selectFirst("span.v3-catalog-score")?.text()?.trim()
-                ?.replace(Regex("[^0-9.]"), "")?.takeIf { it.isNotBlank() }
-            out += newAnimeSearchResponse(title, url, TvType.Anime) {
-                this.posterUrl = poster
-                if (score != null) this.score = Score.from10(score)
-            }
         }
-        return out
+        Log.w(LOG_TAG, "Canlı domain bulunamadı; $mainUrl ile devam ediliyor")
     }
 
+    private suspend fun probe(base: String): Boolean {
+        val html = try {
+            app.get(base + "/", headers = headers(base + "/"), timeout = 8).text
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.d(LOG_TAG, "domain prob hatası: $base (${e.javaClass.simpleName})")
+            null
+        }
+        val ok = !looksBlocked(html) && pageHasContent(html)
+        Log.d(LOG_TAG, "domain prob: $base → ${if (ok) "CANLI" else "ölü"}")
+        return ok
+    }
+
+    private fun remapBase(url: String): String =
+        if (url.startsWith(mainPageBase)) mainUrl + url.substring(mainPageBase.length) else url
+
     // ------------------------------------------------------------------
-    // Arama + katalog
+    // Arama
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        // v27: arama ASLA istisna fırlatmaz — kontrolsüz istisna eklenti
-        // çubuğundan yayılır ve uygulamayı çökertir (kullanıcı raporu).
         return try {
             searchInternal(query, page)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            Log.e(LOG_TAG, "search('$query') hatası: ${e::class.simpleName}: ${e.message}")
+            Log.e(LOG_TAG, "search('$query') hatası: ${e.javaClass.simpleName}: ${e.message}")
             newSearchResponseList(emptyList(), false)
         }
     }
 
     private suspend fun searchInternal(query: String, page: Int): SearchResponseList {
-        val enc = URLEncoder.encode(query, "UTF-8")
-        val url = "$mainUrl/arama?q=$enc" + if (page > 1) "&sayfa=$page" else ""
-        val html = fetchDoc(url, "$mainUrl/")
-        val results = parseAnimeCards(Jsoup.parse(html))
-        Log.d(LOG_TAG, "search('$query') → ${results.size} sonuç")
-        return newSearchResponseList(results, results.isNotEmpty())
-    }
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return newSearchResponseList(emptyList(), false)
+        ensureBase()
 
-    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        return try {
-            val url = request.data + page
-            val html = fetchDoc(url, "$mainUrl/")
-            val results = parseAnimeCards(Jsoup.parse(html))
-            Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
-            newHomePageResponse(request.name, results, results.isNotEmpty())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            Log.e(LOG_TAG, "mainPage('${request.name}') hatası: ${e::class.simpleName}: ${e.message}")
-            // v27: hata diyaloğunda koca HTML/stacktrace yerine kısa mesaj.
-            throw ErrorLoadingException(
-                "Anizm ana sayfa alınamadı (${e::class.simpleName})".take(400)
-            )
-        }
-    }
+        val variants = AnizmMatch.queryVariants(trimmed).ifEmpty { listOf(trimmed) }
+        Log.d(LOG_TAG, "search('$trimmed') varyantlar: $variants")
 
-    // ------------------------------------------------------------------
-    // Detay (load)
-    // ------------------------------------------------------------------
+        val collected = LinkedHashMap<String, AnizmCard>()
+        var hasNext = false
 
-    override suspend fun load(url: String): LoadResponse? {
-        val html = fetchDoc(url, "$mainUrl/")
-        val doc = Jsoup.parse(html)
-
-        val title = doc.selectFirst("h1.anizm_pageTitle a")?.text()?.trim()
-            ?: doc.selectFirst("title")?.text()
-                ?.replace(Regex(" (izle|İzle)\\s*\\|\\s*PuffyTR", RegexOption.IGNORE_CASE), "")
-                ?.trim()
-            ?: "Anizm"
-        val poster = fixUrlNull(doc.selectFirst("meta[itemprop=image]")?.attr("content"))
-            ?: fixUrlNull(doc.selectFirst("meta[property=og:image]")?.attr("content"))
-        val description = doc.selectFirst("meta[itemprop=description]")?.attr("content")
-            ?: doc.selectFirst("meta[property=og:description]")?.attr("content")
-        val tags = doc.select("a.ui.label[href*='/kategoriler/']").map { it.text().trim() }
-            .filter { it.isNotEmpty() }.distinct()
-
-        // Bölüm listesi: /{slug}-{n}-bolum-izle
-        val episodes = mutableListOf<Episode>()
-        val seenEp = HashSet<Int>()
-        for (a in doc.select("a[href]")) {
-            val href = a.attr("href")
-            val m = EPISODE_SUFFIX.find(href.substringAfter("://").substringAfter("/").substringBefore("?"))
-                ?: continue
-            val n = m.groupValues[1].toIntOrNull() ?: continue
-            if (!seenEp.add(n)) continue
-            val epUrl = fixUrlNull(href) ?: continue
-            episodes += newEpisode(epUrl) {
-                this.name = "${n}. Bölüm"
-                this.episode = n
+        fun merge(card: AnizmCard) {
+            val existing = collected[card.url]
+            if (existing == null) {
+                collected[card.url] = card
+            } else if (card.altNames.isNotEmpty()) {
+                collected[card.url] = existing.copy(
+                    altNames = (existing.altNames + card.altNames).distinct(),
+                    poster = existing.poster ?: card.poster,
+                    score = existing.score ?: card.score
+                )
             }
         }
-        // Film/OVA: -bolum-izle linki yoksa izleme linki dene.
-        if (episodes.isEmpty()) {
-            for (a in doc.select("a[href*='/bolum/'], a[href*='-izle']")) {
-                val href = fixUrlNull(a.attr("href")) ?: continue
-                if (href.contains("puffytr.com/bolum/") || href.endsWith("-izle")) {
-                    episodes += newEpisode(href) {
-                        this.name = "Bölüm 1"
-                        this.episode = 1
-                    }
-                    break
+
+        // 1) Sunucu tarafı JSON araması (en isabetli yol).
+        for (variant in variants.take(2)) {
+            val cards = searchServer(variant, page)
+            if (cards.isNotEmpty()) {
+                cards.forEach(::merge)
+                if (cards.size >= SEARCH_PAGE_SIZE) hasNext = true
+            }
+            if (collected.size >= 6) break
+        }
+
+        // 2) HTML arama sayfası — canlı sitede doğrulandı (25.10.2026):
+        //    `/arama?q=one+piece` gerçek sonuç kartları döndürüyor (küçük, hızlı).
+        if (collected.size < 8) {
+            for (variant in variants.take(3)) {
+                val cards = searchHtml(variant)
+                cards.forEach(::merge)
+                if (collected.size >= 10) break
+            }
+            Log.d(LOG_TAG, "HTML arama sonrası: ${collected.size} kart")
+        }
+
+        // 3) Yerel katalog (/getAnimeListForSearch — sitenin kendi arama indeksi).
+        //    İngilizce/Japonca alternatif adlarla eşleşmenin asıl kaynağı ama
+        //    ÇOK büyük (canlı ölçüm: >3 MB). Bu yüzden yalnızca yukarıdakiler
+        //    yetersizse ve 6 saatlik önbellekle indirilir.
+        if (collected.size < 3) {
+            val catalogue = loadCatalogue()
+            if (catalogue.isNotEmpty()) {
+                val ranked = AnizmMatch.rank(
+                    items = catalogue,
+                    queries = variants,
+                    nameOf = { listOf(it.name) + it.altNames },
+                    limit = 40
+                )
+                ranked.forEach(::merge)
+                Log.d(LOG_TAG, "katalog eşleşmesi: ${ranked.size}/${catalogue.size}")
+            }
+        }
+
+        val ranked = AnizmMatch.rank(
+            items = collected.values.toList(),
+            queries = variants,
+            nameOf = { listOf(it.name) + it.altNames },
+            limit = 40
+        )
+        Log.d(LOG_TAG, "search('$trimmed') → ${ranked.size} sonuç")
+        return newSearchResponseList(ranked.map { it.toSearchResponse() }, hasNext || ranked.size >= SEARCH_PAGE_SIZE)
+    }
+
+    private fun AnizmCard.toSearchResponse(): AnimeSearchResponse =
+        newAnimeSearchResponse(name, url, TvType.Anime) {
+            this.posterUrl = this@toSearchResponse.poster
+            this.score = this@toSearchResponse.score?.let { Score.from10(it) }
+        }
+
+    /** `GET /searchAnime?query=..&page=..&type=detailed` (XHR başlıkları zorunlu). */
+    private suspend fun searchServer(query: String, page: Int): List<AnizmCard> {
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val url = "$mainUrl/searchAnime?query=$encoded&page=${page.coerceAtLeast(1)}" +
+            "&type=detailed&limit=$SEARCH_PAGE_SIZE&priorityField=info_title" +
+            "&orderBy=info_id&orderDirection=DESC"
+        val body = getText(url, mainUrl + "/", xhr = true) ?: return emptyList()
+        return parseSearchJson(body)
+    }
+
+    /** `/searchAnime` ve `/getAnimeListForSearch` aynı alan adlarını kullanır. */
+    private fun parseSearchJson(body: String): List<AnizmCard> {
+        val text = body.trim()
+        if (text.isEmpty()) return emptyList()
+        // 1) Düz dizi
+        parseJsonArray(text)?.let { if (it.isNotEmpty()) return it }
+        // 2) Sarmallı cevaplar: {data:[...]}, {animes:[...]}, {results:[...]}, {items:[...]}
+        for (key in listOf("data", "animes", "results", "items", "list")) {
+            val arrayText = extractJsonArray(text, key) ?: continue
+            parseJsonArray(arrayText)?.let { if (it.isNotEmpty()) return it }
+        }
+        // 3) Satır satır JSON (NDJSON)
+        val lines = text.lineSequence().filter { it.trim().startsWith("{") }.toList()
+        if (lines.isNotEmpty()) {
+            val cards = lines.mapNotNull { line -> runCatching { cardFromJsonObject(JSONObject(line)) }.getOrNull() }
+            if (cards.isNotEmpty()) return cards
+        }
+        return emptyList()
+    }
+
+    private fun parseJsonArray(text: String): List<AnizmCard>? {
+        val trimmed = text.trim()
+        val start = trimmed.indexOf('[')
+        val end = trimmed.lastIndexOf(']')
+        if (start < 0 || end <= start) return null
+        return try {
+            val array = org.json.JSONArray(trimmed.substring(start, end + 1))
+            (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.let { cardFromJsonObject(it) }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractJsonArray(text: String, key: String): String? {
+        val index = text.indexOf("\"$key\"")
+        if (index < 0) return null
+        val start = text.indexOf('[', index)
+        if (start < 0) return null
+        // Dengeli parantez taraması (iç içe diziler için).
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for (i in start until text.length) {
+            val ch = text[i]
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    ch == '\\' -> escaped = true
+                    ch == '"' -> inString = false
+                }
+                continue
+            }
+            when (ch) {
+                '"' -> inString = true
+                '[' -> depth++
+                ']' -> {
+                    depth--
+                    if (depth == 0) return text.substring(start, i + 1)
                 }
             }
         }
-        episodes.sortBy { it.episode ?: 0 }
+        return null
+    }
 
-        val firstUrl = episodes.firstOrNull()?.data ?: url
-        return if (episodes.isEmpty()) {
-            newMovieLoadResponse(title, url, TvType.AnimeMovie, firstUrl) {
-                this.posterUrl = poster
-                if (description != null) this.plot = description
-                this.tags = tags
+    private fun cardFromJsonObject(obj: JSONObject): AnizmCard? {
+        val title = obj.optString("info_title").ifBlank { obj.optString("title") }
+        val slug = obj.optString("info_slug").ifBlank { obj.optString("slug") }
+        val poster = obj.optString("info_poster").ifBlank { obj.optString("poster") }
+        val year = obj.optString("info_year").toIntOrNull() ?: obj.optInt("year", 0).takeIf { it > 0 }
+        val score = obj.optString("info_malpoint").replace(',', '.').toDoubleOrNull()
+            ?: obj.optDouble("malpoint", 0.0).takeIf { it > 0.0 }
+        val altNames = mutableListOf<String>()
+        fun addAlt(raw: String?) {
+            raw?.split(',', '/', '|')
+                ?.map { it.trim() }
+                ?.filter { it.length in 2..120 }
+                ?.let(altNames::addAll)
+        }
+        addAlt(obj.optString("info_othernames"))
+        addAlt(obj.optString("info_japanese"))
+        obj.optJSONArray("names")?.let { names ->
+            for (i in 0 until names.length()) {
+                names.optString(i).takeIf { it.isNotBlank() }?.let(altNames::add)
+            }
+        }
+        return AnizmSite.cardFromJsonFields(
+            base = mainUrl,
+            title = title,
+            slug = slug,
+            poster = poster,
+            year = year,
+            score = score,
+            altNames = altNames
+        )
+    }
+
+    @Volatile
+    private var catalogueCache: List<AnizmCard> = emptyList()
+
+    @Volatile
+    private var catalogueFetchedAt = 0L
+
+    /**
+     * Tüm katalog (`/getAnimeListForSearch`) — yaklaşık 6 bin kayıt, tek istek.
+     * Uygulama İngilizce başlıkla aradığında Türkçe site araması boş dönerken bu
+     * liste `info_othernames`/`info_japanese` üzerinden doğru animeyi bulur.
+     * [CATALOGUE_TTL_MS] boyunca bellekte tutulur.
+     */
+    private suspend fun loadCatalogue(): List<AnizmCard> {
+        val now = System.currentTimeMillis()
+        if (catalogueCache.isNotEmpty() && now - catalogueFetchedAt < CATALOGUE_TTL_MS) return catalogueCache
+        val body = getText("$mainUrl/getAnimeListForSearch", mainUrl + "/", xhr = true, timeout = 20)
+            ?: return catalogueCache
+        val parsed = parseSearchJson(body)
+        if (parsed.isNotEmpty()) {
+            catalogueCache = parsed
+            catalogueFetchedAt = now
+            Log.d(LOG_TAG, "katalog yüklendi: ${parsed.size} kayıt")
+        }
+        return catalogueCache
+    }
+
+    /** HTML arama (`/arama?q=`, `/fullViewSearch?search=`, `/arama/{q}`). */
+    private suspend fun searchHtml(query: String): List<AnizmCard> {
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val pathEncoded = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+        val attempts = listOf(
+            "$mainUrl/arama?q=$encoded",
+            "$mainUrl/fullViewSearch?search=$encoded&skip=0",
+            "$mainUrl/arama/$pathEncoded"
+        )
+        for (url in attempts) {
+            val html = getText(url, mainUrl + "/") ?: continue
+            if (looksBlocked(html)) continue
+            val doc = Jsoup.parse(html, url)
+            val cards = AnizmSite.parseCards(doc, url)
+            if (cards.isNotEmpty()) {
+                Log.d(LOG_TAG, "HTML arama ($url) → ${cards.size} kart")
+                return cards
+            }
+        }
+        return emptyList()
+    }
+
+    // ------------------------------------------------------------------
+    // Ana sayfa
+    // ------------------------------------------------------------------
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        return try {
+            ensureBase()
+            // `{page}` şablonu desteklenir: kimi bölümler sayfayı yol sonuna ekler
+            // ("/anime-izle?sayfa=2"), kimileri sorgu içinde taşır.
+            val template = remapBase(request.data)
+            val url = if (template.contains("{page}")) template.replace("{page}", page.toString())
+            else template + page
+            val html = getText(url, mainUrl + "/")
+            if (html.isNullOrBlank()) return newHomePageResponse(request.name, emptyList(), false)
+            val doc = Jsoup.parse(html, url)
+            var cards = AnizmSite.parseCards(doc, url)
+            if (cards.isEmpty()) {
+                // Kategori yolu değişmiş olabilir (site v3'te /kategoriler/N yerine
+                // farklı yol kullanıyor). Boş bölüm göstermek yerine "son eklenenler"
+                // listesine düşülür.
+                val fallbackUrl = "$mainUrl/anime-izle?sayfa=$page"
+                val fallbackHtml = getText(fallbackUrl, mainUrl + "/")
+                if (!fallbackHtml.isNullOrBlank()) {
+                    cards = AnizmSite.parseCards(Jsoup.parse(fallbackHtml, fallbackUrl), fallbackUrl)
+                    Log.w(LOG_TAG, "mainPage('${request.name}') boş → son eklenenler: ${cards.size}")
+                }
+            }
+            Log.d(LOG_TAG, "mainPage('${request.name}') → ${cards.size} kart")
+            val hasNext = cards.isNotEmpty() && page < MAX_MAIN_PAGE
+            newHomePageResponse(request.name, cards.map { it.toSearchResponse() }, hasNext)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "getMainPage('${request.name}') hatası: ${e.javaClass.simpleName}: ${e.message}")
+            newHomePageResponse(request.name, emptyList(), false)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Detay + bölümler
+    // ------------------------------------------------------------------
+
+    override suspend fun load(url: String): LoadResponse? {
+        ensureBase()
+        val pageUrl = remapBase(url).let { if (AnizmSite.isEpisodeUrl(it)) AnizmSite.toSeriesUrl(it) ?: it else it }
+        val html = getText(pageUrl, mainUrl + "/") ?: throw ErrorLoadingException("Anizm sayfası yüklenemedi")
+        val doc = Jsoup.parse(html, pageUrl)
+        val detail = AnizmSite.parseDetail(doc, pageUrl, pageUrl)
+
+        // Sayfa düzeyinde hiç bölüm yoksa "tek parça" (film/OVA) olarak sunulur.
+        val episodes = detail.episodes
+        val season = AnizmMatch.seasonOf(detail.title) ?: 1
+        val episodeList = episodes.map { episode ->
+            val number = episode.number
+            newEpisode(episode.url) {
+                this.name = episode.name?.ifBlank { null } ?: number?.let { "$it. Bölüm" } ?: "Bölüm"
+                this.episode = number
+                this.season = season
+                this.posterUrl = episode.poster ?: detail.poster
+            }
+        }
+
+        val commonTags = detail.tags.distinct()
+
+        return if (episodeList.isEmpty()) {
+            val singleLink = doc.select("a[href*='-bolum'], a[href*='/bolum/'], a[href*='izle']")
+                .mapNotNull { AnizmSite.absolute(pageUrl, it.attr("href")) }
+                .firstOrNull { AnizmSite.isSiteUrl(it) }
+                ?: pageUrl
+            newMovieLoadResponse(detail.title, pageUrl, TvType.AnimeMovie, singleLink) {
+                this.posterUrl = detail.poster
+                this.plot = detail.plot
+                this.year = detail.year
+                this.tags = commonTags
+                this.score = detail.score?.let { Score.from10(it) }
+                this.duration = 24
             }
         } else {
-            newAnimeLoadResponse(title, url, TvType.Anime, false) {
-                this.posterUrl = poster
-                if (description != null) this.plot = description
-                this.tags = tags
+            newAnimeLoadResponse(detail.title, pageUrl, TvType.Anime, false) {
+                this.posterUrl = detail.poster
+                this.plot = detail.plot
+                this.year = detail.year
+                this.tags = commonTags
+                this.score = detail.score?.let { Score.from10(it) }
+                this.showStatus = if (episodeList.size >= 2) ShowStatus.Ongoing else ShowStatus.Completed
+                addEpisodes(DubStatus.Subbed, episodeList)
             }
         }
     }
 
     // ------------------------------------------------------------------
-    // Kaynaklar (loadLinks)
+    // Video kaynakları
     // ------------------------------------------------------------------
+
+    /**
+     * `/player/{id}` adresinin **302 hedefini** döndürür.
+     *
+     * Anizm'in (anizm.net/puffytr ailesi) kendi oynatıcı yolu bu: bölüm sayfasındaki
+     * `a.videoPlayerButtons[video]` → `/video/{id}`; site oynatıcıyı `/player/{id}`
+     * üzerinden açar ve **yönlendirme (Location) başlığıyla** gerçek host'a
+     * (anizmplayer / filemoon / sibnet …) gönderir. İstemci yönlendirmeyi kendi
+     * izlerse hedef adres kaybolur; bu yüzden yönlendirme KAPATILARAK okunur.
+     */
+    private suspend fun followLocation(url: String, referer: String): String? {
+        return try {
+            val response = app.get(
+                url,
+                headers = headers(referer, xhr = false),
+                allowRedirects = false,
+                timeout = 12L
+            )
+            // Bu fork'ta `Response.headers` Map<String, String> (başlık adı büyük/küçük
+            // harfe duyarlı olabildiği için iki biçim de denenir).
+            val location = (response.headers["Location"]
+                ?: response.headers["location"])
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            if (location == null) null else AnizmSite.absolute(url, location)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.d(LOG_TAG, "Location okunamadı (${url.take(80)}): ${e.message}")
+            null
+        }
+    }
+
+    /** Phase A çıktısı: çözülecek oynatıcı adayı. */
+    private data class Candidate(val url: String, val label: String, val referer: String)
 
     override suspend fun loadLinks(
         data: String,
@@ -361,641 +622,538 @@ class Anizm : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        // v27: loadLinks istisna firlatirsa oynatici yuku duseye kadar
-        // yayilabiliyor — buradan CIKANYI kisa mesajla bos listeye ceviriyoruz.
-        val html = try {
-            fetchDoc(data, "$mainUrl/")
+        val pageUrl = remapBase(data)
+        val candidates = try {
+            collectCandidates(pageUrl, subtitleCallback)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Log.e(LOG_TAG, "loadLinks sayfa hatası: ${e::class.simpleName}: ${e.message}")
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "loadLinks aday toplama hatası: ${e.javaClass.simpleName}: ${e.message}")
+            emptyList()
+        }
+        if (candidates.isEmpty()) {
+            Log.w(LOG_TAG, "loadLinks: hiç oynatıcı adayı bulunamadı ($pageUrl)")
             return false
         }
-        val doc = Jsoup.parse(html)
-        val csrf = doc.selectFirst("meta[name=csrf-token]")?.attr("content")?.ifBlank { null }
+        Log.d(LOG_TAG, "loadLinks: ${candidates.size} aday çözülecek")
 
-        // Çevirmen (fansub) butonları — kanıt: v3-episode.js v1.3.5 + bölüm sayfası capture.
-        val translators = doc.select("button[data-v3-translator], [data-v3-translator]")
-        if (translators.isEmpty()) {
-            Log.e(LOG_TAG, "loadLinks: çevirmen butonu yok — sayfa ${html.length / 1000}k")
-            // v27: "kaynak yok" hata degil bos listedir; istisna firlatmak
-            // uygulamada kirmizi cokme kutusu olarak gorunuyordu.
-            return false
-        }
-        Log.d(LOG_TAG, "loadLinks: ${translators.size} çevirmen bulundu")
-
-        return coroutineScope {
-            translators.mapIndexed { index, btn ->
-                async {
-                    val fansub = btn.attr("title").ifBlank { btn.text() }.ifBlank { "Çevirmen ${index + 1}" }
-                    val sourcesUrl = fixUrlNull(btn.attr("data-sources")) ?: return@async
-                    safeApiCall {
-                        loadTranslatorSources(fansub, sourcesUrl, data, csrf, subtitleCallback, callback)
-                    }
+        val emitted = LinkedHashSet<String>()
+        var emittedCount = 0
+        // Yayın callback'i sıralı yapılır: Kitsugi'nin toplama listeleri eşzamanlı
+        // yazıma karşı korumalı değil (ConcurrentModificationException riski).
+        val emitLock = Mutex()
+        for (candidate in candidates) {
+            try {
+                val count = emitLock.withLock {
+                    resolveCandidate(candidate, emitted, subtitleCallback, callback)
                 }
-            }.awaitAll()
-            true
+                emittedCount += count
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Log.w(LOG_TAG, "aday çözülemedi (${candidate.url.take(90)}): ${e.message}")
+            }
         }
+        Log.d(LOG_TAG, "loadLinks: $emittedCount akış yayınlandı")
+        return emittedCount > 0
     }
 
-    /** Tek çevirmenin tüm video kaynaklarını çözer. */
-    private suspend fun loadTranslatorSources(
+    /**
+     * Phase A — çevirmen/kaynak listelerini **paralel** toplar.
+     * Üç kuşak API zinciri birlikte denenir; herhangi biri çalışırsa kaynak gelir.
+     */
+    private suspend fun collectCandidates(
+        pageUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ): List<Candidate> = coroutineScope {
+        val html = getText(pageUrl, mainUrl + "/") ?: return@coroutineScope emptyList()
+        val doc = Jsoup.parse(html, pageUrl)
+        val out = java.util.Collections.synchronizedList(mutableListOf<Candidate>())
+
+        // Sayfadaki altyazı izleri (<track>) — bölüm sayfası düzeyinde.
+        emitSubtitles(html, pageUrl, subtitleCallback)
+
+        val jobs = mutableListOf<kotlinx.coroutines.Deferred<Unit>>()
+
+        // 1) v3: data-sources (çevirmen) → videos[] → /video/{id}
+        for (element in doc.select("[data-sources], [data-v3-translator], button[data-v3-translator]")) {
+            val sourceUrl = AnizmSite.absolute(pageUrl, element.attr("data-sources")) ?: continue
+            val fansub = element.attr("title").ifBlank { element.text() }.trim().ifBlank { "Kaynak" }
+            jobs += async {
+                collectV3(pageUrl, sourceUrl, fansub, out)
+            }
+        }
+
+        // 2) v2: div#fansec a[translator] / div.episodeTranslators a[translator]
+        for (anchor in doc.select("div#fansec a[translator], div.episodeTranslators a[translator], a[translator]")) {
+            val translatorUrl = AnizmSite.absolute(pageUrl, anchor.attr("translator")) ?: continue
+            val fansub = anchor.text().trim().ifBlank { "Çevirmen" }
+            jobs += async {
+                collectV2(pageUrl, translatorUrl, fansub, out)
+            }
+        }
+
+        // 3) Sayfa düzeyi doğrudan oynatıcılar.
+        for (iframe in doc.select("iframe[src], iframe[data-src]")) {
+            val src = AnizmSite.absolute(pageUrl, iframe.attr("src").ifBlank { iframe.attr("data-src") })
+                ?: continue
+            if (isAdHost(src)) continue
+            out.add(Candidate(src, "Sayfa", pageUrl))
+        }
+        for (anchor in doc.select("a[video], a[data-video]")) {
+            val src = AnizmSite.absolute(pageUrl, anchor.attr("video").ifBlank { anchor.attr("data-video") })
+                ?: continue
+            if (isAdHost(src)) continue
+            out.add(Candidate(src, anchor.text().trim().ifBlank { "Sayfa" }, pageUrl))
+        }
+        for (video in doc.select("video[src], video source[src]")) {
+            val src = AnizmSite.absolute(pageUrl, video.attr("src")) ?: continue
+            out.add(Candidate(src, "Doğrudan", pageUrl))
+        }
+        // Sayfa JS'i doğrudan m3u8/mp4 taşıyorsa.
+        for (media in mediaFromHtml(html, pageUrl)) {
+            out.add(Candidate(media, "Doğrudan", pageUrl))
+        }
+
+        // 4) Genel oynatıcı öznitelikleri (tema/kuşak farkı yedeği):
+        //    data-player / data-video-src / data-iframe / data-embed / data-url.
+        //    Yalnızca gerçekten oynatıcıya benzeyen adresler alınır (resim vb. değil).
+        val pageHost = AnizmSite.hostOf(pageUrl)
+        for (element in doc.select("[data-player], [data-video-src], [data-iframe], [data-embed], [data-url]")) {
+            val raw = element.attr("data-player")
+                .ifBlank { element.attr("data-video-src") }
+                .ifBlank { element.attr("data-iframe") }
+                .ifBlank { element.attr("data-embed") }
+                .ifBlank { element.attr("data-url") }
+            if (raw.isBlank()) continue
+            val target = AnizmSite.absolute(pageUrl, raw) ?: continue
+            if (isAdHost(target)) continue
+            val playerLike = IN_SITE_PLAYER.containsMatchIn(target) ||
+                anizmPlayerHash(target) != null ||
+                looksLikeMedia(target) ||
+                (AnizmSite.hostOf(target).isNotEmpty() && AnizmSite.hostOf(target) != pageHost)
+            if (!playerLike) continue
+            out.add(Candidate(target, "Sayfa", pageUrl))
+        }
+
+        // 5) Sayfadaki site içi oynatıcı bağlantıları (/player/{id}).
+        for (anchor in doc.select("a[href], button[data-href], [data-href]")) {
+            val raw = anchor.attr("href").ifBlank { anchor.attr("data-href") }
+            if (raw.isBlank()) continue
+            val target = AnizmSite.absolute(pageUrl, raw) ?: continue
+            if (!IN_SITE_PLAYER.containsMatchIn(target)) continue
+            if (isAdHost(target)) continue
+            out.add(Candidate(target, "Sayfa", pageUrl))
+        }
+
+        jobs.awaitAll()
+        out.distinctBy { it.url }
+    }
+
+    /** v3 zinciri: `{success, videos:[{id,name}]}` → `/video/{id}` → `{url}`. */
+    private suspend fun collectV3(
+        pageUrl: String,
+        sourceUrl: String,
         fansub: String,
-        sourcesUrl: String,
-        episodeUrl: String,
-        csrf: String?,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        out: MutableList<Candidate>
     ) {
-        val json = fetchJson(sourcesUrl, episodeUrl, csrf)
+        val body = getText(sourceUrl, pageUrl, xhr = true) ?: return
         val root = try {
-            JSONObject(json)
-        } catch (e: Exception) {
-            Log.e(LOG_TAG, "$sourcesUrl JSON parse hatası: ${json.take(200)}")
-            throw ErrorLoadingException("Kaynak listesi çözülemedi (JSON değil)")
-        }
-        if (!root.optBoolean("success", false)) {
-            Log.e(LOG_TAG, "$sourcesUrl success=false: ${root.optString("message")}")
-            throw ErrorLoadingException(
-                "Kaynak listesi başarısız: ${root.optString("message").ifBlank { "site hayır dedi" }}"
-            )
-        }
-        val videos = root.optJSONArray("videos")
-        if (videos == null || videos.length() == 0) {
-            Log.w(LOG_TAG, "$sourcesUrl videos boş")
+            JSONObject(body)
+        } catch (_: Exception) {
+            Log.d(LOG_TAG, "v3 kaynak listesi JSON değil ($fansub)")
             return
         }
-        Log.d(LOG_TAG, "$fansub → ${videos.length()} kaynak")
-
-        for (i in 0 until videos.length()) {
-            val v = videos.optJSONObject(i) ?: continue
-            val videoId = v.optInt("id", 0)
-            val videoName = v.optString("name", "Kaynak ${i + 1}")
-            if (videoId <= 0) continue
-            // v3-episode.js: sources.replace(/\/cevirmen\/\d+$/, '/video/' + videoId)
-            val videoUrl = sourcesUrl.replace(Regex("/cevirmen/[0-9]+$"), "/video/$videoId")
-            try {
-                val vjson = fetchJson(videoUrl, episodeUrl, csrf)
-                val vroot = JSONObject(vjson)
-                if (!vroot.optBoolean("success", false)) {
-                    Log.w(LOG_TAG, "$videoUrl success=false: ${vroot.optString("message")}")
-                    continue
-                }
-                val playerUrl = fixUrlNull(vroot.optString("url"))
-                val sourceName = vroot.optString("source").ifBlank { videoName }
-                if (playerUrl.isNullOrBlank()) {
-                    Log.w(LOG_TAG, "$videoUrl url boş — atlanıyor")
-                    continue
-                }
-                val linkName = if (sourceName == videoName) "$fansub | $videoName"
-                else "$fansub | $sourceName (${videoName})"
-                resolvePlayer(playerUrl, linkName, episodeUrl, subtitleCallback, callback)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(LOG_TAG, "$videoUrl çözümü hatası: ${e.message}")
-            }
+        if (!root.optBoolean("success", true)) {
+            Log.d(LOG_TAG, "v3 kaynak listesi success=false ($fansub)")
+            return
+        }
+        val videos = root.optJSONArray("videos") ?: return
+        for (index in 0 until videos.length()) {
+            val video = videos.optJSONObject(index) ?: continue
+            val id = video.optInt("id", 0)
+            if (id <= 0) continue
+            val server = video.optString("name").ifBlank { "Kaynak ${index + 1}" }
+            val videoUrl = sourceUrl.replace(Regex("/cevirmen/\\d+$"), "/video/$id")
+            val payload = getText(videoUrl, pageUrl, xhr = true) ?: continue
+            val target = try {
+                val videoRoot = JSONObject(payload)
+                if (!videoRoot.optBoolean("success", true)) null
+                else videoRoot.optString("url").ifBlank { null }
+            } catch (_: Exception) {
+                null
+            } ?: continue
+            val absolute = AnizmSite.absolute(videoUrl, target) ?: continue
+            if (isAdHost(absolute)) continue
+            out.add(Candidate(absolute, "$fansub | $server", pageUrl))
         }
     }
 
-    // ------------------------------------------------------------------
-    // Player çözümü
-    // ------------------------------------------------------------------
-
-    /**
-     * /player/{id} → 302 hedefini çözer.
-     * - anizmplayer.com/video/{token} → FirePlayer protokolu (m3u8/AES).
-     * - diğerleri → harici provider (loadExtractor) veya düz dosya.
-     */
-    private suspend fun resolvePlayer(
-        playerUrl: String,
-        linkName: String,
-        episodeUrl: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+    /** v2 zinciri: `{data: html}` → `a[video]` → `{player: iframe html}`. */
+    private suspend fun collectV2(
+        pageUrl: String,
+        translatorUrl: String,
+        fansub: String,
+        out: MutableList<Candidate>
     ) {
-        // Redirect'i KENDİMİZ izliyoruz (Location + sonraki hop'un refereri için).
-        var currentUrl = playerUrl
-        var currentReferer = episodeUrl
-        for (hop in 1..5) {
-            val resp = try {
-                app.get(
-                    currentUrl,
-                    headers = docHeaders(currentReferer),
-                    allowRedirects = false,
-                    timeout = 12
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(LOG_TAG, "player GET hatası: $currentUrl → ${e.message}")
-                throw IOException("Oynatıcı sayfası alınamadı: $currentUrl (${e::class.simpleName})")
-            }
-            val code = resp.code
-            if (code in 300..399) {
-                val location = resp.headers["location"] ?: resp.headers["Location"]
-                Log.d(LOG_TAG, "player hop $hop: $currentUrl → ${code} → $location")
-                if (location.isNullOrBlank() || !location.startsWith("http")) {
-                    Log.e(LOG_TAG, "302 Location bozuk: $location")
-                    throw IOException("Oynatıcı 302 hedefi okunamadı: $currentUrl")
-                }
-                currentReferer = currentUrl
-                currentUrl = location
-                continue
-            }
-            val text = resp.text
-            val ct = (resp.headers["content-type"] ?: resp.headers["Content-Type"] ?: "").orEmpty()
-            Log.d(LOG_TAG, "player nihai: $currentUrl (HTTP $code, ${ct}, ${text?.length ?: 0} B)")
-            if (text != null && handlePlayerBody(currentUrl, currentReferer, ct, text, linkName, subtitleCallback, callback)) {
-                return
-            }
-            throw IOException("Oynatıcı hedefi video vermedi: $currentUrl")
+        val body = getText(translatorUrl, pageUrl, xhr = true) ?: return
+        val dataHtml = try {
+            JSONObject(body).optString("data").ifBlank { body }
+        } catch (_: Exception) {
+            body
         }
-        throw IOException("Oynatıcı redirect zinciri 5 adımda bitmedi: $playerUrl")
+        if (dataHtml.isBlank()) return
+        val buttons = Jsoup.parse(dataHtml, translatorUrl)
+            .select("a[video], a.videoPlayerButtons, a[data-video]")
+        for (button in buttons) {
+            val videoUrl = AnizmSite.absolute(
+                translatorUrl,
+                button.attr("video").ifBlank { button.attr("data-video") }
+            ) ?: continue
+            if (isAdHost(videoUrl)) continue
+            val server = button.attr("data-video-name").ifBlank { button.text() }.trim().ifBlank { "Kaynak" }
+
+            // video sayfası → {player: "<iframe …>"} → iframe src
+            val payload = getText(videoUrl, pageUrl, xhr = true)
+            val iframes = mutableListOf<String>()
+            if (!payload.isNullOrBlank()) {
+                val playerHtml = try {
+                    JSONObject(payload).optString("player")
+                } catch (_: Exception) {
+                    payload
+                }
+                if (playerHtml.isNotBlank()) {
+                    Jsoup.parse(playerHtml, videoUrl).select("iframe[src], iframe[data-src]").forEach { frame ->
+                        AnizmSite.absolute(videoUrl, frame.attr("src").ifBlank { frame.attr("data-src") })
+                            ?.let(iframes::add)
+                    }
+                    // JSON bazı kaynaklarda düz adres taşır.
+                    if (iframes.isEmpty()) iframes.addAll(mediaFromHtml(playerHtml, videoUrl))
+                }
+            }
+            val label = "$fansub | $server"
+
+            // Aniyomi'nin kullandığı asıl yol: /video/{id} → /player/{id} → 302 Location.
+            // (Site oynatıcıyı bu yönlendirme ile açar; hedef gerçek host adresidir.)
+            val playerUrl = videoUrl.replace("/video/", "/player/")
+            if (playerUrl != videoUrl) {
+                val target = followLocation(playerUrl, pageUrl)
+                if (target != null && !isAdHost(target)) {
+                    out.add(Candidate(target, label, pageUrl))
+                }
+            }
+
+            if (iframes.isEmpty()) {
+                // Yedek: dönen gövdenin kendisi oynatıcı olabilir.
+                out.add(Candidate(videoUrl, label, pageUrl))
+            } else {
+                iframes.filterNot(::isAdHost).forEach { out.add(Candidate(it, label, pageUrl)) }
+            }
+        }
     }
 
-    /** Player hedefi 200 döndürdüğünde içeriğe göre çözümler. */
-    private suspend fun handlePlayerBody(
-        url: String,
-        referer: String,
-        contentType: String,
-        text: String,
-        linkName: String,
+    /** Phase B — tek adayı oynatılabilir akışa çevirir; yayınlanan link sayısını döner. */
+    private suspend fun resolveCandidate(
+        candidate: Candidate,
+        emitted: MutableSet<String>,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        // 1) Doğrudan akış.
-        if (contentType.contains("mpegurl", true) || url.contains(".m3u8")) {
-            emitLink(url, linkName + " [HLS]", referer, callback)
-            return true
-        }
-        if (contentType.startsWith("video/", true) ||
-            Regex("\\.(mp4|webm|mkv|mov)$", RegexOption.IGNORE_CASE).find(url) != null
-        ) {
-            emitLink(url, linkName, referer, callback)
-            return true
+    ): Int {
+        val url = candidate.url
+        if (url.isBlank()) return 0
+
+        // 1) Doğrudan medya dosyası.
+        if (looksLikeMedia(url)) {
+            return if (emitMedia(url, candidate.label, candidate.referer, emitted, callback)) 1 else 0
         }
 
-        val lower = text.lowercase()
+        // 2) Anizm'in kendi oynatıcısı (anizmplayer.com/video/<hash>).
+        val playerHash = anizmPlayerHash(url)
+        if (playerHash != null) {
+            return resolveAnizmPlayer(playerHash, url, candidate.label, emitted, callback)
+        }
 
-        // 2) Kendi player'ımız: FirePlayer (anizmplayer.com/video/{token}).
-        if (url.contains(PLAYER_SERVER, true) || lower.contains("fireplayer")) {
-            val settings = decodeFirePlayerSettings(text)
-            val tokenFromUrl = Regex("/video/([a-f0-9]{16,64})").find(url)?.groupValues?.getOrNull(1)
-            val token = tokenFromUrl ?: settings?.token
-            if (token != null) {
-                if (tryFirePlayer(token, referer, settings?.title, settings?.tracks ?: emptyList(), linkName, subtitleCallback, callback)) {
-                    return true
+        // 2.5) Site içi oynatıcı yolu (/player/{id} veya /video/{id}) → 302 Location.
+        if (IN_SITE_PLAYER.containsMatchIn(url)) {
+            val target = followLocation(url, candidate.referer)
+            if (target != null && target != url) {
+                val hash = anizmPlayerHash(target)
+                if (hash != null) return resolveAnizmPlayer(hash, target, candidate.label, emitted, callback)
+                val handledTarget = try {
+                    loadExtractor(target, candidate.referer, subtitleCallback, callback)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    false
                 }
-            }
-        }
-
-        // 3) <iframe> (provider player sayfası).
-        val iframeSrc = Jsoup.parse(text).select("iframe[src]").mapNotNull { fixUrlNull(it.attr("src")) }
-            .firstOrNull()
-        if (iframeSrc != null) {
-            val ok = try {
-                loadExtractor(iframeSrc, referer, subtitleCallback, callback)
-            } catch (e: Exception) {
-                false
-            }
-            if (ok) return true
-            // yedek: iframe sayfasını düz çek, içindeki videoyu ara.
-            try {
-                val ih = fetchDoc(iframeSrc, referer)
-                // v27: referer = iframe'in KENDİ adresi olmalı (url değil).
-                if (handlePlayerBody(iframeSrc, iframeSrc, "", ih, linkName, subtitleCallback, callback)) return true
-            } catch (e: Exception) {
-                Log.e(LOG_TAG, "iframe çözülemiyor: $iframeSrc → ${e.message}")
-            }
-            return false
-        }
-
-        // 4) Sayfa içinde düz m3u8/mp4 (player setup JSON blob'u, video.js, vs).
-        val m3u8 = Regex("https?://[^\\s\"'<>]+?\\.m3u8[^\\s\"'<>]*").find(text)?.value
-            ?: Regex("https?:\\\\//[^\\\\\"'<>]+?\\.m3u8").find(text)?.value?.replace("\\/", "/")
-        if (m3u8 != null) {
-            emitLink(m3u8, linkName + " [HLS]", referer, callback)
-            return true
-        }
-        val mp4 = Regex("https?://[^\\s\"'<>]+?\\.(mp4|webm|mkv)[^\\s\"'<>]*", RegexOption.IGNORE_CASE)
-            .find(text)?.value?.replace("\\/", "/")
-        if (mp4 != null) {
-            emitLink(mp4, linkName, referer, callback)
-            return true
-        }
-        return false
-    }
-
-    // ------------------------------------------------------------------
-    // FirePlayer protokolu (anizmplayer.com)
-    // ------------------------------------------------------------------
-
-    private data class FireSettings(
-        val token: String?,
-        val title: String?,
-        val ck: String?,
-        val tracks: List<Pair<String, String>> // (file, label) — kind=captions
-    )
-
-    private data class FireVideo(
-        val url: String,
-        val label: String?,
-        val isHls: Boolean
-    )
-
-    /**
-     * /video/{token} sayfasındaki obfike eval'i decode edip
-     * FirePlayer("{token}", {videoSettings}) çağrısını çıkarır.
-     * Decode algoritması: javascript-obfuscator string-array substitution —
-     * node'da gerçek payload ile BİREBİR doğrulandı (2026-10-25).
-     */
-    private fun decodeFirePlayerSettings(html: String): FireSettings? {
-        val decoded = try {
-            decodeObfuscatedPage(html)
-        } catch (e: Exception) {
-            Log.w(LOG_TAG, "player sayfası decode hatası: ${e.message}")
-            null
-        } ?: return null
-
-        // FirePlayer("TOKEN",{json},autoStart,source)
-        val callIdx = decoded.indexOf("FirePlayer(")
-        if (callIdx < 0) return null
-        val rest = decoded.substring(callIdx + "FirePlayer(".length)
-        val open = rest.indexOf('"')
-        if (open < 0) return null
-        val tokenEnd = rest.indexOf('"', open + 1)
-        if (tokenEnd < 0) return null
-        val token = rest.substring(open + 1, tokenEnd)
-
-        // JSON objesi: tırnaklı string'leri atlayarak süslü parantez dengesiyle ayır.
-        val jsonStart = rest.indexOf('{', tokenEnd)
-        if (jsonStart < 0) return null
-        var depth = 0
-        var inStr = false
-        var esc = false
-        var jsonEnd = -1
-        for (i in jsonStart until rest.length) {
-            val ch = rest[i]
-            if (inStr) {
-                when {
-                    esc -> esc = false
-                    ch == '\\' -> esc = true
-                    ch == '"' -> inStr = false
-                }
-            } else when (ch) {
-                '"' -> inStr = true
-                '{' -> depth++
-                '}' -> {
-                    depth--
-                    if (depth == 0) {
-                        jsonEnd = i
-                        break
+                if (handledTarget) return 1
+                val html = getText(target, candidate.referer)
+                if (html != null) {
+                    var c = 0
+                    for (link in mediaFromHtml(html, target).take(3)) {
+                        if (emitMedia(link, candidate.label, target, emitted, callback)) c++
                     }
+                    if (c > 0) return c
                 }
             }
         }
-        if (jsonEnd < 0) return null
-        val jsonStr = rest.substring(jsonStart, jsonEnd + 1)
-        // Kaynak JSON geçerli standart JSON'dır (\\/ → /, \\/ → / normal JSON
-        // unescape'ıyla çözülür). Yalnız "ck" değeri JS hex-escape taşır (\xNN).
-        val jo = try {
-            JSONObject(jsonStr)
-        } catch (e: Exception) {
-            Log.w(LOG_TAG, "videoSettings JSON parse hatası: ${jsonStr.take(200)}")
-            return FireSettings(token, null, null, emptyList())
-        }
-        val title = jo.optString("title").ifBlank { null }
-        val ck = jo.optString("ck").ifBlank { null }?.let { unescapeJsHex(it) }
-        val tracks = mutableListOf<Pair<String, String>>()
-        val tracksArr = jo.optJSONArray("tracks")
-        if (tracksArr != null) {
-            for (i in 0 until tracksArr.length()) {
-                val t = tracksArr.optJSONObject(i) ?: continue
-                if (t.optString("kind") != "captions") continue
-                val file = t.optString("file")
-                if (file.isBlank()) continue
-                val label = t.optString("label").ifBlank { t.optString("language").ifBlank { "Altyazı" } }
-                tracks += file to label
-            }
-        }
-        return FireSettings(token, title, ck, tracks)
-    }
 
-    /** JS single-quoted string başlangıcından (tırnakta) string'i çıkarır. */
-    private fun extractJsString(s: String, start: Int): Pair<String, Int>? {
-        // start = açılış tırnağının konumu
-        if (start >= s.length || s[start] != '\'') return null
-        val sb = StringBuilder()
-        var i = start + 1
-        while (i < s.length) {
-            val ch = s[i]
-            when {
-                ch == '\\' && i + 1 < s.length -> {
-                    val nx = s[i + 1]
-                    when (nx) {
-                        '\\' -> sb.append('\\')
-                        '\'' -> sb.append('\'')
-                        'n' -> sb.append('\n')
-                        't' -> sb.append('\t')
-                        else -> sb.append(nx)
-                    }
-                    i += 2
-                    continue
-                }
-                ch == '\'' -> return sb.toString() to (i + 1)
-                else -> sb.append(ch)
-            }
-            i++
-        }
-        return null
-    }
-
-    /**
-     * eval(function(p,a,c,k,e,d){...return p}('payload',a,c,'...'.split('|'),0,{}))
-     * desenini bulup decode eder (template sabit; payload değişken).
-     */
-    private fun decodeObfuscatedPage(html: String): String {
-        val marker = "return p}("
-        val idx = html.indexOf(marker)
-        if (idx < 0) throw IOException("obfike eval deseni bulunamadı")
-        val argStart = idx + marker.length
-        // 1) payload: ilk JS string
-        val (payload, after1) = extractJsString(html, argStart) ?: throw IOException("payload bulunamadı")
-        // 2) a
-        var pos = after1
-        while (pos < html.length && html[pos] == ',') pos++
-        while (pos < html.length && html[pos] == ' ') pos++
-        var aEnd = pos
-        while (aEnd < html.length && html[aEnd].isDigit()) aEnd++
-        val a = html.substring(pos, aEnd).toIntOrNull() ?: throw IOException("radix bulunamadı")
-        pos = aEnd
-        while (pos < html.length && (html[pos] == ',' || html[pos] == ' ')) pos++
-        // 3) c
-        var cEnd = pos
-        while (cEnd < html.length && html[cEnd].isDigit()) cEnd++
-        val count = html.substring(pos, cEnd).toIntOrNull() ?: throw IOException("count bulunamadı")
-        pos = cEnd
-        while (pos < html.length && (html[pos] == ',' || html[pos] == ' ')) pos++
-        // 4) k string'i ('...' .split('|'))
-        val (kStr, _) = extractJsString(html, pos) ?: throw IOException("string-array bulunamadı")
-        val k: MutableList<String?> = kStr.split('|').map { it as String? }.toMutableList()
-        while (k.size < count) k.add(null)
-        return decodeObfuscated(payload, a, count, k)
-    }
-
-    private fun eCode(x: Int, a: Int): String {
-        fun rec(v: Int): String {
-            val prefix = if (v < a) "" else rec(v / a)
-            val r = v % a
-            return prefix + if (r > 35) ((r + 29).toChar()).toString() else r.toString(36)
-        }
-        return rec(x)
-    }
-
-    private fun decodeObfuscated(p: String, a: Int, count: Int, k: List<String?>): String {
-        var out = p
-        for (i in count - 1 downTo 0) {
-            val key = eCode(i, a)
-            val rep = k[i]
-            if (!rep.isNullOrEmpty()) {
-                out = out.replace(Regex("\\b" + Regex.escape(key) + "\\b"), rep)
-            }
-        }
-        return out
-    }
-
-    /** "\x4e\x44\x67..." → "NDg..." (JS hex-escape açma). */
-    private fun unescapeJsHex(s: String): String {
-        if (!s.contains("\\x")) return s
-        val sb = StringBuilder()
-        var i = 0
-        while (i < s.length) {
-            if (s[i] == '\\' && i + 3 < s.length && s[i + 1] == 'x') {
-                val code = s.substring(i + 2, i + 4).toIntOrNull(16)
-                if (code != null) {
-                    sb.append(code.toChar())
-                    i += 4
-                    continue
-                }
-            }
-            sb.append(s[i])
-            i++
-        }
-        return sb.toString()
-    }
-
-    /**
-     * FirePlayer ana akışı:
-     * POST /player/index.php?data={token}&do=getVideo  form {hash, r}
-     * → hls=true:  {videoSource: m3u8}
-     * → hls=false: {videoSources: [{file: AES, label, ...}], ck: şifre}
-     */
-    private suspend fun tryFirePlayer(
-        token: String,
-        referer: String,
-        title: String?,
-        tracks: List<Pair<String, String>>,
-        linkName: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        // Altyazılar (kind=captions VTT) — var ise.
-        for ((file, label) in tracks) {
-            try {
-                subtitleCallback(newSubtitleFile(label, fixUrlNull(file) ?: file))
-            } catch (e: Exception) {
-                Log.w(LOG_TAG, "altyazı eklenemedi: $file → ${e.message}")
-            }
-        }
-        val quality = Regex("(2160p|4K|1440p|1080p|720p|480p|360p)", RegexOption.IGNORE_CASE)
-            .find(title ?: "")?.value
-
-        val postUrl = "$PLAYER_SERVER/player/index.php?data=$token&do=getVideo"
-        val json = try {
-            app.post(
-                postUrl,
-                timeout = 15,
-                data = mapOf("hash" to token, "r" to referer),
-                headers = buildMap {
-                    put("User-Agent", UA)
-                    put("Accept", "application/json, text/javascript, */*; q=0.01")
-                    put("Origin", PLAYER_SERVER)
-                    put("Referer", "$PLAYER_SERVER/video/$token")
-                    put("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                    put("X-Requested-With", "XMLHttpRequest")
-                }
-            ).text ?: return false
+        // 3) Kütüphane/uygulama extractor'ları (filemoon, sibnet, ok.ru, voe, sendvid…).
+        var count = 0
+        val handled = try {
+            loadExtractor(url, candidate.referer, subtitleCallback, callback)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Log.e(LOG_TAG, "getVideo POST hatası: ${e.message}")
-            return false
+        } catch (e: Throwable) {
+            Log.d(LOG_TAG, "loadExtractor hatası (${url.take(80)}): ${e.message}")
+            false
         }
-        // Cevap JSON değilse düz hata mesajıdır (alert) — ama bazen düz URL de olabilir.
-        if (!json.trimStart().startsWith("{")) {
-            if (json.startsWith("http")) {
-                emitLink(json, linkName + qualitySuffix(quality), referer, callback)
-                return true
-            }
-            Log.e(LOG_TAG, "getVideo JSON değil: ${json.take(200)}")
-            return false
-        }
-        val root = try {
-            JSONObject(json)
-        } catch (e: Exception) {
-            Log.e(LOG_TAG, "getVideo JSON parse hatası: ${json.take(200)}")
-            return false
-        }
-        val delivered = mutableListOf<FireVideo>()
+        if (handled) return 1
 
-        // hls=true → videoSource (düz m3u8)
-        val hls = root.optBoolean("hls", false)
-        if (hls) {
-            val m3u8 = root.optString("videoSource").ifBlank { null }
-            if (m3u8 != null) {
-                delivered += FireVideo(m3u8, quality, true)
+        // 3b) Google Drive dosyaları: Aniyomi eklentisi bunları gdriveplayer
+        //     köprüsüne çeviriyor; uygulamada doğrudan çözücü yoksa bu yol denenir.
+        if (url.contains("drive.google") || url.contains("docs.google")) {
+            val bridged = "https://gdriveplayer.to/embed2.php?link=$url"
+            val bridgedOk = try {
+                loadExtractor(bridged, candidate.referer, subtitleCallback, callback)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                false
             }
-        }
-        // hls=false → videoSources[] (AES şifreli file alanları)
-        val sources = root.optJSONArray("videoSources")
-        if (sources != null) {
-            val ck = root.optString("ck").ifBlank { null }?.let { unescapeJsHex(it) }
-            for (i in 0 until sources.length()) {
-                val s = sources.optJSONObject(i) ?: continue
-                val file = s.optString("file")
-                if (file.isBlank()) continue
-                val label = s.optString("label").ifBlank { null }
-                val realUrl = try {
-                    if (ck != null) decryptFireFile(file, ck) else null
-                } catch (e: Exception) {
-                    Log.e(LOG_TAG, "AES decrypt hatası: ${e.message}")
-                    null
-                }
-                // Şifreli değer JSON.stringify'lenmiş bir değerdi: sonuç ya
-                // düz URL, ya tırnaklı string, ya {"url":...,"label":...} objesi.
-                val (u, l) = realUrl?.let { plain ->
-                    try {
-                        val jo = JSONObject(plain)
-                        (jo.optString("url").ifBlank { jo.optString("file") }.ifBlank { jo.optString("src") }) to
-                            (jo.optString("label").ifBlank { null })
-                    } catch (e: Exception) {
-                        val unquoted = plain.trim()
-                            .removeSurrounding("\"")
-                            .ifBlank { null }
-                        unquoted to null
-                    }
-                } ?: (file to null)
-                if (u != null && u.startsWith("http")) {
-                    delivered += FireVideo(
-                        u,
-                        l ?: label ?: quality,
-                        u.contains(".m3u8") || hls
-                    )
-                }
-            }
+            if (bridgedOk) return 1
         }
 
-        if (delivered.isEmpty()) {
-            Log.e(LOG_TAG, "getVideo video vermedi: ${json.take(300)}")
-            return false
+        // 4) Oynatıcı sayfasını çek: içindeki m3u8/mp4 veya iç iframe.
+        val pageHtml = getText(url, candidate.referer) ?: return 0
+        val media = mediaFromHtml(pageHtml, url)
+        for (link in media.take(3)) {
+            if (emitMedia(link, candidate.label, url, emitted, callback)) count++
         }
+        if (count > 0) return count
 
-        var emitted = false
-        for (v in delivered) {
-            val q = v.label?.takeIf { Regex("^[0-9]+p|4K", RegexOption.IGNORE_CASE).matches(it) } ?: quality
-            val suffix = qualitySuffix(q)
-            emitLink(v.url, linkName + suffix, referer, callback)
-            emitted = true
+        // 5) Bir katman iç iframe (embed → player).
+        val innerFrames = Jsoup.parse(pageHtml, url)
+            .select("iframe[src], iframe[data-src]")
+            .mapNotNull { AnizmSite.absolute(url, it.attr("src").ifBlank { it.attr("data-src") }) }
+            .filterNot(::isAdHost)
+            .take(2)
+        for (frame in innerFrames) {
+            val frameHash = anizmPlayerHash(frame)
+            if (frameHash != null) {
+                count += resolveAnizmPlayer(frameHash, frame, candidate.label, emitted, callback)
+                continue
+            }
+            val frameHtml = getText(frame, url) ?: continue
+            for (link in mediaFromHtml(frameHtml, frame).take(2)) {
+                if (emitMedia(link, candidate.label, frame, emitted, callback)) count++
+            }
         }
-        return emitted
+        return count
+    }
+
+    // ------------------------------------------------------------------
+    // anizmplayer.com (Aincrad / FirePlayer)
+    // ------------------------------------------------------------------
+
+    private fun anizmPlayerHash(url: String): String? {
+        if (!url.contains(PLAYER_HOST, ignoreCase = true)) return null
+        val match = Regex("/video/([A-Za-z0-9_-]{8,64})").find(url) ?: return null
+        return match.groupValues.getOrNull(1)
     }
 
     /**
-     * v27: tek noktadan oynatıcı linki. Fork sözleşmesi: `source` = LİNKİ
-     * ÜRETEN EKLENTİ (burada "Anizm"), `name` = kullanıcıya görünen etiket.
-     * v1'de ikisine de kaynak etiketi verildiği için uygulama tarafında
-     * sağlayıcı ayrımı bozuluyordu. Tip (M3U8/VIDEO) URL'den, kalite
-     * etiketten türetilir.
+     * `POST /player/index.php?data=<hash>&do=getVideo` (form: hash, r).
+     * Yanıt: `securedLink` (HLS), `videoSource`, `videoSources[]` veya düz adres.
+     * — Aniyomi `AincradExtractor` `securedLink`, `hexated` `videoSource` kullanıyor;
+     * ikisi de okunur.
      */
-    private suspend fun emitLink(
+    private suspend fun resolveAnizmPlayer(
+        hash: String,
+        playerPageUrl: String,
+        label: String,
+        emitted: MutableSet<String>,
+        callback: (ExtractorLink) -> Unit
+    ): Int {
+        val apiUrl = "$PLAYER_HOST/player/index.php?data=$hash&do=getVideo"
+        val body = postText(
+            url = apiUrl,
+            referer = playerPageUrl,
+            xhr = true,
+            form = mapOf("hash" to hash, "r" to (mainUrl + "/")),
+            extraHeaders = mapOf(
+                "Origin" to PLAYER_HOST,
+                "Accept" to "application/json, text/javascript, */*; q=0.01",
+                "Content-Type" to "application/x-www-form-urlencoded; charset=UTF-8"
+            ),
+            timeout = 15
+        )
+        if (body.isNullOrBlank()) {
+            Log.w(LOG_TAG, "anizmplayer yanıt yok: $hash")
+            return 0
+        }
+
+        var count = 0
+        val json = try {
+            JSONObject(body)
+        } catch (_: Exception) {
+            null
+        }
+        if (json != null) {
+            val secured = json.optString("securedLink").ifBlank { json.optString("videoSource") }
+            if (secured.isNotBlank() && looksLikeMedia(secured)) {
+                if (emitMedia(secured, label, playerPageUrl, emitted, callback)) count++
+            }
+            val sources = json.optJSONArray("videoSources")
+            if (sources != null) {
+                for (index in 0 until sources.length()) {
+                    val source = sources.optJSONObject(index) ?: continue
+                    val file = source.optString("file").ifBlank { source.optString("src") }
+                    if (file.isBlank()) continue
+                    val absolute = AnizmSite.absolute(playerPageUrl, file) ?: continue
+                    val quality = source.optString("label").ifBlank { source.optString("quality") }
+                    val sourceLabel = if (quality.isNotBlank()) "$label [$quality]" else label
+                    if (emitMedia(absolute, sourceLabel, playerPageUrl, emitted, callback)) count++
+                }
+            }
+        }
+        // JSON dışı/düz yanıt: içindeki medya adresleri.
+        for (link in mediaFromHtml(body, playerPageUrl).take(3)) {
+            if (emitMedia(link, label, playerPageUrl, emitted, callback)) count++
+        }
+        if (count == 0) Log.w(LOG_TAG, "anizmplayer akış vermedi ($hash): ${body.take(120)}")
+        return count
+    }
+
+    // ------------------------------------------------------------------
+    // Yardımcılar: medya bulma / yayınlama
+    // ------------------------------------------------------------------
+
+    private fun looksLikeMedia(url: String): Boolean {
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        return path.endsWith(".m3u8") || path.endsWith(".mp4") || path.endsWith(".mkv") ||
+            path.endsWith(".webm") || path.endsWith(".mpd") || path.contains(".m3u8")
+    }
+
+    private fun isAdHost(url: String): Boolean {
+        val lower = url.lowercase()
+        return AD_HOSTS.any { lower.contains(it) }
+    }
+
+    /** HTML/JS içindeki m3u8/mp4 adresleri (kaçışlı `\/` biçimi dahil). */
+    private fun mediaFromHtml(html: String, base: String): List<String> {
+        if (html.isBlank()) return emptyList()
+        val unescaped = html.replace("\\/", "/").replace("\\u002F", "/")
+        val found = LinkedHashSet<String>()
+        val patterns = listOf(
+            Regex("""["'](https?://[^"']+?\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""file\s*:\s*["']([^"']+?\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["'](https?://[^"']+?\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""file\s*:\s*["']([^"']+?\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["'](https?://[^"']+?\.mpd[^"']*)["']""", RegexOption.IGNORE_CASE)
+        )
+        for (pattern in patterns) {
+            for (match in pattern.findAll(unescaped)) {
+                val raw = match.groupValues.lastOrNull()?.trim().orEmpty()
+                if (raw.isEmpty() || raw.startsWith("data:")) continue
+                val absolute = AnizmSite.absolute(base, raw) ?: continue
+                if (isAdHost(absolute)) continue
+                found.add(absolute)
+                if (found.size >= 6) return found.toList()
+            }
+        }
+        return found.toList()
+    }
+
+    private suspend fun emitMedia(
         url: String,
         label: String,
         referer: String,
+        emitted: MutableSet<String>,
         callback: (ExtractorLink) -> Unit
-    ) {
-        val type = if (url.contains(".m3u8", ignoreCase = true)) {
-            ExtractorLinkType.M3U8
-        } else {
-            ExtractorLinkType.VIDEO
-        }
+    ): Boolean {
+        val clean = url.trim().replace("\\/", "/")
+        if (!clean.startsWith("http")) return false
+        if (!emitted.add(clean)) return false
+        val isHls = clean.substringBefore('?').lowercase().let { it.endsWith(".m3u8") || it.contains(".m3u8") }
+        val linkRef = referer.ifBlank { mainUrl + "/" }
         callback(
-            newExtractorLink(source = name, name = label, url = url, type = type) {
-                this.referer = referer
+            newExtractorLink(
+                source = name,
+                name = label,
+                url = clean,
+                type = if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+            ) {
+                this.referer = linkRef
+                this.headers = mapOf("Referer" to linkRef, "User-Agent" to UA)
                 this.quality = getQualityFromName(label)
-                if (referer.isNotBlank()) {
-                    this.headers = mapOf("Referer" to referer, "User-Agent" to UA)
-                }
             }
         )
+        return true
     }
 
-    private fun qualitySuffix(q: String?): String =
-        if (q.isNullOrBlank()) "" else " [$q]"
-
-    // ------------------------------------------------------------------
-    // AES (cryptojs-aes-php formatı 2.1.1)
-    // ------------------------------------------------------------------
-
-    /**
-     * {"ct":"<base64>","iv":"<hex>","s":"<hex salt>"} + şifre → plaintext.
-     * Anahtar: EVP_BytesToKey(MD5, 1 iterasyon, 16B) = MD5(SALT + şifre) → AES-128
-     * (OpenSSL/CryptoJS sırası: salt ÖNCE — node'da cryptojs-aes-php formatıyla
-     * roundtrip doğrulandı, 2026-10-25).
-     * IV: JSON'daki hex iv (yoksa MD5(key + salt + şifre)).
-     * Sonuç UTF-8; FirePlayer bunu tekrar JSON.parse eder (object/string).
-     */
-    private fun decryptFireFile(encrypted: String, password: String): String {
-        val jo = JSONObject(encrypted)
-        val ct = AndroidBase64.decode(jo.getString("ct"), AndroidBase64.DEFAULT)
-        val ivHex = jo.optString("iv", "")
-        val saltHex = jo.optString("s", "")
-        val salt = if (saltHex.isNotEmpty()) saltHex.hexToBytes() else ByteArray(0)
-        val pwd = password.toByteArray(Charsets.UTF_8)
-        val key: ByteArray
-        val iv: ByteArray
-        if (salt.isNotEmpty()) {
-            key = md5(salt + pwd)                        // 16B → AES-128 (salt ÖNCE)
-            iv = if (ivHex.isNotEmpty()) ivHex.hexToBytes() else md5(key + salt + pwd)
-        } else {
-            val raw = pwd
-            key = when {
-                raw.size >= 32 -> raw.copyOf(32)        // AES-256
-                raw.size >= 24 -> raw.copyOf(24)        // AES-192
-                else -> {
-                    val k = ByteArray(16)
-                    raw.copyInto(k)
-                    k
-                }
+    /** `<track>` ve `.vtt/.srt` adreslerini altyazı olarak bildirir (varsa). */
+    private fun emitSubtitles(html: String?, base: String, subtitleCallback: (SubtitleFile) -> Unit) {
+        if (html.isNullOrBlank()) return
+        try {
+            val doc = Jsoup.parse(html, base)
+            doc.select("track[src]").forEach { track ->
+                val kind = track.attr("kind").ifBlank { "subtitles" }
+                if (!kind.equals("subtitles", true) && !kind.equals("captions", true)) return@forEach
+                val src = AnizmSite.absolute(base, track.attr("src")) ?: return@forEach
+                val lang = track.attr("srclang").ifBlank { track.attr("label") }.ifBlank { "Altyazı" }
+                subtitleCallback(newSubtitleFile(lang, src))
             }
-            iv = if (ivHex.isNotEmpty()) ivHex.hexToBytes() else ByteArray(16)
+        } catch (e: Exception) {
+            Log.d(LOG_TAG, "altyazı çözümleme hatası: ${e.message}")
         }
-        val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
-        val plain = cipher.doFinal(ct)
-        return String(plain, Charsets.UTF_8)
     }
 
-    private fun md5(b: ByteArray): ByteArray =
-        MessageDigest.getInstance("MD5").digest(b)
+    companion object {
+        private const val LOG_TAG = "hexated_Anizm"
+        private const val UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
-    private fun String.hexToBytes(): ByteArray {
-        val clean = this.filter { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
-        val out = ByteArray(clean.length / 2)
-        for (i in out.indices) {
-            out[i] = clean.substring(i * 2, i * 2 + 2).toInt(16).toByte()
-        }
-        return out
+        private const val PLAYER_HOST = "https://anizmplayer.com"
+
+        /** Site içi oynatıcı yolu — 302 Location ile gerçek host'a gider. */
+        private val IN_SITE_PLAYER = Regex("/player/\\d+|/video/\\d+", RegexOption.IGNORE_CASE)
+        private const val DEFAULT_BASE = "https://anizm.net"
+        private const val SEARCH_PAGE_SIZE = 24
+        private const val MAX_MAIN_PAGE = 60
+        private const val BASE_TTL_MS = 10 * 60 * 1000L
+        private const val CATALOGUE_TTL_MS = 6 * 60 * 60 * 1000L
+
+        /** Aynı sitenin paralel/eski adları — probe sırası öncelik sırasıdır. */
+        private val BASE_CANDIDATES = listOf(
+            // Sıra = öncelik. anizm.net, 25.10.2026 itibarıyla güncel istemcilerin
+            // (Aniyomi tr/anizm) kullandığı canlı domain; puffytr.com aynı CMS'in
+            // yeni markası, diğerleri eski/tkiz adresler. Prob canlıyı seçer.
+            "https://anizm.net",
+            "https://puffytr.com",
+            "https://www.puffytr.com",
+            "https://puffytr.com.tr",
+            "https://anizm.com.tr",
+            "https://anizle.org",
+            "https://anizle.co"
+        )
+
+        /**
+         * Reklam/ön-roll ağları — bunlar "oynatıcı adayı" gibi görünse de video
+         * vermez. Kısa jenerik parçalar ("bet", "cpm") bilinçli olarak YOK:
+         * gerçek host adlarını yanlışlıkla elerler.
+         */
+        private val AD_HOSTS = listOf(
+            "doubleclick", "googlesyndication", "adsterra", "popads", "popcash", "propellerads",
+            "onclickads", "a-ads.com", "adsystem", "juicyads", "exoclick", "hilltopads",
+            "clickadu", "mgid.com", "adtng", "tsyndicate", "trafficjunky"
+        )
     }
-
 }
+
+/**
+ * `SubtitleFile` public constructor'ı fork'ta deprecated; fabrika fonksiyonu
+ * aynı nesneyi üretir (davranış birebir aynı).
+ */
+private fun newSubtitleFile(lang: String, url: String): SubtitleFile = SubtitleFile(lang, url)

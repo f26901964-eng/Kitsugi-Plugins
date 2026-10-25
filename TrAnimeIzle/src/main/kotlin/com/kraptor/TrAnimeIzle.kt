@@ -275,37 +275,152 @@ class TrAnimeIzle(
         }
     }
 
+    /** Katalog önbelleği (site araması boş dönerse isim eşleştirmesi için). */
+    private var catalogueCache: Pair<Long, List<TrCard>>? = null
+
+    /**
+     * Site araması + isim eşleştirme.
+     *
+     * Kitsugi kaynağı KENDİ başlığıyla arar ("The Apothecary Diaries Season 3"),
+     * site ise Türkçe/romanize adlarla ("The Apothecary Diaries 3. Sezon") çalışır.
+     * Bu yüzden:
+     *  1. Sorgunun varyantları ([TrAnimeIzleMatch.queryVariants]) sırayla denenir
+     *     ("Sezon 3" atılmış, ":" sonrası atılmış, aksan sadeleştirilmiş...).
+     *  2. Hiç sonuç gelmezse site kataloğu (popüler/yeni bölümler listeleri, 30 dk
+     *     önbellek) indirilip **yerel** isim eşleştirmesi yapılır — arama ucu
+     *     bozuk/boş olsa bile doğru anime bulunur.
+     *  3. Sonuçlar [TrAnimeIzleMatch.rank] ile puanlanıp en iyi eşleşme başa alınır;
+     *     uygulamanın kendi başlık eşleştiricisi doğru kartı ilk sırada görür.
+     */
     private suspend fun searchInternal(query: String, page: Int): SearchResponseList {
-        // v17: sorgu kodlanıyor (boşluk/Türkçe karakter → 404 olmuyor),
-        // istek oturum çerezi + tarayıcı başlıklarıyla gidiyor,
-        // bot cevabında oturum yenilenip bir kez tekrar deniyor.
-        // v18: site kendi JS'inde arama için ÇIPLAK `/arama/{sorgu}` kullanıyor
-        // (site.js 22.09.2026 — ?page= parametresi YOK) → page 1 çıplak URL;
-        // page>1 için DEX davranışı korunur.
-        // v26: istekten önce canlı domain garantisi (site domain değiştirdiyse
-        // ana sayfa anahtar kelimesi: otomatik geçiş).
         ensureDomainAlive()
-        val enc = URLEncoder.encode(query, "UTF-8")
-        val url = if (page <= 1) mainUrl + "/arama/" + enc
-        else mainUrl + "/arama/" + enc + "?page=" + page
-        val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
-        val document = Jsoup.parse(html)
-        var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
-        if (results.isEmpty()) {
-            // v18: kart sınıfı değişmiş olabilir → href deseni tabanlı yedek çözüm.
-            results = parseGenericCards(document)
-            Log.w(LOG_TAG, "search('$query'): flx-block 0 → genel çözümleme: ${results.size}")
+        val variants = TrAnimeIzleMatch.queryVariants(query)
+        if (variants.isEmpty()) return newSearchResponseList(emptyList(), false)
+
+        val collected = LinkedHashMap<String, TrCard>()
+        fun absorb(cards: List<TrCard>) {
+            for (card in cards) {
+                val key = TrAnimeIzleMatch.seriesKey(card.url)
+                if (key.isEmpty()) continue
+                val existing = collected[key]
+                if (existing == null) collected[key] = card
+                else if ((existing.episodeHint ?: 0) < (card.episodeHint ?: 0)) {
+                    collected[key] = existing.copy(
+                        episodeHint = card.episodeHint,
+                        seasonHint = card.seasonHint ?: existing.seasonHint
+                    )
+                }
+            }
         }
+
+        for (variant in variants) {
+            if (page > 1) break
+            if (collected.size >= 8) break
+            val enc = URLEncoder.encode(variant, "UTF-8")
+            val url = mainUrl + "/arama/" + enc
+            val html = try {
+                fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Log.w(LOG_TAG, "search('$variant') isteği başarısız: ${e.message}")
+                null
+            }
+            if (html.isNullOrBlank()) continue
+            val document = Jsoup.parse(html)
+            absorb(TrAnimeIzleSite.parseCards(document, mainUrl + "/", 40))
+            Log.d(LOG_TAG, "search('$variant') → toplam ${collected.size} kart")
+        }
+        if (page > 1) {
+            // Sayfa > 1: tek istek (ham sorgu) — sonsuz liste için hasNext korunur.
+            val enc = URLEncoder.encode(query, "UTF-8")
+            val html = try {
+                fetchHtml(mainUrl + "/arama/" + enc + "?page=" + page, mainUrl + "/", true, true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                null
+            }
+            if (!html.isNullOrBlank()) absorb(TrAnimeIzleSite.parseCards(Jsoup.parse(html), mainUrl + "/", 40))
+        }
+
+        // Site araması boş/az → katalog üzerinden yerel eşleştirme.
+        if (collected.size < 3) {
+            val catalogue = loadCatalogue()
+            if (catalogue.isNotEmpty()) {
+                val rankedLocal = TrAnimeIzleMatch.rank(
+                    query,
+                    catalogue.map { Triple(it.name, it.url, emptyList()) },
+                    threshold = 0.45
+                )
+                val byUrl = catalogue.associateBy { it.url }
+                for ((url, _) in rankedLocal) {
+                    val card = byUrl[url] ?: continue
+                    val key = TrAnimeIzleMatch.seriesKey(card.url)
+                    if (key.isNotEmpty() && !collected.containsKey(key)) collected[key] = card
+                }
+                Log.d(LOG_TAG, "search('$query') katalog yedeği: ${collected.size} kart")
+            }
+        }
+
+        val ranked = TrAnimeIzleMatch.rank(
+            query,
+            collected.values.map { Triple(it.name, it.url, emptyList()) },
+            threshold = 0.0
+        )
+        val byUrl = collected.values.associateBy { it.url }
+        val results = ranked.mapNotNull { (url, _) -> byUrl[url]?.toSearchResponse() }
+            .ifEmpty { collected.values.take(24).map { it.toSearchResponse() } }
         Log.d(LOG_TAG, "search('$query') → ${results.size} sonuç")
-        if (results.isEmpty()) {
-            Log.e(
-                LOG_TAG,
-                "search('$query') 0 sonuç — a[href*=izle] sayısı: " +
-                    document.select("a[href*='izle']").size +
-                    " | sayfa başı: " + html.replace(Regex("\\s+"), " ").take(600)
-            )
-        }
         return newSearchResponseList(results, true)
+    }
+
+    private fun TrCard.toSearchResponse(): AnimeSearchResponse {
+        val card = this
+        return newAnimeSearchResponse(card.name, card.url, TvType.Anime) {
+            this.posterUrl = card.poster
+            this.score = Score.from10(card.score)
+        }
+    }
+
+    /**
+     * Katalog: site araması sonuç vermediğinde isim eşleştirmesi için popüler +
+     * yeni bölüm + yeni animeler listeleri (30 dakika önbellekli).
+     */
+    private suspend fun loadCatalogue(): List<TrCard> {
+        val cached = catalogueCache
+        if (cached != null && System.currentTimeMillis() - cached.first < 30 * 60 * 1000L) {
+            return cached.second
+        }
+        val out = LinkedHashMap<String, TrCard>()
+        val paths = listOf(
+            "/listeler/populer/sayfa-",
+            "/listeler/yenibolum/sayfa-",
+            "/listeler/eklenen/sayfa-"
+        )
+        for (path in paths) {
+            for (n in 1..2) {
+                val html = try {
+                    fetchHtml(mainUrl + path + n, mainUrl + "/", ensureSession = true, webViewFallback = false)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    Log.w(LOG_TAG, "katalog ${path}${n} alınamadı: ${e.message}")
+                    null
+                }
+                if (html.isNullOrBlank()) continue
+                for (card in TrAnimeIzleSite.parseCards(Jsoup.parse(html), mainUrl + "/", 60)) {
+                    val key = TrAnimeIzleMatch.seriesKey(card.url)
+                    if (key.isNotEmpty() && !out.containsKey(key)) out[key] = card
+                }
+                if (out.size >= 240) break
+            }
+            if (out.size >= 240) break
+        }
+        val list = out.values.toList()
+        if (list.isNotEmpty()) catalogueCache = System.currentTimeMillis() to list
+        Log.d(LOG_TAG, "katalog: ${list.size} anime")
+        return list
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -318,10 +433,11 @@ class TrAnimeIzle(
             val url = remapDomain(request.data) + page
             val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
             val document = Jsoup.parse(html)
-            var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
+            var results = TrAnimeIzleSite.parseCards(document, mainUrl + "/", 60)
+                .map { it.toSearchResponse() }
             if (results.isEmpty()) {
                 results = parseGenericCards(document)
-                Log.w(LOG_TAG, "mainPage('${request.name}'): flx-block 0 → genel çözümleme: ${results.size}")
+                Log.w(LOG_TAG, "mainPage('${request.name}'): kart 0 → genel çözümleme: ${results.size}")
             }
             Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
             newHomePageResponse(request.name, results, true)
@@ -467,7 +583,19 @@ class TrAnimeIzle(
     private fun izleCount(html: String?): Int {
         if (html.isNullOrBlank()) return 0
         return try {
-            Jsoup.parse(html).select("a[href*='bolum-izle'], a[href*='anime-izle']").size
+            val document = Jsoup.parse(html)
+            // 1) Klasik kart yapısı: kartlar tıklamada data-href kullanıyor.
+            val blocks = document.select("div.flx-block, .flx-block").size
+            if (blocks > 0) return blocks
+            // 2) Doğrudan bağlantılı kartlar.
+            val links = document.select("a[href*='bolum-izle'], a[href*='anime-izle']").size
+            if (links > 0) return links
+            // 3) data-href taşıyan öğeler.
+            document.select("[data-href]").count { element ->
+                val href = element.attr("data-href")
+                href.contains("bolum-izle") || href.contains("anime-izle") ||
+                    href.endsWith("-izle") || href.endsWith("-izle-hd")
+            }
         } catch (_: Exception) {
             0
         }
@@ -484,7 +612,24 @@ class TrAnimeIzle(
     private suspend fun probeDomainAlive(base: String): Boolean {
         return try {
             val resp = app.get(base, headers = browserHeaders(cachedSession(), base + "/"), timeout = 8)
-            val ok = resp.isSuccessful && !isBotBody(resp.text) && izleCount(resp.text) > 0
+            val text = resp.text ?: ""
+            // v28 (canlı ölçüm 25.10.2026): site veri merkezi IP'lerine Cloudflare
+            // **Error 1005** (ASN engeli) dönüyor. Bu, domainin ÖLDÜĞÜ anlamına
+            // GELMEZ — cihazın kendi bağlantısıyla (WebView oturumu) çalışır.
+            // Eskiden 403 "ölü domain" sayılıp gereksiz yere domain değiştiriliyordu.
+            val cfBlocked = resp.code == 403 || resp.code == 503 ||
+                text.contains("Error 1005", ignoreCase = true) ||
+                text.contains("error 1005", ignoreCase = true) ||
+                isBotBody(text)
+            if (cfBlocked) {
+                Log.w(
+                    LOG_TAG,
+                    "domain probe: $base → Cloudflare/IP engeli (${resp.code}); domain KORUNUYOR " +
+                        "(oturum katmanı çözer)"
+                )
+                return true
+            }
+            val ok = resp.isSuccessful && izleCount(text) > 0
             Log.d(LOG_TAG, "domain probe: $base → ${if (ok) "ALIVE" else "DEAD"} (status=${resp.code})")
             ok
         } catch (e: CancellationException) {
@@ -805,16 +950,17 @@ class TrAnimeIzle(
             }
         }
 
-        val title = document.selectFirst("div.playlist-title h1")?.text()
-            ?.replace("İzle", "")?.trim() ?: ""
-        val poster = fixUrlNull(document.selectFirst("div.poster img")?.attr("src"))
-        val description = document.select("div.p-10 p")
-            .joinToString("\n") { it.text() }
-            .ifBlank { null }
-        val year = document.selectFirst("div.col-sm-7 dd:contains(Yapım Yılı) + dt")
-            ?.text()?.toIntOrNull()
-        val tags = document.select("div.tags-inner a").map { it.text() }
-        val rating = document.selectFirst("span.dt_rating_vgs")?.text()
+        // v28: detay + bölüm çözümlemesi tek bir saf modülde (TrAnimeIzleSite):
+        //  - başlık/postür/özet/yıl/puan/etiketler için ÇOKLU seçici (tema değişimi)
+        //  - bölüm listesi üç ayrı yerden toplanır ve her bölümde season+number GARANTİ
+        //    edilir (Kitsugi'nin bölüm eşleştiricisi ikisi de dolu olmayan bölümü atar)
+        val detail = TrAnimeIzleSite.parseDetail(document, mainUrl + "/", url)
+        val title = detail.title
+        val poster = detail.poster
+        val description = detail.plot
+        val year = detail.year
+        val tags = detail.tags
+        val rating = detail.score?.toString()
         val duration = document.selectFirst("div.col-sm-7 dt:contains(dk)")?.text()
             ?.split(" ")?.firstOrNull()?.toIntOrNull()
         val recommendations = document.select("div.srelacionados article")
@@ -822,7 +968,8 @@ class TrAnimeIzle(
         val actors = document.select("span.valor a").map { it.text() }
         val trailer = Regex("embed/(.*)\\?rel").find(document.html())
             ?.groupValues?.getOrNull(1)?.let { "https://www.youtube.com/embed/$it" }
-        val animeTipi = document.selectFirst("div.col-sm-5 dd:contains(Anime Tipi) + dt")?.text()
+        val animeTipi = detail.typeText
+            ?: document.selectFirst("div.col-sm-5 dd:contains(Anime Tipi) + dt")?.text()
 
         // "Bölüm Sayısı: 24/24" → tamamı yayınlanmış (completed) sayılır.
         val totalEpText = document.selectFirst("dd:contains(Bölüm Sayısı) + dt")?.text()?.trim()
@@ -834,9 +981,8 @@ class TrAnimeIzle(
         val meta = fetchKitsuDataByTitle(title)
 
         // İlk bölüm URL'si (film tipi için data alanı).
-        val firstEpisodeUrl = fixUrlNull(
-            document.selectFirst("div.animeDetail-playlist li a")?.attr("href")
-        )
+        val firstEpisodeUrl = detail.episodes.firstOrNull()?.url
+            ?: fixUrlNull(document.selectFirst("div.animeDetail-playlist li a")?.attr("href"))
 
         // Bölüm listesi.
         val episodes = mutableListOf<Episode>()
@@ -844,49 +990,41 @@ class TrAnimeIzle(
         // minSdk'i 21 → eski cihazda NoClassDefFoundError ile UYGULAMA COKERDI.
         // java.text.SimpleDateFormat her API seviyesinde mevcut.
         val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("tr"))
-        for (a in document.select("div.animeDetail-items li a")) {
-            val epUrl = fixUrlNull(a.attr("href")) ?: continue
-            val rawName = a.selectFirst("div.etitle span")?.text()?.takeIf { it.isNotBlank() }
-                ?: a.selectFirst("p.title")?.text()?.takeIf { it.isNotBlank() }
-                ?: a.selectFirst("span")?.text()?.takeIf { it.isNotBlank() }
-                ?: continue
-            // Sitede bölüm başlığı anime tipine göre öneklenir ("Dizi Bölüm 1" vb.).
-            val siteName = if (animeTipi != null && rawName.startsWith(animeTipi, ignoreCase = true))
-                rawName.removePrefix(animeTipi).trim() else rawName
-            val number = rawName
-                .substringBefore(". Bölüm", "")
-                .substringAfterLast(" ", "")
-                .trim()
-                .toIntOrNull()
-            val kitsuEp = number?.let { meta?.episodes?.get(it) }
-            val dateText = a.selectFirst("small.author")?.text()?.trim()
-            val date = dateText?.let {
-                try {
-                    synchronized(dateFormat) {
-                        dateFormat.parse(it)
-                    }?.let { d -> SimpleDateFormat("yyyy-MM-dd", Locale.US).format(d) }
-                } catch (_: Exception) {
-                    null
-                }
+        fun normaliseDate(raw: String?): String? {
+            if (raw.isNullOrBlank()) return null
+            return try {
+                synchronized(dateFormat) { dateFormat.parse(raw) }
+                    ?.let { d -> SimpleDateFormat("yyyy-MM-dd", Locale.US).format(d) }
+            } catch (_: Exception) {
+                null
             }
-            val thumb = fixUrlNull(a.selectFirst("img")?.attr("src"))
+        }
+        for (ep in detail.episodes) {
+            val kitsuEp = meta?.episodes?.get(ep.number)
             episodes.add(
-                newEpisode(epUrl) {
-                    this.name = kitsuEp?.title?.ifBlank { null } ?: siteName
-                    this.posterUrl = kitsuEp?.thumb?.ifBlank { null } ?: thumb
+                newEpisode(ep.url) {
+                    this.name = kitsuEp?.title?.ifBlank { null } ?: ep.name
+                    this.posterUrl = kitsuEp?.thumb?.ifBlank { null } ?: ep.poster
                     if (kitsuEp != null) this.description = kitsuEp.description
-                    this.episode = number
-                    if (date != null) this.addDate(date)
+                    // v28: sezon HER ZAMAN dolu (site "3. Sezon" yazmıyorsa 1).
+                    this.season = ep.season
+                    this.episode = ep.number
+                    normaliseDate(ep.date)?.let { addDate(it) }
                 }
             )
         }
+        Log.d(LOG_TAG, "load($url): ${episodes.size} bölüm, tip=${animeTipi ?: "?"}")
 
         val metaTitle = meta?.title
-        return if ((animeTipi?.contains("Dizi", ignoreCase = true) == true ||
-                    animeTipi?.contains("OVA", ignoreCase = true) == true) &&
-            metaTitle != null
-        ) {
-            // Dizi/OVA + Kitsu eşleşmesi → film (tek parça) olarak sunulur (DEX davranışı).
+        // v28: "Dizi" (TV) dizisi film sayılıp TEK PARÇA olarak sunuluyordu → kullanıcı
+        // dizinin yalnızca 1. bölümünü "film" olarak görüyordu. Artık yalnızca gerçek
+        // film ("Film"/"Movie" etiketi) veya tek bölümlü yapımlar film sayılır.
+        val isFilmType = animeTipi?.let {
+            it.contains("film", ignoreCase = true) || it.contains("movie", ignoreCase = true)
+        } == true
+        val useMovieResponse = metaTitle != null && (isFilmType || episodes.size <= 1)
+        return if (useMovieResponse) {
+            // Film / tek bölümlük yapım (tek parça) olarak sunulur.
             newMovieLoadResponse(
                 metaTitle,
                 url,
@@ -1103,6 +1241,12 @@ class TrAnimeIzle(
         val errors = mutableListOf<String>()
         val evidence = mutableListOf<String>()
         return try {
+            // v28: altyazılar TÜM kaynaklardan toplanır (eskiden yalnızca ilk kaynak
+            // taranıyordu) ve aynı adres bir kez bildirilir.
+            val seenSubs = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+            val subCb: (SubtitleFile) -> Unit = { sub ->
+                if (seenSubs.put(sub.url, true) == null) subtitleCallback(sub)
+            }
             val result = coroutineScope {
                 Log.d(LOG_TAG, "data = $dataUrl")
                 // v21: bölüm sayfası da içerik garantili (WebView DOM katmanı).
@@ -1112,9 +1256,9 @@ class TrAnimeIzle(
                 // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
                 // `animeWatch.initialize(animeId, episodeId, fansubId, ...)` script
                 // çağrısında taşır; input#EpisodeId yoksa buradan çıkilir.
-                val episodeId = document.selectFirst("input#EpisodeId")?.attr("value")?.toIntOrNull()
-                    ?: Regex("animeWatch\\.initialize\\(\\s*(\\d+)\\s*,\\s*(\\d+)")
-                        .find(html)?.groupValues?.getOrNull(2)?.toIntOrNull()
+                // v28: EpisodeId dört ayrı yerden okunur (input, animeWatch.initialize,
+                // JSON anahtarı, data-eid) — tek seçiciye bağlı değil.
+                val episodeId = TrAnimeIzleSite.episodeIdFrom(html, document)
                 Log.d(LOG_TAG, "episodeId = $episodeId")
                 if (episodeId == null) {
                     errors += "bölüm ID'si bulunamadı (EpisodeId/animeWatch)"
@@ -1136,15 +1280,14 @@ class TrAnimeIzle(
                     Log.e(LOG_TAG, "fansub öğesi yok — sayfa ${html.length} karakter, başı:\n" + html.take(800))
                     errors += "sayfada fansub listesi yok (sayfa ${html.length / 1000}k)"
                 }
-                coroutineScope {
-                    fansubItems.mapIndexed { i, li ->
-                        async {
-                            loadFansubSources(
-                                li, i, episodeId, found, errors, evidence, subsFound,
-                                subtitleCallback, callback
-                            )
-                        }
-                    }.awaitAll()
+                // v28: fansublar SIRAYLA işlenir (her fansubun kaynakları kendi
+                // içinde paralel). Sınırsız paralellik + WebView katmanı site
+                // hız sınırına takılıyordu.
+                for ((i, li) in fansubItems.withIndex()) {
+                    loadFansubSources(
+                        li, i, episodeId, found, errors, evidence, subsFound,
+                        subCb, callback
+                    )
                 }
                 // v23-1: kaynak listesi sayfanın KENDİNDE sunucu tarafı
                 // önceden render edilmiş olabilir (default fansub) — API
@@ -1166,7 +1309,7 @@ class TrAnimeIzle(
                                 async {
                                     loadSingleSource(
                                         btn, j, episodeId, found, errors, evidence, subsFound,
-                                        subtitleCallback, callback
+                                        subCb, callback
                                     )
                                 }
                             }.awaitAll()
@@ -1196,7 +1339,7 @@ class TrAnimeIzle(
                                     async {
                                         loadSingleSource(
                                             btn, j, episodeId, found, errors, evidence, subsFound,
-                                            subtitleCallback, callback
+                                            subCb, callback
                                         )
                                     }
                                 }.awaitAll()
@@ -1205,7 +1348,7 @@ class TrAnimeIzle(
                             // DOM'da kaynak yoksa taze oturumla API bir kez daha.
                             val wf = wDoc.selectFirst("[data-fid]") ?: fansubItems.firstOrNull()
                             if (wf != null) {
-                                loadFansubSources(wf, 0, episodeId, found, errors, evidence, subsFound, subtitleCallback, callback)
+                                loadFansubSources(wf, 0, episodeId, found, errors, evidence, subsFound, subCb, callback)
                             }
                         }
                     } catch (e: Exception) {
@@ -1262,7 +1405,7 @@ class TrAnimeIzle(
         errors: MutableList<String>,
         evidence: MutableList<String>,
         subsFound: AtomicBoolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
+        subCb: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         val fansubId = li.attr("data-fid").toIntOrNull()
@@ -1326,15 +1469,19 @@ class TrAnimeIzle(
                 Log.e(tag, "sourceBtn yok — cevap başı:\n" + bodyText.take(600))
                 errors += "fansub '$fansubLabel': kaynak listesi ${if (httpOk) "boş" else "alınamadı (HTTP)"}"
             }
-            coroutineScope {
-                sourceButtons.mapIndexed { j, btn ->
-                    async {
-                        loadSingleSource(
-                            btn, j, episodeId, found, errors, evidence, subsFound,
-                            subtitleCallback, callback
-                        )
-                    }
-                }.awaitAll()
+            // v28: kaynaklar 4'erli gruplarla çözülür — sınırsız paralellik sitenin
+            // hız sınırına (429) takılıp TÜM kaynakların boş dönmesine yol açıyordu.
+            for (chunk in sourceButtons.withIndex().chunked(4)) {
+                coroutineScope {
+                    chunk.map { (j, btn) ->
+                        async {
+                            loadSingleSource(
+                                btn, j, episodeId, found, errors, evidence, subsFound,
+                                subCb, callback
+                            )
+                        }
+                    }.awaitAll()
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -1349,8 +1496,10 @@ class TrAnimeIzle(
      * (toleranslı: li/a.sourceBtn, yoksa data-id'li öğe).
      */
     private fun sourceButtonsFromHtml(html: String): List<Element> {
-        val doc = Jsoup.parse(html)
-        return doc.select("li.sourceBtn, a.sourceBtn").ifEmpty { doc.select("[data-id]") }
+        val body = TrAnimeIzleSite.unwrapJsonHtml(html)
+        val doc = Jsoup.parse(body)
+        return doc.select("li.sourceBtn, a.sourceBtn, div.sourceBtn")
+            .ifEmpty { doc.select("[data-id]").filter { it.attr("data-id").isNotBlank() } }
     }
 
     private suspend fun loadSingleSource(
@@ -1361,7 +1510,7 @@ class TrAnimeIzle(
         errors: MutableList<String>,
         evidence: MutableList<String>,
         subsFound: AtomicBoolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
+        subCb: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         val sourceId = btn.attr("data-id")
@@ -1461,10 +1610,8 @@ class TrAnimeIzle(
                 evidence += "KANIT[3] sourcePlayer(id=$sourceId) ok | source: ${sourceHtml.length / 1000}k | " +
                     sourceHtml.replace(Regex("\\s+"), " ").take(220)
             }
-            // v22: altyazılar — source HTML'indeki <track> / .vtt / .srt.
-            if (index == 0) {
-                subsFound.set(extractSubtitles(sourceHtml, mainUrl + "/", subtitleCallback))
-            }
+            // v28: altyazılar HER kaynaktan toplanır (subCb tekilleştirir).
+            if (extractSubtitles(sourceHtml, mainUrl + "/", subCb)) subsFound.set(true)
             if (iframes.isEmpty() && directUrl == null) {
                 Log.e(LOG_TAG, "ne iframe ne düz video — source HTML başı:\n" + sourceHtml.take(800))
                 errors += "'$sourceName': oynatıcı HTML'inde iframe/video yok"
@@ -1490,7 +1637,7 @@ class TrAnimeIzle(
                 val luffyId = iframe.substringAfter(LUFFY_PREFIX, "")
                 val candidates = if (luffyId.isNotEmpty()) listOf(luffyId, iframe) else listOf(iframe)
                 for (target in candidates.distinct()) {
-                    if (loadExtractor(target, mainUrl + "/", subtitleCallback, callback)) {
+                    if (loadExtractor(target, mainUrl + "/", subCb, callback)) {
                         ok = true
                         break
                     }
@@ -1501,8 +1648,8 @@ class TrAnimeIzle(
                     val (genUrl, embedHead) = fetchEmbedVideoUrl(iframe, sourceName)
                     if (index == 0) {
                         evidence += "KANIT[4] iframes=${iframes.size} | denerilen=$iframe | direct=${directUrl ?: "YOK"} | embed=${if (genUrl != null) "video: $genUrl" else "video YOK"}"
-                        if (!subsFound.get() && embedHead.isNotEmpty()) {
-                            subsFound.set(extractSubtitles(embedHead, iframe, subtitleCallback))
+                        if (embedHead.isNotEmpty()) {
+                            if (extractSubtitles(embedHead, iframe, subCb)) subsFound.set(true)
                         }
                     }
                     if (genUrl != null) {
@@ -1535,18 +1682,30 @@ class TrAnimeIzle(
                     .take(5)
                 for (u in hostCandidates) {
                     Log.d(LOG_TAG, "Dosya hostü adayı ($sourceName): $u")
+                    // v28: ÖNCE uygulamanın kayıtlı çözücüsü (ok.ru, mixdrop, voe,
+                    // streamtape, gdrive, sibnet, sendvid, mp4upload…). Eklenti
+                    // yalnızca NİHAİ medya adresi yayınlar; oynatıcı sayfası adresi
+                    // yayınlanırsa uygulama onu "embed" sayıp kendi tarayıcısına
+                    // gönderiyor ve akış gelmiyordu.
+                    if (loadExtractor(u, mainUrl + "/", subCb, callback)) {
+                        ok = true
+                        found.set(true)
+                        Log.d(LOG_TAG, "HOST çözücü ile eklendi: $sourceName → $u")
+                        break
+                    }
                     val resolved = tryResolveVideoHostUrl(u, sourceName)
                     if (index == 0) {
-                        evidence += "KANIT[6] host-aday=$u | cozulen=${resolved ?: "HAM"}"
+                        evidence += "KANIT[6] host-aday=$u | cozulen=${resolved ?: "YOK"}"
                     }
-                    emitPlayerLink(
-                        resolved ?: u,
-                        sourceName,
-                        subsFound.get(),
-                        callback
-                    )
+                    val playable = resolved ?: u.takeIf { TrAnimeIzleSite.isDirectMedia(it) }
+                    if (playable == null) {
+                        Log.w(LOG_TAG, "host adresi çözülemedi, link yayınlanmadı (sayfa adresi): $u")
+                        errors += "'$sourceName': $u çözülemedi"
+                        continue
+                    }
+                    emitPlayerLink(playable, sourceName, subsFound.get(), callback)
                     ok = true
-                    Log.d(LOG_TAG, "DOSYA HOSTÜ kaynağı eklendi: $sourceName → ${resolved ?: u}")
+                    Log.d(LOG_TAG, "DOSYA HOSTÜ kaynağı eklendi: $sourceName → $playable")
                     break
                 }
             }
@@ -1788,8 +1947,11 @@ class TrAnimeIzle(
         /** v26: otomatik rotasyon aday domainleri (sıra = öncelik). */
         private val DOMAIN_CANDIDATES = listOf(
             "https://www.tranimeizle.io",
+            "https://tranimeizle.io",
             "https://www.tranimeizle.live",
-            "https://www.tranimeizle.top"
+            "https://tranimeizle.live",
+            "https://www.tranimeizle.top",
+            "https://tranimeizle.top"
         )
 
         private const val ACTIVE_DOMAIN_KEY = "kraptor_active_domain"
