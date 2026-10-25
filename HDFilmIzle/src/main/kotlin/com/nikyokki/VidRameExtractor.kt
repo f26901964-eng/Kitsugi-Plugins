@@ -10,11 +10,40 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.network.CloudflareKiller
+import okhttp3.Interceptor
+import okhttp3.Response
+
+private class VidRameCloudflareInterceptor(
+    private val cloudflareKiller: CloudflareKiller,
+) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val response = chain.proceed(chain.request())
+        val contentType = response.header("Content-Type").orEmpty().lowercase()
+        val looksLikeHtml = contentType.contains("text/html") || contentType.contains("application/xhtml+xml")
+        if (!looksLikeHtml && response.code !in 403..503) return response
+
+        val body = response.peekBody(256 * 1024).string()
+        val lower = body.lowercase()
+        val challengePage = lower.contains("just a moment") ||
+            lower.contains("cf-browser-verification") ||
+            lower.contains("checking your browser") ||
+            (response.code in 403..503 && lower.contains("cloudflare"))
+        if (!challengePage) return response
+
+        // Release the challenge response before CloudflareKiller retries this request.
+        response.close()
+        return cloudflareKiller.intercept(chain)
+    }
+}
 
 open class VidRameExtractor : ExtractorApi() {
     override val name = "VidRame"
     override val mainUrl = "https://vidrame.pro"
     override val requiresReferer = true
+
+    private val cloudflareKiller by lazy { CloudflareKiller() }
+    private val cloudflareInterceptor by lazy { VidRameCloudflareInterceptor(cloudflareKiller) }
 
     private val userAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0"
@@ -78,7 +107,7 @@ open class VidRameExtractor : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
     ) {
-        val document = app.get(
+        val response = app.get(
             url,
             headers = mapOf(
                 "User-Agent" to userAgent,
@@ -86,7 +115,9 @@ open class VidRameExtractor : ExtractorApi() {
                 "Accept-Language" to "en-US,en;q=0.5",
             ),
             referer = referer,
-        ).document
+            interceptor = cloudflareInterceptor,
+        )
+        val document = response.document
 
         val scripts = document.select("script")
             .map { it.data() }
@@ -95,6 +126,11 @@ open class VidRameExtractor : ExtractorApi() {
             .distinctBy { it.file }
         val subtitles = scripts.flatMap { VidRamePlayerParser.subtitleTracks(it) }
             .distinctBy { it.file }
+        Log.d(
+            "VidEx",
+            "Player HTTP ${response.code}; inline scripts=${scripts.size}; " +
+                "video sources=${sources.size}; subtitle tracks=${subtitles.size}",
+        )
 
         subtitles.forEach { track ->
             val subtitleUrl = VidRamePlayerParser.resolveUrl(track.file, url) ?: return@forEach
@@ -105,7 +141,7 @@ open class VidRameExtractor : ExtractorApi() {
         }
 
         if (sources.isEmpty()) {
-            Log.d("VidEx", "No VidRame video source entries found")
+            Log.d("VidEx", "No VidRame video source entries found after HTTP ${response.code}")
             return
         }
 

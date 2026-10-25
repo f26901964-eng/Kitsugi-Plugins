@@ -11,6 +11,7 @@ class HDFilmIzlePlayerParserTest {
         val document = Jsoup.parse(
             """
                 <iframe src="about:blank" data-src="/embed/vidrame/episode-1"></iframe>
+                <iframe src="https://vidrame.pro/vr/7816a701"></iframe>
                 <iframe src="https://player.example/embed/episode-1"></iframe>
                 <iframe data-src="https://player.example/embed/episode-1"></iframe>
                 <iframe data-src="#" src="https://player.example/embed/fallback"></iframe>
@@ -24,6 +25,7 @@ class HDFilmIzlePlayerParserTest {
         assertEquals(
             listOf(
                 "https://www.hdfilmizle.to/embed/vidrame/episode-1",
+                "https://vidrame.pro/vr/7816a701",
                 "https://player.example/embed/episode-1",
                 "https://player.example/embed/fallback",
                 "https://cdn.example/video-frame",
