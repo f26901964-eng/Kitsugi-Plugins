@@ -6,7 +6,7 @@ import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
-
+import com.lagradost.cloudstream3.utils.newExtractorLink
 
 class VidMolyExtractor : ExtractorApi() {
     override val name = "VidMoly"
@@ -17,42 +17,50 @@ class VidMolyExtractor : ExtractorApi() {
         url: String,
         referer: String?,
         subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
     ) {
         val lang = url.substringAfterLast("#", "tr")
         val cleanUrl = url.substringBefore("#")
+            .let { if (it.contains("/w/")) it.replaceFirst("/w/", "/embed-") + ".html" else it }
 
-        val response = app.get(cleanUrl, referer = referer).text
+        val response = app.get(cleanUrl, referer = referer)
+        val document = response.document
 
-        val dilLabel = when (lang) {
+        val langLabel = when (lang) {
             "dublaj" -> " - Türkçe Dublaj"
             "altyazi" -> " - Türkçe Altyazılı"
             else -> ""
         }
-        val displayName = "$name$dilLabel"
+        val displayName = "$name$langLabel"
 
-        val hlsRegexes = listOf(
-            Regex("""sources\s*:\s*\[\s*\{\s*file\s*:\s*['"]([^'"]+)['"]"""),
-            Regex("""file\s*:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]"""),
-            Regex("""file\s*:\s*['"](https?://[^'"]+urlset/master[^'"]*)['"]""")
-        )
+        // Güncel VidMoly oynatıcısı sources: [{file: "..."}] scripti kullanır.
+        val script = document.select("script")
+            .firstOrNull { it.data().contains("sources:") }
+            ?.data()
+            ?: response.text
 
-        for (regex in hlsRegexes) {
-            val match = regex.find(response)
-            if (match != null) {
-                val hlsUrl = match.groupValues[1]
-                callback.invoke(
-                    ExtractorLink(
-                        source = name,
-                        name = displayName,
-                        url = hlsUrl,
-                        referer = referer ?: cleanUrl,
-                        quality = Qualities.Unknown.value,
-                        type = ExtractorLinkType.M3U8
-                    )
-                )
-                return
+        FilmEkseniPlayerParser.subtitles(script).forEach { track ->
+            subtitleCallback(SubtitleFile(track.label, track.url))
+        }
+
+        val mediaFiles = FilmEkseniPlayerParser.mediaFiles(script)
+        mediaFiles.forEach { mediaUrl ->
+            val type = if (mediaUrl.contains(".m3u8", ignoreCase = true)) {
+                ExtractorLinkType.M3U8
+            } else {
+                ExtractorLinkType.VIDEO
             }
+            callback(
+                newExtractorLink(
+                    source = name,
+                    name = displayName,
+                    url = mediaUrl,
+                    type = type,
+                ) {
+                    this.referer = referer ?: cleanUrl
+                    this.quality = Qualities.Unknown.value
+                },
+            )
         }
     }
 }

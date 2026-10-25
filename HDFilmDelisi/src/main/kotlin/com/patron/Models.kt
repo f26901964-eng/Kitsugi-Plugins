@@ -1,70 +1,53 @@
 package com.patron
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonProperty
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class HDFilmItem(
-    @JsonProperty("baslik")    val baslik: String?,
-    @JsonProperty("slug")      val slug: String?,
-    @JsonProperty("afis")      val afis: String?,
-    @JsonProperty("yayinYili") val yayinYili: Int?,
-    @JsonProperty("imdbPuani") val imdbPuani: Double?
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class CategoryResponse(
-    @JsonProperty("films") val films: List<HDFilmItem>?
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class HDFilmSearchResponse(
-    @JsonProperty("results") val results: List<HDFilmItem>?
-)
-
-data class HdFCResults(
-    val results: List<String> = emptyList()
-)
-
 data class AltyaziAPI(
-    val subtitles: List<TurkceAltyazi>,
-    val cacheMaxAge: Long,
-    val staleRevalidate: Long,
-    val staleError: Long
+    @JsonProperty("subtitles") val subtitles: List<TurkceAltyazi> = emptyList(),
+    @JsonProperty("cacheMaxAge") val cacheMaxAge: Long = 0,
+    @JsonProperty("staleRevalidate") val staleRevalidate: Long = 0,
+    @JsonProperty("staleError") val staleError: Long = 0,
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class TurkceAltyazi(
-    val url: String,
-    val id: String,
-    val lang: String,
-    val episode: String
+    @JsonProperty("url") val url: String = "",
+    @JsonProperty("id") val id: String = "",
+    @JsonProperty("lang") val lang: String = "",
+    @JsonProperty("episode") val episode: String = "",
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class Subtitle(
-    val id: String,
-    val url: String,
-    val subEncoding: String,
-    val lang: String,
-    val m: String,
-    val g: String
+    @JsonProperty("id") val id: String = "",
+    @JsonProperty("url") val url: String = "",
+    @JsonProperty("subEncoding") val subEncoding: String = "",
+    @JsonProperty("lang") val lang: String = "",
+    @JsonProperty("m") val m: String = "",
+    @JsonProperty("g") val g: String = "",
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class SubtitlesAPI(
-    val subtitles: List<Subtitle>,
-    val cacheMaxAge: Long
+    @JsonProperty("subtitles") val subtitles: List<Subtitle> = emptyList(),
+    @JsonProperty("cacheMaxAge") val cacheMaxAge: Long = 0,
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class WyZIESUB(
-    val id: String,
-    val url: String,
-    val flagUrl: String,
-    val format: String,
-    val display: String,
-    val language: String,
-    val media: String,
-    val isHearingImpaired: Boolean
+    @JsonProperty("id") val id: String = "",
+    @JsonProperty("url") val url: String = "",
+    @JsonProperty("flagUrl") val flagUrl: String = "",
+    @JsonProperty("format") val format: String = "",
+    @JsonProperty("display") val display: String = "",
+    @JsonProperty("language") val language: String = "",
+    @JsonProperty("media") val media: String = "",
+    @JsonProperty("isHearingImpaired") val isHearingImpaired: Boolean = false,
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class WyZIEResponse(
-    val subtitles: List<WyZIESUB>? = null
+    @JsonProperty("subtitles") val subtitles: List<WyZIESUB>? = null,
 )

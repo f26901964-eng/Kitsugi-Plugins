@@ -1,21 +1,19 @@
 package com.blackhope01
 
 import android.util.Log
+import com.blackhope01.extractors.FilmEkseniPlayerParser
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.Actor
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
-import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.utils.AppUtils.toJson
-import org.jsoup.nodes.Element
-import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.Locale
+import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
 
@@ -44,7 +42,7 @@ class FilmEkseni : MainAPI() {
         "${mainUrl}/tur/aksiyon-filmleri/" to "Aksiyon",
         "${mainUrl}/tur/gerilim-filmleri/" to "Gerilim",
         "${mainUrl}/tur/komedi-filmleri/" to "Komedi",
-        "${mainUrl}/tur/korku-filmleri/" to "Korku"
+        "${mainUrl}/tur/korku-filmleri/" to "Korku",
     )
 
     // ============================================================
@@ -62,7 +60,6 @@ class FilmEkseni : MainAPI() {
             val offset = (page - 1) * 24
             val (csrfToken, cookies) = getCsrfTokenAndCookies(request.data)
 
-            // Yeni Eklenen Diziler için özel load-more endpoint
             val loadMoreUrl = if (request.data.endsWith("/diziler/")) {
                 "${mainUrl}/diziler/load-more-latest"
             } else {
@@ -79,14 +76,11 @@ class FilmEkseni : MainAPI() {
                 headers = mapOf(
                     "x-csrf-token" to csrfToken,
                     "x-requested-with" to "XMLHttpRequest",
-                    "referer" to request.data
+                    "referer" to request.data,
                 ),
                 cookies = cookies,
-                requestBody = jsonBody
+                requestBody = jsonBody,
             )
-
-            val rawText = response.text
-            Log.d(name, "loadMore raw response: $rawText")
 
             val json = try {
                 response.parsed<LoadMoreResponse>()
@@ -133,7 +127,7 @@ class FilmEkseni : MainAPI() {
     data class LoadMoreResponse(
         val html: String = "",
         val hasMore: Boolean = false,
-        val nextOffset: Int? = null
+        val nextOffset: Int? = null,
     )
 
     // ============================================================
@@ -190,10 +184,7 @@ class FilmEkseni : MainAPI() {
         }
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse> {
-        Log.d(name, "quickSearch basladi - Sorgu: $query")
-        return search(query)
-    }
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     // ============================================================
     // FILM/DIZI DETAY - Parse
@@ -203,10 +194,9 @@ class FilmEkseni : MainAPI() {
 
         val document = app.get(
             url,
-            headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0")
+            headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"),
         ).document
 
-        // ===== BASLIK =====
         val title = document.selectFirst("h1.text-4xl.font-bold")?.text()?.trim()
             ?: document.selectFirst("h1")?.text()?.trim()
             ?: document.selectFirst("meta[property=og:title]")?.attr("content")?.trim()
@@ -215,52 +205,44 @@ class FilmEkseni : MainAPI() {
             return null
         }
 
-        // ===== POSTER (og:image + fallback) =====
         val poster = fixUrlNull(
             document.selectFirst("meta[property=og:image]")?.attr("content")
                 ?: document.selectFirst("div.aspect-\\[2\\/3\\] img")?.attr("src")
-                ?: document.selectFirst("div[class*='aspect'] img[alt]")?.attr("src")
+                ?: document.selectFirst("div[class*='aspect'] img[alt]")?.attr("src"),
         )
 
-        // ===== YIL =====
         val year = document.select("a[href*='/yil/']").mapNotNull {
             it.text().trim().toIntOrNull()
         }.firstOrNull()
         Log.d(name, "load - Yil: $year")
 
-        // ===== OZET =====
         val description = document.selectFirst("div[x-ref='content']")?.text()?.trim()
             ?: document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
 
-        // ===== TURLER (sadece bilgi kutusundakiler) =====
         val tags = document.select("div:containsOwn(Türler:) + div a[href*='/tur/'], div:containsOwn(Türler:) ~ div a[href*='/tur/']")
             .map { it.text().trim() }
             .filter { it.isNotEmpty() }
             .distinct()
 
-        // Fallback: eğer yukarısı boşsa, daha genel ama menüyü hariç tutan seçici
         val finalTags = tags.ifEmpty {
             document.select("section a[href*='/tur/']")
                 .map { it.text().trim() }
-                .filter { it.isNotEmpty() && it.length < 30 } // menü öğeleri genelde kısa değil, ama bu ek güvenlik
+                .filter { it.isNotEmpty() && it.length < 30 }
                 .distinct()
         }
         Log.d(name, "load - Turler: $finalTags")
 
-        // ===== IMDB =====
         val imdbText = document.selectFirst("a[href*='imdb.com']")?.text()?.trim()
         val rating = imdbText?.let {
             Regex("""([0-9]+(?:\.[0-9]+)?)""").find(it)?.groupValues?.get(1)
         }
 
-        // ===== SURE =====
         val duration = document.select("span").map { it.ownText().trim() }
             .firstOrNull { it.matches(Regex("""\d+\s*dk""")) || it.matches(Regex("""\d+\s*dakika""")) }
             ?.replace(Regex("""[^0-9]"""), "")
             ?.toIntOrNull()
         Log.d(name, "load - Sure: $duration")
 
-        // ===== OYUNCULAR =====
         val actorElements = document.select("a[href*='/oyuncu/']")
         Log.d(name, "load - Oyuncu element sayisi: ${actorElements.size}")
 
@@ -280,7 +262,6 @@ class FilmEkseni : MainAPI() {
         }
         Log.d(name, "load - Toplam gecerli oyuncu: ${actors.size}")
 
-        // ===== FRAGMAN =====
         val trailerRaw = document.selectFirst("iframe[src*='youtube.com/embed/']")?.attr("src")
             ?: document.selectFirst("iframe[src*='youtu.be']")?.attr("src")
             ?: ""
@@ -292,7 +273,6 @@ class FilmEkseni : MainAPI() {
         }
         Log.d(name, "load - Fragman URL: $trailer")
 
-        // ===== ONERILER =====
         val recommendations = document.select("a.group\\/poster.block").mapNotNull { item ->
             val recName = item.selectFirst("img")?.attr("alt")?.trim()
                 ?: item.selectFirst("h3")?.text()?.trim()
@@ -313,29 +293,23 @@ class FilmEkseni : MainAPI() {
         Log.d(name, "load tamamlandi - Baslik: $title, Yil: $year, IMDb: $rating, Sure: $duration, Tur: ${if (isSeries) "Dizi" else "Film"}")
 
         return if (isSeries) {
-            // ===== DIZI DETAY =====
             val episodes = mutableListOf<Episode>()
 
-            // Sezon tab'larını bul
             val seasonTabs = document.select("nav[aria-label='Sezonlar'] button, nav button[role='tab']")
 
             if (seasonTabs.isNotEmpty()) {
-                // Her sezon panelini işle
                 seasonTabs.forEach { tab ->
-                    val seasonText = tab.text().trim() // "5. Sezon"
+                    val seasonText = tab.text().trim()
                     val seasonNum = Regex("""(\d+)\.\s*Sezon""").find(seasonText)?.groupValues?.get(1)?.toIntOrNull()
                         ?: Regex("""(\d+)""").find(seasonText)?.value?.toIntOrNull()
 
                     if (seasonNum != null) {
-                        // Bu sezona ait bölüm linklerini bul
-                        // Tablo ve mobil liste yapısındaki tüm bölüm linkleri
                         val episodeLinks = document.select("a[href*='${url.removeSuffix("/")}/sezon-$seasonNum/bolum-']")
 
                         episodeLinks.forEach { epLink ->
                             val epHref = fixUrlNull(epLink.attr("href")) ?: return@forEach
                             val epName = epLink.text().trim()
 
-                            // Bölüm numarasını URL'den çıkar: /bolum-1 -> 1
                             val epNum = Regex("""/bolum-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
 
                             if (epNum != null) {
@@ -344,7 +318,7 @@ class FilmEkseni : MainAPI() {
                                         this.name = epName
                                         this.season = seasonNum
                                         this.episode = epNum
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -352,7 +326,6 @@ class FilmEkseni : MainAPI() {
                 }
             }
 
-            // Eğer yukarıdaki seçici çalışmazsa, tüm bölüm linklerini topla ve sezon/bölümü URL'den çıkar
             if (episodes.isEmpty()) {
                 document.select("a[href*='/sezon-'][href*='/bolum-']").forEach { epLink ->
                     val epHref = fixUrlNull(epLink.attr("href")) ?: return@forEach
@@ -369,7 +342,7 @@ class FilmEkseni : MainAPI() {
                             this.name = epName
                             this.season = seasonNum
                             this.episode = epNum
-                        }
+                        },
                     )
                 }
             }
@@ -386,12 +359,9 @@ class FilmEkseni : MainAPI() {
                 this.duration = duration
                 this.recommendations = recommendations
                 addActors(actors)
-                if (trailer.isNotBlank()) {
-                    addTrailer(trailer)
-                }
+                if (trailer.isNotBlank()) addTrailer(trailer)
             }
         } else {
-            // ===== FILM DETAY =====
             newMovieLoadResponse(title, url, TvType.Movie, url) {
                 this.posterUrl = poster
                 this.year = year
@@ -401,42 +371,58 @@ class FilmEkseni : MainAPI() {
                 this.duration = duration
                 this.recommendations = recommendations
                 addActors(actors)
-                if (trailer.isNotBlank()) {
-                    addTrailer(trailer)
-                }
+                if (trailer.isNotBlank()) addTrailer(trailer)
             }
         }
     }
 
-
-
     // ============================================================
-    // VIDEO/LINK - Embed URL Bulma
+    // VIDEO/LINK - Çok katmanlı oynatıcı çözümü
     // ============================================================
+    private val playerDataPatterns = listOf(
+        Regex("""videoPlayerData\(JSON\.parse\('([^']+)'\)"""),
+        Regex("""videoPlayerData\(JSON\.parse\("([^"]+)"\)"""),
+        Regex("""videoPlayerData\(JSON\.parse\(&quot;(.+?)&quot;\)\)"""),
+    )
+    private val adKeywords = listOf("google", "recaptcha", "doubleclick", "izlegec", "banner", "googlesyndication")
+    private val knownPlayerHosts = Regex(
+        """https?:\\?/\\?/[^\s"'<>]*(?:eksenload|vidmoly|vidmody|filemoon|vidlop|streamtape|dood|luluvdo|sendvid)[^\s"'<>]*""",
+        RegexOption.IGNORE_CASE,
+    )
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
     ): Boolean {
         Log.d(name, "loadLinks basladi - Data: $data")
 
-        val document = app.get(data).document
+        val response = app.get(data)
+        val document = response.document
+        val rawHtml = response.text
+        val attempted = mutableSetOf<String>()
 
-        val videoPlayerDiv = document.selectFirst("div[data-video-player]")
-        val videoDataAttr = videoPlayerDiv?.attr("x-data")
+        // ---- Katman 1: Alpine x-data videoPlayerData JSON bloğu ----
+        val playerDiv = document.selectFirst("div[data-video-player]")
+        val candidateBlobs = buildList {
+            playerDiv?.attr("x-data")?.takeIf { it.isNotBlank() }?.let { add(it) }
+            document.select("script").forEach { script ->
+                val scriptData = script.data()
+                if (scriptData.contains("videoPlayerData")) add(scriptData)
+            }
+        }
 
-        if (videoDataAttr != null) {
-            val jsonMatch = Regex("""videoPlayerData\(JSON\.parse\('([^']+)'\)""").find(videoDataAttr)
+        candidateBlobs.forEach { blob ->
+            val jsonMatch = playerDataPatterns.firstNotNullOfOrNull { pattern -> pattern.find(blob) }
             if (jsonMatch != null) {
                 val jsonStr = jsonMatch.groupValues[1]
                     .replace("\\u0022", "\"")
+                    .replace("&quot;", "\"")
                     .replace("\\\\", "\\")
 
                 try {
                     val videoData = parseJson<VideoPlayerData>(jsonStr)
-
-                    // Dil gruplarini ayri ayri isle
                     val allVideos = mutableListOf<Pair<VideoItem, String>>()
                     videoData.dual?.forEach { allVideos.add(it to "dual") }
                     videoData.tr?.forEach { allVideos.add(it to "tr") }
@@ -447,52 +433,7 @@ class FilmEkseni : MainAPI() {
                     Log.d(name, "loadLinks - Toplam video kaynagi: ${allVideos.size}")
 
                     allVideos.forEach { (video, group) ->
-                        val videoLink = video.link
-                        val videoTemplate = video.template
-                        val videoSlug = video.slug
-                        val serviceName = video.service_name
-
-                        if (videoLink.isNotBlank() && videoTemplate.isNotBlank()) {
-                            try {
-                                val decodedTemplate = String(
-                                    android.util.Base64.decode(videoTemplate, android.util.Base64.DEFAULT),
-                                    Charsets.UTF_8
-                                )
-
-                                val iframeMatch = Regex("""data-src=["']([^"']+)["']""").find(decodedTemplate)
-                                    ?: Regex("""src=["']([^"']+)["']""").find(decodedTemplate)
-
-                                var embedUrl = iframeMatch?.groupValues?.get(1)?.let { src ->
-                                    src.replace("{url}", videoLink)
-                                        .replace("{slug}", videoSlug)
-                                }
-
-                                embedUrl = embedUrl?.let { url ->
-                                    when {
-                                        url.startsWith("//") -> "https:$url"
-                                        url.startsWith("http") -> url
-                                        else -> "https://$url"
-                                    }
-                                }
-
-                                if (!embedUrl.isNullOrBlank()) {
-                                    // Dil tag'i belirle
-                                    val langTag = when {
-                                        video.note?.contains("dublaj", ignoreCase = true) == true -> "#dublaj"
-                                        video.note?.contains("altyazi", ignoreCase = true) == true -> "#altyazi"
-                                        group == "dual" -> "#dublaj"
-                                        group == "eng" || group == "en" -> "#altyazi"
-                                        else -> "#tr"
-                                    }
-                                    val embedUrlWithLang = "$embedUrl$langTag"
-
-                                    Log.d(name, "loadLinks - Embed URL: $embedUrlWithLang (Service: $serviceName, Group: $group)")
-                                    loadExtractor(embedUrlWithLang, data, subtitleCallback, callback)
-                                }
-                            } catch (ex: Exception) {
-                                Log.e(name, "loadLinks template parse hatasi: ${ex.message}")
-                            }
-                        }
+                        resolveVideoItem(video, group, data, attempted, subtitleCallback, callback)
                     }
                 } catch (ex: Exception) {
                     Log.e(name, "loadLinks JSON parse hatasi: ${ex.message}")
@@ -500,24 +441,140 @@ class FilmEkseni : MainAPI() {
             }
         }
 
-        val iframeSrc = document.selectFirst("iframe")?.attr("src")
-        if (iframeSrc != null && videoDataAttr == null) {
-            val altEmbedUrl = when {
-                iframeSrc.startsWith("//") -> "https:$iframeSrc"
-                iframeSrc.startsWith("http") -> iframeSrc
-                else -> fixUrl(iframeSrc)
+        // ---- Katman 2: Sayfadaki tüm iframe'ler ----
+        if (attempted.isEmpty()) {
+            document.select("iframe[src], iframe[data-src]").forEach { frame ->
+                val src = frame.attr("src").ifBlank { frame.attr("data-src") }
+                val absolute = normalizeEmbed(src)
+                if (absolute != null && adKeywords.none { absolute.contains(it, ignoreCase = true) } && attempted.add(absolute)) {
+                    Log.d(name, "loadLinks - iframe yedek: $absolute")
+                    loadExtractor(absolute, data, subtitleCallback, callback)
+                }
             }
-            Log.d(name, "loadLinks - Alternatif Embed URL: $altEmbedUrl")
-            loadExtractor(altEmbedUrl, data, subtitleCallback, callback)
         }
 
-        return true
+        // ---- Katman 3: Ham HTML içinde bilinen oynatıcı adresleri ----
+        if (attempted.isEmpty()) {
+            knownPlayerHosts.findAll(rawHtml)
+                .map { it.value.replace("\\/", "/").replace("\\", "").trim() }
+                .distinct()
+                .forEach { playerUrl ->
+                    if (adKeywords.none { playerUrl.contains(it, ignoreCase = true) } && attempted.add(playerUrl)) {
+                        Log.d(name, "loadLinks - ham HTML oynatıcı: $playerUrl")
+                        loadExtractor(playerUrl, data, subtitleCallback, callback)
+                    }
+                }
+        }
+
+        // ---- Katman 4: Script içinde doğrudan m3u8/mp4 ----
+        if (attempted.isEmpty()) {
+            document.select("script").forEach { script ->
+                FilmEkseniPlayerParser.mediaFiles(script.data()).forEach { mediaUrl ->
+                    if (attempted.add(mediaUrl)) {
+                        val type = if (mediaUrl.contains(".m3u8", ignoreCase = true)) {
+                            ExtractorLinkType.M3U8
+                        } else {
+                            ExtractorLinkType.VIDEO
+                        }
+                        Log.d(name, "loadLinks - doğrudan medya: $mediaUrl")
+                        callback(
+                            newExtractorLink(
+                                source = name,
+                                name = "$name Doğrudan Kaynak",
+                                url = mediaUrl,
+                                type = type,
+                            ) {
+                                this.referer = data
+                                this.quality = Qualities.Unknown.value
+                            },
+                        )
+                    }
+                }
+            }
+        }
+
+        return attempted.isNotEmpty()
     }
+
+    /** Tek bir VideoItem içindeki base64 şablonunu çözer ve uygun oynatıcıya yönlendirir. */
+    private suspend fun resolveVideoItem(
+        video: VideoItem,
+        group: String,
+        pageUrl: String,
+        attempted: MutableSet<String>,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ) {
+        val videoLink = video.link
+        val videoTemplate = video.template
+        val videoSlug = video.slug
+
+        if (videoLink.isBlank() || videoTemplate.isBlank()) return
+
+        try {
+            val decodedTemplate = String(
+                android.util.Base64.decode(videoTemplate, android.util.Base64.DEFAULT),
+                Charsets.UTF_8,
+            )
+
+            val langTag = when {
+                video.note?.contains("dublaj", ignoreCase = true) == true -> "#dublaj"
+                video.note?.contains("altyazi", ignoreCase = true) == true -> "#altyazi"
+                group == "dual" -> "#dublaj"
+                group == "eng" || group == "en" -> "#altyazi"
+                else -> "#tr"
+            }
+
+            // Şablon içinde doğrudan medya dosyası varsa extractor'a gerek yok.
+            FilmEkseniPlayerParser.mediaFiles(decodedTemplate).forEach { directMedia ->
+                if (attempted.add(directMedia)) {
+                    val type = if (directMedia.contains(".m3u8", ignoreCase = true)) {
+                        ExtractorLinkType.M3U8
+                    } else {
+                        ExtractorLinkType.VIDEO
+                    }
+                    callback(
+                        newExtractorLink(
+                            source = video.service_name.ifBlank { name },
+                            name = "${video.service_name.ifBlank { name }} (${langTag.removePrefix("#")})",
+                            url = directMedia,
+                            type = type,
+                        ) {
+                            this.referer = pageUrl
+                            this.quality = Qualities.Unknown.value
+                        },
+                    )
+                }
+            }
+
+            FilmEkseniPlayerParser.iframeSources(decodedTemplate).forEach { rawSrc ->
+                val embedUrl = rawSrc.replace("{url}", videoLink).replace("{slug}", videoSlug)
+                val normalized = normalizeEmbed(embedUrl) ?: return@forEach
+                val tagged = "$normalized$langTag"
+                if (attempted.add(normalized)) {
+                    Log.d(name, "loadLinks - Embed: $tagged (Service: ${video.service_name}, Grup: $group)")
+                    loadExtractor(tagged, pageUrl, subtitleCallback, callback)
+                }
+            }
+        } catch (ex: Exception) {
+            Log.e(name, "loadLinks template parse hatasi: ${ex.message}")
+        }
+    }
+
+    private fun normalizeEmbed(src: String): String? {
+        val trimmed = src.trim().ifBlank { return null }
+        return when {
+            trimmed.startsWith("//") -> "https:$trimmed"
+            trimmed.startsWith("http") -> trimmed
+            else -> "https://$trimmed"
+        }
+    }
+
     // ============================================================
     // DATA CLASSES
     // ============================================================
     data class SearchApiResponse(
-        val data: List<SearchResultItem> = emptyList()
+        val data: List<SearchResultItem> = emptyList(),
     )
 
     data class SearchResultItem(
@@ -527,7 +584,7 @@ class FilmEkseni : MainAPI() {
         val posterUrl: String = "",
         val releaseYear: String = "",
         val imdbRating: Double = 0.0,
-        val contentableType: String = ""
+        val contentableType: String = "",
     )
 
     data class VideoPlayerData(
@@ -535,7 +592,7 @@ class FilmEkseni : MainAPI() {
         val tr: List<VideoItem>? = null,
         val eng: List<VideoItem>? = null,
         val en: List<VideoItem>? = null,
-        val yerli: List<VideoItem>? = null
+        val yerli: List<VideoItem>? = null,
     )
 
     data class VideoItem(
@@ -545,6 +602,6 @@ class FilmEkseni : MainAPI() {
         val quality: String = "",
         val note: String? = null,
         val template: String = "",
-        val slug: String = ""
+        val slug: String = "",
     )
 }

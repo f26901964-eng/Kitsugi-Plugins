@@ -1497,7 +1497,7 @@
     {
         "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/FilmEkseni.cs3",
         "status": 1,
-        "version": 51,
+        "version": 52,
         "name": "FilmEkseni",
         "internalName": "FilmEkseni",
         "authors": [
@@ -1578,7 +1578,7 @@
     {
         "url": "https://raw.githubusercontent.com/f26901964-eng/Kitsugi-Plugins/builds/HDFilmDelisi.cs3",
         "status": 1,
-        "version": 19,
+        "version": 20,
         "name": "HDFilmDelisi",
         "internalName": "HDFilmDelisi",
         "authors": [
