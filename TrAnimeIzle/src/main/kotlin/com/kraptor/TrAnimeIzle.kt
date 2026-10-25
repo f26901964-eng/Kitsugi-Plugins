@@ -88,6 +88,22 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    ErrorLoadingException mesajı olarak gösterilir (KTS-CSP-9103 yerine).
  *  - loadLinks bölüm sayfası da içerik garantili (webViewFallback=true).
  *  - (v21.1: derleyici tetikleyici dokunuş — kod değişikliği yok.)
+ *
+ * v22 (KANIT MODU — cihazdaki gerçek HTML'in ekranda görünmesi):
+ *  - Araştırma (20.07.2026 + 22.09.2026 arşivleri, site.js TAMI birebir aynı;
+ *    videoSource.css: #videoPlayer > iframe; altyazı/kalite API'si YOK):
+ *    kaynak zinciri = bölüm sayfası (data-fid öğeleri) →
+ *    POST /api/fansubSources {EpisodeId,FansubId} → HTML #sourceList
+ *    (li.sourceBtn: data-id/data-eid/p.title = KALİTE/FANSUB adı) →
+ *    POST /api/sourcePlayer/{id} → {source: HTML} → #videoPlayer > iframe.
+ *  - KANIT MODU: kaynak boşsa hata mesajı artık AŞAMALI GERÇEK HTML içerir:
+ *    KANIT[1] sayfa + fansub bölgesi parçası, KANIT[2] fansubSources
+ *    cevabı parçası, KANIT[3] sourcePlayer cevabı parçası, KANIT[4]
+ *    iframe/direct/embed adresleri → cihaz ekran görüntüsüyle sorun
+ *    SONUNA KADAR teşhis edilir.
+ *  - Kalite: kaynak adı 1080p/720p/4K/HD içeriyorsa ExtractorLink.quality.
+ *  - Altyazı: source HTML + iframe sayfasındaki <track> ve .vtt/.srt
+ *    adresleri subtitleCallback ile eklenir (varsa).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -796,6 +812,7 @@ class TrAnimeIzle(
     ): Boolean {
         if (!TrAnimeIzleHelper.isAllowedVersion) return false
         val errors = mutableListOf<String>()
+        val evidence = mutableListOf<String>()
         return try {
             val result = coroutineScope {
                 Log.d(LOG_TAG, "data = $data")
@@ -805,7 +822,7 @@ class TrAnimeIzle(
 
                 // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
                 // `animeWatch.initialize(animeId, episodeId, fansubId, ...)` script
-                // çağrısında taşır; input#EpisodeId yoksa buradan çıkılır.
+                // çağrısında taşır; input#EpisodeId yoksa buradan çıkilir.
                 val episodeId = document.selectFirst("input#EpisodeId")?.attr("value")?.toIntOrNull()
                     ?: Regex("animeWatch\\.initialize\\(\\s*(\\d+)\\s*,\\s*(\\d+)")
                         .find(html)?.groupValues?.getOrNull(2)?.toIntOrNull()
@@ -814,6 +831,7 @@ class TrAnimeIzle(
                     errors += "bölüm ID'si bulunamadı (EpisodeId/animeWatch)"
                 }
                 val found = AtomicBoolean(false)
+                val subsFound = AtomicBoolean(false)
 
                 // v21 (site.js 22.09.2026): .fansubSelector öğeleri data-fid /
                 // data-fad / data-furl taşır ve tıklanabilir; yapı değişse bile
@@ -822,20 +840,36 @@ class TrAnimeIzle(
                     .select("li.fansubSelector, div.fansubSelector, a.fansubSelector")
                     .ifEmpty { document.select("[data-fid]") }
                 Log.d(LOG_TAG, "fansub öğesi sayısı: ${fansubItems.size}")
+                // v22 KANIT[1]: sayfanın GERÇEK HTML'inden fansub bölgesi.
+                evidence += "KANIT[1] SAYFA ${html.length / 1000}k | fansub öğesi: ${fansubItems.size} | " +
+                    htmlSnippet(html, "data-fid", 150, 420)
                 if (fansubItems.isEmpty()) {
                     Log.e(LOG_TAG, "fansub öğesi yok — sayfa ${html.length} karakter, başı:\n" + html.take(800))
-                    errors += "sayfada fansub listesi yok (sayfa ${html.length} karakter)"
+                    errors += "sayfada fansub listesi yok (sayfa ${html.length / 1000}k)"
                 }
                 coroutineScope {
-                    fansubItems.map { li ->
-                        async { loadFansubSources(li, episodeId, found, errors, subtitleCallback, callback) }
+                    fansubItems.mapIndexed { i, li ->
+                        async {
+                            loadFansubSources(
+                                li, i, episodeId, found, errors, evidence, subsFound,
+                                subtitleCallback, callback
+                            )
+                        }
                     }.awaitAll()
                 }
                 found.get()
             }
-            // v21: hata EKRANDA görünür (Kitsugi mesajı kaynak panelinde gösterir).
-            if (!result && errors.isNotEmpty()) {
-                throw ErrorLoadingException(errors.distinct().take(3).joinToString(" | "))
+            // v22: hata + KANIT bloğu EKRANDA görünür (Kitsugi mesajı gösterir).
+            if (!result && (errors.isNotEmpty() || evidence.isNotEmpty())) {
+                val msg = buildString {
+                    if (errors.isNotEmpty()) append(errors.distinct().take(3).joinToString(" | "))
+                    if (evidence.isNotEmpty()) {
+                        if (isNotEmpty()) append("\n")
+                        append(evidence.take(5).joinToString("\n"))
+                    }
+                }
+                Log.e(LOG_TAG, "loadLinks KANIT raporu:\n$msg")
+                throw ErrorLoadingException(msg)
             }
             result
         } catch (e: ErrorLoadingException) {
@@ -846,11 +880,25 @@ class TrAnimeIzle(
         }
     }
 
+    /**
+     * v22: HTML içinde [anchor] özniteliği çevresındaki kısa parçayı döndürür
+     * (ekran üstü kanıt mesajları için; anchor yoksa sayfanın başı).
+     */
+    private fun htmlSnippet(html: String, anchor: String, before: Int, after: Int): String {
+        val idx = html.indexOf(anchor, ignoreCase = true)
+        val raw = if (idx < 0) html.take(before + after)
+        else html.substring(maxOf(0, idx - before), minOf(html.length, idx + after))
+        return raw.replace(Regex("\\s+"), " ").take(560)
+    }
+
     private suspend fun loadFansubSources(
         li: Element,
+        index: Int,
         episodeId: Int?,
         found: AtomicBoolean,
         errors: MutableList<String>,
+        evidence: MutableList<String>,
+        subsFound: AtomicBoolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
@@ -873,14 +921,25 @@ class TrAnimeIzle(
             // v21: toleranslı — li.sourceBtn yoksa data-id'li öğe aranır.
             val sourceButtons = response.document.select("li.sourceBtn, a.sourceBtn")
                 .ifEmpty { response.document.select("[data-id]") }
-            Log.d(tag, "fansubSources(fid=$fansubId, ep=$episodeId) → ${if (response.isSuccessful) "ok" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak")
+            val bodyText = response.text ?: ""
+            Log.d(tag, "fansubSources(fid=$fansubId, ep=$episodeId) → ${if (response.isSuccessful) "ok" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak, ${bodyText.length / 1000}k")
+            // v22 KANIT[2]: İLK fansubun cevabı (mesaj büyüsün diye tek).
+            if (index == 0) {
+                evidence += "KANIT[2] fansubSources(fid=$fansubId, ep=$episodeId) ok=${response.isSuccessful} ${bodyText.length / 1000}k | " +
+                    bodyText.replace(Regex("\\s+"), " ").take(420)
+            }
             if (sourceButtons.isEmpty()) {
-                Log.e(tag, "sourceBtn yok — cevap başı:\n" + (response.text ?: "").take(600))
+                Log.e(tag, "sourceBtn yok — cevap başı:\n" + bodyText.take(600))
                 errors += "fansub '$fansubLabel': kaynak listesi ${if (response.isSuccessful) "boş" else "alınamadı (HTTP)"}"
             }
             coroutineScope {
-                sourceButtons.map { btn ->
-                    async { loadSingleSource(btn, episodeId, found, errors, subtitleCallback, callback) }
+                sourceButtons.mapIndexed { j, btn ->
+                    async {
+                        loadSingleSource(
+                            btn, j, episodeId, found, errors, evidence, subsFound,
+                            subtitleCallback, callback
+                        )
+                    }
                 }.awaitAll()
             }
         } catch (e: Exception) {
@@ -891,9 +950,12 @@ class TrAnimeIzle(
 
     private suspend fun loadSingleSource(
         btn: Element,
+        index: Int,
         episodeId: Int?,
         found: AtomicBoolean,
         errors: MutableList<String>,
+        evidence: MutableList<String>,
+        subsFound: AtomicBoolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
@@ -901,6 +963,10 @@ class TrAnimeIzle(
         val eid = btn.attr("data-eid").ifBlank { episodeId?.toString() ?: "" }
         val sourceName = btn.selectFirst("p.title")?.text()?.trim()
             ?: btn.text().trim().ifBlank { "Kaynak ${sourceId.ifBlank { "?" }}" }
+        // v22: KALİTE — her kaynak (sourceBtn) ayrı bir ExtractorLink olarak
+        // sunulur; kaynak adı (p.title: 1080p/720p/fansub adı) arayüzde kalite
+        // seçimi görevi görür (site bu zinciri böyle sunuyor; ayrı kalite API yok).
+        Log.d(LOG_TAG, "Kaynak adı (kalite/fansub): $sourceName")
         try {
             Log.d(LOG_TAG, "Video: $sourceName | ID: $sourceId | EID: $eid")
             // v17 (site.js kanıtı, 22.09.2026): site kendi JS'inde TEK PARAMETRELİ
@@ -928,7 +994,13 @@ class TrAnimeIzle(
                 null
             }
             if (videoApi == null) {
-                Log.e(LOG_TAG, "sourcePlayer JSON parse hatası: ${(primary.text ?: "").take(500)}")
+                val raw = primary.text ?: ""
+                Log.e(LOG_TAG, "sourcePlayer JSON parse hatası: ${raw.take(500)}")
+                // v22 KANIT[3a]: cevabın GERÇEK başı ekrana düşsün.
+                if (index == 0) {
+                    evidence += "KANIT[3] sourcePlayer(id=$sourceId) ok=${primary.isSuccessful} | cevab başı: " +
+                        raw.replace(Regex("\\s+"), " ").take(380)
+                }
                 errors += "'$sourceName': sourcePlayer yanıtı boş/parse edilemedi"
                 return
             }
@@ -938,6 +1010,15 @@ class TrAnimeIzle(
             val iframe = Jsoup.parse(sourceHtml).selectFirst("iframe")?.attr("src")?.ifBlank { null }
             val directUrl = directVideoUrlFromHtml(sourceHtml, mainUrl + "/")
             Log.d(LOG_TAG, "iframe = $iframe | direct = $directUrl")
+            // v22 KANIT[3b]: source HTML'inin GERÇEK başı.
+            if (index == 0) {
+                evidence += "KANIT[3] sourcePlayer(id=$sourceId) ok | source: ${sourceHtml.length / 1000}k | " +
+                    sourceHtml.replace(Regex("\\s+"), " ").take(420)
+            }
+            // v22: altyazılar — source HTML'indeki <track> / .vtt / .srt.
+            if (index == 0) {
+                subsFound.set(extractSubtitles(sourceHtml, mainUrl + "/", subtitleCallback))
+            }
             if (iframe == null && directUrl == null) {
                 Log.e(LOG_TAG, "ne iframe ne düz video — source HTML başı:\n" + sourceHtml.take(800))
                 errors += "'$sourceName': oynatıcı HTML'inde iframe/video yok"
@@ -966,9 +1047,15 @@ class TrAnimeIzle(
                     }
                 }
                 // 3) v21: extractor eşleşmediyse iframe sayfası doğrudan çekilir
-                //    ve içindeki düz video adresi aranır (host agnostik yedek).
+                //    ve içindeki düz video aranır (host agnostik yedek).
                 if (!ok) {
-                    val genUrl = fetchEmbedVideoUrl(iframe, sourceName)
+                    val (genUrl, embedHead) = fetchEmbedVideoUrl(iframe, sourceName)
+                    if (index == 0) {
+                        evidence += "KANIT[4] iframe=${iframe} | direct=${directUrl ?: "YOK"} | embed=${if (genUrl != null) "video: $genUrl" else "video YOK"}"
+                        if (!subsFound.get() && embedHead.isNotEmpty()) {
+                            subsFound.set(extractSubtitles(embedHead, iframe, subtitleCallback))
+                        }
+                    }
                     if (genUrl != null) {
                         callback(
                             newExtractorLink(source = sourceName, name = sourceName, url = genUrl, type = INFER_TYPE) {
@@ -992,6 +1079,48 @@ class TrAnimeIzle(
         }
     }
 
+    /**
+     * v22: HTML içindeki altyazı adreslerini ekler (varsa).
+     *  - <track kind="subtitles|captions" src="..." [srclang=...] [label=...]>
+     *  - metin/JS içindeki .vtt / .srt adresleri
+     * @return en az bir altyazı eklendi mi.
+     */
+    private fun extractSubtitles(
+        html: String,
+        base: String,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ): Boolean {
+        var added = false
+        try {
+            val doc = Jsoup.parse(html, base)
+            doc.select("track[src]").forEach { t ->
+                val kind = t.attr("kind").ifBlank { "subtitles" }
+                if (!kind.equals("subtitles", true) && !kind.equals("captions", true)) return@forEach
+                val url = t.attr("abs:src")
+                if (!url.startsWith("http")) return@forEach
+                val lang = t.attr("srclang").ifBlank { t.attr("lang") }
+                val label = t.attr("label").ifBlank { lang.ifBlank { "Altyazı" } }
+                subtitleCallback(SubtitleFile(lang.ifBlank { label }, url))
+                added = true
+                Log.d(LOG_TAG, "Altyazı (track): $label → $url")
+            }
+        } catch (e: Exception) {
+            Log.w(LOG_TAG, "track altyazı çözümü hatası: ${e.message}")
+        }
+        if (!added) {
+            Regex("""["'](https?://[^"']+?\.(?:vtt|srt))[^"']*["']""", RegexOption.IGNORE_CASE)
+                .findAll(html)
+                .map { it.groupValues[1] }
+                .distinct()
+                .take(3)
+                .forEach { url ->
+                    subtitleCallback(SubtitleFile("Altyazı", url))
+                    added = true
+                    Log.d(LOG_TAG, "Altyazı (url): $url")
+                }
+        }
+        return added
+    }
     /**
      * v21: HTML içindeki DOĞRUDAN video URL'sini bulur.
      * Sırasıyla: <video src> / <source src> (göreli adres [base] ile çözülür)
@@ -1023,8 +1152,9 @@ class TrAnimeIzle(
     /**
      * v21: kayıtlı extractor'ın çözemediği iframe sayfasını DOĞRUDAN çekip
      * içindeki düz video URL'sini arar (host agnostik yedek).
+     * v22: (videoUrl, sayfaBaşı600) döndürür — kanıt mesajı + altyazı için.
      */
-    private suspend fun fetchEmbedVideoUrl(iframeUrl: String, sourceName: String): String? {
+    private suspend fun fetchEmbedVideoUrl(iframeUrl: String, sourceName: String): Pair<String?, String> {
         return try {
             val resp = app.get(
                 iframeUrl,
@@ -1036,17 +1166,17 @@ class TrAnimeIzle(
             )
             if (!resp.isSuccessful) {
                 Log.e(LOG_TAG, "embed sayfası alınamadı ($sourceName): $iframeUrl")
-                return null
+                return null to ""
             }
-            val text = resp.text ?: return null
+            val text = resp.text ?: return null to ""
             Log.d(LOG_TAG, "embed sayfası çekildi (${text.length} karakter): $iframeUrl")
-            directVideoUrlFromHtml(text, iframeUrl)
+            val url = directVideoUrlFromHtml(text, iframeUrl)
+            url to text.replace(Regex("\\s+"), " ").take(600)
         } catch (e: Exception) {
             Log.e(LOG_TAG, "embed sayfası çekme hatası: ${e.message}")
-            null
+            null to ""
         }
     }
-
     companion object {
         private const val LOG_TAG = "kraptor_TrAnime"
         private const val LUFFY_PREFIX = "luffytra2.top/embed2/?id="
