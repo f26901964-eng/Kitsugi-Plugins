@@ -1,133 +1,135 @@
 package com.nikyokki
 
 import android.util.Base64
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.KotlinModule
-import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
-import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
-import com.lagradost.cloudstream3.utils.fixUrl
+import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.newExtractorLink
-
 
 open class VidRameExtractor : ExtractorApi() {
     override val name = "VidRame"
     override val mainUrl = "https://vidrame.pro"
     override val requiresReferer = true
 
-    private fun rs(s: String): String {
-        return s.reversed()
+    private val userAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0"
+    private val encodedFileCall = Regex(
+        """EE\.dd\s*\(\s*["']([^"']+)["']\s*\)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private fun rot13(value: String): String = value.map { character ->
+        when (character) {
+            in 'a'..'m' -> (character.code + 13).toChar()
+            in 'n'..'z' -> (character.code - 13).toChar()
+            in 'A'..'M' -> (character.code + 13).toChar()
+            in 'N'..'Z' -> (character.code - 13).toChar()
+            else -> character
+        }
+    }.joinToString("")
+
+    /** Decodes the observed reverse(ROT13(Base64URL(url))) `EE.dd(...)` value. */
+    private fun decodeSourceFile(file: String): String? {
+        val encoded = encodedFileCall.find(file)?.groupValues?.get(1)
+        if (encoded == null) {
+            val backslash = 92.toChar().toString()
+            val raw = file.trim()
+                .replace(backslash + "/", "/")
+                .replace(backslash + "u0026", "&", ignoreCase = true)
+            if (raw.contains("EE.dd", ignoreCase = true)) return null
+            return raw.takeIf {
+                it.startsWith("https://", ignoreCase = true) ||
+                    it.startsWith("http://", ignoreCase = true) ||
+                    it.startsWith("//") || it.startsWith("/")
+            }
+        }
+
+        val base64 = encoded
+            .replace("-", "+")
+            .replace("_", "/")
+            .let { value -> value + "=".repeat((4 - value.length % 4) % 4) }
+
+        return runCatching {
+            val obfuscatedUrl = String(Base64.decode(base64, Base64.DEFAULT), Charsets.UTF_8)
+            rot13(obfuscatedUrl).reversed()
+        }.getOrNull()
     }
 
-    private fun rr(s: String): String {
-        return s.replace(Regex("[a-zA-Z]")) { matchResult ->
-            val c = matchResult.value[0]
-            val charCode = c.code
-            val base = if (c <= 'Z') 90 else 122
-            val newCharCode = charCode + 13
-            val resultCharCode = if (base >= newCharCode) newCharCode else newCharCode - 26
-            resultCharCode.toChar().toString()
+    private fun sourceType(type: String, url: String): ExtractorLinkType {
+        val normalizedType = type.lowercase()
+        val path = url.substringBefore('?').substringBefore('#')
+        return when {
+            normalizedType.contains("dash") || path.endsWith(".mpd", ignoreCase = true) ->
+                ExtractorLinkType.DASH
+            normalizedType.contains("mp4") || path.endsWith(".mp4", ignoreCase = true) ->
+                ExtractorLinkType.VIDEO
+            else -> ExtractorLinkType.M3U8
         }
     }
-
-    private fun ee(s: String): String {
-        val r = rs(s)
-        val a = rr(r)
-        val b = Base64.encodeToString(a.toByteArray(), Base64.DEFAULT)
-        return b.replace("+", "-").replace("/", "_").replace("=+$".toRegex(), "")
-    }
-
-    private fun String.addMarks(str: String): String {
-        return this.replace(Regex("\"?$str\"?"), "\"$str\"")
-    }
-
 
     override suspend fun getUrl(
         url: String,
         referer: String?,
         subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
     ) {
-        Log.d("VidEx", url)
         val document = app.get(
             url,
-            headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0",
+            headers = mapOf(
+                "User-Agent" to userAgent,
                 "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language" to "en-US,en;q=0.5"),
-            referer = referer
+                "Accept-Language" to "en-US,en;q=0.5",
+            ),
+            referer = referer,
         ).document
-        Log.d("VidEx", "Document: $document")
 
-        val script = document.select("script").find { it.data().contains("sources:") }?.data() ?: ""
-        Log.d("VidEx", "Script: $script")
+        val scripts = document.select("script")
+            .map { it.data() }
+            .filter { it.isNotBlank() }
+        val sources = scripts.flatMap { VidRamePlayerParser.videoSources(it) }
+            .distinctBy { it.file }
+        val subtitles = scripts.flatMap { VidRamePlayerParser.subtitleTracks(it) }
+            .distinctBy { it.file }
 
-
-        val regex = """("file": )EE\.dd\(".*?"\)""".toRegex()
-        val videoData = script.substringAfter("sources: [")
-            .substringBefore("],").addMarks("file").addMarks("type")
-        Log.d("VidEx", videoData)
-        var output = videoData.replace(regex) { matchResult ->
-            "${matchResult.groupValues[1]}\"${matchResult.value.substringAfter(matchResult.groupValues[1])}\""
+        subtitles.forEach { track ->
+            val subtitleUrl = VidRamePlayerParser.resolveUrl(track.file, url) ?: return@forEach
+            val label = track.label.takeIf { it.isNotBlank() }
+                ?: track.language.takeIf { it.isNotBlank() }
+                ?: "Altyazı"
+            subtitleCallback.invoke(SubtitleFile(label, subtitleUrl))
         }
-        output = output.addMarks("type").replace("\r", "").replace("\n", "")
-            .replace("(\"", "(").replace("\")", ")")
-        val subData =
-            script.substringAfter("configs.tracks = ").substringBefore(";").addMarks("file")
-                .addMarks("label").addMarks("kind")
-        val objectMapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
-        val captions: List<SubSource>? = subData.let { objectMapper.readValue(it) }
-        if (captions != null) {
-            tryParseJson<List<SubSource>>(subData)
-                ?.filter { it.kind == "captions" }?.map {
-                    subtitleCallback.invoke(
-                        SubtitleFile(
-                            it.label.toString(),
-                            fixUrl(it.file.toString())
-                        )
-                    )
-                }
+
+        if (sources.isEmpty()) {
+            Log.d("VidEx", "No VidRame video source entries found")
+            return
         }
-        tryParseJson<Source>(output)?.file?.let { m3uLink ->
-            var video = m3uLink?.substringAfter(".dd(")?.substringBefore(")")
-            video = video?.replace("-", "+")?.replace("_", "/")
-            while (video!!.length % 4 != 0) {
-                video += "="
-            }
-            val a = String(Base64.decode(video, Base64.DEFAULT))
-            val b = rr(a)
-            val sonm3uLink = rs(b)
-            Log.d("VidEx", "SonM3u : $sonm3uLink")
+
+        sources.forEach { source ->
+            val decodedFile = decodeSourceFile(source.file) ?: return@forEach
+            val videoUrl = VidRamePlayerParser.resolveUrl(decodedFile, url) ?: return@forEach
+            val quality = source.label.takeIf { it.isNotBlank() }
+                ?.let { getQualityFromName(it) }
+                ?: Qualities.Unknown.value
+            val linkName = source.label.takeIf { it.isNotBlank() }
+                ?.let { "$name - $it" }
+                ?: name
+
             callback.invoke(
                 newExtractorLink(
-                    source = this.name,
-                    name = this.name,
-                    url = sonm3uLink,
-                    ExtractorLinkType.M3U8
+                    source = name,
+                    name = linkName,
+                    url = videoUrl,
+                    type = sourceType(source.type, videoUrl),
                 ) {
                     this.referer = "$mainUrl/"
-                    this.quality = Qualities.Unknown.value
-                }
+                    this.quality = quality
+                },
             )
         }
     }
 }
-
-
-private data class Source(
-    @JsonProperty("file") val file: String? = null,
-    @JsonProperty("type") val type: String? = null,
-)
-
-private data class SubSource(
-    @JsonProperty("file") val file: String? = null,
-    @JsonProperty("label") val label: String? = null,
-    @JsonProperty("kind") val kind: String? = null,
-    @JsonProperty("language") val language: String? = null,
-)

@@ -223,12 +223,6 @@ class HDFilmIzle : MainAPI() {
         return emittedLinks > 0
     }
 
-    private data class SubSource(
-        @JsonProperty("file") val file: String? = null,
-        @JsonProperty("label") val label: String? = null,
-        @JsonProperty("kind") val kind: String? = null
-    )
-
     data class Results(
         @JsonProperty("results") val results: List<String> = arrayListOf()
     )
