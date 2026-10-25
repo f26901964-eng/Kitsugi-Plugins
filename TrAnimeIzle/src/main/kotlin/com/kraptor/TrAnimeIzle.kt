@@ -306,11 +306,13 @@ class TrAnimeIzle(
      * Ana sayfa/liste/arama sayfasında oturum GEÇERLİYSE bu sayfa > 0'dır
      * (ana sayfa arşivi 22.09.2026: kartlar garantili).
      */
-    private fun izleCount(html: String?): Int = try {
+    private fun izleCount(html: String?): Int {
         if (html.isNullOrBlank()) return 0
-        Jsoup.parse(html).select("a[href*='bolum-izle'], a[href*='anime-izle']").size
-    } catch (_: Exception) {
-        0
+        return try {
+            Jsoup.parse(html).select("a[href*='bolum-izle'], a[href*='anime-izle']").size
+        } catch (_: Exception) {
+            0
+        }
     }
 
     private var sessionValidated = false

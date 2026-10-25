@@ -490,7 +490,7 @@ object BotKontrolKt {
         webView: WebView,
         statusView: TextView,
         guard: ResumeGuard,
-        cont: CancellableContinuation<String>,
+        cont: CancellableContinuation<WebFetchResult>,
         url: String,
         host: String,
         prefs: SharedPreferences
