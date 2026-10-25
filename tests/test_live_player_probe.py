@@ -41,6 +41,14 @@ class LivePlayerProbeTests(unittest.TestCase):
         self.assertIsNone(live_player_probe.plain_https_target("<html>challenge</html>"))
         self.assertIsNone(live_player_probe.plain_https_target("https://user:password@cdn.example/video.m3u8"))
 
+    def test_cloudflare_block_marker_is_not_confused_with_ordinary_html(self):
+        self.assertTrue(
+            live_player_probe.is_cloudflare_block(
+                "Attention Required! This website uses Cloudflare. Ray ID: abc"
+            )
+        )
+        self.assertFalse(live_player_probe.is_cloudflare_block("<html><title>Not found</title></html>"))
+
     def test_report_redacts_query_strings_and_embed_identifiers(self):
         value = live_player_probe.safe_url(
             "https://dbx.molystream.org/embed/sheila/9d6d2384e2cd4b6a?token=private-value"

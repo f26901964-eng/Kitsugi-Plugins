@@ -25,6 +25,10 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
+VIDRAME_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) "
+    "Gecko/20100101 Firefox/136.0"
+)
 MAX_PAGE_BYTES = 2 * 1024 * 1024
 MAX_STREAM_BYTES = 128 * 1024
 MAX_CHAIN_REQUESTS = 12
@@ -98,7 +102,7 @@ def safe_url(url: str) -> str:
             path = match.group(0) if match else "/player/<path>"
         else:
             path = re.sub(r"(?<=/)[0-9a-f]{16,}(?=/|$)", "<id>", path, flags=re.I)
-            path = re.sub(r"(?<=/)[a-z0-9_-]{28,}(?=/|$)", "<id>", path, flags=re.I)
+            path = re.sub(r"(?<=/)[a-z0-9]{28,}(?=/|$)", "<id>", path, flags=re.I)
         return host + path
     except Exception:
         return "<invalid-url>"
@@ -115,14 +119,17 @@ def allowed_host(url: str, domains: Iterable[str]) -> bool:
 
 
 def request_page(url: str, referer: str = "", *, dizibox_cookies: bool = False,
-                 max_bytes: int = MAX_PAGE_BYTES) -> FetchResult:
+                 max_bytes: int = MAX_PAGE_BYTES, user_agent: str = USER_AGENT,
+                 extra_headers: dict[str, str] | None = None) -> FetchResult:
     headers = {
-        "User-Agent": USER_AGENT,
+        "User-Agent": user_agent,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
     }
     if referer:
         headers["Referer"] = referer
+    if extra_headers:
+        headers.update(extra_headers)
 
     # Attach the site's legacy cookies only to DiziBox requests. The jar scopes
     # them to that domain and does not forward them to MolyStream/CDN hosts.
@@ -319,12 +326,21 @@ def fetch_stream(url: str, referer: str) -> tuple[bool, str]:
     return False, f"HTTP {result.status}; {signature}"
 
 
+def is_cloudflare_block(text: str) -> bool:
+    body = text.lower()
+    return "cloudflare" in body and any(
+        marker in body for marker in ("attention required", "security service", "you have been blocked", "ray id")
+    )
+
+
 def fetch_description(result: FetchResult) -> str:
     if result.error and result.status == 0:
         return f"network error ({result.error})"
     details = f"HTTP {result.status}; {len(result.text.encode('utf-8'))} bytes"
     if result.content_type:
         details += f"; {result.content_type.split(';', 1)[0]}"
+    if is_cloudflare_block(result.text):
+        details += "; Cloudflare security block"
     if result.error == "truncated":
         details += "; body truncated at probe limit"
     return details
@@ -337,7 +353,28 @@ def parse_and_probe_player(url: str, referer: str, *, site: str,
     visited.add(url)
     response = request_page(url, referer, dizibox_cookies=(site == "DiziBox"))
     lines.append(f"- Player `{safe_url(response.url)}`: {fetch_description(response)}")
+
+    if site == "HDFilmIzle" and response.status == 403:
+        variants = [
+            ("same headers as the registered VidRame extractor", VIDRAME_USER_AGENT, {}),
+            ("VidRame headers plus HDFilmIzle Origin", VIDRAME_USER_AGENT,
+             {"Origin": "https://www.hdfilmizle.to"}),
+            ("Chrome headers plus HDFilmIzle Origin", USER_AGENT,
+             {"Origin": "https://www.hdfilmizle.to"}),
+        ]
+        for label, user_agent, extra_headers in variants:
+            alternate = request_page(
+                url, referer, user_agent=user_agent, extra_headers=extra_headers,
+            )
+            lines.append(f"  - Header retry ({label}): {fetch_description(alternate)}.")
+            if alternate.ok:
+                response = alternate
+                break
+
     if not response.ok:
+        return False
+    if is_cloudflare_block(response.text):
+        lines.append("  - Cloudflare WAF response: no player configuration was available to parse.")
         return False
     if hls_manifest(response.text):
         lines.append(f"  - **Playable HLS manifest verified** (#EXTM3U; Referer is the parent page).")

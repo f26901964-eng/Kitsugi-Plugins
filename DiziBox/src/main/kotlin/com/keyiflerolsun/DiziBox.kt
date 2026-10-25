@@ -228,7 +228,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
         }.getOrDefault(html)
     }
 
-    private fun emitHlsLink(
+    private suspend fun emitHlsLink(
         url: String,
         referer: String,
         linkName: String = name,
