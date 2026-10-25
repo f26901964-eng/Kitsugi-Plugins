@@ -63,15 +63,25 @@ jobs:
           echo "CAPTURE-TAMAM" >> "$GITHUB_STEP_SUMMARY"
       - name: Commit back
         run: |
-          { echo "## commit-back"; ls -la research/anizm-capture 2>/dev/null | head -30; echo "git status:"; git status --short | head -20; } >> "$GITHUB_STEP_SUMMARY"
+          DBG=research/anizm-capture/DEBUG.txt
+          mkdir -p research/anizm-capture
+          {
+            echo "PWD: $(pwd)"
+            echo "RUNNER: $(uname -a)"
+            echo "DATE: $(date -u)"
+            echo "--- ls research/anizm-capture ---"
+            ls -la research/anizm-capture 2>&1 | head -40
+            echo "--- git status ---"
+            git status --short 2>&1 | head -30
+            echo "--- git log -1 ---"
+            git log -1 --oneline 2>&1
+            echo "--- network testi ---"
+            curl -s -o /dev/null -w "puffytr HTTP %{http_code} (%{time_total}s) ip=%{remote_ip}\n" --max-time 30 -A "Mozilla/5.0" https://puffytr.com/ 2>&1 || echo "curl FAIL $?"
+          } > "$DBG"
           git config user.name "arena-fetch"
           git config user.email "arena-fetch@users.noreply.github.com"
-          git add research/anizm-capture 2>>"$GITHUB_STEP_SUMMARY" || true
-          if git diff --cached --quiet; then
-            echo "STAGED-DEGISIKLIK-YOK" >> "$GITHUB_STEP_SUMMARY"
-          else
-            git commit -m "anizm site capture $(date -u +%F)" || echo "COMMIT-HATA" >> "$GITHUB_STEP_SUMMARY"
-            echo "COMMIT-YAPILDI $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          git add -A research/ 2>&1 | tee -a "$DBG"
+          git commit -m "anizm capture debug $(date -u +%H%M%S)" --allow-empty 2>&1 | tee -a "$DBG"
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin HEAD 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || echo "PUSH-BASARISIZ" >> "$GITHUB_STEP_SUMMARY"
+          git push origin HEAD 2>&1 | tee -a "$DBG"
+          echo "DEBUG-COMMIT: $(git rev-parse --short HEAD)"
