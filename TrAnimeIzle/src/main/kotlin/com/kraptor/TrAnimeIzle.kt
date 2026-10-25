@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.nicehttp.JsonAsString
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -104,6 +105,23 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - Kalite: kaynak adı 1080p/720p/4K/HD içeriyorsa ExtractorLink.quality.
  *  - Altyazı: source HTML + iframe sayfasındaki <track> ve .vtt/.srt
  *    adresleri subtitleCallback ile eklenir (varsa).
+ *
+ * v23 (TÜM KAYNAK ZİNCİRİ ONARIMI — "akış gelmedi" kök nedeni):
+ *  - KÖK NEDEN (kanıt: site.js axios kodu + NiceHttp 0.4.13 kaynak kodu):
+ *    fansubSources POST'u FORM gövdeyle + sahte Content-Type: application/json
+ *    başlığıyla gidiyordu; site GERÇEK JSON gövde bekliyor
+ *    ({"EpisodeId":123,"FansubId":456}) → sunucu gövdeyi okuyamadı →
+ *    kaynak listesi v17'den beri hep boştu. Artık JsonAsString ile BİREBİR
+ *    axios JSON gövdesi; FORM gövde + JSON-sarmal cevap yedekleri de denenir.
+ *  - sourcePlayer: cevap JSON değil düz HTML ise o HTML doğrudan oynatıcı
+ *    HTML'i sayılır.
+ *  - iframe'ler: base URL ile çözülür (göreli src artık bozulmaz); TÜM
+ *    iframe'ler sırayla denenir (reklam iframe'i ön planda olsa bile).
+ *  - Sayfada sunucu tarafı kaynak butonu varsa API'ye gerek kalmadan çözülür.
+ *  - SON KATMAN: tüm API yolları boşsa bölüm sayfası WebView'de AÇILIR,
+ *    render edilen DOM (tarayıcıda görünenin birebiri) çözülür; oturum
+ *    taze çerezle yenilenip API yeniden denenir.
+ *  - Oynatma başlıklarına User-Agent eklendi (CDN koruması için).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -857,6 +875,73 @@ class TrAnimeIzle(
                         }
                     }.awaitAll()
                 }
+                // v23-1: kaynak listesi sayfanın KENDİNDE sunucu tarafı
+                // önceden render edilmiş olabilir (default fansub) — API
+                // vermediyse sayfada doğrudan kaynak butonları aranır.
+                if (!found.get()) {
+                    val pageSources = document.select("li.sourceBtn, a.sourceBtn")
+                        .ifEmpty {
+                            document.select("[data-id]").filter {
+                                it.attr("data-id").isNotEmpty() &&
+                                    (it.attr("data-eid").isNotEmpty() ||
+                                        it.attr("data-id").toIntOrNull() != null)
+                            }
+                        }
+                    if (pageSources.isNotEmpty()) {
+                        Log.d(LOG_TAG, "Sayfada sunucu tarafı kaynak butonu: ${pageSources.size}")
+                        evidence += "KANIT[5] SAYFA-KAYNAK ${pageSources.size} adet"
+                        coroutineScope {
+                            pageSources.mapIndexed { j, btn ->
+                                async {
+                                    loadSingleSource(
+                                        btn, j, episodeId, found, errors, evidence, subsFound,
+                                        subtitleCallback, callback
+                                    )
+                                }
+                            }.awaitAll()
+                        }
+                    }
+                }
+                // v23-2: SON KATMAN — bölüm sayfası gerçek tarayıcıda
+                // (WebView) açılır ve RENDER EDİLEN DOM çözülür: tarayıcıda
+                // görünen her şey eklentiye de gelir. Oturum taze çerezle
+                // yenilenir, API yeniden denenir.
+                if (!found.get()) {
+                    Log.w(LOG_TAG, "API yolları kaynak vermedi → WebView DOM son katman")
+                    try {
+                        val res = BotKontrolKt.botKontrolFetch(context, data, wipeFirst = false)
+                        if (res.jar.isNotBlank()) {
+                            lastCookie = res.jar
+                            BotKontrolKt.saveJar(context, data, res.jar)
+                        }
+                        val wDoc = if (res.html.isNotBlank()) Jsoup.parse(res.html) else null
+                        val wBtns = wDoc?.select("li.sourceBtn, a.sourceBtn") ?: emptyList()
+                        evidence += "KANIT[5] WEBVIEW DOM ${res.html.length / 1000}k | kaynak butonu: ${wBtns.size}"
+                        val wSources = wBtns.ifEmpty { wDoc?.select("[data-id]") ?: emptyList() }
+                        if (wSources.isNotEmpty()) {
+                            Log.d(LOG_TAG, "WebView DOM'da kaynak butonu: ${wSources.size}")
+                            coroutineScope {
+                                wSources.mapIndexed { j, btn ->
+                                    async {
+                                        loadSingleSource(
+                                            btn, j, episodeId, found, errors, evidence, subsFound,
+                                            subtitleCallback, callback
+                                        )
+                                    }
+                                }.awaitAll()
+                            }
+                        } else if (wDoc != null) {
+                            // DOM'da kaynak yoksa taze oturumla API bir kez daha.
+                            val wf = wDoc.selectFirst("[data-fid]") ?: fansubItems.firstOrNull()
+                            if (wf != null) {
+                                loadFansubSources(wf, 0, episodeId, found, errors, evidence, subsFound, subtitleCallback, callback)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(LOG_TAG, "WebView DOM son katman hatası: ${e.message}")
+                        errors += "WebView DOM katmanı: ${e.message}"
+                    }
+                }
                 found.get()
             }
             // v22: hata + KANIT bloğu EKRANDA görünür (Kitsugi mesajı gösterir).
@@ -865,7 +950,7 @@ class TrAnimeIzle(
                     if (errors.isNotEmpty()) append(errors.distinct().take(3).joinToString(" | "))
                     if (evidence.isNotEmpty()) {
                         if (isNotEmpty()) append("\n")
-                        append(evidence.take(5).joinToString("\n"))
+                        append(evidence.takeLast(5).joinToString("\n"))
                     }
                 }
                 Log.e(LOG_TAG, "loadLinks KANIT raporu:\n$msg")
@@ -906,31 +991,60 @@ class TrAnimeIzle(
         val fansubLabel = li.attr("data-fad").ifBlank { "fid=${fansubId ?: "?"}" }
         val tag = "kraptor_$fansubLabel"
         try {
-            // v17 (site.js kanıtı, 22.09.2026): POST /api/fansubSources gövdesi
-            // {EpisodeId, FansubId} — güncel site ile birebir aynı; cevap
-            // HTML olarak #sourceList'a enjekte edilir.
-            val response = app.post(
+            val eid = episodeId ?: 0
+            val fid = fansubId ?: 0
+            val xhrHeaders = browserHeaders(lastCookie, isXhr = true)
+            // v23 (KÖK NEDEN DÜZELTİLMESİ): site.js (axios) GERÇEK JSON gövde
+            // gönderiyor: {"EpisodeId":123,"FansubId":456}. NiceHttp 0.4.13
+            // `data=map` parametresini FORM gövdeye çeviriyor; v17–v22'de
+            // FORM gövde + sahte Content-Type: application/json başlığı gitti
+            // → sunucu gövdeyi okuyamadı → kaynak listesi hep boştu.
+            var bodyText = ""
+            var httpOk = false
+            var variant = "JSON"
+            var sourceButtons: List<Element> = emptyList()
+            var response = app.post(
                 mainUrl + "/api/fansubSources",
-                data = mapOf(
-                    "EpisodeId" to (episodeId ?: 0).toString(),
-                    "FansubId" to (fansubId ?: 0).toString()
-                ),
-                headers = browserHeaders(lastCookie, isXhr = true) +
-                    mapOf("Content-Type" to "application/json")
+                headers = xhrHeaders,
+                json = JsonAsString("""{"EpisodeId":$eid,"FansubId":$fid}""")
             )
-            // v21: toleranslı — li.sourceBtn yoksa data-id'li öğe aranır.
-            val sourceButtons = response.document.select("li.sourceBtn, a.sourceBtn")
-                .ifEmpty { response.document.select("[data-id]") }
-            val bodyText = response.text ?: ""
-            Log.d(tag, "fansubSources(fid=$fansubId, ep=$episodeId) → ${if (response.isSuccessful) "ok" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak, ${bodyText.length / 1000}k")
+            bodyText = response.text ?: ""
+            httpOk = response.isSuccessful
+            sourceButtons = sourceButtonsFromHtml(bodyText)
+            if (sourceButtons.isEmpty()) {
+                // v23: cevap JSON sarmallı gelmiş olabilir ({"data":"<html>"}).
+                val wrapped = try {
+                    val t = bodyText.trim()
+                    if (t.startsWith("{")) JSONObject(t).optString("data", "") else ""
+                } catch (_: Exception) {
+                    ""
+                }
+                if (wrapped.isNotBlank() && wrapped.contains('<')) {
+                    sourceButtons = sourceButtonsFromHtml(wrapped)
+                    bodyText = wrapped
+                }
+            }
+            if (sourceButtons.isEmpty()) {
+                // v23: yedek — FORM gövdeli istek (JSON başlıksız, eski form).
+                variant = "FORM"
+                response = app.post(
+                    mainUrl + "/api/fansubSources",
+                    data = mapOf("EpisodeId" to eid.toString(), "FansubId" to fid.toString()),
+                    headers = xhrHeaders
+                )
+                bodyText = response.text ?: ""
+                httpOk = response.isSuccessful
+                sourceButtons = sourceButtonsFromHtml(bodyText)
+            }
+            Log.d(tag, "fansubSources(fid=$fansubId, ep=$episodeId) [$variant] → ${if (httpOk) "ok" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak, ${bodyText.length / 1000}k")
             // v22 KANIT[2]: İLK fansubun cevabı (mesaj büyüsün diye tek).
             if (index == 0) {
-                evidence += "KANIT[2] fansubSources(fid=$fansubId, ep=$episodeId) ok=${response.isSuccessful} ${bodyText.length / 1000}k | " +
+                evidence += "KANIT[2] fansubSources(fid=$fansubId, ep=$episodeId) [$variant] ok=$httpOk ${bodyText.length / 1000}k | " +
                     bodyText.replace(Regex("\\s+"), " ").take(420)
             }
             if (sourceButtons.isEmpty()) {
                 Log.e(tag, "sourceBtn yok — cevap başı:\n" + bodyText.take(600))
-                errors += "fansub '$fansubLabel': kaynak listesi ${if (response.isSuccessful) "boş" else "alınamadı (HTTP)"}"
+                errors += "fansub '$fansubLabel': kaynak listesi ${if (httpOk) "boş" else "alınamadı (HTTP)"}"
             }
             coroutineScope {
                 sourceButtons.mapIndexed { j, btn ->
@@ -946,6 +1060,15 @@ class TrAnimeIzle(
             Log.e(tag, "Error loading fansub $fansubLabel: ${e.message}")
             errors += "fansub '$fansubLabel': ${e.message}"
         }
+    }
+
+    /**
+     * v23: fansubSources/sayfa HTML'inden kaynak butonlarını seçer
+     * (toleranslı: li/a.sourceBtn, yoksa data-id'li öğe).
+     */
+    private fun sourceButtonsFromHtml(html: String): List<Element> {
+        val doc = Jsoup.parse(html)
+        return doc.select("li.sourceBtn, a.sourceBtn").ifEmpty { doc.select("[data-id]") }
     }
 
     private suspend fun loadSingleSource(
@@ -974,26 +1097,38 @@ class TrAnimeIzle(
             // Eski ikili form ({sourceId}/{eid}) yalnızca yedek olarak denenecek.
             val primary = app.post(
                 mainUrl + "/api/sourcePlayer/$sourceId",
-                headers = browserHeaders(lastCookie, isXhr = true) +
-                    mapOf("Content-Type" to "application/json")
+                headers = browserHeaders(lastCookie, isXhr = true)
             )
             Log.d(LOG_TAG, "sourcePlayer($sourceName) [1 param] → ${if (primary.isSuccessful) "ok" else "BAŞARISIZ"}")
-            val videoApi = try {
-                primary.parsedSafe<VideoApi>()?.takeIf { it.source.isNotBlank() }
-            } catch (e: Exception) {
-                null
-            } ?: try {
-                Log.d(LOG_TAG, "sourcePlayer($sourceName) → yedek form (2 param) deneniyor")
-                val legacy = app.post(
-                    mainUrl + "/api/sourcePlayer/$sourceId/$eid",
-                    headers = browserHeaders(lastCookie, isXhr = true) +
-                        mapOf("Content-Type" to "application/json")
-                )
-                legacy.parsedSafe<VideoApi>()?.takeIf { it.source.isNotBlank() }
+            // v23: cevap JSON {source} OLABİLDİĞİ GİBİ düz oynatıcı HTML'i de
+            // olabilir — ikisi de kabul edilir.
+            var sourceHtml: String? = try {
+                primary.parsedSafe<VideoApi>()?.source?.takeIf { it.isNotBlank() }
             } catch (e: Exception) {
                 null
             }
-            if (videoApi == null) {
+            if (sourceHtml == null) {
+                val raw1 = (primary.text ?: "").trimStart()
+                if (raw1.startsWith("<") || raw1.contains("<iframe") || raw1.contains("<video")) {
+                    sourceHtml = raw1
+                    Log.d(LOG_TAG, "sourcePlayer cevabı JSON değil — düz HTML olarak alındı")
+                }
+            }
+            if (sourceHtml == null) {
+                Log.d(LOG_TAG, "sourcePlayer($sourceName) → yedek form (2 param) deneniyor")
+                val legacy = app.post(
+                    mainUrl + "/api/sourcePlayer/$sourceId/$eid",
+                    headers = browserHeaders(lastCookie, isXhr = true)
+                )
+                sourceHtml = try {
+                    legacy.parsedSafe<VideoApi>()?.source?.takeIf { it.isNotBlank() }
+                } catch (e: Exception) {
+                    null
+                } ?: (legacy.text ?: "").trimStart().takeIf {
+                    it.startsWith("<") || it.contains("<iframe") || it.contains("<video")
+                }
+            }
+            if (sourceHtml == null) {
                 val raw = primary.text ?: ""
                 Log.e(LOG_TAG, "sourcePlayer JSON parse hatası: ${raw.take(500)}")
                 // v22 KANIT[3a]: cevabın GERÇEK başı ekrana düşsün.
@@ -1004,12 +1139,15 @@ class TrAnimeIzle(
                 errors += "'$sourceName': sourcePlayer yanıtı boş/parse edilemedi"
                 return
             }
-            // v21: site video.js ile çalışıyor → oynatıcı HTML'i ÜÇ formatta
-            // olabilir: <iframe>, <video>/<source> düz URL, JS içinde mp4/m3u8.
-            val sourceHtml = videoApi.source
-            val iframe = Jsoup.parse(sourceHtml).selectFirst("iframe")?.attr("src")?.ifBlank { null }
+            // v23: oynatıcı HTML'i BASE URL ile parse et — göreli iframe src
+            // çözülür; birden fazla iframe (reklam + player) sırayla denenecek.
+            val sourceDoc = Jsoup.parse(sourceHtml, mainUrl + "/")
+            val iframes = sourceDoc.select("iframe")
+                .map { it.attr("abs:src").ifBlank { it.attr("src") } }
+                .filter { it.isNotBlank() && !it.startsWith("javascript") }
+                .take(4)
             val directUrl = directVideoUrlFromHtml(sourceHtml, mainUrl + "/")
-            Log.d(LOG_TAG, "iframe = $iframe | direct = $directUrl")
+            Log.d(LOG_TAG, "iframes = $iframes | direct = $directUrl")
             // v22 KANIT[3b]: source HTML'inin GERÇEK başı.
             if (index == 0) {
                 evidence += "KANIT[3] sourcePlayer(id=$sourceId) ok | source: ${sourceHtml.length / 1000}k | " +
@@ -1019,7 +1157,7 @@ class TrAnimeIzle(
             if (index == 0) {
                 subsFound.set(extractSubtitles(sourceHtml, mainUrl + "/", subtitleCallback))
             }
-            if (iframe == null && directUrl == null) {
+            if (iframes.isEmpty() && directUrl == null) {
                 Log.e(LOG_TAG, "ne iframe ne düz video — source HTML başı:\n" + sourceHtml.take(800))
                 errors += "'$sourceName': oynatıcı HTML'inde iframe/video yok"
                 return
@@ -1030,14 +1168,19 @@ class TrAnimeIzle(
             if (directUrl != null) {
                 callback(
                     newExtractorLink(source = sourceName, name = sourceName, url = directUrl, type = INFER_TYPE) {
-                        this.headers = mapOf("Referer" to mainUrl + "/")
+                        this.headers = mapOf(
+                            "Referer" to mainUrl + "/",
+                            "User-Agent" to BotKontrolKt.UA_FIREFOX
+                        )
                     }
                 )
                 ok = true
                 Log.d(LOG_TAG, "DİREKT video: $directUrl")
             }
-            // 2) iframe → kayıtlı extractor'lar (DEX davranışı: önce luffy id'si).
-            if (!ok && iframe != null) {
+            // 2) v23: TÜM iframe'ler sırayla denenir (reklam iframe'i ön
+            //    planda olsa bile): kayıtlı extractor → embed sayfası taraması.
+            for (iframe in iframes) {
+                if (ok) break
                 val luffyId = iframe.substringAfter(LUFFY_PREFIX, "")
                 val candidates = if (luffyId.isNotEmpty()) listOf(luffyId, iframe) else listOf(iframe)
                 for (target in candidates.distinct()) {
@@ -1051,7 +1194,7 @@ class TrAnimeIzle(
                 if (!ok) {
                     val (genUrl, embedHead) = fetchEmbedVideoUrl(iframe, sourceName)
                     if (index == 0) {
-                        evidence += "KANIT[4] iframe=${iframe} | direct=${directUrl ?: "YOK"} | embed=${if (genUrl != null) "video: $genUrl" else "video YOK"}"
+                        evidence += "KANIT[4] iframes=${iframes.size} | denerilen=$iframe | direct=${directUrl ?: "YOK"} | embed=${if (genUrl != null) "video: $genUrl" else "video YOK"}"
                         if (!subsFound.get() && embedHead.isNotEmpty()) {
                             subsFound.set(extractSubtitles(embedHead, iframe, subtitleCallback))
                         }
@@ -1059,7 +1202,10 @@ class TrAnimeIzle(
                     if (genUrl != null) {
                         callback(
                             newExtractorLink(source = sourceName, name = sourceName, url = genUrl, type = INFER_TYPE) {
-                                this.headers = mapOf("Referer" to mainUrl + "/")
+                                this.headers = mapOf(
+                                    "Referer" to mainUrl + "/",
+                                    "User-Agent" to BotKontrolKt.UA_FIREFOX
+                                )
                             }
                         )
                         ok = true
@@ -1070,7 +1216,7 @@ class TrAnimeIzle(
             if (ok) {
                 found.set(true)
             } else {
-                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (iframe=$iframe)")
+                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (iframes=$iframes)")
                 errors += "'$sourceName': iframe videoya çözülemedi"
             }
         } catch (e: Exception) {
@@ -1156,13 +1302,11 @@ class TrAnimeIzle(
      */
     private suspend fun fetchEmbedVideoUrl(iframeUrl: String, sourceName: String): Pair<String?, String> {
         return try {
+            // v23: tam tarayıcı imzası + site oturum çerezi (embed same-site
+            // CF arkasındaysa geçer; cross-site host'ta zararsız).
             val resp = app.get(
                 iframeUrl,
-                headers = mapOf(
-                    "User-Agent" to BotKontrolKt.UA_FIREFOX,
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Referer" to mainUrl + "/"
-                )
+                headers = browserHeaders(lastCookie, referer = iframeUrl, isXhr = false)
             )
             if (!resp.isSuccessful) {
                 Log.e(LOG_TAG, "embed sayfası alınamadı ($sourceName): $iframeUrl")
