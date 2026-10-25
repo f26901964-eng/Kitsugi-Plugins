@@ -122,6 +122,22 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    render edilen DOM (tarayıcıda görünenin birebiri) çözülür; oturum
  *    taze çerezle yenilenip API yeniden denenir.
  *  - Oynatma başlıklarına User-Agent eklendi (CDN koruması için).
+ *
+ * v24 (EKSİKSİZ KAYNAK — site listesindeki HER kaynak link olsun):
+ *  - Cihaz kanıtı (V23): JSON gövde düzeltmesi kaynakları GETİRDİ, ama
+ *    site 10 kaynak sunarken sadece iframe/MP4 tabanlı 3'ü çözüldü.
+ *    Dosya-host kaynakları (Gdrive, Mega, SendVid, Voe, Ok.RU, Byandex,
+ *    Sibnet, MailRu…) HTML içinde iframe DEĞİL düz dosya linki taşır →
+ *    önceki sürümler onları "iframe/video yok" diye atlıyordu.
+ *  - v24: oynatıcı HTML'indeki TÜM adresler taranır; video host'una
+ *    uyan ilk adres (drive.google/mega.nz/ok.ru/sendvid/voe.sx/sibnet/
+ *    byandex/vudeo/upstream…) kaynağın linki olarak eklenir.
+ *  - Host sayfaları (sendvid/voe gibi) iç stream adresi taşır: sayfa
+ *    çekilip içinde mp4/m3u8 aranır; JSON anahtarları da çözülür
+ *    ("file":"...mp4" / "src":"...m3u8"). Gdrive /file/d/{id} →
+ *    doğrudan indirme adresine çevrilir.
+ *  - Çözülemediyse bile HAM host adresi link olarak eklenir — kaynak
+ *    listesinde TEK bir kaynak bile boş kalmaz.
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -1213,11 +1229,46 @@ class TrAnimeIzle(
                     }
                 }
             }
+            // 4) v24: DOSYA-HOST kaynakları (Gdrive, Mega, SendVid, Voe,
+            //    Ok.RU, Byandex, Sibnet…) — oynatıcı HTML'inde iframe
+            //    değil düz dosya linki var. HTML'deki TÜM adresler
+            //    taranır; video host'una uyan ilk adres çözülüp link
+            //    olarak eklenir (kaynak boş kalmaz).
+            if (!ok) {
+                val hostCandidates = Regex("""https?://[^\s"'<>()\\]+""")
+                    .findAll(sourceHtml)
+                    .map { it.value.replace(Regex("[.,;:]+$"), "") }
+                    .distinct()
+                    .filter { u ->
+                        val lu = u.lowercase()
+                        videoHostMarkers.any { lu.contains(it) } ||
+                            Regex("\\.(mp4|m3u8|webm|mkv)(\\?|$)", RegexOption.IGNORE_CASE).find(u) != null
+                    }
+                    .take(5)
+                for (u in hostCandidates) {
+                    Log.d(LOG_TAG, "Dosya hostü adayı ($sourceName): $u")
+                    val resolved = tryResolveVideoHostUrl(u, sourceName)
+                    if (index == 0) {
+                        evidence += "KANIT[6] host-aday=$u | cozulen=${resolved ?: "HAM"}"
+                    }
+                    callback(
+                        newExtractorLink(source = sourceName, name = sourceName, url = resolved ?: u, type = INFER_TYPE) {
+                            this.headers = mapOf(
+                                "Referer" to mainUrl + "/",
+                                "User-Agent" to BotKontrolKt.UA_FIREFOX
+                            )
+                        }
+                    )
+                    ok = true
+                    Log.d(LOG_TAG, "DOSYA HOSTÜ kaynağı eklendi: $sourceName → ${resolved ?: u}")
+                    break
+                }
+            }
             if (ok) {
                 found.set(true)
             } else {
-                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (iframes=$iframes)")
-                errors += "'$sourceName': iframe videoya çözülemedi"
+                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (iframes=$iframes, host adayı yok)")
+                errors += "'$sourceName': iframe/video/host adresi bulunamadı"
             }
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Error loading source $sourceName: ${e.message}")
@@ -1285,6 +1336,10 @@ class TrAnimeIzle(
             if (!v.isNullOrBlank() && v.startsWith("http")) return v
         }
         val patterns = listOf(
+            // v24: JSON tırnaklı anahtarlar ("file":"...mp4", "src":"...m3u8")
+            // — host sayfaları (sendvid/voe vb.) stream adresini böyle taşır.
+            Regex("""["'](file|src|source|url|srcUrl|video_src|videourl|urlSource|hls)["']\s*[:=]\s*["']([^"']+\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["'](file|src|source|url|srcUrl|video_src|videourl|urlSource|hls)["']\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
             Regex("""(?:file|src|source|url)\s*[:=]\s*["']([^"']+\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
             Regex("""["'](https?://[^"']+\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
             Regex("""["'](https?://[^"']+\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE)
@@ -1321,6 +1376,60 @@ class TrAnimeIzle(
             null to ""
         }
     }
+
+    /**
+     * v24: video dosya hostları — site kaynak listesi bunları taşıyor
+     * (Gdrive, Mega, SendVid, Voe/Vudeo, Ok.RU, Byandex, Sibnet, MailRu…).
+     * Küçük harf URL'de alt dizi eşleşmesi.
+     */
+    private val videoHostMarkers = listOf(
+        "drive.google.com", "docs.google.com", "drive.usercontent.google.com",
+        "mega.nz", "mega.co.nz", "ok.ru", "cloud.mail.ru", "my.mail.ru",
+        "sendvid", "voe.sx", "voe.to", "vdo.sx", "sibnet", "byandex",
+        "vudeo", "upstream", "uploadeveryone", "streamtape", "videopress"
+    )
+
+    /**
+     * v24: video-host adresi → doğrudan stream adresi (mümkünse).
+     *  - Adres zaten video uzantılıysa → olduğu gibi.
+     *  - Gdrive /file/d/{id} → doğrudan indirme adresi (confirm=t).
+     *  - Aksi halde host sayfası (sendvid/voe için /embed|/watch/{id}
+     *    formlarıyla da) çekilip içinde mp4/m3u8 aranır.
+     *  - Bulunamazsa null (ham adres link olarak kullanılır).
+     */
+    private suspend fun tryResolveVideoHostUrl(url: String, sourceName: String): String? {
+        if (Regex("\\.(mp4|m3u8|webm|mkv)(\\?|$)", RegexOption.IGNORE_CASE).find(url) != null) return url
+        val driveId = Regex("drive\\.google\\.com/file/d/([A-Za-z0-9_-]+)").find(url)?.groupValues?.getOrNull(1)
+        if (driveId != null) {
+            val dl = "https://drive.usercontent.google.com/download?id=$driveId&export=download&confirm=t"
+            Log.d(LOG_TAG, "Gdrive doğrudan indirme: $dl")
+            return dl
+        }
+        val host = Regex("https?://([^/]+)").find(url)?.groupValues?.getOrNull(1) ?: ""
+        val embedId = Regex("/(?:watch|embed|v|video)/(?:video-)?([A-Za-z0-9_-]{6,})").find(url)?.groupValues?.getOrNull(1)
+        val pages = mutableListOf(url)
+        if (host.isNotEmpty() && embedId != null) {
+            pages += "https://$host/embed/$embedId"
+            pages += "https://$host/watch/$embedId"
+        }
+        for (c in pages.distinct().take(2)) {
+            try {
+                val resp = app.get(c, headers = browserHeaders(lastCookie, referer = c, isXhr = false))
+                if (resp.isSuccessful) {
+                    val body = resp.text ?: ""
+                    val v = directVideoUrlFromHtml(body, c)
+                    if (v != null) {
+                        Log.d(LOG_TAG, "host sayfasında stream bulundu ($sourceName): $v")
+                        return v
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, "host sayfası çekme hatası ($sourceName): ${e.message}")
+            }
+        }
+        return null
+    }
+
     companion object {
         private const val LOG_TAG = "kraptor_TrAnime"
         private const val LUFFY_PREFIX = "luffytra2.top/embed2/?id="
