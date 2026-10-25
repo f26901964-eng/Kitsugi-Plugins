@@ -636,6 +636,37 @@ class Anizm : MainAPI() {
             out.add(Candidate(media, "Doğrudan", pageUrl))
         }
 
+        // 4) Genel oynatıcı öznitelikleri (tema/kuşak farkı yedeği):
+        //    data-player / data-video-src / data-iframe / data-embed / data-url.
+        //    Yalnızca gerçekten oynatıcıya benzeyen adresler alınır (resim vb. değil).
+        val pageHost = AnizmSite.hostOf(pageUrl)
+        for (element in doc.select("[data-player], [data-video-src], [data-iframe], [data-embed], [data-url]")) {
+            val raw = element.attr("data-player")
+                .ifBlank { element.attr("data-video-src") }
+                .ifBlank { element.attr("data-iframe") }
+                .ifBlank { element.attr("data-embed") }
+                .ifBlank { element.attr("data-url") }
+            if (raw.isBlank()) continue
+            val target = AnizmSite.absolute(pageUrl, raw) ?: continue
+            if (isAdHost(target)) continue
+            val playerLike = IN_SITE_PLAYER.containsMatchIn(target) ||
+                anizmPlayerHash(target) != null ||
+                looksLikeMedia(target) ||
+                (AnizmSite.hostOf(target).isNotEmpty() && AnizmSite.hostOf(target) != pageHost)
+            if (!playerLike) continue
+            out.add(Candidate(target, "Sayfa", pageUrl))
+        }
+
+        // 5) Sayfadaki site içi oynatıcı bağlantıları (/player/{id}).
+        for (anchor in doc.select("a[href], button[data-href], [data-href]")) {
+            val raw = anchor.attr("href").ifBlank { anchor.attr("data-href") }
+            if (raw.isBlank()) continue
+            val target = AnizmSite.absolute(pageUrl, raw) ?: continue
+            if (!IN_SITE_PLAYER.containsMatchIn(target)) continue
+            if (isAdHost(target)) continue
+            out.add(Candidate(target, "Sayfa", pageUrl))
+        }
+
         jobs.awaitAll()
         out.distinctBy { it.url }
     }
