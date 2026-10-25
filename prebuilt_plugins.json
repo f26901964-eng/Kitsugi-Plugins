@@ -881,7 +881,7 @@
     "tvTypes": [
       "Anime"
     ],
-    "version": 3,
+    "version": 4,
     "internalName": "Anizm",
     "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Anizm.cs3",
     "name": "Anizm",
@@ -1838,7 +1838,7 @@
   {
     "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/TrAnimeIzle.cs3",
     "status": 1,
-    "version": 28,
+    "version": 29,
     "name": "TrAnimeIzle",
     "internalName": "TrAnimeIzle",
     "authors": [
