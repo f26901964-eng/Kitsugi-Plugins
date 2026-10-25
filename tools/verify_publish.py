@@ -22,6 +22,7 @@ Kullanim:
 import hashlib
 import io
 import json
+from collections import Counter
 import os
 import sys
 import urllib.error
@@ -111,17 +112,42 @@ def main():
             errors.append(f"plugins.json okunamadı (HTTP {status})")
 
     by_name = {}
+    published_names = []
     for plugin in published or []:
-        key = (plugin.get("internalName") or "").strip()
-        if key:
-            by_name[key.lower()] = plugin
+        name = (plugin.get("internalName") or "").strip()
+        if not name:
+            errors.append("plugins.json: internalName boş olan kayıt var")
+            continue
+        published_names.append(name)
+        by_name[name.casefold()] = plugin
 
-    print(f"\nYayındaki kayıt sayısı: {len(by_name)} | beklenen: {len(wanted)}\n")
+    expected_counts = Counter(wanted)
+    published_counts = Counter(published_names)
+    folded_counts = Counter(name.casefold() for name in published_names)
+    duplicates = [key for key, count in folded_counts.items() if count > 1]
+    if duplicates:
+        for key in duplicates:
+            variants = [name for name in published_names if name.casefold() == key]
+            errors.append(
+                "plugins.json: büyük/küçük harf farkıyla yinelenen internalName: "
+                + ", ".join(variants)
+            )
+
+    missing_records = list((expected_counts - published_counts).elements())
+    unexpected_records = list((published_counts - expected_counts).elements())
+    if missing_records or unexpected_records:
+        errors.append(
+            "plugins.json etkin listeyle aynı değil "
+            f"(eksik: {missing_records or 'yok'}; fazla/yanlış yazım: "
+            f"{unexpected_records or 'yok'})"
+        )
+
+    print(f"\nYayındaki kayıt sayısı: {len(published_names)} | beklenen: {len(wanted)}\n")
     print(f"{'Eklenti':22s} {'Kayıt':6s} {'Durum':6s} {'Dosya':6s} {'Hash':6s} {'ZIP':4s} {'Manifest':8s}")
     print("-" * 70)
 
     for name in wanted:
-        plugin = by_name.get(name.lower())
+        plugin = by_name.get(name.casefold())
         if plugin is None:
             rows.append((name, "YOK", "-", "-", "-", "-", "-"))
             errors.append(f"{name}: yayındaki manifestte YOK")
@@ -190,12 +216,19 @@ def main():
                 warnings.append(f"{label}: okunamadı (HTTP {status})")
                 print(f"  {label:16s} HTTP {status} — atlandı")
                 continue
-            have = {(p.get("internalName") or "").lower() for p in plugins}
-            missing = [n for n in wanted if n.lower() not in have]
+
+            have = Counter(
+                (p.get("internalName") or "").strip()
+                for p in plugins
+                if (p.get("internalName") or "").strip()
+            )
+            missing = list((expected_counts - have).elements())
+            extra = list((have - expected_counts).elements())
             print(f"  {label:16s} {len(plugins)} kayıt — "
-                  f"{'EKSİK: ' + ', '.join(missing) if missing else 'tamam'}")
-            if missing and label == "jsDelivr":
-                # Bayat CDN önbelleği: purge edip yeniden dene.
+                  f"{'eksik: ' + ', '.join(missing) + '; fazla: ' + ', '.join(extra) if missing or extra else 'tamam'}")
+
+            if (missing or extra) and label == "jsDelivr":
+                # Bayat CDN önbelleği: purge edip tekrar kontrol et.
                 print("    → jsDelivr önbelleği temizlenip tekrar denenecek")
                 try:
                     sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
@@ -204,14 +237,21 @@ def main():
                 except Exception as e:  # noqa: BLE001
                     print(f"    ! purge başarısız: {e}")
                 status, plugins = load_plugins(url)
-                have = {(p.get("internalName") or "").lower() for p in plugins or []}
-                missing = [n for n in wanted if n.lower() not in have]
+                have = Counter(
+                    (p.get("internalName") or "").strip()
+                    for p in plugins or []
+                    if (p.get("internalName") or "").strip()
+                )
+                missing = list((expected_counts - have).elements())
+                extra = list((have - expected_counts).elements())
                 print(f"    purge sonrası: {len(plugins or [])} kayıt — "
-                      f"{'hâlâ EKSİK: ' + ', '.join(missing) if missing else 'tamam'}")
-            if missing:
-                errors.append(f"{label} aynasında eksik eklenti: {', '.join(missing)}")
-            if plugins and len(plugins) < len(wanted):
-                warnings.append(f"{label}: {len(plugins)} kayıt, beklenen {len(wanted)}")
+                      f"{'eksik: ' + ', '.join(missing) + '; fazla: ' + ', '.join(extra) if missing or extra else 'tamam'}")
+
+            if missing or extra:
+                errors.append(
+                    f"{label} aynası etkin listeyle aynı değil "
+                    f"(eksik: {missing or 'yok'}; fazla/yanlış yazım: {extra or 'yok'})"
+                )
 
     # ── Sonuç ───────────────────────────────────────────────────────────────
     print()

@@ -88,6 +88,50 @@ def load_enabled_plugins():
     return names
 
 
+def filter_enabled_plugins(combined, enabled):
+    """Etkin listeye uyan tek kaydı bırakır; harf farkıyla yineleneni sızdırmaz.
+
+    Eski builds/prebuilt kayıtları, yeni derlenen bir eklentinin internalName
+    değerinden yalnızca harf büyüklüğüyle ayrılabilir (ör. HDFilmizle ve
+    HDFilmIzle). Tam eşleşen etkin kayıt varsa onu seçer; tek bir harf-duyarsız
+    eşleşme varsa geriye uyumluluk için onu korur. Birden fazla eşleşme var ama
+    kanonik tam eşleşme yoksa yanlış eklentiyi sessizce yayımlamak yerine durur.
+    """
+    if enabled is None:
+        return combined
+
+    canonical_names = {}
+    for name in enabled:
+        key = name.casefold()
+        if key in canonical_names:
+            raise ValueError(
+                f"{ENABLED_FILE} aynı eklentiyi harf farkıyla birden fazla içeriyor: "
+                f"{canonical_names[key]} / {name}"
+            )
+        canonical_names[key] = name
+
+    matches = {key: [] for key in canonical_names}
+    for name in combined:
+        key = name.casefold()
+        if key in matches:
+            matches[key].append(name)
+
+    selected = set()
+    for key, canonical in canonical_names.items():
+        candidates = matches[key]
+        if canonical in candidates:
+            selected.add(canonical)
+        elif len(candidates) == 1:
+            selected.add(candidates[0])
+        elif len(candidates) > 1:
+            raise ValueError(
+                f"{canonical}: manifestte harf farkıyla birden fazla kayıt var "
+                "ve etkin adla tam eşleşen bulunamadı"
+            )
+
+    return {name: plugin for name, plugin in combined.items() if name in selected}
+
+
 def repo_slug():
     """GITHUB_REPOSITORY (owner/repo) — yoksa varsayilan depo."""
     return os.environ.get("GITHUB_REPOSITORY") or PLACEHOLDER_SLUG
@@ -204,15 +248,15 @@ def main():
     if enabled is None:
         print(f"  i {ENABLED_FILE} yok -> tum eklentiler etkin (eski davranis).")
     else:
-        allowed = {n.lower() for n in enabled}
         before = len(combined)
-        combined = {n: p for n, p in combined.items() if n.lower() in allowed}
+        combined = filter_enabled_plugins(combined, enabled)
         print(
             f"  aktif liste: {len(enabled)} eklenti | "
             f"devre disi birakilan kayit: {before - len(combined)}"
         )
+        present = {key.casefold() for key in combined}
         for name in enabled:
-            if name.lower() not in {k.lower() for k in combined}:
+            if name.casefold() not in present:
                 print(f"  !! AKTIF ama manifestte yok: {name} (kaynak/.cs3 eksik olabilir)")
 
     # ── Dogrulama: URL'leri gercek dosya konumuna gore duzelt ────────────────
@@ -258,7 +302,7 @@ def main():
 
     # ── Aktif eklentileri KENDI depomuza sabitle ─────────────────────────────
     # prebuilt_plugins.json baska depolarin (or. Kraptor) kayitlarini icerir ve
-    # birlestirme sirasinda bunlar bizim kaydimizin uzerine yazar. Aktif dort
+    # birlestirme sirasinda bunlar bizim kaydimizin uzerine yazar. Etkin her
     # kaynak icin URL / dosya boyutu / sha256 / surum bilgisini depodaki GERCEK
     # .cs3 dosyasindan yeniden uretmezsek uygulama indirdigi dosyayi
     # dogrulayamaz ve kurulum sessizce basarisiz olur.
