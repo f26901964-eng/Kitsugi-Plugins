@@ -100,3 +100,57 @@ yeniden denenir (taze çerezle).
   `data-href` taşıyan kartları da saydığı için yanlış "ölü domain" kararı vermez.
 * Site **hesap/abonelik** isterse (bazı kaynaklar üye girişine kapalı olabilir),
   o kaynaklar için akış gelmez; kalan kaynaklar listelenir.
+
+---
+
+## 5. Canlı ölçüm (25.10.2026)
+
+Sandbox yalnızca github/npm/pypi'ye çıkabildiği için ölçüm **iki katmanda** yapıldı:
+GitHub Actions runner'ı (veri merkezi IP) + sayfayı sunucu tarafında çeken herkese açık
+okuyucu köprüsü (r.jina.ai). Araç: `tools/anime_plugin_probe.py` (salt okunur, JS çalıştırmaz).
+
+### Anizm — `anizm.net`
+| Ölçüm | Sonuç |
+|---|---|
+| Doğrudan istek (runner IP) | **HTTP 403** (Cloudflare) — eklenti tarafında değil, IP itibarı |
+| Okuyucu köprüsü | **HTTP 200**, 23.5 KB ana sayfa |
+| Ana sayfa kart adresleri | `/{slug}-{n}-bolum-izle` **ve** `/{slug}` (seri) · ayrıca `-bolum-sansursuz-izle` ve `-bolum-final-izle` varyantları |
+| `/arama?q=one piece` | **200** — gerçek sonuçlar (`noroi-no-one-piece`, `one-piece`, `one-piece-movie`, `one-piece-fan-letter` …) + kapaklar `/storage/pcovers/*.webp` |
+| `/getAnimeListForSearch` | **var**, >3 MB (sitenin kendi arama indeksi) |
+| `/one-piece` (seri) | **200**, 124 KB · **`one-piece-1-bolum-izle` … `one-piece-1180-bolum-izle`** bağlantıları |
+| Bölüm sayfası | **200** — kardeş bölüm bağlantıları statik HTML'de; oynatıcı alanı **JS/API** ile geliyor (statik metinde host adı yok) |
+
+**Sonuç:** URL şemaları ve seçiciler doğrulandı; oynatıcı zinciri (fansub → `videoPlayerButtons`
+→ `/player/{id}` 302) bugün güncellenen Aniyomi eklentisiyle birebir aynı. Bu yüzden kod
+**hem** v2 (translator) **hem** v3 (data-sources) **hem** 302 **hem** sayfa-düzeyi iframe
+yollarını deniyor.
+
+Bu ölçümden sonra yapılan düzeltmeler:
+- Arama sırası: `/searchAnime` → **`/arama?q=` (artık doğrulanmış, hızlı)** → `/getAnimeListForSearch` (3 MB, 6 saat önbellek).
+- JSON ayrıştırıcı: düz dizi · `{data|animes|results|items|list:[...]}` · NDJSON.
+- Bölüm listesi: bilinen kapsayıcılar (`div.episodeListTabContent div > a`, `div.animeDetail-items li a`)
+  numarasız `/bolum/{id}` adreslerinde bile etiketten numara okuyarak çalışır.
+
+### TrAnimeIzle — `tranimeizle.io` / `.live`
+| Ölçüm | Sonuç |
+|---|---|
+| Doğrudan istek | **HTTP 403** |
+| Okuyucu köprüsü | **Cloudflare Error 1005 (ASN engeli)** — sayfa içeriği hiçbir sunucudan alınamıyor |
+
+**Sonuç:** Site, veri merkezi IP'lerini **1005** ile tamamen kapatıyor. Yani bu eklenti
+yalnızca **kullanıcının kendi bağlantısı + WebView oturumu** ile çalışabilir (v17–v27 cihaz
+kanıtları da bunu söylüyor). CI'dan canlı doğrulama **imkânsız**; bu bir eklenti hatası değil.
+
+Bu ölçümden sonra yapılan düzeltmeler:
+- `probeDomainAlive`: 403/503/1005 artık **"domain ölü" sayılmıyor** (eskiden yanlışlıkla
+  domain değiştiriyor, oturum akışını bozuyordu).
+- Aday listesi: `www.`/kök biçimleriyle `.io · .live · .top`.
+- Arama kartları kanonik dizi adresine çevriliyor: `/one-piece-1120-bolum-izle` → `/anime/one-piece-izle`
+  (Aniyomi'nin `latestUpdatesFromElement` kuralı).
+- Bölüm listesi bilinen kapsayıcı (`div.animeDetail-items > ol a:has(div.episode-li)`) + genel yedek.
+
+### Ölçülemeyen (cihaz gerektirir)
+- Oynatıcı zincirinin SON adımı (302 hedefi → host → m3u8). Sunucudan CF/ASN nedeniyle
+  görülemiyor.
+- Kullanıcının kendi IP'sinin site tarafından engelli olup olmadığı (1005 kişisel IP'de
+  görülürse hiçbir istemci çalışmaz).
