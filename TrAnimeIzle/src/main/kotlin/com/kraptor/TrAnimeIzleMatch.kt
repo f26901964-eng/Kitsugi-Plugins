@@ -134,6 +134,26 @@ internal object TrAnimeIzleMatch {
     }
 
     /**
+     * Kanonik **seri (detay) sayfası** adresi.
+     *
+     * Site kuralı (Aniyomi `tr/tranimeizle` 2026-10, `latestUpdatesFromElement`):
+     *   `/one-piece-1120-bolum-izle` → `/anime/one-piece-izle`
+     * yani bölüm ekinden önceki slug'ın son sayısal parçası atılır ve `/anime/{slug}-izle`
+     * üretilir. Arama/liste kartlarını bu adrese çevirmek, uygulamanın dizi sayfasını
+     * doğru açmasını (ve Kitsu eşleştirmesinin tutmasını) sağlar.
+     */
+    fun toSeriesUrl(url: String): String? {
+        if (episodeFromUrl(url) == null) return null
+        val prefix = if (url.contains("://"))
+            url.substringBefore("://") + "://" + url.substringAfter("://").substringBefore("/") else ""
+        val last = pathOf(url).substringAfterLast('/')
+        val slug = last.substringBefore("-bolum").substringBeforeLast("-").trim('-')
+        if (slug.isEmpty()) return null
+        val path = "anime/$slug-izle"
+        return if (prefix.isEmpty()) "/$path" else "$prefix/$path"
+    }
+
+    /**
      * Karşılaştırma anahtarı: bölüm eki atılmış, "izle"/"-hd" sonekleri temizlenmiş yol.
      * Kategori/liste sayfalarında da çalışır ("/animeizle/aksiyon-anime-izle-2").
      */

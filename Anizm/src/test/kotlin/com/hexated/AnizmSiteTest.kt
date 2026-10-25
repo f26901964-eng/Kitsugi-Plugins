@@ -183,6 +183,27 @@ class AnizmSiteTest {
     }
 
     @Test
+    fun episodesAreFoundInKnownContainersEvenWhenUrlHasNoNumber() {
+        // Aniyomi seçicisi: "div.episodeListTabContent div > a" — bağlantı /bolum/{id}
+        // biçiminde olabilir; numara ETİKETTEN okunmalı.
+        val pageUrl = "$base/shingeki-no-kyojin"
+        val html = """
+            <html><body>
+              <div class="episodeListTabContent">
+                <div><a href="/bolum/9182">3. Bölüm</a></div>
+                <div><a href="/bolum/9181">2. Bölüm</a></div>
+                <div><a href="/bolum/9180">1. Bölüm</a></div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val episodes = AnizmSite.parseEpisodes(Jsoup.parse(html, pageUrl), base, pageUrl)
+        assertEquals(3, episodes.size)
+        assertEquals(listOf(1, 2, 3), episodes.map { it.number })
+        assertTrue(episodes.all { it.url.startsWith("$base/bolum/") })
+    }
+
+    @Test
     fun detailWithoutEpisodesIsTreatedAsMovieByCaller() {
         val pageUrl = "$base/bleach-movie"
         val html = """

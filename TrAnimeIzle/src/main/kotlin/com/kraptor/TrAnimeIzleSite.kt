@@ -173,7 +173,9 @@ internal object TrAnimeIzleSite {
             ?: absolute(base, block.selectFirst("a[href]")?.attr("href"))
             ?: return null
         if (hostOf(url).isEmpty()) return null
-        val name = titleOf(block) ?: TrAnimeIzleMatch.cleanTitle(TrAnimeIzleMatch.titleFromSlug(url))
+        // Kart çoğu zaman "son bölüm" adresini taşır; dizi sayfasına çevir.
+        val seriesUrl = TrAnimeIzleMatch.toSeriesUrl(url) ?: url
+        val name = titleOf(block) ?: TrAnimeIzleMatch.cleanTitle(TrAnimeIzleMatch.titleFromSlug(seriesUrl))
             ?: return null
         if (TrAnimeIzleMatch.isInvalidTitle(name)) return null
         val scoreText = block.selectFirst("rating")?.attr("data-src")
@@ -184,7 +186,7 @@ internal object TrAnimeIzleSite {
         val text = block.text()
         return TrCard(
             name = name,
-            url = url,
+            url = seriesUrl,
             poster = posterOf(block),
             score = score,
             episodeHint = TrAnimeIzleMatch.episodeOf(text) ?: TrAnimeIzleMatch.episodeFromUrl(url),

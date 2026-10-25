@@ -831,6 +831,20 @@ class Anizm : MainAPI() {
         }
         if (handled) return 1
 
+        // 3b) Google Drive dosyaları: Aniyomi eklentisi bunları gdriveplayer
+        //     köprüsüne çeviriyor; uygulamada doğrudan çözücü yoksa bu yol denenir.
+        if (url.contains("drive.google") || url.contains("docs.google")) {
+            val bridged = "https://gdriveplayer.to/embed2.php?link=$url"
+            val bridgedOk = try {
+                loadExtractor(bridged, candidate.referer, subtitleCallback, callback)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                false
+            }
+            if (bridgedOk) return 1
+        }
+
         // 4) Oynatıcı sayfasını çek: içindeki m3u8/mp4 veya iç iframe.
         val pageHtml = getText(url, candidate.referer) ?: return 0
         val media = mediaFromHtml(pageHtml, url)

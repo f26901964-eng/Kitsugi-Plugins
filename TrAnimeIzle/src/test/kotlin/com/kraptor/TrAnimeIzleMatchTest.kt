@@ -63,6 +63,16 @@ class TrAnimeIzleMatchTest {
         assertEquals("one-piece", TrAnimeIzleMatch.seriesKey("$base/one-piece-izle"))
         assertEquals("one-piece", TrAnimeIzleMatch.seriesKey("$base/animeizle/one-piece-anime-izle-2"))
         assertEquals("One Piece", TrAnimeIzleMatch.titleFromSlug("$base/one-piece-izle"))
+        // Site kuralı: bölüm adresi → /anime/{slug}-izle
+        assertEquals(
+            "$base/anime/one-piece-izle",
+            TrAnimeIzleMatch.toSeriesUrl("$base/one-piece-1120-bolum-izle")
+        )
+        assertEquals(
+            "$base/anime/the-apothecary-diaries-3-sezon-izle",
+            TrAnimeIzleMatch.toSeriesUrl("$base/the-apothecary-diaries-3-sezon-12-bolum-izle")
+        )
+        assertNull(TrAnimeIzleMatch.toSeriesUrl("$base/anime/one-piece-izle"))
     }
 
     // ------------------------------------------------------------------

@@ -404,38 +404,55 @@ internal object AnizmSite {
      */
     fun parseEpisodes(doc: Document, base: String, pageUrl: String): List<AnizmEpisode> {
         val targetSeries = seriesPathOf(pageUrl)
-        val strict = mutableListOf<AnizmEpisode>()
-        val loose = mutableListOf<AnizmEpisode>()
-        val seen = HashSet<String>()
+        val strict = LinkedHashMap<String, AnizmEpisode>()
+        val loose = LinkedHashMap<String, AnizmEpisode>()
 
-        for (anchor in doc.select("a[href]")) {
-            val url = absolute(base, anchor.attr("href")) ?: continue
-            if (!isSiteUrl(url)) continue
-            val number = episodeNumberFromUrl(url) ?: continue
-            if (!seen.add(url)) continue
+        fun consider(anchor: Element, forceNumber: Int? = null) {
+            val url = absolute(base, anchor.attr("href")) ?: return
+            if (!isSiteUrl(url)) return
+            if (strict.containsKey(url) || loose.containsKey(url)) return
 
             val label = anchor.text().trim()
-            val name = label.takeIf { it.isNotBlank() && it.length <= 120 && AnizmMatch.cleanTitle(it) != null }
-                ?: label.takeIf { it.isNotBlank() && it.length <= 120 }
-                ?: "$number. Bölüm"
-            val date = anchor.selectFirst("small, .date, .episode-date, time")?.text()?.trim()
-            val poster = imageUrl(anchor.selectFirst("img"))
+            val number = forceNumber
+                ?: AnizmMatch.episodeOf(label)
+                ?: episodeNumberFromUrl(url)
+                ?: return
+            if (number <= 0) return
 
+            val date = anchor.selectFirst("small, .date, .episode-date, time")?.text()?.trim()
             val episode = AnizmEpisode(
                 url = url,
                 number = number,
                 // "2. Bölüm" gibi bilgi taşımayan etiketler temizlenince boşalır;
                 // o durumda ham etiket korunur (oynatıcıda "2. Bölüm" görünür).
-                name = AnizmMatch.cleanTitle(name) ?: name,
+                name = AnizmMatch.cleanTitle(label) ?: label.takeIf { it.isNotBlank() } ?: "$number. Bölüm",
                 date = date,
-                poster = poster
+                poster = imageUrl(anchor.selectFirst("img"))
             )
-            loose.add(episode)
+            loose[url] = episode
             val series = seriesPathOf(url)
-            if (targetSeries == null || series == null || series == targetSeries) strict.add(episode)
+            if (targetSeries == null || series == null || series == targetSeries) strict[url] = episode
         }
 
-        val chosen = if (strict.isNotEmpty()) strict else loose
-        return chosen.distinctBy { it.url }.sortedWith(compareBy({ it.number ?: Int.MAX_VALUE }, { it.url }))
+        // 1) Sitenin BİLİNEN bölüm kapsayıcıları. Buradaki bağlantılar `/bolum/{id}`
+        //    gibi numarasız adresler taşıyabilir; numara etiketten okunur.
+        //    (Aniyomi: "div.episodeListTabContent div > a"; v2: "div.animeDetail-items li a")
+        for (anchor in doc.select(
+            "div.episodeListTabContent div > a, div.episodeListTabContent a[href], " +
+                "div.episodeListTabContent li a, div.animeDetail-items li a, " +
+                "div.animeDetail-items ol a, div.animeDetail-playlist li a, li:has(.episode-li) a"
+        )) {
+            consider(anchor)
+        }
+
+        // 2) Genel tarama: yolundan bölüm numarası çıkan her bağlantı.
+        if (strict.isEmpty()) {
+            for (anchor in doc.select("a[href]")) consider(anchor)
+        }
+
+        val chosen = if (strict.isNotEmpty()) strict.values else loose.values
+        return chosen
+            .distinctBy { it.url }
+            .sortedWith(compareBy({ it.number ?: Int.MAX_VALUE }, { it.url }))
     }
 }

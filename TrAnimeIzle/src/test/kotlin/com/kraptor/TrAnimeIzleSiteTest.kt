@@ -48,7 +48,8 @@ class TrAnimeIzleSiteTest {
         // One Piece iki bölüm kartı → TEK seri kartı (en ileri bölüm ipucuyla).
         assertEquals(2, cards.size)
         val op = cards.first { it.name == "One Piece" }
-        assertEquals("$base/one-piece-1120-bolum-izle", op.url)
+        // Kart "son bölüm" adresi taşır; çözümleyici kanonik dizi adresine çevirir.
+        assertEquals("$base/anime/one-piece-izle", op.url)
         assertEquals(1120, op.episodeHint)
         assertEquals("$base/uploads/one-piece.jpg", op.poster)
         assertEquals(9.1, op.score!!, 0.001)
@@ -73,7 +74,7 @@ class TrAnimeIzleSiteTest {
         val cards = TrAnimeIzleSite.parseCards(Jsoup.parse(html, base), base)
         assertEquals(1, cards.size)
         assertEquals("Bleach", cards.first().name)
-        assertEquals(1, TrAnimeIzleMatch.episodeFromUrl(cards.first().url))
+        assertEquals("$base/anime/bleach-izle", cards.first().url)
     }
 
     // ------------------------------------------------------------------
