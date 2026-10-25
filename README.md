@@ -4,14 +4,16 @@ Kitsugi Android & Android TV uygulaması için özel olarak derlenmiş, optimize
 
 ---
 
-## ✅ Aktif Kaynaklar (6)
+## ✅ Aktif Kaynaklar (8)
 
-Depo artık **yalnızca aşağıdaki 6 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
+Depo artık **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
 
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
 | Anime | **AnimeciX** | 24 |
+| Anime | **OpenAnime** | 28 |
+| Anime | **TrAnimeIzle** | 15 |
 | Film / Dizi | **FilmMakinesi** | 71 |
 | Film / Dizi | **HDFilmCehennemi** | 62 |
 | Film / Dizi | **FilmEkseni** | 51 |
