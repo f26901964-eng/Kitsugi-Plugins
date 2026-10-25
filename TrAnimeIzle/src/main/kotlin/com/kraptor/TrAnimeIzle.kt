@@ -18,6 +18,7 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.io.IOException
 import java.net.URLEncoder
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -159,6 +160,19 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    için (sendvid/voe/streamtape); Gdrive adres dönüşümü çekimsiz,
  *    diğer hostlar çekimsiz ham link.
  *  - Beklenmedik hata mesajına istisna türü eklenir (teşhis).
+ *
+ * v26 (DOMAIN ROTASYONU — "tak diye hata" KÖK NEDENİ):
+ *  - KANIT (25.10.2026): site artık www.tranimeizle.io adresinde yayın
+ *    yapıyor (izleani.me canlı takipçi — 3 saat önceki bölümlerin linkleri
+ *    .io; Semrush: .io 14.47M ziyaret/ay; cs-kraptor'un her gün güncellenen
+ *    domain dosyası .io). Eklenti tek domain'e (.live) KİLİDLİYDİ — site
+ *    domain değiştirdiğinde tüm istekler ölü domain'e gitti → veri hiç
+ *    gelmedi, "tak diye hata". (.live son çalışması: V23 cihaz kanıtı.)
+ *  - Düzeltme: domain rotasyonu. Aday listesi [.io, .live, .top]; ana
+ *    sayfa PROB'u ile canlı domain otomatik seçilir (8 sn zaman aşımı),
+ *    sonuç prefs'e kalıcı yazılır. Ağ hatasında domain değiştirilip
+ *    istek BİR kez tekrarlanır. mainPage/arama URL'leri mevcut domain'e
+ *    haritalanır. Varsayılan domain .io.
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -167,6 +181,15 @@ class TrAnimeIzle(
 
     override var mainUrl: String = Companion.getDomain(domainPrefs, "TrAnimeIzle")
     override var name = "TrAnimeIzle"
+
+    // v26: domain rotasyonu durumu.
+    // - domPrefs: kalıcı tercih (son doğrulanan domain).
+    // - mainPageBase: mainPage haritasının kurulumda hangi domainle
+    //   üretildiği (run-time domain değişince URL'ler buna göre haritalanır).
+    // - lastDomainCheckAt: canlı domain kontrolü sıklığı (TTL).
+    private val domPrefs: SharedPreferences = domainPrefs
+    private var mainPageBase: String = mainUrl
+    private var lastDomainCheckAt = 0L
     override val hasMainPage = true
     override val hasQuickSearch = true
     override var lang = "tr"
@@ -221,6 +244,9 @@ class TrAnimeIzle(
         // v18: site kendi JS'inde arama için ÇIPLAK `/arama/{sorgu}` kullanıyor
         // (site.js 22.09.2026 — ?page= parametresi YOK) → page 1 çıplak URL;
         // page>1 için DEX davranışı korunur.
+        // v26: istekten önce canlı domain garantisi (site domain değiştirdiyse
+        // ana sayfa anahtar kelimesi: otomatik geçiş).
+        ensureDomainAlive()
         val enc = URLEncoder.encode(query, "UTF-8")
         val url = if (page <= 1) mainUrl + "/arama/" + enc
         else mainUrl + "/arama/" + enc + "?page=" + page
@@ -249,7 +275,9 @@ class TrAnimeIzle(
             if (!TrAnimeIzleHelper.isAllowedVersion) {
                 return newHomePageResponse(request.name, emptyList(), false)
             }
-            val url = request.data + page
+            // v26: canlı domain garantisi + mainPage URL'ini mevcut domain'e haritala.
+            ensureDomainAlive()
+            val url = remapDomain(request.data) + page
             val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
             val document = Jsoup.parse(html)
             var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
@@ -400,6 +428,68 @@ class TrAnimeIzle(
         }
     }
 
+    // ------------------------------------------------------------------
+    // v26: DOMAIN ROTASYONU (site domain'i sık değişiyor — BTK engelleri)
+    // ------------------------------------------------------------------
+
+    /**
+     * v26: bu domain YAŞIYOR mu? = ana sayfa GET 200 + bot değil + içerik
+     * kart linki taşıyor. 8 sn zaman aşımı — ölü domain zinciri boğmaz.
+     */
+    private suspend fun probeDomainAlive(base: String): Boolean {
+        return try {
+            val resp = app.get(base, headers = browserHeaders(cachedSession(), base + "/"), timeout = 8)
+            val ok = resp.isSuccessful && !isBotBody(resp.text) && izleCount(resp.text) > 0
+            Log.d(LOG_TAG, "domain probe: $base → ${if (ok) "ALIVE" else "DEAD"} (status=${resp.code})")
+            ok
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(LOG_TAG, "domain probe istisnası: $base → ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * v26: mevcut domain ölü mü? → adayları sırayla dene; canlı olanı
+     * benimsa (mainUrl + prefs'e kalıcı yaz + oturumu GEÇERSİZ kıl —
+     * çerezler domain bazlıdır). Mevcut (değişmiş olabilecek) domaini döndürür.
+     */
+    private suspend fun ensureDomainAlive(force: Boolean = false): String {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastDomainCheckAt < DOMAIN_CHECK_TTL_MS) return mainUrl
+        lastDomainCheckAt = now
+        if (probeDomainAlive(mainUrl)) return mainUrl
+        Log.w(LOG_TAG, "MEVCUT DOMAIN ÖLÜ ($mainUrl) → adaylar deneniyor...")
+        for (c in DOMAIN_CANDIDATES) {
+            if (c == mainUrl) continue
+            if (probeDomainAlive(c)) {
+                Log.w(LOG_TAG, "DOMAIN DEĞİŞTİRİLDİ: $mainUrl → $c")
+                mainUrl = c
+                try {
+                    domPrefs.edit().putString(ACTIVE_DOMAIN_KEY, c).apply()
+                } catch (_: Exception) {
+                }
+                // yeni domain → yeni oturum (eski çerezler eski domainin)
+                sessionValidated = false
+                lastCookie = ""
+                return c
+            }
+        }
+        Log.e(LOG_TAG, "aday domainlerden canlısı yok — $mainUrl ile devam (1 dk sonra tekrar dene)")
+        lastDomainCheckAt = now - DOMAIN_CHECK_TTL_MS + 60_000
+        return mainUrl
+    }
+
+    /**
+     * v26: kurulumda eski domainle üretilmiş bir URL'in önünü mevcut
+     * domainle değiştirir (mainPage listesi, bookmark'dan gelen URL).
+     */
+    private fun remapDomain(url: String): String {
+        if (url.startsWith(mainPageBase)) return mainUrl + url.substring(mainPageBase.length)
+        return url
+    }
+
     private var sessionValidated = false
 
     /**
@@ -420,7 +510,8 @@ class TrAnimeIzle(
         sessionValidated = true
         var cookie = lastCookie.ifBlank { cachedSession() }
         var probe = try {
-            app.get(mainUrl, headers = browserHeaders(cookie, mainUrl + "/"))
+            // v26: 10 sn zaman aşımı — ölü domain probu zinciri boğmasın.
+            app.get(mainUrl, headers = browserHeaders(cookie, mainUrl + "/"), timeout = 10)
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Ana sayfa prob hatası: ${e.message}")
             null
@@ -429,7 +520,7 @@ class TrAnimeIzle(
             // Ağ gecikmesi olmasın diye: prob hatasında bir kez daha dene.
             delay(1_500)
             probe = try {
-                app.get(mainUrl, headers = browserHeaders(cookie, mainUrl + "/"))
+                app.get(mainUrl, headers = browserHeaders(cookie, mainUrl + "/"), timeout = 10)
             } catch (e: Exception) {
                 Log.e(LOG_TAG, "Ana sayfa prob 2. deneme hatası: ${e.message}")
                 null
@@ -506,20 +597,69 @@ class TrAnimeIzle(
      * tekrar dener. Her adımda log bırakır (cihaz kanıtı için).
      */
     private suspend fun fetchHtml(
-        url: String,
-        referer: String,
+        rawUrl: String,
+        rawReferer: String,
         ensureSession: Boolean = false,
         webViewFallback: Boolean = false
     ): String {
+        var url = rawUrl
+        var referer = rawReferer
         // v20: ensureSession=true → epoch oturum doğrulaması (geçerlilik kanıtıyla).
         var cookie = lastCookie.ifBlank {
             if (ensureSession) ensureValidSession() else cachedSession()
         }
-        var resp = app.get(url, headers = browserHeaders(cookie, referer))
+        var resp = try {
+            app.get(url, headers = browserHeaders(cookie, referer))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // v26: ağ seviyesi hata (bağlantı/timeout) — domain değişmiş
+            // olabilir: aday domainler denenir, canlısına geçilip BİR kez
+            // tekrarlanmazsa hata yukarı fırlatılır.
+            Log.w(LOG_TAG, "GET ağ hatası: $url → ${e.message}")
+            val before = mainUrl
+            ensureDomainAlive(force = true)
+            if (mainUrl != before) {
+                Log.w(LOG_TAG, "ağ hatası → domain değişti ($before → $mainUrl), tekrar deniyor")
+                url = remapDomain(url)
+                referer = remapDomain(referer)
+                cookie = cachedSession()
+                try {
+                    app.get(url, headers = browserHeaders(cookie, referer))
+                } catch (e2: CancellationException) {
+                    throw e2
+                } catch (e2: Exception) {
+                    Log.e(LOG_TAG, "GET tekrar denemesi de başarısız: ${e2.message}")
+                    throw e
+                }
+            } else {
+                throw e
+            }
+        }
         if (!resp.isSuccessful || isBotBody(resp.text)) {
-            Log.e(LOG_TAG, "Bot/başarısız cevap → oturum yenileniyor: $url")
-            cookie = refreshSession(url)
-            resp = app.get(url, headers = browserHeaders(cookie, referer))
+            // v26: 403/bot sayfası da ölü domain belirtisi olabilir → önce
+            // domain rotasyonu, sonra oturum yenileme.
+            val before = mainUrl
+            ensureDomainAlive(force = true)
+            if (mainUrl != before) {
+                Log.w(LOG_TAG, "bot/403 → domain değişti ($before → $mainUrl), tekrar deniyor: $url")
+                url = remapDomain(url)
+                referer = remapDomain(referer)
+                cookie = cachedSession()
+                resp = try {
+                    app.get(url, headers = browserHeaders(cookie, referer))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(LOG_TAG, "domain sonrası GET hatası: ${e.message}")
+                    throw IOException("GET başarısız: $url (${e.message})")
+                }
+            }
+            if (!resp.isSuccessful || isBotBody(resp.text)) {
+                Log.e(LOG_TAG, "Bot/başarısız cevap → oturum yenileniyor: $url")
+                cookie = refreshSession(url)
+                resp = app.get(url, headers = browserHeaders(cookie, referer))
+            }
         }
         lastCookie = cookie
         val ok = resp.isSuccessful
@@ -569,6 +709,11 @@ class TrAnimeIzle(
 
     override suspend fun load(url: String): LoadResponse? {
         if (!TrAnimeIzleHelper.isAllowedVersion) return null
+
+        // v26: canlı domain garantisi; URL eski (ölü) domaini taşıyorsa
+        // (arama öncesinden kalan / bookmark) mevcut domain'e haritalanır.
+        ensureDomainAlive()
+        val url = remapDomain(url)
 
         // v17: fetchHtml → kayıtlı oturumla dener, bot cevabı alırsa
         // WebView diyaloğuyla oturumu yeniler ve bir kez tekrar dener.
@@ -866,13 +1011,17 @@ class TrAnimeIzle(
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         if (!TrAnimeIzleHelper.isAllowedVersion) return false
+        // v26: canlı domain garantisi; bölüm URL'i ölü domaini taşıyorsa
+        // mevcut domain'e haritalanır.
+        ensureDomainAlive()
+        val dataUrl = remapDomain(data)
         val errors = mutableListOf<String>()
         val evidence = mutableListOf<String>()
         return try {
             val result = coroutineScope {
-                Log.d(LOG_TAG, "data = $data")
+                Log.d(LOG_TAG, "data = $dataUrl")
                 // v21: bölüm sayfası da içerik garantili (WebView DOM katmanı).
-                val html = fetchHtml(data, mainUrl + "/", ensureSession = true, webViewFallback = true)
+                val html = fetchHtml(dataUrl, mainUrl + "/", ensureSession = true, webViewFallback = true)
                 val document = Jsoup.parse(html)
 
                 // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
@@ -946,10 +1095,10 @@ class TrAnimeIzle(
                 if (!found.get()) {
                     Log.w(LOG_TAG, "API yolları kaynak vermedi → WebView DOM son katman")
                     try {
-                        val res = BotKontrolKt.botKontrolFetch(context, data, wipeFirst = false)
+                        val res = BotKontrolKt.botKontrolFetch(context, dataUrl, wipeFirst = false)
                         if (res.jar.isNotBlank()) {
                             lastCookie = res.jar
-                            BotKontrolKt.saveJar(context, data, res.jar)
+                            BotKontrolKt.saveJar(context, dataUrl, res.jar)
                         }
                         val wDoc = if (res.html.isNotBlank()) Jsoup.parse(res.html) else null
                         val wBtns = wDoc?.select("li.sourceBtn, a.sourceBtn") ?: emptyList()
@@ -1508,10 +1657,23 @@ class TrAnimeIzle(
         private const val LOG_TAG = "kraptor_TrAnime"
         private const val LUFFY_PREFIX = "luffytra2.top/embed2/?id="
 
-        // T3: tek doğru host (repo'daki eklenti_domainleri.txt ve uygulamanın
-        // DEFAULT_PLUGIN_DOMAINS değeriyle uyumlu); 22.09.2026 arşivinde de
-        // aktif domain olarak doğrulandı. DEX'in sabit ".io" değeri kullanılmaz.
-        private const val DEFAULT_DOMAIN = "https://www.tranimeizle.live"
+        // v26: ana domain (25.10.2026 kanıtı): izleani.me canlı takipçisi
+        // sitenin SON bölümlerini www.tranimeizle.io üzerinden listeliyor;
+        // Semrush'a göre .io 14.47M ziyaret/ay (ana domain); cs-kraptor'un
+        // günlük güncellenen domain dosyası da .io taşıyor. .live artık
+        // aktif domain DEĞİL — ama tek domain'e kilitlenmek bir daha asla
+        // olmaz: DOMAIN_CANDIDATES otomatik rotasyonda denenir.
+        private const val DEFAULT_DOMAIN = "https://www.tranimeizle.io"
+
+        /** v26: otomatik rotasyon aday domainleri (sıra = öncelik). */
+        private val DOMAIN_CANDIDATES = listOf(
+            "https://www.tranimeizle.io",
+            "https://www.tranimeizle.live",
+            "https://www.tranimeizle.top"
+        )
+
+        private const val ACTIVE_DOMAIN_KEY = "kraptor_active_domain"
+        private const val DOMAIN_CHECK_TTL_MS = 10 * 60 * 1000L
 
         /**
          * Domain çözümleme (v17, DEX Companion.getDomain'in sadeleştirilmiş hali):
@@ -1523,7 +1685,10 @@ class TrAnimeIzle(
          *    v17'de kaldırıldı — tek kaynak: uygulama tercihi + yedek.
          */
         fun getDomain(prefs: SharedPreferences, pluginName: String): String {
+            // v26: 1) uygulamanın açık tercihi (varsa), 2) eklentinin son
+            // doğruladığı domain, 3) varsayılan (.io).
             val domain = prefs.getString(pluginName, "")?.ifBlank { null }
+                ?: prefs.getString(ACTIVE_DOMAIN_KEY, "")?.ifBlank { null }
                 ?: DEFAULT_DOMAIN
             Log.d(LOG_TAG, "domain = $domain")
             return domain
