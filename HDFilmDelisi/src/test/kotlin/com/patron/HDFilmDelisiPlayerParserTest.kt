@@ -81,7 +81,35 @@ class HDFilmDelisiPlayerParserTest {
         assertEquals(2, audio.size)
         assertEquals("Türkçe", audio[0].label)
         assertEquals("https://vidmody.com/vs/audio/tr.m3u8", audio[0].url)
-        assertNotNull(audio)
+        assertTrue(HDFilmDelisiPlayerParser.hasHlsAudioRenditions(master))
+        assertTrue(HDFilmDelisiPlayerParser.hasHlsSubtitleRenditions(master))
+        assertTrue(
+            HDFilmDelisiPlayerParser.hasHlsAudioRenditions(
+                "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"In-band\"",
+            ),
+        )
+    }
+
+    @Test
+    fun hlsGroups_supportAttributeOrderAndLanguageFallbacks() {
+        val master = """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID='subs',LANGUAGE='tr',URI='subs/tr.vtt'
+            #EXT-X-MEDIA:URI="audio/en.m3u8",NAME="English",LANGUAGE="en",GROUP-ID="aud",TYPE="AUDIO"
+        """.trimIndent()
+
+        val subtitles = HDFilmDelisiPlayerParser.hlsSubtitles(master, "https://vidmody.com/vs/id/master.m3u8")
+        assertEquals(1, subtitles.size)
+        assertEquals("tr", subtitles.single().label)
+        assertEquals("tr", subtitles.single().language)
+        assertEquals("https://vidmody.com/vs/id/subs/tr.vtt", subtitles.single().url)
+
+        val audio = HDFilmDelisiPlayerParser.hlsAudioTracks(master, "https://vidmody.com/vs/id/master.m3u8")
+        assertTrue(HDFilmDelisiPlayerParser.hasHlsAudioRenditions(master))
+        assertEquals(1, audio.size)
+        assertEquals("English", audio.single().label)
+        assertEquals("en", audio.single().language)
+        assertEquals("https://vidmody.com/vs/id/audio/en.m3u8", audio.single().url)
     }
 
     @Test

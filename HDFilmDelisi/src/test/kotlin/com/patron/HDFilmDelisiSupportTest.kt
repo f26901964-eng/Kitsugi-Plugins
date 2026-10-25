@@ -20,10 +20,13 @@ class HDFilmDelisiSupportTest {
     }
 
     @Test
-    fun subtitleLanguageFilterAcceptsTurkishAndEnglishOnly() {
+    fun subtitleLanguageAliasesAreNormalizedAndOtherLanguagesArePreserved() {
         assertTrue(isTargetLanguage("Türkçe"))
         assertTrue(isTargetLanguage("Turkish"))
         assertTrue(isTargetLanguage("English"))
         assertFalse(isTargetLanguage("French"))
+        assertEquals("Turkish", getLanguage("tr-TR"))
+        assertEquals("English", getLanguage("eng"))
+        assertEquals("fr", getLanguage("fr"))
     }
 }

@@ -82,4 +82,79 @@ class FilmEkseniPlayerParserTest {
         assertEquals("English", tracks[0].label)
         assertEquals("https://media.example/tr.vtt", tracks[1].url)
     }
+
+    @Test
+    fun hlsGroupsIncludeEverySubtitleAndAudioRendition() {
+        val master = """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Türkçe",LANGUAGE="tr",URI="audio/tr.m3u8"
+            #EXT-X-MEDIA:URI='audio/en.m3u8',NAME='English',LANGUAGE='en',GROUP-ID='aud',TYPE='AUDIO'
+            #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="sub",NAME="Türkçe",LANGUAGE="tr",URI="subs/tr.vtt"
+            #EXT-X-MEDIA:URI="https://cdn.example/subs/en.vtt",NAME="English",LANGUAGE="en",GROUP-ID="sub",TYPE="SUBTITLES"
+            #EXT-X-STREAM-INF:BANDWIDTH=1800000,RESOLUTION=1280x720
+            720/index.m3u8
+        """.trimIndent()
+        val base = "https://media.example/player/master.m3u8"
+
+        assertTrue(FilmEkseniPlayerParser.hasHlsAudioRenditions(master))
+        assertTrue(FilmEkseniPlayerParser.hasHlsSubtitleRenditions(master))
+        val audio = FilmEkseniPlayerParser.hlsAudioTracks(master, base)
+        assertEquals(2, audio.size)
+        assertEquals("Türkçe", audio[0].label)
+        assertEquals("https://media.example/player/audio/tr.m3u8", audio[0].url)
+        assertEquals("https://media.example/player/audio/en.m3u8", audio[1].url)
+
+        val subtitles = FilmEkseniPlayerParser.hlsSubtitles(master, base)
+        assertEquals(2, subtitles.size)
+        assertEquals("https://media.example/player/subs/tr.vtt", subtitles[0].url)
+        assertEquals("https://cdn.example/subs/en.vtt", subtitles[1].url)
+    }
+
+    @Test
+    fun parsesNestedSubtitleObjectsAndKeepsUnknownLanguages() {
+        val config = """
+            player.setup({
+              sources: [{ file: "https://media.example/master.m3u8" }],
+              tracks: [{ label: "Français", srclang: "fr", kind: "captions", file: "https://media.example/fr.vtt" }]
+            });
+        """.trimIndent()
+
+        val subtitles = FilmEkseniPlayerParser.subtitles(config)
+        assertEquals(1, subtitles.size)
+        assertEquals("Français", subtitles.single().label)
+        assertEquals("fr", subtitles.single().language)
+        assertEquals("https://media.example/fr.vtt", subtitles.single().url)
+
+        val sourceOnly = FilmEkseniPlayerParser.subtitles(
+            "sources: [{ file: \"https://media.example/master.m3u8\" }]",
+        )
+        assertTrue("A source playlist must not be mistaken for a subtitle", sourceOnly.isEmpty())
+    }
+
+    @Test
+    fun mediaFilesFindsDashAndCommonDirectVideoFormats() {
+        val config = """
+            sources: [
+              { file: "https://media.example/stream.mpd" },
+              { file: "https://media.example/video.webm" },
+              { file: "https://media.example/video.m4v" }
+            ]
+        """.trimIndent()
+
+        assertEquals(
+            listOf(
+                "https://media.example/stream.mpd",
+                "https://media.example/video.webm",
+                "https://media.example/video.m4v",
+            ),
+            FilmEkseniPlayerParser.mediaFiles(config),
+        )
+    }
+
+    @Test
+    fun resolvesRelativeMediaAndHlsRenditionUrls() {
+        val base = "https://eksenload.top/embed/abc/index.html"
+        assertEquals("https://eksenload.top/embed/abc/master.m3u8", FilmEkseniPlayerParser.resolveUrl(base, "master.m3u8"))
+        assertEquals("https://cdn.example/video.mp4", FilmEkseniPlayerParser.resolveUrl(base, "https://cdn.example/video.mp4"))
+    }
 }

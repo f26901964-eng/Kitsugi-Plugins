@@ -4,7 +4,6 @@ package com.patron
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.lagradost.cloudstream3.Actor
-import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.HomePageResponse
 import com.lagradost.cloudstream3.LoadResponse
@@ -25,13 +24,19 @@ import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
 import com.lagradost.cloudstream3.newMovieSearchResponse
 import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 
 data class LinkData(
     @JsonProperty("url") val url: String?,
@@ -185,32 +190,25 @@ class HDFilmDelisi : MainAPI() {
             )
 
         return if (isSeries) {
-            val episodeData = HDFilmDelisiMarkup.parseEpisodes(document, url)
-            val episodes = mutableListOf<Episode>()
-
-            episodeData.forEach { item ->
-                episodes.add(
-                    newEpisode(buildPayload(item.href, item.season, item.episode)) {
-                        this.name = item.name
-                        this.season = item.season
-                        this.episode = item.episode
-                        this.posterUrl = poster
-                    },
-                )
+            val episodeData = loadSeriesEpisodes(url, document, detail.seasonCount)
+            com.lagradost.api.Log.d(
+                name,
+                "Dizi bölümleri: ${episodeData.size}/${detail.episodeCount ?: "?"}, " +
+                    "sezon: ${detail.seasonCount ?: episodeData.map { it.season }.distinct().size}",
+            )
+            val episodes = episodeData.map { item ->
+                newEpisode(buildPayload(item.href, item.season, item.episode)) {
+                    this.name = item.name
+                    this.season = item.season
+                    this.episode = item.episode
+                    this.posterUrl = fixUrlNull(item.poster) ?: fixUrlNull(poster)
+                    // CloudStream's Episode.runTime is expressed in seconds.
+                    this.runTime = item.runtimeSeconds
+                }
             }
 
-            // Bölüm bağlantısı ayrı sayfa değilse (oynatıcı aynı sayfada) tek bölüm üret.
-            if (episodes.isEmpty()) {
-                episodes.add(
-                    newEpisode(buildPayload(url, 1, 1)) {
-                        this.name = "1. Bölüm"
-                        this.season = 1
-                        this.episode = 1
-                        this.posterUrl = poster
-                    },
-                )
-            }
-
+            // Boş listeyi sahte bir 1. Bölüm ile gizleme: uygulama yalnızca
+            // sitede gerçekten bulunan bölüm URL'lerini göstermeli.
             newTvSeriesLoadResponse(detail.title, url, TvType.TvSeries, episodes) {
                 this.posterUrl = fixUrlNull(poster)
                 this.plot = plot
@@ -239,6 +237,52 @@ class HDFilmDelisi : MainAPI() {
         }
     }
 
+    /**
+     * Live sayfada ilk seçili sezon render edilir. Sezon sayısı sayfa metaverisinde
+     * varsa her diğer sezonun gerçek ilk bölüm sayfasını alıp o sezonun SSR bölüm
+     * bağlantılarını toplar. İstekler sınırlı paralellikte yapılır; tek sezon hatası
+     * dizinin diğer sezonlarını düşürmez.
+     */
+    private suspend fun loadSeriesEpisodes(
+        seriesUrl: String,
+        seriesDocument: Document,
+        declaredSeasonCount: Int?,
+    ): List<EpisodeData> {
+        val initialEpisodes = HDFilmDelisiMarkup.parseEpisodes(seriesDocument, seriesUrl)
+        val seasons = HDFilmDelisiMarkup.parseSeasonNumbers(seriesDocument, initialEpisodes)
+            .ifEmpty {
+                declaredSeasonCount?.takeIf { it in 1..100 }?.let { (1..it).toList() }.orEmpty()
+            }
+        val knownSeasons = initialEpisodes.map { it.season }.toSet()
+        val missingSeasons = seasons.filterNot { it in knownSeasons }
+        val additionalEpisodes = missingSeasons.chunked(4).flatMap { batch ->
+            coroutineScope {
+                batch.map { season ->
+                    async {
+                        val seasonPageUrl = HDFilmDelisiMarkup.firstEpisodeUrl(seriesUrl, season)
+                        try {
+                            val seasonDocument = app.get(seasonPageUrl, headers = headers).document
+                            HDFilmDelisiMarkup.parseEpisodes(seasonDocument, seriesUrl)
+                                .filter { it.season == season }
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            com.lagradost.api.Log.e(
+                                name,
+                                "Sezon $season bölüm listesi alınamadı ($seasonPageUrl): ${error.message}",
+                            )
+                            emptyList()
+                        }
+                    }
+                }.awaitAll().flatten()
+            }
+        }
+
+        return (initialEpisodes + additionalEpisodes)
+            .distinctBy { "${it.season}-${it.episode}" }
+            .sortedWith(compareBy({ it.season }, { it.episode }))
+    }
+
     // ============================================================
     // VİDEO BAĞLANTILARI
     // ============================================================
@@ -255,69 +299,117 @@ class HDFilmDelisi : MainAPI() {
 
         val pageHtml = try {
             app.get(targetUrl, headers = headers).text
+        } catch (error: CancellationException) {
+            throw error
         } catch (e: Exception) {
             com.lagradost.api.Log.e(name, "Sayfa indirilemedi: ${e.message}")
             return false
         }
 
+        val emittedSubtitleUrls = HashSet<String>()
+        val emitSubtitle: (SubtitleFile) -> Unit = { subtitle ->
+            val url = subtitle.url.trim()
+            if (url.isNotBlank() && emittedSubtitleUrls.add(url)) subtitleCallback(subtitle)
+        }
+
         var foundVideo = false
+        val emittedVideoKeys = HashSet<String>()
+        val emitVideo: (ExtractorLink) -> Unit = { link ->
+            val uniqueKey = "${link.source}|${link.name}|${link.url}|${link.type}|${link.quality}|${link.referer}"
+            if (link.url.isNotBlank() && emittedVideoKeys.add(uniqueKey)) {
+                foundVideo = true
+                com.lagradost.api.Log.d(
+                    name,
+                    "Video callback: ${link.source}/${link.name} ${link.type} ${link.url.substringBefore('?')}",
+                )
+                callback(link)
+            }
+        }
         val refs = HDFilmDelisiPlayerParser.playerRefs(pageHtml)
         com.lagradost.api.Log.d(name, "Bulunan oynatıcı referansları: ${refs.size}")
 
         refs.forEach { ref ->
-            runCatching {
+            try {
                 when (ref.kind) {
                     PlayerVideoRef.Kind.VIDMODY -> {
-                        VidMody().getUrl(ref.url, targetUrl, subtitleCallback) { link ->
-                            foundVideo = true
-                            callback(link)
-                        }
+                        VidMody().getUrl(ref.url, targetUrl, emitSubtitle, emitVideo)
                     }
 
                     PlayerVideoRef.Kind.DIRECT_MEDIA -> {
-                        val type = if (ref.url.contains(".m3u8", ignoreCase = true)) {
-                            ExtractorLinkType.M3U8
-                        } else {
-                            ExtractorLinkType.VIDEO
-                        }
-                        callback(
-                            newExtractorLink(
-                                source = name,
-                                name = "$name Doğrudan Kaynak",
-                                url = fixUrl(ref.url),
-                                type = type,
-                            ) {
-                                this.referer = targetUrl
-                                this.quality = Qualities.Unknown.value
-                                this.headers = this@HDFilmDelisi.headers
-                            },
+                        emitMediaSource(
+                            mediaUrl = ref.url,
+                            sourceName = "$name Doğrudan Kaynak",
+                            referer = targetUrl,
+                            subtitleCallback = emitSubtitle,
+                            callback = emitVideo,
                         )
-                        foundVideo = true
                     }
 
                     PlayerVideoRef.Kind.EMBED -> {
-                        foundVideo = resolveEmbedPage(ref.url, targetUrl, subtitleCallback, callback) || foundVideo
+                        foundVideo = resolveEmbedPage(ref.url, targetUrl, emitSubtitle, emitVideo) || foundVideo
                     }
                 }
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 com.lagradost.api.Log.e(name, "Kaynak çözülemedi (${ref.url}): ${error.message}")
             }
         }
 
-        // Referanslar hiç bulunamazsa genel iframe/script yedekleri.
+        // Fallback'lar yalnızca daha önce gerçek bir video-link callback'i oluşmadıysa denenir.
         if (!foundVideo) {
-            foundVideo = resolveGenericFallbacks(pageHtml, targetUrl, subtitleCallback, callback)
+            foundVideo = resolveGenericFallbacks(pageHtml, targetUrl, emitSubtitle, emitVideo)
         }
 
         // Harici altyazı servisleri (IMDB kimliği varsa).
         val imdbId = linkData?.imdbId
         if (!imdbId.isNullOrBlank()) {
-            invokeSubtitleAPI(imdbId, linkData.season, linkData.episode, subtitleCallback)
-            invokeTurkceAltyaziAPI(imdbId, linkData.season, linkData.episode, subtitleCallback)
-            invokeWyZIESUBAPI(imdbId, linkData.season, linkData.episode, subtitleCallback)
+            invokeSubtitleAPI(imdbId, linkData.season, linkData.episode, emitSubtitle)
+            invokeTurkceAltyaziAPI(imdbId, linkData.season, linkData.episode, emitSubtitle)
+            invokeWyZIESUBAPI(imdbId, linkData.season, linkData.episode, emitSubtitle)
         }
 
         return foundVideo
+    }
+
+    private suspend fun emitMediaSource(
+        mediaUrl: String,
+        sourceName: String,
+        referer: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ): Boolean {
+        val trimmedUrl = mediaUrl.trim()
+        if (trimmedUrl.isBlank()) return false
+        val absoluteUrl = HDFilmDelisiPlayerParser.resolveUrl(referer, trimmedUrl)
+            .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: fixUrl(trimmedUrl)
+        val sourceHeaders = headers + mapOf("Referer" to referer)
+
+        if (absoluteUrl.contains(".m3u8", ignoreCase = true)) {
+            HDFilmDelisiHlsResolver.emit(
+                url = absoluteUrl,
+                source = sourceName,
+                referer = referer,
+                headers = sourceHeaders,
+                subtitleCallback = subtitleCallback,
+                callback = callback,
+            )
+        } else {
+            callback(
+                newExtractorLink(
+                    source = name,
+                    name = sourceName,
+                    url = absoluteUrl,
+                    type = ExtractorLinkType.VIDEO,
+                ) {
+                    this.referer = referer
+                    this.quality = Qualities.Unknown.value
+                    this.headers = sourceHeaders
+                },
+            )
+        }
+        return true
     }
 
     /** /embed/ sayfası içindeki <video>/<source> ve script tabanlı akışları çözer. */
@@ -329,60 +421,70 @@ class HDFilmDelisi : MainAPI() {
     ): Boolean {
         val embedHtml = try {
             app.get(embedUrl, headers = headers + mapOf("Referer" to pageUrl)).text
+        } catch (error: CancellationException) {
+            throw error
         } catch (e: Exception) {
+            com.lagradost.api.Log.e(name, "Embed alınamadı ($embedUrl): ${e.message}")
             return false
         }
         var found = false
-        val document = Jsoup.parse(embedHtml, embedUrl)
-
-        document.select("video source[src], video[src], source[src]").forEach { source ->
-            val src = source.attr("src").ifBlank { null } ?: return@forEach
-            val type = if (src.contains(".m3u8", ignoreCase = true)) {
-                ExtractorLinkType.M3U8
-            } else {
-                ExtractorLinkType.VIDEO
+        val emitLink: (ExtractorLink) -> Unit = { link ->
+            if (link.url.isNotBlank()) {
+                found = true
+                callback(link)
             }
-            callback(
-                newExtractorLink(
-                    source = name,
-                    name = "$name Embed",
-                    url = fixUrl(src),
-                    type = type,
-                ) {
-                    this.referer = embedUrl
-                    this.quality = Qualities.Unknown.value
-                    this.headers = this@HDFilmDelisi.headers
-                },
+        }
+        val document = Jsoup.parse(embedHtml, embedUrl)
+        val embedHeaders = headers + mapOf("Referer" to embedUrl)
+
+        document.select("video source[src], video[src]").forEach { source ->
+            val src = source.attr("src").takeIf { it.isNotBlank() } ?: return@forEach
+            emitMediaSource(
+                mediaUrl = source.absUrl("src").ifBlank { fixUrl(src) },
+                sourceName = "$name Embed",
+                referer = embedUrl,
+                subtitleCallback = subtitleCallback,
+                callback = emitLink,
             )
-            found = true
+        }
+
+        document.select("track[src]").forEach { track ->
+            val kind = track.attr("kind").lowercase()
+            if (kind.isNotBlank() && kind !in setOf("subtitles", "captions")) return@forEach
+            val src = track.absUrl("src").ifBlank { fixUrl(track.attr("src")) }
+            val language = track.attr("srclang").ifBlank {
+                track.attr("label").ifBlank { "Unknown" }
+            }
+            if (src.isNotBlank()) {
+                subtitleCallback(
+                    newSubtitleFile(language, src) {
+                        this.headers = embedHeaders
+                    },
+                )
+            }
         }
 
         HDFilmDelisiPlayerParser.mediaFileFromScript(embedHtml)?.let { file ->
-            val type = if (file.contains(".m3u8", ignoreCase = true)) {
-                ExtractorLinkType.M3U8
-            } else {
-                ExtractorLinkType.VIDEO
-            }
-            callback(
-                newExtractorLink(
-                    source = name,
-                    name = "$name Embed",
-                    url = file,
-                    type = type,
-                ) {
-                    this.referer = embedUrl
-                    this.quality = Qualities.Unknown.value
-                    this.headers = this@HDFilmDelisi.headers
-                },
+            emitMediaSource(
+                mediaUrl = file,
+                sourceName = "$name Embed",
+                referer = embedUrl,
+                subtitleCallback = subtitleCallback,
+                callback = emitLink,
             )
-            found = true
         }
 
-        document.select("iframe[src]").forEach { frame ->
-            val src = frame.attr("src")
-            if (adFrameKeywords.none { src.contains(it, ignoreCase = true) }) {
-                loadExtractor(fixUrl(src), pageUrl, subtitleCallback, callback)
-                found = true
+        document.select("iframe[src], iframe[data-src]").forEach { frame ->
+            val src = frame.attr("src").ifBlank { frame.attr("data-src") }
+            if (src.isNotBlank() && adFrameKeywords.none { src.contains(it, ignoreCase = true) }) {
+                val nestedUrl = frame.absUrl("src").ifBlank { fixUrl(src) }
+                try {
+                    loadExtractor(nestedUrl, embedUrl, subtitleCallback, emitLink)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    com.lagradost.api.Log.e(name, "İç embed çözülemedi ($nestedUrl): ${error.message}")
+                }
             }
         }
         return found
@@ -396,41 +498,68 @@ class HDFilmDelisi : MainAPI() {
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
         var found = false
+        val emitLink: (ExtractorLink) -> Unit = { link ->
+            if (link.url.isNotBlank()) {
+                found = true
+                callback(link)
+            }
+        }
         val document = Jsoup.parse(html, pageUrl)
+        val pageHeaders = headers + mapOf("Referer" to pageUrl)
+
+        document.select("video source[src], video[src]").forEach { source ->
+            val src = source.attr("src").takeIf { it.isNotBlank() } ?: return@forEach
+            emitMediaSource(
+                mediaUrl = source.absUrl("src").ifBlank { fixUrl(src) },
+                sourceName = "$name Sayfa Kaynağı",
+                referer = pageUrl,
+                subtitleCallback = subtitleCallback,
+                callback = emitLink,
+            )
+        }
+
+        document.select("track[src]").forEach { track ->
+            val kind = track.attr("kind").lowercase()
+            if (kind.isNotBlank() && kind !in setOf("subtitles", "captions")) return@forEach
+            val src = track.absUrl("src").ifBlank { fixUrl(track.attr("src")) }
+            val language = track.attr("srclang").ifBlank {
+                track.attr("label").ifBlank { "Unknown" }
+            }
+            if (src.isNotBlank()) {
+                subtitleCallback(
+                    newSubtitleFile(language, src) {
+                        this.headers = pageHeaders
+                    },
+                )
+            }
+        }
 
         document.select("iframe[src], iframe[data-src]").forEach { frame ->
             val src = frame.attr("src").ifBlank { frame.attr("data-src") }
             if (src.isNotBlank() && adFrameKeywords.none { src.contains(it, ignoreCase = true) }) {
-                val absolute = fixUrl(src)
-                if (absolute.contains("vidmody", ignoreCase = true)) {
-                    VidMody().getUrl(absolute, pageUrl, subtitleCallback, callback)
-                    found = true
-                } else {
-                    loadExtractor(absolute, pageUrl, subtitleCallback, callback)
-                    found = true
+                val absolute = frame.absUrl("src").ifBlank { fixUrl(src) }
+                try {
+                    if (absolute.contains("vidmody", ignoreCase = true)) {
+                        VidMody().getUrl(absolute, pageUrl, subtitleCallback, emitLink)
+                    } else {
+                        loadExtractor(absolute, pageUrl, subtitleCallback, emitLink)
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    com.lagradost.api.Log.e(name, "Yedek iframe çözülemedi ($absolute): ${error.message}")
                 }
             }
         }
 
         HDFilmDelisiPlayerParser.mediaFileFromScript(html)?.let { file ->
-            val type = if (file.contains(".m3u8", ignoreCase = true)) {
-                ExtractorLinkType.M3U8
-            } else {
-                ExtractorLinkType.VIDEO
-            }
-            callback(
-                newExtractorLink(
-                    source = name,
-                    name = "$name Script",
-                    url = file,
-                    type = type,
-                ) {
-                    this.referer = pageUrl
-                    this.quality = Qualities.Unknown.value
-                    this.headers = this@HDFilmDelisi.headers
-                },
+            emitMediaSource(
+                mediaUrl = file,
+                sourceName = "$name Script",
+                referer = pageUrl,
+                subtitleCallback = subtitleCallback,
+                callback = emitLink,
             )
-            found = true
         }
         return found
     }
