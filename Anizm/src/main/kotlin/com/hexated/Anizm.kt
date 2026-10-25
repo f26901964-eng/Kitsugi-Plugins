@@ -918,7 +918,7 @@ class Anizm : MainAPI() {
      * sağlayıcı ayrımı bozuluyordu. Tip (M3U8/VIDEO) URL'den, kalite
      * etiketten türetilir.
      */
-    private inline fun emitLink(
+    private suspend fun emitLink(
         url: String,
         label: String,
         referer: String,

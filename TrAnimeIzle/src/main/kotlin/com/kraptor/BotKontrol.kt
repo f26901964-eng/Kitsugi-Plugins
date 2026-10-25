@@ -561,7 +561,7 @@ object BotKontrolKt {
                 // Challenge izleme döngüsü (ayrı coroutine, ana thread'de
                 // YALNIZIZ WebView çağrıları; bloke eden bekleme yok — v27).
                 MainScope().launch {
-                    monitorChallenge(webView = wv, statusView, guard, cont, url, host, prefs)
+                    monitorChallenge(webViewModel = wv, statusView, guard, cont, url, host, prefs)
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "WebView başlatılamadı (${e::class.simpleName}): ${e.message}")

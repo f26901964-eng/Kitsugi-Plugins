@@ -1570,24 +1570,32 @@ class TrAnimeIzle(
      *    `source` = linki üreten eklenti). v26'da ikisine de kaynak adı
      *    veriliyordu; sağlayıcı takibi/istatistik akışı buna göre çalışıyor.
      *  - kalite, kaynak adından (1080p/720p/4K…) türetilir.
-     *  - `hasSubtitles` yalnızca GERÇEK altyazı bulunduysa true.
+     *  - altyazı bilgisi `hasSubs` ile etikete yazılır (API'de
+     *    `hasSubtitles` alanı yok).
      *  - headers: Referer + UA (CDN'ler bunlarsız 403 dönüyor).
      */
-    private inline fun emitPlayerLink(
+    private suspend fun emitPlayerLink(
         url: String,
         label: String,
         hasSubs: Boolean,
         callback: (ExtractorLink) -> Unit
     ) {
+        // v27: `hasSubtitles` bu API surumunde ExtractorLink'te YOK (derleme
+        // hatasi) — altyazı bilgisi etikete yazilir, oynatici zaten
+        // subtitleCallback ile gelen listeyi kullanir.
+        val shownLabel = if (hasSubs && !label.contains("altyaz", ignoreCase = true)) {
+            "$label [ALTYAZI]"
+        } else {
+            label
+        }
         callback(
-            newExtractorLink(source = name, name = label, url = url, type = INFER_TYPE) {
+            newExtractorLink(source = name, name = shownLabel, url = url, type = INFER_TYPE) {
                 this.referer = mainUrl + "/"
                 this.headers = mapOf(
                     "Referer" to mainUrl + "/",
                     "User-Agent" to BotKontrolKt.UA_FIREFOX
                 )
                 this.quality = getQualityFromName(label)
-                this.hasSubtitles = hasSubs
             }
         )
     }
