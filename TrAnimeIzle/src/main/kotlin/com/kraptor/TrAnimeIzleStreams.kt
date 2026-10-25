@@ -71,6 +71,12 @@ internal class TrAnimeIzleStreams(
     @Volatile
     private var emittedCount: Int = 0
 
+    /** Captcha çözümü tek seferlik ve eşzamanlı çağrılarda yarışsız. */
+    private val captchaLock = Mutex()
+
+    @Volatile
+    private var captchaSolved = false
+
     // ------------------------------------------------------------------
     // Giriş noktası
     // ------------------------------------------------------------------
@@ -115,7 +121,9 @@ internal class TrAnimeIzleStreams(
 
         // 2) API hiç kaynak vermediyse sayfadaki hazır butonlar (tema yedeği).
         val allSources = if (sources.isEmpty()) {
-            pageLevelSources(doc, html, episodeId)
+            // Yedek yol: sayfadaki hazır butonlar. Bir tema değişiminde
+            // `[data-id]` taraması alakasız öğeler de bulabilir → sınırla.
+            pageLevelSources(doc, html, episodeId).take(12)
         } else {
             sources
         }
@@ -174,7 +182,9 @@ internal class TrAnimeIzleStreams(
         }
         if (looksLikeCaptcha(body)) {
             Log.w(TAG, "fansubSources captcha istedi (fid=${fansub.id})")
-            http.solveCaptcha()
+            captchaLock.withLock {
+                if (!captchaSolved) captchaSolved = http.solveCaptcha()
+            }
             val retry = http.postJson(
                 "$site/api/fansubSources",
                 """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}""",

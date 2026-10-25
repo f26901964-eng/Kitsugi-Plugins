@@ -315,7 +315,7 @@ class TrAnimeIzle(
             val enc = URLEncoder.encode(variant, "UTF-8")
             val url = mainUrl + "/arama/" + enc
             val html = try {
-                fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
+                fetchHtml(url, mainUrl + "/", ensureSession = false, webViewFallback = true)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -474,7 +474,7 @@ class TrAnimeIzle(
         for (path in paths) {
             for (n in 1..2) {
                 val html = try {
-                    fetchHtml(mainUrl + path + n, mainUrl + "/", ensureSession = true, webViewFallback = false)
+                    fetchHtml(mainUrl + path + n, mainUrl + "/", ensureSession = false, webViewFallback = false)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -504,7 +504,7 @@ class TrAnimeIzle(
             // v26: canlı domain garantisi + mainPage URL'ini mevcut domain'e haritala.
             ensureDomainAlive()
             val url = remapDomain(request.data) + page
-            val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
+            val html = fetchHtml(url, mainUrl + "/", ensureSession = false, webViewFallback = true)
             val document = Jsoup.parse(html)
             var results = TrAnimeIzleSite.parseCards(document, mainUrl + "/", 60)
                 .map { it.toSearchResponse() }
@@ -1102,7 +1102,10 @@ class TrAnimeIzle(
         // Aynı URL WebView'da açılır; tarayıcının render ettiği TAM DOM
         // (outerHTML) alınır ve o çözülür — kullanıcı tarayıcıda ne
         // görüyorsa eklenti de onu görür.
-        if (webViewFallback && ok && !isBotBody(text) && izleCount(text) == 0) {
+        // v30: WebView yalnızca sayfa GERÇEKTEN boşsa (bot/boş gövde) devreye girer.
+        // Eskiden "kart linki yok" ölçütü bölüm sayfalarında da tetikleniyor, her
+        // sayfa açılışında 5+ sn'lik diyalog açıyordu.
+        if (webViewFallback && ok && !isBotBody(text) && (text?.length ?: 0) < 3000) {
             Log.w(LOG_TAG, "GET boş içerik getirdi → WebView DOM çekme deneniyor: $url")
             try {
                 val res = BotKontrolKt.botKontrolFetch(context, url, wipeFirst = false)
@@ -1145,7 +1148,7 @@ class TrAnimeIzle(
         // v17: fetchHtml → kayıtlı oturumla dener, bot cevabı alırsa
         // WebView diyaloğuyla oturumu yeniler ve bir kez tekrar dener.
         val html = try {
-            fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
+            fetchHtml(url, mainUrl + "/", ensureSession = false, webViewFallback = true)
         } catch (e: CancellationException) {
             throw e
         } catch (e: ErrorLoadingException) {

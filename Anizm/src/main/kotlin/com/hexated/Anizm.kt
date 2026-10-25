@@ -681,6 +681,9 @@ class Anizm : MainAPI(), AnizmHttp {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // Domain ölü olabilir (site sık adres değiştiriyor) — tek seferlik,
+        // TTL önbellekli prob. Akış isteği ölü domain'e gitmez.
+        ensureBase()
         val pageUrl = remapBase(data)
         val count = try {
             AnizmStreams(name, { mainUrl }, this).load(pageUrl, subtitleCallback, callback)
