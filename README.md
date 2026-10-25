@@ -11,13 +11,18 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
+| Anime | **Anizm** | 5 |
 | Anime | **AnimeciX** | 24 |
-| Anime | **OpenAnime** | 28 |
-| Anime | **TrAnimeIzle** | 18 |
+| Anime | **TrAnimeIzle** | 30 |
 | Film / Dizi | **FilmMakinesi** | 72 |
 | Film / Dizi | **HDFilmCehennemi** | 63 |
-| Dizi | **DiziBox** | 24 |
-| Film / Dizi | **HDFilmİzle** | 8 |
+| Dizi | **DiziBox** | 27 |
+| Film / Dizi | **HDFilmİzle** | 11 |
+
+> **Anizm (v5)** ve **TrAnimeIzle (v30)** video kaynak zinciri bu sürümde tamamen yenilendi:
+> kaynaklar artık **paralel** çözülüyor (30+ saniyelik beklemeler bitti), sitenin kendi
+> oynatıcı uçları birebir kullanılıyor ve **HLS master listeleri kalite varyantlarına**
+> ayrılıyor. Ayrıntı: [`research/anime-plugin-rewrite-2026-10-25.md`](research/anime-plugin-rewrite-2026-10-25.md).
 
 > **FilmEkseni** ve **HDFilmDelisi** devre dışı bırakılmış, yerlerine **DiziBox** ve **HDFilmİzle** etkinleştirilmiştir. Eski kaynak klasörleri silinmemiştir. Eklentilerin uygulamada görünmesi için bu depoyu ekleyip uygulama içinden depoyu yenilemeniz gerekir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
 

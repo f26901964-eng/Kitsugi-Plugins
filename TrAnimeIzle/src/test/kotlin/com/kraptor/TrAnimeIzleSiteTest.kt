@@ -217,6 +217,39 @@ class TrAnimeIzleSiteTest {
         assertEquals("Fansub 19", fansubs[1].label)
     }
 
+    /**
+     * v30 regresyonu: sitenin GERÇEK sourcePlayer cevabı iframe'i
+     * `…/embed2/?id=<GERÇEK HOST URL>` biçiminde sarar. Bu adres çıkarılamazsa
+     * hiçbir kaynak oynatılamaz (v17–v29 arasındaki "kaynak yok" şikâyeti).
+     */
+    @Test
+    fun sourcePlayerIframeCarriesRealHostUrlInsideEmbed2() {
+        val body = """{"source":"<iframe src=\"https://luffytra2.top/embed2/?id=https://filemoon.sx/e/abc123\" allowfullscreen></iframe>","contributerNotes":""}"""
+        val html = TrAnimeIzleSite.unwrapJsonHtml(body)
+        val frames = TrAnimeIzleSite.iframesFrom(html, base)
+        assertEquals(1, frames.size)
+        assertEquals("https://luffytra2.top/embed2/?id=https://filemoon.sx/e/abc123", frames.first())
+
+        val candidates = TrAnimeIzleSite.embedCandidates(frames.first())
+        assertTrue(candidates.contains("https://filemoon.sx/e/abc123"))
+        assertEquals("https://filemoon.sx/e/abc123", candidates.first())
+    }
+
+    /** fansubSources cevabı: host adı `p` içinde, kimlik `data-id` içinde. */
+    @Test
+    fun parsesFansubSourcesHostNames() {
+        val html = """
+            <ul id="sourceList">
+              <li class="sourceBtn" data-id="901"><p>Filemoon</p></li>
+              <li class="sourceBtn" data-id="902"><p>Voe</p></li>
+              <li class="sourceBtn" data-id="903"><p>Sibnet</p></li>
+            </ul>
+        """.trimIndent()
+        val sources = TrAnimeIzleSite.sourcesFrom(html)
+        assertEquals(listOf("901", "902", "903"), sources.map { it.id })
+        assertEquals(listOf("Filemoon", "Voe", "Sibnet"), sources.map { it.label })
+    }
+
     @Test
     fun parsesSourceButtonsFromPlainHtmlAndJsonWrapper() {
         val plain = """
