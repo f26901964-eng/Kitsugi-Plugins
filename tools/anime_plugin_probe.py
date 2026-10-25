@@ -161,6 +161,28 @@ def probe_anizm() -> list[str]:
     out.extend(jina_section("Anizm ana sayfa (markdown)", base + "/"))
     out.extend(jina_section("Anizm /getAnimeListForSearch (markdown)", base + "/getAnimeListForSearch"))
     out.extend(jina_section("Anizm /arama?q=one piece (markdown)", base + "/arama?q=one+piece"))
+    out.extend(jina_section("Anizm /one-piece (seri sayfası)", base + "/one-piece", limit=16))
+    out.extend(jina_section("Anizm bölüm sayfası (bilinen canlı örnek)",
+                            base + "/cyberpunk-edgerunners-2-1-bolum-izle", limit=20))
+
+    # Bölüm sayfasında hangi oynatıcı host'ları geçiyor? (markdown metninden)
+    ep_status, ep_body = jina_md(base + "/cyberpunk-edgerunners-2-1-bolum-izle")
+    if ep_status == 200 and ep_body:
+        hosts = sorted(
+            {
+                host
+                for host in (
+                    "anizmplayer", "filemoon", "sibnet", "mp4upload", "ok.ru", "sendvid",
+                    "streamtape", "voe", "yourupload", "dood", "uqload", "gdrive", "youtube"
+                )
+                if host in ep_body.lower()
+            }
+        )
+        out.append(f"- bölüm sayfasında geçen oynatıcı host'ları: {', '.join(hosts) if hosts else 'YOK'}")
+        out.append(f"- 'fansub' geçişi: {len(re.findall('fansub', ep_body, re.IGNORECASE))} · "
+                   f"'altyaz' geçişi: {len(re.findall('altyaz', ep_body, re.IGNORECASE))} · "
+                   f"'altyazılı' geçişi: {len(re.findall('altyaz', ep_body, re.IGNORECASE))}")
+        out.append("")
 
     status, body, _ = fetch(base + "/getAnimeListForSearch", base + "/", xhr=True)
     out.append(f"**`/getAnimeListForSearch`** → HTTP {status} · {len(body)} bayt")

@@ -612,7 +612,24 @@ class TrAnimeIzle(
     private suspend fun probeDomainAlive(base: String): Boolean {
         return try {
             val resp = app.get(base, headers = browserHeaders(cachedSession(), base + "/"), timeout = 8)
-            val ok = resp.isSuccessful && !isBotBody(resp.text) && izleCount(resp.text) > 0
+            val text = resp.text ?: ""
+            // v28 (canlı ölçüm 25.10.2026): site veri merkezi IP'lerine Cloudflare
+            // **Error 1005** (ASN engeli) dönüyor. Bu, domainin ÖLDÜĞÜ anlamına
+            // GELMEZ — cihazın kendi bağlantısıyla (WebView oturumu) çalışır.
+            // Eskiden 403 "ölü domain" sayılıp gereksiz yere domain değiştiriliyordu.
+            val cfBlocked = resp.code == 403 || resp.code == 503 ||
+                text.contains("Error 1005", ignoreCase = true) ||
+                text.contains("error 1005", ignoreCase = true) ||
+                isBotBody(text)
+            if (cfBlocked) {
+                Log.w(
+                    LOG_TAG,
+                    "domain probe: $base → Cloudflare/IP engeli (${resp.code}); domain KORUNUYOR " +
+                        "(oturum katmanı çözer)"
+                )
+                return true
+            }
+            val ok = resp.isSuccessful && izleCount(text) > 0
             Log.d(LOG_TAG, "domain probe: $base → ${if (ok) "ALIVE" else "DEAD"} (status=${resp.code})")
             ok
         } catch (e: CancellationException) {
@@ -1930,8 +1947,11 @@ class TrAnimeIzle(
         /** v26: otomatik rotasyon aday domainleri (sıra = öncelik). */
         private val DOMAIN_CANDIDATES = listOf(
             "https://www.tranimeizle.io",
+            "https://tranimeizle.io",
             "https://www.tranimeizle.live",
-            "https://www.tranimeizle.top"
+            "https://tranimeizle.live",
+            "https://www.tranimeizle.top",
+            "https://tranimeizle.top"
         )
 
         private const val ACTIVE_DOMAIN_KEY = "kraptor_active_domain"

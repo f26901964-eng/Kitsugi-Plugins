@@ -286,8 +286,22 @@ class Anizm : MainAPI() {
             if (collected.size >= 6) break
         }
 
-        // 2) Yerel katalog (İngilizce/Japonca alternatif adlarla eşleşme — asıl kazanç).
+        // 2) HTML arama sayfası — canlı sitede doğrulandı (25.10.2026):
+        //    `/arama?q=one+piece` gerçek sonuç kartları döndürüyor (küçük, hızlı).
         if (collected.size < 8) {
+            for (variant in variants.take(3)) {
+                val cards = searchHtml(variant)
+                cards.forEach(::merge)
+                if (collected.size >= 10) break
+            }
+            Log.d(LOG_TAG, "HTML arama sonrası: ${collected.size} kart")
+        }
+
+        // 3) Yerel katalog (/getAnimeListForSearch — sitenin kendi arama indeksi).
+        //    İngilizce/Japonca alternatif adlarla eşleşmenin asıl kaynağı ama
+        //    ÇOK büyük (canlı ölçüm: >3 MB). Bu yüzden yalnızca yukarıdakiler
+        //    yetersizse ve 6 saatlik önbellekle indirilir.
+        if (collected.size < 3) {
             val catalogue = loadCatalogue()
             if (catalogue.isNotEmpty()) {
                 val ranked = AnizmMatch.rank(
@@ -298,15 +312,6 @@ class Anizm : MainAPI() {
                 )
                 ranked.forEach(::merge)
                 Log.d(LOG_TAG, "katalog eşleşmesi: ${ranked.size}/${catalogue.size}")
-            }
-        }
-
-        // 3) HTML arama sayfası (JSON uçları kapanırsa).
-        if (collected.isEmpty()) {
-            for (variant in variants.take(2)) {
-                val cards = searchHtml(variant)
-                cards.forEach(::merge)
-                if (collected.size >= 5) break
             }
         }
 
@@ -338,40 +343,99 @@ class Anizm : MainAPI() {
 
     /** `/searchAnime` ve `/getAnimeListForSearch` aynı alan adlarını kullanır. */
     private fun parseSearchJson(body: String): List<AnizmCard> {
-        val trimmed = body.trim()
-        if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) return emptyList()
-        val array: JSONArray = try {
-            if (trimmed.startsWith("[")) {
-                JSONArray(trimmed)
-            } else {
-                JSONObject(trimmed).optJSONArray("data") ?: return emptyList()
-            }
-        } catch (e: Exception) {
-            Log.w(LOG_TAG, "arama JSON çözülemedi: ${e.message}")
-            return emptyList()
+        val text = body.trim()
+        if (text.isEmpty()) return emptyList()
+        // 1) Düz dizi
+        parseJsonArray(text)?.let { if (it.isNotEmpty()) return it }
+        // 2) Sarmallı cevaplar: {data:[...]}, {animes:[...]}, {results:[...]}, {items:[...]}
+        for (key in listOf("data", "animes", "results", "items", "list")) {
+            val arrayText = extractJsonArray(text, key) ?: continue
+            parseJsonArray(arrayText)?.let { if (it.isNotEmpty()) return it }
         }
-        val out = ArrayList<AnizmCard>(array.length())
-        for (index in 0 until array.length()) {
-            val item = array.optJSONObject(index) ?: continue
-            cardOfJson(item)?.let(out::add)
+        // 3) Satır satır JSON (NDJSON)
+        val lines = text.lineSequence().filter { it.trim().startsWith("{") }.toList()
+        if (lines.isNotEmpty()) {
+            val cards = lines.mapNotNull { line -> runCatching { cardFromJsonObject(JSONObject(line)) }.getOrNull() }
+            if (cards.isNotEmpty()) return cards
         }
-        return out
+        return emptyList()
     }
 
-    private fun cardOfJson(item: JSONObject): AnizmCard? {
-        val otherNames = (item.optString("info_othernames") + "," + item.optString("info_japanese"))
-            .split(',', '/', '|')
-            .map { it.trim() }
-            .filter { it.length in 2..120 }
-        val score = item.optDouble("info_malpoint", 0.0).takeIf { !it.isNaN() && it > 0.0 && it <= 10.0 }
+    private fun parseJsonArray(text: String): List<AnizmCard>? {
+        val trimmed = text.trim()
+        val start = trimmed.indexOf('[')
+        val end = trimmed.lastIndexOf(']')
+        if (start < 0 || end <= start) return null
+        return try {
+            val array = org.json.JSONArray(trimmed.substring(start, end + 1))
+            (0 until array.length()).mapNotNull { index ->
+                array.optJSONObject(index)?.let { cardFromJsonObject(it) }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractJsonArray(text: String, key: String): String? {
+        val index = text.indexOf("\"$key\"")
+        if (index < 0) return null
+        val start = text.indexOf('[', index)
+        if (start < 0) return null
+        // Dengeli parantez taraması (iç içe diziler için).
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for (i in start until text.length) {
+            val ch = text[i]
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    ch == '\\' -> escaped = true
+                    ch == '"' -> inString = false
+                }
+                continue
+            }
+            when (ch) {
+                '"' -> inString = true
+                '[' -> depth++
+                ']' -> {
+                    depth--
+                    if (depth == 0) return text.substring(start, i + 1)
+                }
+            }
+        }
+        return null
+    }
+
+    private fun cardFromJsonObject(obj: JSONObject): AnizmCard? {
+        val title = obj.optString("info_title").ifBlank { obj.optString("title") }
+        val slug = obj.optString("info_slug").ifBlank { obj.optString("slug") }
+        val poster = obj.optString("info_poster").ifBlank { obj.optString("poster") }
+        val year = obj.optString("info_year").toIntOrNull() ?: obj.optInt("year", 0).takeIf { it > 0 }
+        val score = obj.optString("info_malpoint").replace(',', '.').toDoubleOrNull()
+            ?: obj.optDouble("malpoint", 0.0).takeIf { it > 0.0 }
+        val altNames = mutableListOf<String>()
+        fun addAlt(raw: String?) {
+            raw?.split(',', '/', '|')
+                ?.map { it.trim() }
+                ?.filter { it.length in 2..120 }
+                ?.let(altNames::addAll)
+        }
+        addAlt(obj.optString("info_othernames"))
+        addAlt(obj.optString("info_japanese"))
+        obj.optJSONArray("names")?.let { names ->
+            for (i in 0 until names.length()) {
+                names.optString(i).takeIf { it.isNotBlank() }?.let(altNames::add)
+            }
+        }
         return AnizmSite.cardFromJsonFields(
             base = mainUrl,
-            title = item.optString("info_title").ifBlank { null },
-            slug = item.optString("info_slug").ifBlank { null },
-            poster = item.optString("info_poster").ifBlank { null },
-            year = item.optString("info_year").toIntOrNull(),
+            title = title,
+            slug = slug,
+            poster = poster,
+            year = year,
             score = score,
-            altNames = otherNames
+            altNames = altNames
         )
     }
 
@@ -1059,7 +1123,7 @@ class Anizm : MainAPI() {
         private const val SEARCH_PAGE_SIZE = 24
         private const val MAX_MAIN_PAGE = 60
         private const val BASE_TTL_MS = 10 * 60 * 1000L
-        private const val CATALOGUE_TTL_MS = 30 * 60 * 1000L
+        private const val CATALOGUE_TTL_MS = 6 * 60 * 60 * 1000L
 
         /** Aynı sitenin paralel/eski adları — probe sırası öncelik sırasıdır. */
         private val BASE_CANDIDATES = listOf(
