@@ -39,6 +39,10 @@ jobs:
       - name: Python birim testleri
         run: python3 -m unittest discover -s tests -v
 
+      - name: "GECICI: anime eklentisi canlı yapı probu"
+        continue-on-error: true
+        run: python3 tools/anime_plugin_probe.py
+
       - name: Opsiyonel canlı player kaynağı incelemesi
         id: live_probe
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
