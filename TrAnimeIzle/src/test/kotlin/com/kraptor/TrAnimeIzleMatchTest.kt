@@ -101,9 +101,9 @@ class TrAnimeIzleMatchTest {
     @Test
     fun rankPutsBestMatchFirstAndFiltersNoise() {
         val candidates = listOf(
-            Triple("Bleach", "u1", emptyList()),
-            Triple("One Piece 1120. Bölüm İzle", "u2", emptyList()),
-            Triple("One Piece Film: Red", "u3", emptyList())
+            Triple("Bleach", "u1", emptyList<String>()),
+            Triple("One Piece 1120. Bölüm İzle", "u2", emptyList<String>()),
+            Triple("One Piece Film: Red", "u3", emptyList<String>())
         )
         val ranked = TrAnimeIzleMatch.rank("One Piece", candidates)
         assertEquals("u2", ranked.first().first)
@@ -113,8 +113,8 @@ class TrAnimeIzleMatchTest {
     @Test
     fun rankFallsBackToTopThreeWhenNothingPassesThreshold() {
         val candidates = listOf(
-            Triple("Naruto", "u1", emptyList()),
-            Triple("Bleach", "u2", emptyList())
+            Triple("Naruto", "u1", emptyList<String>()),
+            Triple("Bleach", "u2", emptyList<String>())
         )
         val ranked = TrAnimeIzleMatch.rank("Death Note", candidates)
         assertTrue(ranked.size in 1..3)
