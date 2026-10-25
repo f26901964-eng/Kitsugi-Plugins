@@ -79,6 +79,9 @@ internal object FilmEkseniPlayerParser {
 
     /** Extract external subtitle tracks without restricting their language. */
     fun subtitles(source: String): List<SubtitleTrack> = objectBlocks(source)
+        // A parent config may contain a source .m3u8 and a nested subtitle kind;
+        // inspect leaf track objects only so those fields cannot be cross-paired.
+        .filter(::isLeafObject)
         .mapNotNull { block ->
             val rawUrl = fieldFilePattern.find(block)?.groupValues?.getOrNull(1)
                 ?: return@mapNotNull null
@@ -159,6 +162,30 @@ internal object FilmEkseniPlayerParser {
                 key to value
             }
             .toMap()
+
+    /** Ignore parent config objects when they contain separate nested source/track objects. */
+    private fun isLeafObject(block: String): Boolean {
+        var quote: Char? = null
+        var escaped = false
+        for (index in 1 until block.lastIndex) {
+            val char = block[index]
+            if (quote != null) {
+                if (escaped) {
+                    escaped = false
+                } else if (char == '\\') {
+                    escaped = true
+                } else if (char == quote) {
+                    quote = null
+                }
+                continue
+            }
+            when (char) {
+                '\'', '"', '`' -> quote = char
+                '{' -> return false
+            }
+        }
+        return true
+    }
 
     /** Return every balanced object, including nested track objects in JS config. */
     private fun objectBlocks(source: String): Sequence<String> = sequence {
