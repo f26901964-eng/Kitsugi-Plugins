@@ -13,10 +13,14 @@ on:
       - "settings.gradle.kts"
       - "build.gradle.kts"
       - "enabled_plugins.txt"
+      - "merge_plugins.py"
+      - "prebuilt_plugins.json"
+      - "tools/**"
+      - "tests/**"
   workflow_dispatch:
     inputs:
       plugins:
-        description: "Boşsa tüm etkin eklentiler; örnek: FilmEkseni HDFilmDelisi"
+        description: "Boşsa tüm etkin eklentiler; örnek: DiziBox HDFilmIzle"
         required: false
         default: ""
 
@@ -29,6 +33,9 @@ jobs:
     steps:
       - name: "Depo Kontrolu"
         uses: actions/checkout@v4.2.2
+
+      - name: Python birim testleri
+        run: python3 -m unittest discover -s tests -v
 
       - name: JDK 17 Ayarla
         uses: actions/setup-java@v4.6.0

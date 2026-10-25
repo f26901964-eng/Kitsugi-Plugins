@@ -6,20 +6,20 @@ Kitsugi Android & Android TV uygulaması için özel olarak derlenmiş, optimize
 
 ## ✅ Aktif Kaynaklar (8)
 
-Depo artık **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
+Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
 
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
 | Anime | **AnimeciX** | 24 |
 | Anime | **OpenAnime** | 28 |
-| Anime | **TrAnimeIzle** | 15 |
-| Film / Dizi | **FilmMakinesi** | 71 |
-| Film / Dizi | **HDFilmCehennemi** | 62 |
-| Film / Dizi | **FilmEkseni** | 51 |
-| Film / Dizi | **HDFilmDelisi** | 19 |
+| Anime | **TrAnimeIzle** | 18 |
+| Film / Dizi | **FilmMakinesi** | 72 |
+| Film / Dizi | **HDFilmCehennemi** | 63 |
+| Dizi | **DiziBox** | 24 |
+| Film / Dizi | **HDFilmİzle** | 8 |
 
-> **FilmEkseni** ve **HDFilmDelisi**'nin Kotlin kaynakları bu depodaki kendi modüllerinde tutulur ve `.cs3` paketleri bu kaynaklardan derlenir. Çalışma anında başka bir eklenti deposundan kod veya alan adı listesi indirmezler. Video siteleri, oynatıcılar ve altyazı/metadata servisleri doğal olarak dış sağlayıcılar olmaya devam eder; bunların erişilebilirliği ayrıca canlı test gerektirir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
+> **FilmEkseni** ve **HDFilmDelisi** devre dışı bırakılmış, yerlerine **DiziBox** ve **HDFilmİzle** etkinleştirilmiştir. Eski kaynak klasörleri silinmemiştir. Eklentilerin uygulamada görünmesi için bu depoyu ekleyip uygulama içinden depoyu yenilemeniz gerekir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
 
 > Sürüm sütunu bilgilendirme amaçlıdır; `plugins.json`'a yazılan gerçek sürüm her zaman `.cs3` dosyasının içindeki `manifest.json`'dan okunur.
 
@@ -70,7 +70,7 @@ Bu yüzden iki otomatik adım eklendi:
 | Adım | Ne yapar |
 | --- | --- |
 | `tools/purge_cdn.py` | Yayından sonra `repo.json`, `plugins.json` ve tüm `.cs3` dosyaları için jsDelivr önbelleğini temizler, ardından ham GitHub ile aynayı karşılaştırır |
-| `tools/verify_publish.py` | `repo.json → plugins.json → .cs3` zincirini **uygulamanın kullandığı adreslerden** indirip doğrular: kayıt var mı, `status` 1 mi, URL bu depoyu mu gösteriyor, boyut + sha256 tutuyor mu, ZIP içinde `manifest.json`/`classes.dex` var mı, iç manifestin `name`/`version` değeri manifestle aynı mı |
+| `tools/verify_publish.py` | `repo.json → plugins.json → .cs3` zincirini **uygulamanın kullandığı adreslerden** indirip doğrular: etkin listedeki her eklenti tam bir kez mi var, fazladan/yinelenen kayıt sızmış mı, `status` 1 mi, URL bu depoyu mu gösteriyor, boyut + sha256 tutuyor mu, ZIP içinde `manifest.json`/`classes.dex` var mı ve iç manifestin `name`/`version` değeri listeyle aynı mı |
 
 - `Derleyici` iş akışı yayından sonra `tools/purge_cdn.py` çalıştırır.
 - `Yayin Dogrulama` iş akışı her derlemeden sonra, `main`'e dokunan push'larda ve 6 saatte bir
