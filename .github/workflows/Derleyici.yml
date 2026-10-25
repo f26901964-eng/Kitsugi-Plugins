@@ -53,23 +53,34 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/src
 
-          # Manuel tetiklemede (workflow_dispatch) eklenti listesi elle verilebilir;
-          # aksi halde onceki commit ile karsilastirilir.
-          MANUAL="${{ github.event.inputs.plugins }}"
-          if [ -n "$MANUAL" ]; then
-            CHANGED="$MANUAL"
-            echo "Manuel derleme listesi: $CHANGED"
-          else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u || true)
-            echo "Degisen klasorler: $CHANGED"
-          fi
-
           # enabled_plugins.txt = uygulamada gorunecek TEK kaynaklar.
           # Burada olmayan eklentiler derlenmez; kaynaklari SILINMEZ, sadece devre disi.
           ENABLED=""
           if [ -f enabled_plugins.txt ]; then
             ENABLED=$(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
             echo "Aktif eklenti listesi:"; echo "$ENABLED"
+          fi
+
+          # Manuel tetiklemede (workflow_dispatch) eklenti listesi elle verilebilir;
+          # aksi halde onceki commit ile karsilastirilir. enabled_plugins.txt'ye yeni
+          # eklenen pluginleri de degisen listeye ekle; yalnizca listeyi guncellemek
+          # yeni .cs3 dosyasinin uretilmeden manifestte kalmasina yol acmamali.
+          MANUAL="${{ github.event.inputs.plugins }}"
+          if [ -n "$MANUAL" ]; then
+            CHANGED="$MANUAL"
+            echo "Manuel derleme listesi: $CHANGED"
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -oP '^[^/]+' | sort -u || true)
+            if git diff --name-only HEAD~1 HEAD -- enabled_plugins.txt | grep -qx 'enabled_plugins.txt'; then
+              PREVIOUS_ENABLED=$(git show HEAD~1:enabled_plugins.txt 2>/dev/null | grep -vE '^[[:space:]]*(#|$)' | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
+              for dir in $ENABLED; do
+                if ! printf '%s\n' "$PREVIOUS_ENABLED" | grep -qxF "$dir"; then
+                  CHANGED="$CHANGED $dir"
+                  echo "Yeni etkinlestirilen plugin derleme listesine eklendi: $dir"
+                fi
+              done
+            fi
+            echo "Degisen klasorler: $CHANGED"
           fi
 
           # 1) Hazir (prebuilt) eklentileri ONCE kopyala.

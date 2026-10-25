@@ -21,3 +21,5 @@ AnimeciX
 # ── Dizi / Film ──────────────────────────────────────────────────────────────
 FilmMakinesi
 HDFilmCehennemi
+FilmEkseni
+HDFilmDelisi

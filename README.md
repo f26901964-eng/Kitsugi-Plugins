@@ -4,9 +4,9 @@ Kitsugi Android & Android TV uygulaması için özel olarak derlenmiş, optimize
 
 ---
 
-## ✅ Aktif Kaynaklar (4)
+## ✅ Aktif Kaynaklar (6)
 
-Depo artık **yalnızca aşağıdaki 4 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
+Depo artık **yalnızca aşağıdaki 6 kaynağı** yayınlar. Bunların dışındaki tüm eklentiler **silinmemiştir**; sadece devre dışıdır (manifeste yazılmaz, derlenmez).
 
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
@@ -14,6 +14,10 @@ Depo artık **yalnızca aşağıdaki 4 kaynağı** yayınlar. Bunların dışın
 | Anime | **AnimeciX** | 24 |
 | Film / Dizi | **FilmMakinesi** | 71 |
 | Film / Dizi | **HDFilmCehennemi** | 62 |
+| Film / Dizi | **FilmEkseni** | 51 |
+| Film / Dizi | **HDFilmDelisi** | 19 |
+
+> **FilmEkseni** ve **HDFilmDelisi**'nin Kotlin kaynakları bu depodaki kendi modüllerinde tutulur ve `.cs3` paketleri bu kaynaklardan derlenir. Çalışma anında başka bir eklenti deposundan kod veya alan adı listesi indirmezler. Video siteleri, oynatıcılar ve altyazı/metadata servisleri doğal olarak dış sağlayıcılar olmaya devam eder; bunların erişilebilirliği ayrıca canlı test gerektirir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
 
 > Sürüm sütunu bilgilendirme amaçlıdır; `plugins.json`'a yazılan gerçek sürüm her zaman `.cs3` dosyasının içindeki `manifest.json`'dan okunur.
 
