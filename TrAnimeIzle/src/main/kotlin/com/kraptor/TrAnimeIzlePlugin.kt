@@ -7,8 +7,8 @@ import com.lagradost.cloudstream3.plugins.Plugin
 /**
  * TrAnimeIzle eklenti girişi (DEX'teki TrAnimeIzlePlugin'in yeniden yazımı).
  *
- * - [TrAnimeIzleHelper.setup]: paket imzası doğrulaması (izinli değilse
- *   eklenti boş sonuç döner, kapanmaz).
+ * - [TrAnimeIzleHelper.setup]: v28'de imza kapısı KALDIRILDI (no-op); eskiden
+ *   izinli olmayan kurulumlarda eklenti sessizce boş sonuç dönüyordu.
  * - Domain, "DomainListesi" tercihleri üzerinden çözülür (Companion.getDomain).
  * - Üç oynatıcı çözücü: OpTraco, Hdvid, Hexload.
  */
