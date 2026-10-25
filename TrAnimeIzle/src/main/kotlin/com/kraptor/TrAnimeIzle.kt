@@ -11,6 +11,7 @@ import com.lagradost.cloudstream3.utils.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -57,6 +58,22 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    DEX davranışı geri getirildi: arama/ana sayfa/load/loadLinks
  *    isteklerinden ÖNCE oturum garantisi (sessionBootstrap; kayıtlı
  *    oturum varsa diyalog açılmaz, yoksa WebView ~5 sn'de kapanır).
+ *
+ * v20:
+ *  - Cihaz kanıtı (v19): arama YİNE 0 sonuç + diyalog YİNE yok → v19'un
+ *    hatası: kayıtlı ESKİ oturum çerezi (v17'den) doğrulanmadan kullanıldı;
+ *    site eski/geçersiz oturuma sessizce BOŞ sayfa döndürüyor.
+ *  - Düzeltme (3 katman, her koşulda içerik garantisi):
+ *    1) ensureValidSession(): epoch başında ANA SAYFA PROB'U (GET).
+ *       Kart linki var → oturum GEÇERLİ, diyalog yok. Boş/bot →
+ *       eski çerezler TEMİZLENİR + ana sayfada taze WebView diyaloğu
+ *       (challenge varsa çözülür; ana sayfanın içeriği garantili).
+ *    2) GET boş içerik döndürürse (site document-dışı isteğe farklı
+ *       dönebilir) → aynı URL WebView'da açılır, sayfanın TAM DOM'u
+ *       (outerHTML) oradan alınır ve O çözülür.
+ *    3) BotKontrol diyaloğu artık çerez seti + sayfa DOM HTML'i döndürür
+ *       (WebFetchResult); botKontrolFetch(wipeFirst) taze oturum açar.
+ *  - HTTP istekleri Firefox document/XHR imzasıyla (sec-fetch-* başlıkları).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -122,7 +139,7 @@ class TrAnimeIzle(
         val enc = URLEncoder.encode(query, "UTF-8")
         val url = if (page <= 1) mainUrl + "/arama/" + enc
         else mainUrl + "/arama/" + enc + "?page=" + page
-        val html = fetchHtml(url, mainUrl + "/", ensureSession = true)
+        val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
         val document = Jsoup.parse(html)
         var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
         if (results.isEmpty()) {
@@ -148,7 +165,7 @@ class TrAnimeIzle(
                 return newHomePageResponse(request.name, emptyList(), false)
             }
             val url = request.data + page
-            val html = fetchHtml(url, mainUrl + "/", ensureSession = true)
+            val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
             val document = Jsoup.parse(html)
             var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
             if (results.isEmpty()) {
@@ -230,15 +247,33 @@ class TrAnimeIzle(
      */
     private fun browserHeaders(
         cookie: String,
-        referer: String = mainUrl + "/"
+        referer: String = mainUrl + "/",
+        isXhr: Boolean = false
     ): Map<String, String> = buildMap {
         put("User-Agent", BotKontrolKt.UA_FIREFOX)
         put(
             "Accept",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+            if (isXhr) "application/json, text/plain, */*"
+            else "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
         )
         put("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8")
         put("Referer", referer)
+        if (isXhr) {
+            // v20: Firefox'un XHR imzası (site kendi axios isteklerini böyle yapar).
+            put("sec-fetch-dest", "empty")
+            put("sec-fetch-mode", "cors")
+            put("sec-fetch-site", "same-origin")
+            put("X-Requested-With", "XMLHttpRequest")
+        } else {
+            // v20: Firefox'un document navigasyon imzası — WAF'ların
+            // "gerçek tarayıcı mı?" testinde baktığı başlıklar.
+            put("sec-fetch-dest", "document")
+            put("sec-fetch-mode", "navigate")
+            put("sec-fetch-site", "same-origin")
+            put("sec-fetch-user", "?1")
+            put("priority", "u=0,i")
+            put("Upgrade-Insecure-Requests", "1")
+        }
         if (cookie.isNotEmpty()) put("Cookie", cookie)
     }
 
@@ -262,6 +297,89 @@ class TrAnimeIzle(
         return ""
     }
 
+    // ------------------------------------------------------------------
+    // v20: oturum doğrulama (epoch) + WebView DOM çekme katmanı
+    // ------------------------------------------------------------------
+
+    /**
+     * Sayfadaki içerik kart linki sayısı (…-bolum-izle / …-anime-izle).
+     * Ana sayfa/liste/arama sayfasında oturum GEÇERLİYSE bu sayfa > 0'dır
+     * (ana sayfa arşivi 22.09.2026: kartlar garantili).
+     */
+    private fun izleCount(html: String?): Int = try {
+        if (html.isNullOrBlank()) return 0
+        Jsoup.parse(html).select("a[href*='bolum-izle'], a[href*='anime-izle']").size
+    } catch (_: Exception) {
+        0
+    }
+
+    private var sessionValidated = false
+
+    /**
+     * v20 oturum doğrulaması (epoch başında BİR kez):
+     *  1) HIZLI PROB: ana sayfa GET (kayıtlı çerezle). Kart linki varsa
+     *     oturum GEÇERLİ → diyalog yok, anında dön.
+     *     (v19'un hatası: kayıtlı çerez GEÇERLİLİĞİNE bakılmadan kullanıldı;
+     *     site eski oturuma sessizce boş sayfa döndürüyordu → 0 sonuç +
+     *     diyalog hiç açılmadı.)
+     *  2) Prob boş/bot → ESKİ ÇEREZLER TEMİZLENİR + ana sayfada taze WebView
+     *     diyaloğu (challenge varsa otomatik/elle çözülür). Ana sayfanın
+     *     içeriği garanti olduğundan, içerik gelmesi = oturumun tarayıcı
+     *     kanıtıyla geçerli olduğu demektir.
+     *  3) Diyaloğta da içerik yoksa → elimizdeki en iyi setle devam (log).
+     */
+    private suspend fun ensureValidSession(): String {
+        if (sessionValidated) return lastCookie
+        sessionValidated = true
+        var cookie = lastCookie.ifBlank { cachedSession() }
+        var probe = try {
+            app.get(mainUrl, headers = browserHeaders(cookie, mainUrl + "/"))
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Ana sayfa prob hatası: ${e.message}")
+            null
+        }
+        if (probe == null) {
+            // Ağ gecikmesi olmasın diye: prob hatasında bir kez daha dene.
+            delay(1_500)
+            probe = try {
+                app.get(mainUrl, headers = browserHeaders(cookie, mainUrl + "/"))
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "Ana sayfa prob 2. deneme hatası: ${e.message}")
+                null
+            }
+        }
+        val probeText = probe?.text ?: ""
+        val probeLinks = izleCount(probeText)
+        if (probe != null && probe.isSuccessful && probeLinks > 0) {
+            Log.d(LOG_TAG, "Oturum GEÇERLİ (ana sayfa prob: $probeLinks kart linki) — diyalog yok")
+            lastCookie = cookie
+            return cookie
+        }
+        Log.w(
+            LOG_TAG,
+            "Ana sayfa prob GEÇERSİZ (isSuccess=${probe?.isSuccessful ?: "?"}, $probeLinks kart linki, " +
+                "botCevabı=${isBotBody(probeText)}) → taze oturum diyaloğu (eski çerezler temizleniyor)"
+        )
+        val res = try {
+            BotKontrolKt.botKontrolFetch(context, mainUrl, wipeFirst = true)
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Oturum diyaloğu hatası: ${e.message}")
+            BotKontrolKt.WebFetchResult("", "")
+        }
+        val resLinks = izleCount(res.html)
+        if (resLinks > 0) {
+            Log.d(LOG_TAG, "Taze oturum alındı ($resLinks kart linki, set ${res.jar.length} karakter)")
+            lastCookie = res.jar
+            return res.jar
+        }
+        Log.e(
+            LOG_TAG,
+            "Diyalog sayfasında da içerik yok (html=${res.html.length} karakter, set=${res.jar.length}) — mevcut setle devam"
+        )
+        lastCookie = res.jar.ifBlank { cookie }
+        return lastCookie
+    }
+
     /** WebView diyaloğu ile oturumu YENİLER (bot cevabı alındıysa). */
     private suspend fun refreshSession(url: String): String = try {
         BotKontrolKt.botKontrol(context, url, forceRefresh = true)
@@ -270,25 +388,6 @@ class TrAnimeIzle(
         BotKontrolKt.getSavedCookie(context, mainUrl)
     }
 
-    /**
-     * v19 (DEX uyumu): istek ÖNCESİ oturum garantisi.
-     *
-     * Kanıt: v18'de cihazda arama 0 sonuç + HİÇ DİYALOG AÇILMADI. Anlamı:
-     * site, oturum çerezi OLMAYAN isteklere bot sayfası değil, sessizce
-     * BOŞ/200 sayfa dönüyor → "bot cevabı gelince diyalog aç" mantığı asla
-     * tetiklenmiyordu. DEX, arama/bölüm isteklerinden ÖNCE botKontrol
-     * çağrısı yapıyordu (gate). Burası o davranışı geri getirir:
-     *  - kayıtlı oturum/CM seti varsa → anında, diyalog YOK,
-     *  - yoksa → WebView diyaloğu (challenge'sızsa ~5 sn'de kendiliğinden kapanır).
-     */
-    private suspend fun sessionBootstrap(): String {
-        return try {
-            BotKontrolKt.botKontrol(context, mainUrl, forceRefresh = false)
-        } catch (e: Exception) {
-            Log.e(LOG_TAG, "Oturum başlatma hatası: ${e.message}")
-            cachedSession()
-        }
-    }
 
     /**
      * İçerik bot/captcha/Cloudflare challenge sayfası mı?
@@ -322,12 +421,12 @@ class TrAnimeIzle(
     private suspend fun fetchHtml(
         url: String,
         referer: String,
-        ensureSession: Boolean = false
+        ensureSession: Boolean = false,
+        webViewFallback: Boolean = false
     ): String {
-        // v19: ensureSession=true → DEX gibi istek ÖNCESİ oturum garantisi
-        // (site oturumsuz isteklere sessizce boş sayfa dönebiliyor).
+        // v20: ensureSession=true → epoch oturum doğrulaması (geçerlilik kanıtıyla).
         var cookie = lastCookie.ifBlank {
-            if (ensureSession) sessionBootstrap() else cachedSession()
+            if (ensureSession) ensureValidSession() else cachedSession()
         }
         var resp = app.get(url, headers = browserHeaders(cookie, referer))
         if (!resp.isSuccessful || isBotBody(resp.text)) {
@@ -338,7 +437,39 @@ class TrAnimeIzle(
         lastCookie = cookie
         val ok = resp.isSuccessful
         val text = resp.text
-        Log.d(LOG_TAG, "GET $url → ${if (ok) "başarılı" else "BAŞARISIZ"}, ${text?.length ?: 0} karakter")
+        Log.d(
+            LOG_TAG,
+            "GET $url → ${if (ok) "başarılı" else "BAŞARISIZ"}, ${text?.length ?: 0} karakter, " +
+                "${izleCount(text)} kart linki"
+        )
+
+        // v20 SON KATMAN: GET, oturum geçerli olmasına rağmen BOŞ içerik
+        // dönebiliyor (site document-dışı isteklere farklı dönebilir).
+        // Aynı URL WebView'da açılır; tarayıcının render ettiği TAM DOM
+        // (outerHTML) alınır ve o çözülür — kullanıcı tarayıcıda ne
+        // görüyorsa eklenti de onu görür.
+        if (webViewFallback && ok && !isBotBody(text) && izleCount(text) == 0) {
+            Log.w(LOG_TAG, "GET boş içerik getirdi → WebView DOM çekme deneniyor: $url")
+            try {
+                val res = BotKontrolKt.botKontrolFetch(context, url, wipeFirst = false)
+                if (res.html.isNotBlank() &&
+                    (izleCount(res.html) > 0 || res.html.length > (text?.length ?: 0))
+                ) {
+                    if (res.jar.isNotBlank()) {
+                        lastCookie = res.jar
+                        BotKontrolKt.saveJar(context, url, res.jar)
+                    }
+                    Log.d(
+                        LOG_TAG,
+                        "WebView DOM alındı: ${res.html.length} karakter, ${izleCount(res.html)} kart linki"
+                    )
+                    return res.html
+                }
+                Log.e(LOG_TAG, "WebView DOM'da da içerik yok (html=${res.html.length})")
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "WebView DOM çekme hatası: ${e.message}")
+            }
+        }
         if (text.isNullOrBlank()) {
             throw ErrorLoadingException("Siteye ulaşılamadı.")
         }
@@ -354,7 +485,7 @@ class TrAnimeIzle(
 
         // v17: fetchHtml → kayıtlı oturumla dener, bot cevabı alırsa
         // WebView diyaloğuyla oturumu yeniler ve bir kez tekrar dener.
-        val html = fetchHtml(url, mainUrl + "/", ensureSession = true)
+        val html = fetchHtml(url, mainUrl + "/", ensureSession = true, webViewFallback = true)
         var document = Jsoup.parse(html)
 
         val banasayfa = fixUrlNull(
@@ -651,6 +782,7 @@ class TrAnimeIzle(
         return coroutineScope {
             Log.d(LOG_TAG, "data = $data")
             val html = fetchHtml(data, mainUrl + "/", ensureSession = true)
+        // (webViewFallback=false: bu sayfa load() akışında zaten doğrulandı)
             val document = Jsoup.parse(html)
 
             // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
@@ -695,11 +827,8 @@ class TrAnimeIzle(
                     "EpisodeId" to (episodeId ?: 0).toString(),
                     "FansubId" to (fansubId ?: 0).toString()
                 ),
-                headers = browserHeaders(lastCookie) +
-                    mapOf(
-                        "Accept" to "application/json, text/plain, */*",
-                        "Content-Type" to "application/json"
-                    )
+                headers = browserHeaders(lastCookie, isXhr = true) +
+                    mapOf("Content-Type" to "application/json")
             )
             val sourceButtons = response.document.select("li.sourceBtn")
             Log.d(tag, "fansubSources(fid=$fansubId) → ${if (response.isSuccessful) "başarılı" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak")
@@ -732,11 +861,8 @@ class TrAnimeIzle(
             // Eski ikili form ({sourceId}/{eid}) yalnızca yedek olarak denenecek.
             val primary = app.post(
                 mainUrl + "/api/sourcePlayer/$sourceId",
-                headers = browserHeaders(lastCookie) +
-                    mapOf(
-                        "Accept" to "application/json, text/plain, */*",
-                        "Content-Type" to "application/json"
-                    )
+                headers = browserHeaders(lastCookie, isXhr = true) +
+                    mapOf("Content-Type" to "application/json")
             )
             Log.d(LOG_TAG, "sourcePlayer($sourceName) [1 param] → ${if (primary.isSuccessful) "başarılı" else "BAŞARISIZ"}")
             val videoApi = try {
@@ -747,11 +873,8 @@ class TrAnimeIzle(
                 Log.d(LOG_TAG, "sourcePlayer($sourceName) → yedek form (2 param) deneniyor")
                 val legacy = app.post(
                     mainUrl + "/api/sourcePlayer/$sourceId/$eid",
-                    headers = browserHeaders(lastCookie) +
-                        mapOf(
-                            "Accept" to "application/json, text/plain, */*",
-                            "Content-Type" to "application/json"
-                        )
+                    headers = browserHeaders(lastCookie, isXhr = true) +
+                        mapOf("Content-Type" to "application/json")
                 )
                 legacy.parsedSafe<VideoApi>()?.takeIf { it.source.isNotBlank() }
             } catch (e: Exception) {
