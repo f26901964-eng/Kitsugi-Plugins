@@ -3,7 +3,7 @@
 [HEAD]
 HTTP/2 302 
 server: nginx
-date: Sun, 25 Oct 2026 14:39:39 GMT
+date: Sun, 25 Oct 2026 14:41:59 GMT
 content-type: text/html; charset=utf-8
 x-archive-orig-date: Sun, 07 Jun 2026 18:50:36 GMT
 x-archive-orig-transfer-encoding: chunked
@@ -33,11 +33,11 @@ memento-datetime: Sun, 07 Jun 2026 18:50:35 GMT
 link: <https://puffytr.com/player/1656125>; rel="original", <https://web.archive.org/web/timemap/link/https://puffytr.com/player/1656125>; rel="timemap"; type="application/link-format", <https://web.archive.org/web/https://puffytr.com/player/1656125>; rel="timegate"
 content-security-policy: default-src 'self' 'unsafe-eval' 'unsafe-inline' data: blob: archive.org web.archive.org web-static.archive.org wayback-api.archive.org athena.archive.org analytics.archive.org pragma.archivelab.org wwwb-events.archive.org
 x-archive-src: spn2-20260607210139/spn2-20260607182316-wwwb-spn14.us.archive.org-8001.warc.gz
-server-timing: captures_list;dur=0.500541, exclusion.robots;dur=0.043798, exclusion.robots.policy;dur=0.031396, esindex;dur=0.008663, cdx.remote;dur=25.655901, LoadShardBlock;dur=89.820887, PetaboxLoader3.datanode;dur=106.425540, PetaboxLoader3.resolve;dur=2232.418595, load_resource;dur=2305.270044
+server-timing: captures_list;dur=0.613207, exclusion.robots;dur=0.051323, exclusion.robots.policy;dur=0.036902, esindex;dur=0.010000, cdx.remote;dur=33.203463, LoadShardBlock;dur=325.979779, PetaboxLoader3.resolve;dur=300.987768, PetaboxLoader3.datanode;dur=125.316938, load_resource;dur=123.353891
 x-app-server: wwwb-app222-dc8
 x-ts: 302
-x-tr: 2441
-server-timing: TR;dur=0,Tw;dur=4979,Tc;dur=1
+x-tr: 505
+server-timing: TR;dur=0,Tw;dur=742,Tc;dur=1
 set-cookie: wb-p-SERVER=wwwb-app222; path=/
 x-location: All
 x-as: 8075
@@ -45,7 +45,7 @@ x-rl: 0
 x-na: 0
 x-page-cache: MISS
 server-timing: MISS
-x-nid: MICROSOFT-CORP-MSN-AS-BLOCK
+x-nid: Microsoft
 referrer-policy: no-referrer-when-downgrade
 permissions-policy: interest-cohort=()
 x-sd: 0
@@ -54,17 +54,51 @@ x-sd: 0
 
 --- https://puffytr.com/player/1847501 @ 20260505102943
 [HEAD]
-HTTP/2 503 
+HTTP/2 302 
 server: nginx
-date: Sun, 25 Oct 2026 14:39:44 GMT
-content-type: text/html
-cache-control: no-cache
+date: Sun, 25 Oct 2026 14:42:08 GMT
+content-type: text/html; charset=UTF-8
+x-archive-orig-date: Tue, 05 May 2026 10:29:44 GMT
+x-archive-orig-transfer-encoding: chunked
+x-archive-orig-connection: keep-alive
+location: https://web.archive.org/web/20260505102943id_/https://anizmplayer.com/video/5f4745b73f28844f12dae3fe3b36fb93
+x-archive-orig-cf-ray: 9f6f10d56b830793-SJC
+x-archive-orig-cf-cache-status: DYNAMIC
+x-archive-orig-access-control-allow-origin: *
+x-archive-orig-cache-control: no-cache, private
+x-archive-orig-server: cloudflare
+x-archive-orig-set-cookie: XSRF-TOKEN=eyJpdiI6Inh4bHp0aUVuQitjYWg4YytmbWhIU2c9PSIsInZhbHVlIjoiWG9ob1Z5RW52NStTT3JpOElZMmp4NjRjS3ljN1ViRy9CeEFuQklENkFHbllPNXBYUUhLaVdNVEFUR295SkZwazNoUC9nQ3c0RHFpRjdQRThvcG1NUzBQMWlVanZwVnl5VnB6dDJQKzJFaDI3UmpLY3llZ0xOUjU2bEExMllETjlaYW1wQXNxdDVMMmdwcFQ5Y0FWcEQ2THh0UFJzbHhncnNDeDZyVDlIVWpuNUdKcTllUjR6aGFaTkZvTXB0WEw0dzZ5Qk1xOVFJU0FPaUIwODdjZDljcTl5U2VIaUo1QXNiSVE5UUcrSmQ4SkVzZlNRQkU5aW01TEVNc3lpMzRyNXVoN2JDT0RXSWM4Wnd1U25vdWdvMCtSazFoN2xLNUtEY3lmc3lmaDNJM0J1RTE0cWxYS1VRQVZFRS8wWVJsMC9xQmp3TEFhdkxuTmcyN2JxQ1lMaU45Q1hBeVNGYVdkN3U0a1cyY0pmWG5Gb21LRkJGTmMxWG9GVUxSc1RVVnp6ZU93RmxwUGk0NWhVemRjOG5UQWpFWHplcnEvbWtOb0tXamt0WnJzWldDMUJTdVhhNVdoaXZCU2NFYm9ZNDIrWmhPK2tSemF0Mm95ZUNHcWdLZjVkZ1hPZ2NseTJlVllMK3VGTEhHTXVicEJUZlA4QWFXbXRjbnBLV0gxdkVQQ1oiLCJtYWMiOiJmZWQyYjU3MTUyNDMzZTAzMTNiNTlhMjhhNmYyMWNhOWQwNTZjZjM3MTU2YTkwYTRmNjBkY2Q0MGVmMzJhY2YyIiwidGFnIjoiIn0%3D; expires=Tue, 12 May 2026 10:29:44 GMT; Max-Age=604800; path=/; secure; samesite=lax
+x-archive-orig-set-cookie: anizm_session=eyJpdiI6IlNqWkNmNXJiL0o2ZC9veVUwQ2l1VFE9PSIsInZhbHVlIjoibVhoSVhxTHFON3JLbmsxYlhTQlVlZVJpNkxkeFVkNEtHZWxDSVhGcEszMnVEOW5melRFbHNxZkNQRXBSVnVrVFRJVTR0Nk16K004WE81eWlabFBkQzl0MzFzSkdLS3NROU1nbjM5TWlMWXRETUVBWE1Mb0dsVUpER3Nwd1BhYU9ud0hUMkkxTmx3YnlnZ29CYkhPendzTXpUV3lzY2pPZU1sNHhXLzZkNXNZeW9qQTBHMmhIVFB2V25ObWx2aU14ZTZQNm1GV3U4UitTYk5oMEVxYkg1MkVsSG5NbDFIUXJjTERrRWV0TDg3V0IyZ2tncFBKK1ArbDBwVDJabEYrcVltckVzbG5CUmc3eFpvaXJ3N0JXbXBsd2FZL3hMLy80ZHRhempYRUhjOFhrY0UxdnBtam5wT2xwYTdYVTZUNURISjg2clQ2MEhsNEEyU3NEUTVJMVFtZHdaajdNQkNmUDNKYUk2ZmhER0RiY0kvd2hMbDhpdHBNN0ZsVWVCUHpsZEN0MllrclRMNDFiRklTNkppYVdrOWo5QiswWVhVeld5TU5jeHJ1d2tzbFd6bmkzalJlckFibnowZjlOajA0RHpYMmR0K21ORWduSEtsWitBakNWaG85Nk95enJKdWsvMXpkTTV4dmVyaVdmNnpVTldPTjN0Y1pocENxY3A4WUciLCJtYWMiOiJiOTg5NTJmNTU2ZDg4ZDViMWMzOWVhNjdlYjk1NjkwZGVmYTg3NDZlYzc4ZDMyMWM0ZWVmZjAyYzM0YjY5YTc3IiwidGFnIjoiIn0%3D; expires=Tue, 12 May 2026 10:29:44 GMT; Max-Age=604800; path=/; secure; httponly; samesite=lax
+x-archive-orig-strict-transport-security: max-age=15552000; includeSubDomains; preload
+x-archive-orig-alt-svc: h3=":443"; ma=86400
+x-archive-orig-x-content-type-options: nosniff
+x-archive-orig-x-frame-options: ALLOW-FROM anizle.co
+x-archive-orig-x-powered-by: PuffyTR
+x-archive-orig-x-served-by: puffytr.com
+x-archive-orig-x-xss-protection: 1; mode=block
+x-archive-orig-speculation-rules: "/cdn-cgi/speculation"
+x-archive-orig-server-timing: cfCacheStatus;desc="DYNAMIC"
+x-archive-orig-server-timing: cfEdge;dur=248,cfOrigin;dur=0
+x-archive-orig-report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=NkRfjBBSXPXjO9V16IhWl2zrIIlOEq3yt6zUHUeWEzwDlxuo9uAltUJqWvU4qwTBnARrG0RwwROE9ZOPDOGAgz2qcUJV1GPft7So2NCKhSgXwCaoCozj8XgVqtRbEw%3D%3D"}]}
+x-archive-orig-nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+cache-control: max-age=1800
+memento-datetime: Tue, 05 May 2026 10:29:43 GMT
+link: <https://puffytr.com/player/1847501>; rel="original", <https://web.archive.org/web/timemap/link/https://puffytr.com/player/1847501>; rel="timemap"; type="application/link-format", <https://web.archive.org/web/https://puffytr.com/player/1847501>; rel="timegate"
+content-security-policy: default-src 'self' 'unsafe-eval' 'unsafe-inline' data: blob: archive.org web.archive.org web-static.archive.org wayback-api.archive.org athena.archive.org analytics.archive.org pragma.archivelab.org wwwb-events.archive.org
+x-archive-src: spn2-20260505160744/spn2-20260505082744-wwwb-front6.us.archive.org-8003.warc.gz
+server-timing: captures_list;dur=0.568899, exclusion.robots;dur=0.050300, exclusion.robots.policy;dur=0.037324, esindex;dur=0.008916, cdx.remote;dur=48.590968, LoadShardBlock;dur=5811.441016, PetaboxLoader3.resolve;dur=2478.076570, PetaboxLoader3.datanode;dur=4793.095188, load_resource;dur=1830.954936
+x-app-server: wwwb-app244-dc8
+x-ts: 302
+x-tr: 7748
+server-timing: TR;dur=0,Tw;dur=486,Tc;dur=3
+set-cookie: wb-p-SERVER=wwwb-app244; path=/
 x-location: All
 x-as: 8075
 x-rl: 0
 x-na: 0
 x-page-cache: MISS
-x-nid: MICROSOFT-CORP-MSN-AS-BLOCK
+server-timing: MISS
+x-nid: Microsoft
 referrer-policy: no-referrer-when-downgrade
 permissions-policy: interest-cohort=()
 x-sd: 0
@@ -75,7 +109,7 @@ x-sd: 0
 [HEAD]
 HTTP/2 302 
 server: nginx
-date: Sun, 25 Oct 2026 14:40:10 GMT
+date: Sun, 25 Oct 2026 14:42:09 GMT
 content-type: text/html; charset=utf-8
 x-archive-orig-date: Sat, 06 Jun 2026 21:55:51 GMT
 x-archive-orig-transfer-encoding: chunked
@@ -105,19 +139,19 @@ memento-datetime: Sat, 06 Jun 2026 21:55:51 GMT
 link: <https://puffytr.com/player/1454877>; rel="original", <https://web.archive.org/web/timemap/link/https://puffytr.com/player/1454877>; rel="timemap"; type="application/link-format", <https://web.archive.org/web/https://puffytr.com/player/1454877>; rel="timegate"
 content-security-policy: default-src 'self' 'unsafe-eval' 'unsafe-inline' data: blob: archive.org web.archive.org web-static.archive.org wayback-api.archive.org athena.archive.org analytics.archive.org pragma.archivelab.org wwwb-events.archive.org
 x-archive-src: spn2-20260606221908/spn2-20260606193159-wwwb-spn11.us.archive.org-8007.warc.gz
-server-timing: captures_list;dur=0.460621, exclusion.robots;dur=0.042648, exclusion.robots.policy;dur=0.031872, esindex;dur=0.007847, cdx.remote;dur=11.091797, LoadShardBlock;dur=6492.496328, PetaboxLoader3.datanode;dur=6501.386728, PetaboxLoader3.resolve;dur=96.777094, load_resource;dur=107.208147
-x-app-server: wwwb-app221-dc8
+server-timing: captures_list;dur=0.546930, exclusion.robots;dur=0.046746, exclusion.robots.policy;dur=0.032601, esindex;dur=0.009535, cdx.remote;dur=23.858666, LoadShardBlock;dur=132.675047, PetaboxLoader3.resolve;dur=120.254887, PetaboxLoader3.datanode;dur=126.859928, load_resource;dur=120.096280
+x-app-server: wwwb-app219-dc8
 x-ts: 302
-x-tr: 6627
-server-timing: TR;dur=0,Tw;dur=4955,Tc;dur=1
-set-cookie: wb-p-SERVER=wwwb-app221; path=/
+x-tr: 298
+server-timing: TR;dur=0,Tw;dur=326,Tc;dur=1
+set-cookie: wb-p-SERVER=wwwb-app219; path=/
 x-location: All
 x-as: 8075
 x-rl: 0
 x-na: 0
 x-page-cache: MISS
 server-timing: MISS
-x-nid: MICROSOFT-CORP-MSN-AS-BLOCK
+x-nid: Microsoft
 referrer-policy: no-referrer-when-downgrade
 permissions-policy: interest-cohort=()
 x-sd: 0
@@ -128,7 +162,7 @@ x-sd: 0
 [HEAD]
 HTTP/2 302 
 server: nginx
-date: Sun, 25 Oct 2026 14:40:22 GMT
+date: Sun, 25 Oct 2026 14:42:10 GMT
 content-type: text/html; charset=UTF-8
 x-archive-orig-date: Fri, 19 Sep 2025 17:44:09 GMT
 x-archive-orig-transfer-encoding: chunked
@@ -157,19 +191,19 @@ memento-datetime: Fri, 19 Sep 2025 17:44:09 GMT
 link: <https://puffytr.com/player/1777595>; rel="original", <https://web.archive.org/web/timemap/link/https://puffytr.com/player/1777595>; rel="timemap"; type="application/link-format", <https://web.archive.org/web/https://puffytr.com/player/1777595>; rel="timegate"
 content-security-policy: default-src 'self' 'unsafe-eval' 'unsafe-inline' data: blob: archive.org web.archive.org web-static.archive.org wayback-api.archive.org athena.archive.org analytics.archive.org pragma.archivelab.org wwwb-events.archive.org
 x-archive-src: spn2-20250919182645/spn2-20250919172350-wwwb-spn09.us.archive.org-8006.warc.gz
-server-timing: captures_list;dur=0.480690, exclusion.robots;dur=0.058632, exclusion.robots.policy;dur=0.047941, esindex;dur=0.006803, cdx.remote;dur=44.174072, LoadShardBlock;dur=3963.397192, PetaboxLoader3.resolve;dur=6504.567332, PetaboxLoader3.datanode;dur=216.662090, load_resource;dur=2792.059955
-x-app-server: wwwb-app264-dc8
+server-timing: captures_list;dur=0.383940, exclusion.robots;dur=0.031398, exclusion.robots.policy;dur=0.022720, esindex;dur=0.008367, cdx.remote;dur=6.464019, LoadShardBlock;dur=126.232321, PetaboxLoader3.datanode;dur=82.717134, PetaboxLoader3.resolve;dur=95.876798, load_resource;dur=87.257261
+x-app-server: wwwb-app219-dc8
 x-ts: 302
-x-tr: 6829
-server-timing: TR;dur=0,Tw;dur=4982,Tc;dur=1
-set-cookie: wb-p-SERVER=wwwb-app264; path=/
+x-tr: 239
+server-timing: TR;dur=0,Tw;dur=288,Tc;dur=1
+set-cookie: wb-p-SERVER=wwwb-app219; path=/
 x-location: All
 x-as: 8075
 x-rl: 0
 x-na: 0
 x-page-cache: MISS
 server-timing: MISS
-x-nid: MICROSOFT-CORP-MSN-AS-BLOCK
+x-nid: Microsoft
 referrer-policy: no-referrer-when-downgrade
 permissions-policy: interest-cohort=()
 x-sd: 0
