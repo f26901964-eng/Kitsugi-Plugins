@@ -99,7 +99,16 @@ internal class TrAnimeIzleStreams(
         val sources = coroutineScope {
             fansubs.map { fansub ->
                 async {
-                    srcGate.withPermit { fetchSources(fansub, episodeId, pageUrl) }
+                    srcGate.withPermit {
+                        try {
+                            fetchSources(fansub, episodeId, pageUrl)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Log.w(TAG, "fansub ${fansub.id} kaynakları alınamadı: ${e.message}")
+                            emptyList()
+                        }
+                    }
                 }
             }.awaitAll().flatten()
         }.distinctBy { it.id }
@@ -433,16 +442,14 @@ internal class TrAnimeIzleStreams(
         }
     }
 
+    /**
+     * Akış isteklerinde gönderilen başlıklar. `Origin` BİLİNÇLİ olarak
+     * gönderilmiyor: bazı CDN'ler (ok.ru, sibnet) yabancı Origin'de 403 veriyor.
+     */
     private fun streamHeaders(referer: String, streamUrl: String): Map<String, String> = mapOf(
         "Referer" to referer,
-        "User-Agent" to UA,
-        "Origin" to originOf(streamUrl)
+        "User-Agent" to UA
     )
-
-    private fun originOf(url: String): String {
-        val host = TrAnimeIzleSite.hostOf(url)
-        return if (host.isEmpty()) base() else "https://$host"
-    }
 
     // ------------------------------------------------------------------
     // 5) Altyazı

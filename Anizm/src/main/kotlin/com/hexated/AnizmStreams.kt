@@ -85,7 +85,16 @@ internal class AnizmStreams(
             coroutineScope {
                 translators.map { (fansub, url) ->
                     async {
-                        gate.withPermit { fetchTranslatorSources(fansub, url, pageUrl) }
+                        gate.withPermit {
+                            try {
+                                fetchTranslatorSources(fansub, url, pageUrl)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Throwable) {
+                                Log.w(TAG, "çevirmen '$fansub' kaynakları alınamadı: ${e.message}")
+                                emptyList()
+                            }
+                        }
                     }
                 }.awaitAll().flatten()
             }.distinctBy { it.playerUrl }
@@ -462,14 +471,14 @@ internal class AnizmStreams(
         }
     }
 
-    private fun streamHeaders(referer: String, streamUrl: String): Map<String, String> {
-        val host = AnizmSite.hostOf(streamUrl)
-        return buildMap {
-            put("Referer", referer)
-            put("User-Agent", UA)
-            if (host.isNotEmpty()) put("Origin", "https://$host")
-        }
-    }
+    /**
+     * Akış isteklerinde gönderilen başlıklar. `Origin` gönderilmiyor:
+     * bazı CDN'ler yabancı Origin'de 403 veriyor (referer yeterli).
+     */
+    private fun streamHeaders(referer: String, streamUrl: String): Map<String, String> = mapOf(
+        "Referer" to referer,
+        "User-Agent" to UA
+    )
 
     // ------------------------------------------------------------------
 
