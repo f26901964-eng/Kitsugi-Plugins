@@ -41,7 +41,19 @@ jobs:
 
       - name: "GECICI: anime eklentisi canlı yapı probu"
         continue-on-error: true
-        run: python3 tools/anime_plugin_probe.py
+        run: |
+          python3 tools/anime_plugin_probe.py > /tmp/anime-probe.md
+          cat /tmp/anime-probe.md
+
+      - name: "GECICI: prob raporunu PR'a yaz"
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s /tmp/anime-probe.md ]; then
+            { echo "## Canlı yapı probu (otomatik)"; echo; cat /tmp/anime-probe.md; } > /tmp/anime-probe-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/anime-probe-comment.md || true
+          fi
 
       - name: Opsiyonel canlı player kaynağı incelemesi
         id: live_probe
