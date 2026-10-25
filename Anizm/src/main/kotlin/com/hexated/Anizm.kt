@@ -66,7 +66,7 @@ class Anizm : MainAPI() {
     private val mainPageBase: String = mainUrl
 
     override val mainPage = mainPageOf(
-        "$mainUrl/anime-izle?sayfa=" to "Son Eklenenler",
+        "$mainUrl/anime-izle?sayfa={page}" to "Son Eklenenler",
         "$mainUrl/kategoriler/2?sayfa=" to "Aksiyon",
         "$mainUrl/kategoriler/1?sayfa=" to "Macera",
         "$mainUrl/kategoriler/3?sayfa=" to "Komedi",
@@ -430,11 +430,26 @@ class Anizm : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         return try {
             ensureBase()
-            val url = remapBase(request.data) + page
+            // `{page}` şablonu desteklenir: kimi bölümler sayfayı yol sonuna ekler
+            // ("/anime-izle?sayfa=2"), kimileri sorgu içinde taşır.
+            val template = remapBase(request.data)
+            val url = if (template.contains("{page}")) template.replace("{page}", page.toString())
+            else template + page
             val html = getText(url, mainUrl + "/")
             if (html.isNullOrBlank()) return newHomePageResponse(request.name, emptyList(), false)
             val doc = Jsoup.parse(html, url)
-            val cards = AnizmSite.parseCards(doc, url)
+            var cards = AnizmSite.parseCards(doc, url)
+            if (cards.isEmpty()) {
+                // Kategori yolu değişmiş olabilir (site v3'te /kategoriler/N yerine
+                // farklı yol kullanıyor). Boş bölüm göstermek yerine "son eklenenler"
+                // listesine düşülür.
+                val fallbackUrl = "$mainUrl/anime-izle?sayfa=$page"
+                val fallbackHtml = getText(fallbackUrl, mainUrl + "/")
+                if (!fallbackHtml.isNullOrBlank()) {
+                    cards = AnizmSite.parseCards(Jsoup.parse(fallbackHtml, fallbackUrl), fallbackUrl)
+                    Log.w(LOG_TAG, "mainPage('${request.name}') boş → son eklenenler: ${cards.size}")
+                }
+            }
             Log.d(LOG_TAG, "mainPage('${request.name}') → ${cards.size} kart")
             val hasNext = cards.isNotEmpty() && page < MAX_MAIN_PAGE
             newHomePageResponse(request.name, cards.map { it.toSearchResponse() }, hasNext)
@@ -1040,7 +1055,7 @@ class Anizm : MainAPI() {
 
         /** Site içi oynatıcı yolu — 302 Location ile gerçek host'a gider. */
         private val IN_SITE_PLAYER = Regex("/player/\\d+|/video/\\d+", RegexOption.IGNORE_CASE)
-        private const val DEFAULT_BASE = "https://puffytr.com"
+        private const val DEFAULT_BASE = "https://anizm.net"
         private const val SEARCH_PAGE_SIZE = 24
         private const val MAX_MAIN_PAGE = 60
         private const val BASE_TTL_MS = 10 * 60 * 1000L
@@ -1048,12 +1063,16 @@ class Anizm : MainAPI() {
 
         /** Aynı sitenin paralel/eski adları — probe sırası öncelik sırasıdır. */
         private val BASE_CANDIDATES = listOf(
+            // Sıra = öncelik. anizm.net, 25.10.2026 itibarıyla güncel istemcilerin
+            // (Aniyomi tr/anizm) kullandığı canlı domain; puffytr.com aynı CMS'in
+            // yeni markası, diğerleri eski/tkiz adresler. Prob canlıyı seçer.
+            "https://anizm.net",
             "https://puffytr.com",
             "https://www.puffytr.com",
             "https://puffytr.com.tr",
-            "https://anizm.net",
             "https://anizm.com.tr",
-            "https://anizle.org"
+            "https://anizle.org",
+            "https://anizle.co"
         )
 
         /**
