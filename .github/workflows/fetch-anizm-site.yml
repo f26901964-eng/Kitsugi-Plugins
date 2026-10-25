@@ -1,6 +1,5 @@
-# GEÇİCİ: puffytr.com (Anizm) site HTML/JS yakalama — plugin kodu için.
-# Sadece arena/fetch-anizm* dallarında; .done flag'i ile tek sefer.
-# Teşhis: her adım $GITHUB_STEP_SUMMARY'ye yazar (log erişimi kapalı).
+# GEÇİCİ: puffytr.com (Anizm) — site HTML/JS yakalama (Wayback üzerinden,
+# çünkü site CF ile datacenter IP'lerini 403'tür).
 name: Anizm Site Capture
 
 permissions:
@@ -16,75 +15,87 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Capture
+      - name: Capture via Wayback
         env:
           UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
         run: |
           OUT=research/anizm-capture
-          rm -rf "$OUT"
-          mkdir -p "$OUT"
-          if [ -f "$OUT/.done" ]; then echo "ZATEN ALINDI" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
-          dl() {
-            url="$1"; file="$2"
-            code=$(curl -sL -A "$UA" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" -H "Accept-Language: tr-TR,tr;q=0.9,en;q=0.5" -o "$file" -w "%{http_code}" --max-time 90 "$url" 2>/dev/null || echo "000")
-            sz=$(wc -c < "$file" 2>/dev/null || echo 0)
-            echo "[$code] $url -> $file (${sz} B)" | tee -a "$GITHUB_STEP_SUMMARY"
+          rm -rf "$OUT"; mkdir -p "$OUT"
+          # 1) her hedef URL'in EN YAKIN arşiv kaydını bul (availability API)
+          snap() {
+            u="$1"
+            curl -s "https://archive.org/wayback/available?url=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$u")&timestamp=20261025" --max-time 60 \
+              | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)['archived_snapshots'].get('closest',{})
+            print(d.get('timestamp','')+' '+d.get('url',''))
+          except Exception:
+            print('')
+          "
           }
-          dl "https://puffytr.com/" "$OUT/home.html"
-          dl "https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" "$OUT/episode.html"
-          dl "https://puffytr.com/shingeki-no-kyojin" "$OUT/anime.html"
-          if [ ! -s "$OUT/episode.html" ]; then
-            echo "FATAL: episode.html BOS (siteye ulaşılamadı?)" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
-          { echo "## episode.html başı"; head -c 600 "$OUT/episode.html"; echo; } >> "$GITHUB_STEP_SUMMARY"
-          cat "$OUT"/*.html 2>/dev/null | grep -oE '(src|href|content)="[^"]+\.(js|mjs|css)(\?[^"]*)?"' | sed -E 's/^[a-zA-Z]+="([^"]+)"/\1/' | sort -u > "$OUT/assets.txt" || true
-          { echo "## asset listesi ($(wc -l < "$OUT/assets.txt" 2>/dev/null || echo 0) adet)"; cat "$OUT/assets.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
+          for path in "/" "/shingeki-no-kyojin-1-bolum-izle" "/shingeki-no-kyojin" "/arama/frieren"; do
+            name=$(echo "$path" | sed 's|[/.-]|_|g'); name=${name#_}
+            [ -z "$name" ] && name="home"
+            line=$(snap "https://puffytr.com$path")
+            ts=$(echo "$line" | awk '{print $1}'); cap=$(echo "$line" | awk '{print $2}')
+            echo "[$path] ts=$ts cap=$cap"
+            if [ -n "$ts" ]; then
+              curl -sL "https://web.archive.org/web/${ts}id_/https://puffytr.com$path" -o "$OUT/${name}.raw" --max-time 120
+              echo "  -> ${name}.raw ($(wc -c < "$OUT/${name}.raw" 2>/dev/null || echo 0) B)"
+            fi
+          done
+          ls -la "$OUT"
+          # 2) script/link asset'leri çıkar
+          cat "$OUT"/*.raw 2>/dev/null | grep -oE '(src|href|content)="[^"]+\.(js|mjs|css)(\?[^"]*)?"' | sed -E 's/^[a-zA-Z]+="([^"]+)"/\1/' | sort -u > "$OUT/assets.txt" || true
+          echo "asset sayısı: $(wc -l < "$OUT/assets.txt" 2>/dev/null || echo 0)"
           : > "$OUT/assets-map.txt"
           n=0
-          if [ -f "$OUT/assets.txt" ]; then
-            while IFS= read -r p; do
-              n=$((n+1)); [ "$n" -gt 60 ] && break
-              case "$p" in
-                http*) u="$p" ;;
-                //*) u="https:$p" ;;
-                /*) u="https://puffytr.com$p" ;;
-                *) u="https://puffytr.com/$p" ;;
-              esac
-              fn="asset-$(printf '%s' "$u" | md5sum | cut -c1-12)"
-              curl -sL -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -H "Referer: https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" --max-time 90 "$u" -o "$OUT/$fn.bin" 2>/dev/null || true
-              sz=$(wc -c < "$OUT/$fn.bin" 2>/dev/null || echo 0)
-              echo "$u -> $fn.bin (${sz} B)" >> "$OUT/assets-map.txt"
-            done < "$OUT/assets.txt"
-          fi
-          { echo "## indirilen asset'ler"; cat "$OUT/assets-map.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
-          grep -ohE "/api/[a-zA-Z0-9_/.-]+" "$OUT"/*.bin 2>/dev/null | sort -u > "$OUT/api-hints.txt" || true
-          grep -ohE "fetch\([^)]{0,160}" "$OUT"/*.bin 2>/dev/null | head -60 > "$OUT/fetch-hints.txt" || true
-          grep -ohE "(axios|post|get)\(['\"][^'\"]{0,120}" "$OUT"/*.bin 2>/dev/null | head -60 > "$OUT/req-hints.txt" || true
-          { echo "## API HINTS"; cat "$OUT/api-hints.txt" 2>/dev/null; echo; echo "## FETCH HINTS"; cat "$OUT/fetch-hints.txt" 2>/dev/null; echo; echo "## REQ HINTS"; cat "$OUT/req-hints.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
+          while IFS= read -r p; do
+            n=$((n+1)); [ "$n" -gt 80 ] && break
+            case "$p" in
+              http*) u="$p" ;;
+              //*) u="https:$p" ;;
+              /*) u="https://puffytr.com$p" ;;
+              *) u="https://puffytr.com/$p" ;;
+            esac
+            fn="asset-$(printf '%s' "$u" | md5sum | cut -c1-12)"
+            ok=""
+            # önce doğrudan dene (site CF'ten geçebilir); olmazsa SPN-save + arşiv
+            code=$(curl -sL -A "$UA" -o "$OUT/$fn.bin" -w "%{http_code}" --max-time 60 "$u" 2>/dev/null || echo "000")
+            if [ "$code" = "200" ] && [ -s "$OUT/$fn.bin" ] && ! head -c 200 "$OUT/$fn.bin" | grep -qi "just a moment\|cf-browser-verification\|attention required"; then
+              ok="direct($code)"
+            else
+              curl -s -o /dev/null "https://web.archive.org/save/$u" --max-time 120 || true
+              sleep 3
+              line=$(snap "$u"); ts=$(echo "$line" | awk '{print $1}')
+              if [ -n "$ts" ]; then
+                curl -sL "https://web.archive.org/web/${ts}id_/$u" -o "$OUT/$fn.bin" --max-time 120 || true
+                ok="wayback($ts)"
+              fi
+            fi
+            sz=$(wc -c < "$OUT/$fn.bin" 2>/dev/null || echo 0)
+            echo "$u -> $fn.bin ($ok, $sz B)" >> "$OUT/assets-map.txt"
+          done < "$OUT/assets.txt"
+          cat "$OUT/assets-map.txt"
+          # 3) API/ipucu taraması (tüm yakalanan dosyalar)
+          grep -ohE "/api/[a-zA-Z0-9_/.{}$-]+" "$OUT"/*.bin "$OUT"/*.raw 2>/dev/null | sort -u > "$OUT/api-hints.txt" || true
+          grep -ohE "fetch\([^)]{0,180}" "$OUT"/*.bin 2>/dev/null | head -80 > "$OUT/fetch-hints.txt" || true
+          grep -ohE "(axios\.(post|get)|\.(post|get))\(['\"][^'\"]{0,140}" "$OUT"/*.bin 2>/dev/null | head -60 > "$OUT/req-hints.txt" || true
+          grep -ohE "localStorage\.(get|set)Item\(['\"][^'\"]{0,60}" "$OUT"/*.bin "$OUT"/*.raw 2>/dev/null | sort -u > "$OUT/localstorage-hints.txt" || true
+          {
+            echo "## API HINTS"; cat "$OUT/api-hints.txt" 2>/dev/null; echo
+            echo "## FETCH HINTS"; cat "$OUT/fetch-hints.txt" 2>/dev/null; echo
+            echo "## REQ HINTS"; cat "$OUT/req-hints.txt" 2>/dev/null; echo
+            echo "## LOCALSTORAGE"; cat "$OUT/localstorage-hints.txt" 2>/dev/null
+          } >> "$OUT/SUMMARY.md"
           touch "$OUT/.done"
-          echo "CAPTURE-TAMAM" >> "$GITHUB_STEP_SUMMARY"
       - name: Commit back
         run: |
-          DBG=research/anizm-capture/DEBUG.txt
-          mkdir -p research/anizm-capture
-          {
-            echo "PWD: $(pwd)"
-            echo "RUNNER: $(uname -a)"
-            echo "DATE: $(date -u)"
-            echo "--- ls research/anizm-capture ---"
-            ls -la research/anizm-capture 2>&1 | head -40
-            echo "--- git status ---"
-            git status --short 2>&1 | head -30
-            echo "--- git log -1 ---"
-            git log -1 --oneline 2>&1
-            echo "--- network testi ---"
-            curl -s -o /dev/null -w "puffytr HTTP %{http_code} (%{time_total}s) ip=%{remote_ip}\n" --max-time 30 -A "Mozilla/5.0" https://puffytr.com/ 2>&1 || echo "curl FAIL $?"
-          } > "$DBG"
           git config user.name "arena-fetch"
           git config user.email "arena-fetch@users.noreply.github.com"
-          git add -A research/ 2>&1 | tee -a "$DBG"
-          git commit -m "anizm capture debug $(date -u +%H%M%S)" --allow-empty 2>&1 | tee -a "$DBG"
+          rm -f research/anizm-capture/DEBUG.txt
+          git add -A research/ 2>&1
+          git commit -m "anizm capture: $(date -u +%H%M%S)" --allow-empty 2>&1
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin HEAD 2>&1 | tee -a "$DBG"
-          echo "DEBUG-COMMIT: $(git rev-parse --short HEAD)"
+          git push origin HEAD 2>&1 || echo "PUSH-BASARISIZ"
