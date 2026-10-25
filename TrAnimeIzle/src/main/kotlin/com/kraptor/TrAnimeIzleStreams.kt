@@ -448,7 +448,7 @@ internal class TrAnimeIzleStreams(
     // 5) Altyazı
     // ------------------------------------------------------------------
 
-    private fun emitSubtitles(html: String?, base: String, subtitleCallback: (SubtitleFile) -> Unit) {
+    private suspend fun emitSubtitles(html: String?, base: String, subtitleCallback: (SubtitleFile) -> Unit) {
         if (html.isNullOrBlank()) return
         for ((lang, url) in TrAnimeIzleSite.subtitleTracks(html, base)) {
             if (seenSubs.add(url)) subtitleCallback(newSubtitleFile(lang, url))

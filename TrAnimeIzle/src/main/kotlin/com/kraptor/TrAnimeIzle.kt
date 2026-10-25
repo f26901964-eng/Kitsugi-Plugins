@@ -340,6 +340,33 @@ class TrAnimeIzle(
             if (!html.isNullOrBlank()) absorb(TrAnimeIzleSite.parseCards(Jsoup.parse(html), mainUrl + "/", 40))
         }
 
+        // v30: İngilizce başlık ↔ sitenin romanize adı.
+        // Kullanıcı/uygulama "Attack on Titan" arar, site "Shingeki no Kyojin"
+        // altında listeler. Kitsu'nun alternatif adları bu köprüyü kurar.
+        val synonyms = if (page <= 1) titlesFromKitsu(query) else emptyList()
+        if (collected.size < 3 && synonyms.isNotEmpty()) {
+            for (alt in synonyms.take(4)) {
+                if (collected.size >= 8) break
+                if (variants.any { it.equals(alt, ignoreCase = true) }) continue
+                val html = try {
+                    fetchHtml(
+                        mainUrl + "/arama/" + URLEncoder.encode(alt, "UTF-8"),
+                        mainUrl + "/",
+                        ensureSession = false,
+                        webViewFallback = false
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    Log.d(LOG_TAG, "eş anlamlı arama başarısız ('$alt'): ${e.message}")
+                    null
+                }
+                if (html.isNullOrBlank()) continue
+                absorb(TrAnimeIzleSite.parseCards(Jsoup.parse(html), mainUrl + "/", 40))
+            }
+            Log.d(LOG_TAG, "eş anlamlı arama sonrası ${collected.size} kart (${synonyms.size} ad)")
+        }
+
         // Site araması boş/az → katalog üzerinden yerel eşleştirme.
         if (collected.size < 3) {
             val catalogue = loadCatalogue()
@@ -359,13 +386,16 @@ class TrAnimeIzle(
             }
         }
 
-        val ranked = TrAnimeIzleMatch.rank(
-            query,
-            collected.values.map { Triple(it.name, it.url, emptyList()) },
-            threshold = 0.0
-        )
-        val byUrl = collected.values.associateBy { it.url }
-        val results = ranked.mapNotNull { (url, _) -> byUrl[url]?.toSearchResponse() }
+        // Sıralama: sorgu + alternatif adların EN İYİ skoru (böylece
+        // "Attack on Titan" sorgusu "Shingeki no Kyojin" kartını üste alır).
+        val queries = (listOf(query) + synonyms).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        val scored = collected.values.map { card ->
+            val best = queries.maxOfOrNull { TrAnimeIzleMatch.score(it, card.name) } ?: 0.0
+            card to best
+        }.sortedByDescending { it.second }
+        val results = scored.filter { it.second >= 0.35 }
+            .map { it.first.toSearchResponse() }
+            .ifEmpty { scored.take(12).map { it.first.toSearchResponse() } }
             .ifEmpty { collected.values.take(24).map { it.toSearchResponse() } }
         Log.d(LOG_TAG, "search('$query') → ${results.size} sonuç")
         return newSearchResponseList(results, true)
@@ -377,6 +407,53 @@ class TrAnimeIzle(
             this.posterUrl = card.poster
             this.score = Score.from10(card.score)
         }
+    }
+
+    /** Kitsu ad önbelleği (sorgu → alternatif adlar). */
+    private val kitsuTitleCache = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    /**
+     * Kitsu'dan **alternatif adlar**: canonicalTitle + `titles{}` (en/en_jp/ja_jp…)
+     * + `abbreviatedTitles`. Türkçe siteler romanize/İngilizce adlarla listelediği
+     * için arama bu adlarla genişletilir ("Attack on Titan" → "Shingeki no Kyojin").
+     * Tek istek, 8 sn zaman aşımı, sonuç önbellekli.
+     */
+    private suspend fun titlesFromKitsu(query: String): List<String> {
+        val key = query.lowercase().trim()
+        if (key.length < 2) return emptyList()
+        kitsuTitleCache[key]?.let { return it }
+        val out = LinkedHashSet<String>()
+        try {
+            val url = "https://kitsu.io/api/edge/anime?filter[text]=" +
+                URLEncoder.encode(key, "UTF-8") + "&page[limit]=3"
+            val data = JSONObject(app.get(url, timeout = 8).text).optJSONArray("data")
+            if (data != null) {
+                for (i in 0 until data.length()) {
+                    val attrs = data.optJSONObject(i)?.optJSONObject("attributes") ?: continue
+                    attrs.optString("canonicalTitle").takeIf { it.isNotBlank() }?.let(out::add)
+                    attrs.optJSONObject("titles")?.let { titles ->
+                        for (lang in titles.keys()) {
+                            titles.optString(lang).takeIf { it.isNotBlank() }?.let(out::add)
+                        }
+                    }
+                    attrs.optJSONArray("abbreviatedTitles")?.let { arr ->
+                        for (j in 0 until arr.length()) {
+                            arr.optString(j).takeIf { it.isNotBlank() }?.let(out::add)
+                        }
+                    }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.d(LOG_TAG, "Kitsu adları alınamadı ('$query'): ${e.message}")
+        }
+        val list = out.map { it.trim() }
+            .filter { it.length in 2..120 }
+            .distinct()
+            .take(8)
+        kitsuTitleCache[key] = list
+        return list
     }
 
     /**

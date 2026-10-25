@@ -473,7 +473,7 @@ internal class AnizmStreams(
 
     // ------------------------------------------------------------------
 
-    private fun emitSubtitles(html: String?, base: String, subtitleCallback: (SubtitleFile) -> Unit) {
+    private suspend fun emitSubtitles(html: String?, base: String, subtitleCallback: (SubtitleFile) -> Unit) {
         if (html.isNullOrBlank()) return
         val doc = try {
             Jsoup.parse(html, base)
