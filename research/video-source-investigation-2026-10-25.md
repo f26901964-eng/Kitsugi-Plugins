@@ -10,7 +10,7 @@
 - DiziBox'ın medya ayrıştırıcısı altyazı nesnelerini kaynak listesinden ayırabiliyordu ama `subtitleCallback` çağrısı yapmıyordu. Altyazı gönderimi eklendi. Kaynak `kind` değeri korunuyor ve filtre `source.kind` üzerinden yapılıyor; URL'den `kind` türetilmiyor.
 - HDFilmIzle/VidRame'de altyazı dizisi yoksa veya bozuksa `ObjectMapper.readValue()` video bağlantısı gönderilmeden önce istisna oluşturabiliyordu. Bu hata kaldırıldı; `sources` ve `configs.tracks` ayrı, toleranslı biçimde ayrıştırılıyor. Birden fazla kaynak/etiket destekleniyor.
 - HDFilmIzle `.to` sayfalarının gerçek iframe/script gövdesi araştırma ortamındaki sayfa okuyucularından alınamadı. Bu nedenle `.to` için ses dili/DUAL yapısı veya canlı kaynak URL'si **doğrulanmış sayılmıyor**. Kod değişiklikleri mevcut VidRame işaretçileri ve bağımsız kaynak kodlarında görülen yapıyla sınırlı tutuldu.
-- Yerel Gradle/Kotlin testleri çalıştırılamadı: ortamda `java`/JDK bulunmuyor. Yeni Kotlin testleri eklendi; depo Python testleri ve `git diff --check` başarılı.
+- Yerel Gradle/Kotlin testleri çalıştırılamadı: bu çalışma ortamında `java`/JDK bulunmuyor. Bunun yerine GitHub Actions'ta tüm etkin eklentilerin derlemesi ve yeni Kotlin regresyon testleri başarıyla tamamlandı (run `40192751945`). Depo Python testleri de 10/10 başarılı; `git diff --check` temiz.
 
 ## İncelenen örnek sayfalar ve sınırlar
 
@@ -100,8 +100,10 @@ Yeni testler sentetik fixture'lar kullanıyor; canlı site yanıtı değildir.
 
 - `python3 -m unittest discover -s tests -v`: **10/10 başarılı**.
 - `git diff --check`: **başarılı**.
-- Kotlin/Gradle derlemesi ve yeni Kotlin testleri: **çalıştırılamadı**; ortamda `java`/JDK yok.
-- DiziBox/HDFilmIzle canlı sayfalarından akış URL'si/manifest alınamadığı için canlı playback smoke-test'i yapılmadı.
-- Kod değişiklikleri aktif dalda yerel; commit/push veya uygulama tarafında yeni `.cs3` görünürlüğü doğrulanmadı. Önceki araştırmada raw GitHub ve jsDelivr manifestleri uyuşmuyordu ve purge isteği throttling almıştı. Bu nedenle app-facing feed/önbellek yayın başarısı ayrıca doğrulanmalıdır; burada başarı iddia edilmiyor.
+- Yerel Kotlin/Gradle çalıştırıcısı bu ortamda yok; buna karşılık GitHub Actions run [`40192751945`](https://github.com/f26901964-eng/Kitsugi-Plugins/actions/runs/40192751945) başarılı: tüm etkin eklentiler derlendi, Kotlin regresyon testleri geçti ve indirilebilir artifact üretildi.
+- Artifact: `Kitsugi-Plugins-40192751945` (72,608 byte; 14 günlük saklama). Run sayfasındaki **Artifacts** bölümünden ZIP'i indirip içindeki `DiziBox.cs3` ve `HDFilmIzle.cs3` dosyalarını test için kullanın.
+- PR [#37](https://github.com/f26901964-eng/Kitsugi-Plugins/pull/37) açık, henüz `main` ile birleştirilmedi. Bu nedenle app-facing plugin feed'in güncellendiği veya CDN/önbellek görünürlüğünün doğrulandığı iddia edilmiyor. Önceki araştırmada raw GitHub ve jsDelivr manifestleri uyuşmuyordu ve purge isteği throttling almıştı.
+- DiziBox/HDFilmIzle canlı sayfalarından akış URL'si/manifest alınamadığı için gerçek canlı playback smoke-test'i yapılmadı. CI, Kotlin derlemesini/testlerini doğrular; üçüncü taraf oynatıcıların güncel davranışını değil.
+- Son CI düzeltmesi `4d157ea` ile Kotlin `Sequence` sonuçları açıkça `List`'e dönüştürüldü. Güncel kod `arena/35e4fac2-kitsugi-plugins` dalında; PR #37 üzerinden incelenebilir.
 
 Canlı doğrulamayı tamamlamak için güncel uygulamada DiziBox MolyStream ve HDFilmIzle VidRame örneklerinden birer playback denemesi; başarısızsa logcat'ten yalnızca `DZBX`/`VidEx` çevresindeki hata satırları veya kişisel/signed query değerleri çıkarılmış iframe/player HTML fixture'ı gerekir. Ham DRM/erişim anahtarları veya hesap bilgileri paylaşılmamalıdır.
