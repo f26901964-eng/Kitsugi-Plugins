@@ -57,6 +57,15 @@ import kotlin.coroutines.resume
  *    cevabında otomatik yenileme devreye girer.
  *  - Captcha akışı, arşivdeki icon-captcha.min.js (IconCaptcha v2.5.0) ile
  *    birebir: [icon-hash] ×5, GET ?cid=0&hash=, POST {cID,pC,rT:2}.
+ *
+ * v20:
+ *  - Cihaz kanıtı (v19): arama yine 0 sonuç + diyalog YOK → kayıtlı ESKİ
+ *    oturum çerezi (v17) doğrulanmadan kullanılmış; site eski oturuma
+ *    sessizce boş sayfa döndürüyor.
+ *  - Çözüm: diyalog akışı artık sayfanın TAM DOM HTML'ini de döndürür
+ *    (WebFetchResult = çerez seti + documentElement.outerHTML).
+ *  - botKontrolFetch(): daima diyalog açar; wipeFirst=true ise önce eski
+ *    çerezler temizlenir (taze tarayıcı oturumu).
  */
 object BotKontrolKt {
 
@@ -198,6 +207,43 @@ object BotKontrolKt {
         }
     }
 
+    /**
+     * v20: WebView diyaloğu sonucu — site çerez seti + sayfanın TAM DOM HTML'i.
+     * (HTML, sayfanın gerçek DOM'undan alınır: tarayıcı ekranda ne gördüyse o.)
+     */
+    data class WebFetchResult(val jar: String, val html: String)
+
+    /**
+     * v20: sayfanın mevcut DOM'undan `document.documentElement.outerHTML`'i
+     * döndürür (en fazla 2 sn bekleme; hata → ""). UI thread'de çağrılır
+     * (monitor/diyalog akışı) — kısa, tek seferlik beklemedir.
+     */
+    private fun capturePageHtml(webView: WebView, timeoutSec: Long = 2): String {
+        val ref = java.util.concurrent.atomic.AtomicReference("")
+        val latch = java.util.concurrent.CountDownLatch(1)
+        try {
+            webView.evaluateJavascript(
+                "(function(){try{return document.documentElement?" +
+                    "document.documentElement.outerHTML:''}catch(e){return ''}})()",
+                ValueCallback { raw ->
+                    val decoded = try {
+                        if (raw == null) ""
+                        else JSONArray("[$raw]").getString(0)
+                    } catch (e: Exception) {
+                        raw ?: ""
+                    }
+                    ref.set(decoded)
+                    latch.countDown()
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "capturePageHtml JS hatası: ${e.message}")
+            return ""
+        }
+        latch.await(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+        return ref.get()
+    }
+
     private fun hostOf(url: String): String =
         url.substringAfter("://", url).substringBefore("/")
 
@@ -246,7 +292,7 @@ object BotKontrolKt {
                             return@withLock ""
                         }
                     }
-                    runCaptchaSolve(context, url, forceRefresh)
+                    runCaptchaSolve(context, url, forceRefresh).jar
                 }
             }
         } catch (e: TimeoutCancellationException) {
@@ -255,15 +301,53 @@ object BotKontrolKt {
         }
     }
 
+    /**
+     * v20: [url]'yi WebView diyaloğuyla AÇAR (fast-path YOK — daima diyalog),
+     * sayfa yüklenene (challenge varsa otomatik/elle çözülene) kadar bekler,
+     * sonra site çerez seti + sayfanın TAM DOM HTML'ini döndürür.
+     *
+     * wipeFirst=true: yüklemeden önce ESKİ ÇEREZLER TEMİZLENİR (hem prefs hem
+     * CookieManager) — siteye taze bir tarayıcı oturumu gibi gidilir.
+     * (Kanıt: v19'da kayıtlı ESKİ oturum çerezi ile site boş sayfa döndürdü;
+     * taze oturum gerekiyorsa eski set taşınmamalı.)
+     *
+     * Not: API 26 altında CookieManager'daki çerezler kaldırılamaz; ama aynı
+     * host'a yeniden setCookie ile ezilir.
+     */
+    suspend fun botKontrolFetch(
+        context: Context,
+        url: String,
+        wipeFirst: Boolean = false
+    ): WebFetchResult {
+        if (wipeFirst) {
+            clearCookie(context, url)
+            resetCookieManagerTo("", url)
+        }
+        return try {
+            withTimeout(BOT_TIMEOUT_MS) {
+                webViewMutex.withLock {
+                    runCaptchaSolve(context, url, forceRefresh = true)
+                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, ">>> botKontrolFetch Mutex TIMEOUT (45s) <<<")
+            WebFetchResult(getSavedCookie(context, url), "")
+        }
+    }
+
     // ------------------------------------------------------------------
     // WebView + challenge çözme (runCaptchaSolve)
     // ------------------------------------------------------------------
 
+    /**
+     * v20: diyalog + monitor akışı; sonucu [WebFetchResult] (çerez seti +
+     * sayfa DOM HTML'i). [botKontrol] yalnızca .jar'ını kullanır.
+     */
     suspend fun runCaptchaSolve(
         context: Context,
         url: String,
         forceRefresh: Boolean
-    ): String = suspendCancellableCoroutine { cont ->
+    ): WebFetchResult = suspendCancellableCoroutine { cont ->
         val guard = ResumeGuard()
         val host = hostOf(url)
         val prefs: SharedPreferences =
@@ -326,7 +410,7 @@ object BotKontrolKt {
                     .setCancelable(false)
                     .setNegativeButton("İptal") { _, _ ->
                         Log.w(TAG, "Kullanıcı oturumu iptal etti")
-                        safeResume(guard, cont, "")
+                        safeResume(guard, cont, WebFetchResult("", ""))
                     }
                     .create()
                 activeDialog = dialog
@@ -340,7 +424,7 @@ object BotKontrolKt {
                     addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 }
                 dialog.setOnDismissListener {
-                    safeResume(guard, cont, "")
+                    safeResume(guard, cont, WebFetchResult("", ""))
                 }
                 dialog.show()
 
@@ -350,15 +434,15 @@ object BotKontrolKt {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "WebView başlatılamadı: ${e.message}")
-                safeResume(guard, cont, "")
+                safeResume(guard, cont, WebFetchResult("", ""))
             }
         }
     }
 
     private fun safeResume(
         guard: ResumeGuard,
-        cont: CancellableContinuation<String>,
-        value: String
+        cont: CancellableContinuation<WebFetchResult>,
+        value: WebFetchResult
     ) {
         if (!guard.active) return
         guard.active = false
@@ -406,7 +490,7 @@ object BotKontrolKt {
         webView: WebView,
         statusView: TextView,
         guard: ResumeGuard,
-        cont: CancellableContinuation<String>,
+        cont: CancellableContinuation<WebFetchResult>,
         url: String,
         host: String,
         prefs: SharedPreferences
@@ -506,7 +590,7 @@ object BotKontrolKt {
             // A) Oturum çerezi sette göründü.
             if (jarHasSession(jar)) {
                 Log.d(TAG, ">>> OTURUM ÇEREZİ ALINDI (set ${jar.length} karakter) <<<")
-                finishSession(statusView, guard, cont, url, host, prefs, jar, noChallenge = false)
+                finishSession(webView, statusView, guard, cont, url, host, prefs, jar, noChallenge = false)
                 return
             }
 
@@ -523,7 +607,7 @@ object BotKontrolKt {
                     TAG,
                     ">>> SAYFA CHALLENGE'SIZ YÜKLENDİ (gövde ${bodyLen} karakter, set ${jar.length} karakter) <<<"
                 )
-                finishSession(statusView, guard, cont, url, host, prefs, jar, noChallenge = true)
+                finishSession(webView, statusView, guard, cont, url, host, prefs, jar, noChallenge = true)
                 return
             }
 
@@ -537,18 +621,30 @@ object BotKontrolKt {
         }
 
         Log.e(TAG, ">>> Bot kontrolü zaman aşımında (çerez alınamadı) <<<")
+        // v20: zaman aşımında da seti + DOM'u sayfanın son halinden kurtar.
+        val finalJar = try {
+            collectJar(url)
+        } catch (_: Exception) {
+            ""
+        }
+        val finalHtml = capturePageHtml(webView)
+        if (finalJar.isNotEmpty()) {
+            prefs.edit().putString(host, finalJar).apply()
+        }
+        Log.d(TAG, "Zaman aşımı kurtarma: set=${finalJar.length}, html=${finalHtml.length}")
         withContext(Dispatchers.Main) {
             activeDialog?.dismiss()
             activeDialog = null
         }
-        safeResume(guard, cont, "")
+        safeResume(guard, cont, WebFetchResult(finalJar, finalHtml))
     }
 
     /** Oturum tamamlandı: seti kaydet + diyalogu kapat + continuation'ı sürdür. */
     private suspend fun finishSession(
+        webView: WebView,
         statusView: TextView,
         guard: ResumeGuard,
-        cont: CancellableContinuation<String>,
+        cont: CancellableContinuation<WebFetchResult>,
         url: String,
         host: String,
         prefs: SharedPreferences,
@@ -563,13 +659,17 @@ object BotKontrolKt {
             // bir sonraki çalıştırmada diyalog açılmasın.
             prefs.edit().putString(host + ":ok", "1").apply()
         }
+        // v20: diyalog kapanırken sayfanın TAM DOM'u kurtarılır
+        // (tarayıcı gerçekten bu içeriği render ettiyse HTML de gelir).
+        val html = capturePageHtml(webView)
+        Log.d(TAG, "Sayfa DOM'u kurtarıldı: ${html.length} karakter")
         statusView.text = "Oturum tamamlandı"
         Log.d(TAG, "Diyalog kapatılıyor")
         withContext(Dispatchers.Main) {
             activeDialog?.dismiss()
             activeDialog = null
         }
-        safeResume(guard, cont, jar)
+        safeResume(guard, cont, WebFetchResult(jar, html))
     }
 
     /**
