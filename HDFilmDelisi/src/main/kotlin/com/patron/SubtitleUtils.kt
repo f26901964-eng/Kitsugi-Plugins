@@ -2,6 +2,7 @@
 package com.patron
 
 import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.app
 import com.lagradost.api.Log
@@ -27,7 +28,7 @@ suspend fun invokeSubtitleAPI(
             val lang = getLanguage(sub.lang)
             if (lang == "Turkish") {
                 Log.d("OpenSubtitlesV3", "TR Altyazı: ${sub.url}")
-                subtitleCallback(SubtitleFile("OpenSubTürkçe", sub.url))
+                subtitleCallback(newSubtitleFile("OpenSubTürkçe", sub.url))
             }
         }
     } catch (e: Exception) {
@@ -55,7 +56,7 @@ suspend fun invokeTurkceAltyaziAPI(
         val json = parseJson<AltyaziAPI>(response)
         json.subtitles.forEach { sub ->
             if (sub.lang.contains("tr", ignoreCase = true)) {
-                subtitleCallback(SubtitleFile("TürkçeAltyazı", sub.url))
+                subtitleCallback(newSubtitleFile("TürkçeAltyazı", sub.url))
             }
         }
     } catch (e: Exception) {
@@ -77,7 +78,7 @@ suspend fun invokeWyZIESUBAPI(
         val parsed = parseJson<WyZIEResponse>(res)
         parsed.subtitles?.forEach { sub ->
             if (isTargetLanguage(sub.language)) {
-                subtitleCallback(SubtitleFile(sub.language, sub.url))
+                subtitleCallback(newSubtitleFile(sub.language, sub.url))
             }
         }
     } catch (e: Exception) {
