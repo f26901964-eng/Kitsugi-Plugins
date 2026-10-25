@@ -6,6 +6,7 @@ name: Derleme Testi
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, labeled]
     paths:
       - "**/*.kt"
       - "**/build.gradle.kts"
@@ -36,6 +37,24 @@ jobs:
 
       - name: Python birim testleri
         run: python3 -m unittest discover -s tests -v
+
+      - name: Opsiyonel canlı player kaynağı incelemesi
+        id: live_probe
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
+        continue-on-error: true
+        run: |
+          python3 tools/live_player_probe.py > /tmp/live-player-probe.md
+          cat /tmp/live-player-probe.md
+          cat /tmp/live-player-probe.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Canlı player raporunu PR'a yaz
+        if: always() && steps.live_probe.outcome != 'skipped' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f /tmp/live-player-probe.md ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/live-player-probe.md || true
+          fi
 
       - name: JDK 17 Ayarla
         uses: actions/setup-java@v4.6.0

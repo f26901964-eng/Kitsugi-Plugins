@@ -228,6 +228,61 @@ private fun Element.toMainPageResult(): SearchResponse? {
         }.getOrDefault(html)
     }
 
+    private fun emitHlsLink(
+        url: String,
+        referer: String,
+        linkName: String = name,
+        quality: Int = Qualities.Unknown.value,
+        callback: (ExtractorLink) -> Unit,
+    ) {
+        callback.invoke(
+            newExtractorLink(
+                source = name,
+                name = linkName,
+                url = url,
+                type = ExtractorLinkType.M3U8,
+            ) {
+                headers = buildMap {
+                    put("Referer", referer)
+                    put("User-Agent", playerUserAgent)
+                    originOf(referer)?.let { put("Origin", it) }
+                }
+                this.quality = quality
+            },
+        )
+    }
+
+    /**
+     * MolyStream's `/embed/sheila/{id}` endpoint is not always an embed page:
+     * independent resolver fixtures cover both an HLS response and a plain
+     * HTTPS URL response. Only expose it as a source after checking the
+     * response body; when it returns another URL, verify that URL as HLS too.
+     */
+    private suspend fun verifiedMolyStreamUrl(url: String, referer: String): String? {
+        return try {
+            val response = app.get(
+                url,
+                headers = mapOf("User-Agent" to playerUserAgent),
+                referer = referer,
+            ).text
+            when {
+                DiziBoxPlayerParser.isHlsManifest(response) -> url
+                else -> {
+                    val target = DiziBoxPlayerParser.plainHttpsTarget(response) ?: return null
+                    val targetResponse = app.get(
+                        target,
+                        headers = mapOf("User-Agent" to playerUserAgent),
+                        referer = referer,
+                    ).text
+                    target.takeIf { DiziBoxPlayerParser.isHlsManifest(targetResponse) }
+                }
+            }
+        } catch (exception: Exception) {
+            Log.d("DZBX", "MolyStream source verification failed: ${exception.message}")
+            null
+        }
+    }
+
     private suspend fun iframeDecode(
         referer: String,
         iframe: String,
@@ -238,126 +293,136 @@ private fun Element.toMainPageResult(): SearchResponse? {
     ): Boolean {
         if (depth > 4) return false
         val resolvedUrl = DiziBoxPlayerParser.resolveUrl(iframe, referer) ?: return false
-        val resolvedIframe = DiziBoxPlayerParser.normalizeMolyStreamEmbedUrl(resolvedUrl)
-        if (!visited.add(resolvedIframe)) return false
+        if (!visited.add(resolvedUrl)) return false
 
-        if (!DiziBoxPlayerParser.isSupportedPlayerUrl(resolvedIframe, mainUrl)) {
-            return loadExtractor(resolvedIframe, referer, subtitleCallback, callback)
+        if (!DiziBoxPlayerParser.isSupportedPlayerUrl(resolvedUrl, mainUrl)) {
+            return loadExtractor(resolvedUrl, referer, subtitleCallback, callback)
         }
 
-        var playerUrl = resolvedIframe
-        when {
-            playerUrl.contains("/player/king/king.php") ->
-                playerUrl = playerUrl.replace("king.php?v=", "king.php?wmode=opaque&v=")
-            playerUrl.contains("/player/moly/moly.php") ->
-                playerUrl = playerUrl.replace("moly.php?h=", "moly.php?wmode=opaque&h=")
-            playerUrl.contains("/player/haydi.php") ->
-                playerUrl = playerUrl.replace("haydi.php?v=", "haydi.php?wmode=opaque&v=")
-        }
+        val playerCandidates = (listOf(resolvedUrl) +
+            listOfNotNull(DiziBoxPlayerParser.molyStreamPlayerPageUrl(resolvedUrl))).distinct()
 
-        val html = try {
-            if (isDiziBoxHost(playerUrl)) {
-                app.get(
-                    playerUrl,
-                    headers = mapOf("User-Agent" to playerUserAgent),
-                    referer = referer,
-                    cookies = playerCookies,
-                    interceptor = interceptor,
-                ).text
-            } else {
-                // Do not forward DiziBox cookies to MolyStream. Its nested player
-                // document is requested with the DiziBox site as Referer; the
-                // resulting stream uses the actual MolyStream embed page below.
-                val playerReferer = if (DiziBoxPlayerParser.isMolyStreamHost(playerUrl)) mainUrl else referer
-                app.get(
-                    playerUrl,
-                    headers = mapOf("User-Agent" to playerUserAgent),
-                    referer = playerReferer,
-                ).text
-            }
-        } catch (exception: Exception) {
-            Log.d("DZBX", "Player request failed: ${exception.message}")
-            return loadExtractor(playerUrl, referer, subtitleCallback, callback)
-        }
+        for ((candidateIndex, candidateUrl) in playerCandidates.withIndex()) {
+            if (candidateIndex > 0 && !visited.add(candidateUrl)) continue
 
-        val packedHtml = if (
-            playerUrl.contains("/player/moly/moly.php") ||
-            playerUrl.contains("/player/haydi.php")
-        ) decodePackedPlayerHtml(html) else html
-        val playerHtml = decryptPlayerHtml(packedHtml)
-        val playerDocument = Jsoup.parse(playerHtml, playerUrl)
-        var extracted = false
-
-        DiziBoxPlayerParser.subtitleTracks(playerHtml).forEach { track ->
-            val subtitleUrl = DiziBoxPlayerParser.resolveUrl(track.url, playerUrl) ?: return@forEach
-            subtitleCallback.invoke(SubtitleFile(track.label, subtitleUrl))
-        }
-
-        DiziBoxPlayerParser.mediaSources(playerHtml).forEach { source ->
-            val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
-            val linkName = source.label.takeIf { it.isNotBlank() }?.let { "$name - $it" } ?: name
-            val linkQuality = source.label.takeIf { it.isNotBlank() }
-                ?.let { getQualityFromName(it) } ?: Qualities.Unknown.value
-            val streamReferer = if (
-                DiziBoxPlayerParser.isMolyStreamHost(mediaUrl) &&
-                !DiziBoxPlayerParser.isMolyStreamHost(playerUrl)
-            ) mainUrl else playerUrl
+            var playerUrl = candidateUrl
             when {
-                DiziBoxPlayerParser.isHls(source) -> {
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = linkName,
-                            url = mediaUrl,
-                            type = ExtractorLinkType.M3U8,
-                        ) {
-                            headers = buildMap {
-                                put("Referer", streamReferer)
-                                put("User-Agent", playerUserAgent)
-                                originOf(streamReferer)?.let { put("Origin", it) }
-                            }
-                            quality = linkQuality
-                        },
-                    )
-                    extracted = true
+                playerUrl.contains("/player/king/king.php") ->
+                    playerUrl = playerUrl.replace("king.php?v=", "king.php?wmode=opaque&v=")
+                playerUrl.contains("/player/moly/moly.php") ->
+                    playerUrl = playerUrl.replace("moly.php?h=", "moly.php?wmode=opaque&h=")
+                playerUrl.contains("/player/haydi.php") ->
+                    playerUrl = playerUrl.replace("haydi.php?v=", "haydi.php?wmode=opaque&v=")
+            }
+
+            val playerHtml = try {
+                if (isDiziBoxHost(playerUrl)) {
+                    app.get(
+                        playerUrl,
+                        headers = mapOf("User-Agent" to playerUserAgent),
+                        referer = referer,
+                        cookies = playerCookies,
+                        interceptor = interceptor,
+                    ).text
+                } else {
+                    // Preserve the actual parent page as Referer. In the observed
+                    // King -> MolyStream chain this is king.php, not the site root.
+                    app.get(
+                        playerUrl,
+                        headers = mapOf("User-Agent" to playerUserAgent),
+                        referer = referer,
+                    ).text
                 }
-                DiziBoxPlayerParser.isMp4(source) -> {
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = linkName,
-                            url = mediaUrl,
-                            type = ExtractorLinkType.VIDEO,
-                        ) {
-                            headers = mapOf(
-                                "Referer" to streamReferer,
-                                "User-Agent" to playerUserAgent,
-                            )
-                            quality = linkQuality
-                        },
-                    )
-                    extracted = true
-                }
-                else -> {
-                    extracted = loadExtractor(mediaUrl, playerUrl, subtitleCallback, callback) || extracted
+            } catch (exception: Exception) {
+                Log.d("DZBX", "Player request failed: ${exception.message}")
+                if (candidateIndex < playerCandidates.lastIndex) continue
+                break
+            }
+
+            // A direct `/embed/sheila/{id}` iframe can already be an HLS endpoint.
+            if (DiziBoxPlayerParser.isHlsManifest(playerHtml)) {
+                emitHlsLink(playerUrl, referer, callback = callback)
+                return true
+            }
+
+            // Some observed MolyStream responses are a plain HTTPS URL instead
+            // of a playlist body. Verify the target with the same parent Referer.
+            val directTarget = DiziBoxPlayerParser.plainHttpsTarget(playerHtml)
+            if (DiziBoxPlayerParser.isMolyStreamHost(playerUrl) && directTarget != null) {
+                val playlistUrl = verifiedMolyStreamUrl(directTarget, referer)
+                if (playlistUrl != null) {
+                    emitHlsLink(playlistUrl, referer, callback = callback)
+                    return true
                 }
             }
-        }
 
-        DiziBoxPlayerParser.nestedIframes(playerDocument, playerUrl).forEach { nestedFrame ->
-            if (nestedFrame == playerUrl) return@forEach
-            val found = if (DiziBoxPlayerParser.isSupportedPlayerUrl(nestedFrame, mainUrl)) {
-                iframeDecode(playerUrl, nestedFrame, subtitleCallback, callback, visited, depth + 1)
-            } else {
-                loadExtractor(nestedFrame, playerUrl, subtitleCallback, callback)
+            val packedHtml = if (
+                playerUrl.contains("/player/moly/moly.php") ||
+                playerUrl.contains("/player/haydi.php")
+            ) decodePackedPlayerHtml(playerHtml) else playerHtml
+            val decodedPlayerHtml = decryptPlayerHtml(packedHtml)
+            val playerDocument = Jsoup.parse(decodedPlayerHtml, playerUrl)
+            var extracted = false
+
+            DiziBoxPlayerParser.subtitleTracks(decodedPlayerHtml).forEach { track ->
+                val subtitleUrl = DiziBoxPlayerParser.resolveUrl(track.url, playerUrl) ?: return@forEach
+                subtitleCallback.invoke(SubtitleFile(track.label, subtitleUrl))
             }
-            extracted = found || extracted
+
+            DiziBoxPlayerParser.mediaSources(decodedPlayerHtml).forEach { source ->
+                val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
+                val sourceReferer = playerUrl
+                val playableUrl = if (DiziBoxPlayerParser.isMolyStreamStreamUrl(mediaUrl)) {
+                    verifiedMolyStreamUrl(mediaUrl, sourceReferer) ?: return@forEach
+                } else {
+                    mediaUrl
+                }
+                val linkName = source.label.takeIf { it.isNotBlank() }?.let { "$name - $it" } ?: name
+                val linkQuality = source.label.takeIf { it.isNotBlank() }
+                    ?.let { getQualityFromName(it) } ?: Qualities.Unknown.value
+
+                when {
+                    DiziBoxPlayerParser.isHls(source) -> {
+                        emitHlsLink(playableUrl, sourceReferer, linkName, linkQuality, callback)
+                        extracted = true
+                    }
+                    DiziBoxPlayerParser.isMp4(source) -> {
+                        callback.invoke(
+                            newExtractorLink(
+                                source = name,
+                                name = linkName,
+                                url = playableUrl,
+                                type = ExtractorLinkType.VIDEO,
+                            ) {
+                                headers = mapOf(
+                                    "Referer" to sourceReferer,
+                                    "User-Agent" to playerUserAgent,
+                                )
+                                quality = linkQuality
+                            },
+                        )
+                        extracted = true
+                    }
+                    else -> {
+                        extracted = loadExtractor(playableUrl, playerUrl, subtitleCallback, callback) || extracted
+                    }
+                }
+            }
+
+            DiziBoxPlayerParser.nestedIframes(playerDocument, playerUrl).forEach { nestedFrame ->
+                if (nestedFrame == playerUrl) return@forEach
+                val found = if (DiziBoxPlayerParser.isSupportedPlayerUrl(nestedFrame, mainUrl)) {
+                    iframeDecode(playerUrl, nestedFrame, subtitleCallback, callback, visited, depth + 1)
+                } else {
+                    loadExtractor(nestedFrame, playerUrl, subtitleCallback, callback)
+                }
+                extracted = found || extracted
+            }
+
+            if (extracted) return true
         }
 
-        if (!extracted) {
-            extracted = loadExtractor(playerUrl, referer, subtitleCallback, callback)
-        }
-        return extracted
+        return loadExtractor(resolvedUrl, referer, subtitleCallback, callback)
     }
 
     override suspend fun loadLinks(

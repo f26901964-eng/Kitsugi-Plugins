@@ -114,19 +114,34 @@ class DiziBoxPlayerParserTest {
     }
 
     @Test
-    fun normalizesMolyStreamSheilaStreamRouteToItsPlayerEmbedPage() {
+    fun keepsSheilaRouteForDirectRequestAndDerivesPlayerPageOnlyAsFallback() {
+        val streamUrl = "https://dbx.molystream.org/embed/sheila/episode-123?token=abc"
+        val playerUrl = "https://dbx.molystream.org/embed/episode-123?token=abc"
+
+        assertTrue(DiziBoxPlayerParser.isMolyStreamStreamUrl(streamUrl))
+        assertFalse(DiziBoxPlayerParser.isMolyStreamStreamUrl(playerUrl))
+        assertEquals(playerUrl, DiziBoxPlayerParser.molyStreamPlayerPageUrl(streamUrl))
+        assertEquals(null, DiziBoxPlayerParser.molyStreamPlayerPageUrl(playerUrl))
         assertEquals(
-            "https://dbx.molystream.org/embed/episode-123?token=abc",
-            DiziBoxPlayerParser.normalizeMolyStreamEmbedUrl(
-                "https://dbx.molystream.org/embed/sheila/episode-123?token=abc",
-            ),
-        )
-        assertEquals(
-            "https://player.example/embed/sheila/episode-123",
-            DiziBoxPlayerParser.normalizeMolyStreamEmbedUrl(
+            null,
+            DiziBoxPlayerParser.molyStreamPlayerPageUrl(
                 "https://player.example/embed/sheila/episode-123",
             ),
         )
+    }
+
+    @Test
+    fun recognizesVerifiedHlsManifestAndPlainHttpsUrlResponses() {
+        assertTrue(DiziBoxPlayerParser.isHlsManifest("#EXTM3U\n#EXT-X-VERSION:3"))
+        assertTrue(DiziBoxPlayerParser.isHlsManifest("\uFEFF  #EXTM3U\n"))
+        assertFalse(DiziBoxPlayerParser.isHlsManifest("<html>challenge</html>"))
+
+        assertEquals(
+            "https://cdn.example/master.m3u8?token=1",
+            DiziBoxPlayerParser.plainHttpsTarget("  https://cdn.example/master.m3u8?token=1  "),
+        )
+        assertEquals(null, DiziBoxPlayerParser.plainHttpsTarget("<html>challenge</html>"))
+        assertEquals(null, DiziBoxPlayerParser.plainHttpsTarget("https://cdn.example/master.m3u8?x=1\ny=2"))
     }
 
     @Test

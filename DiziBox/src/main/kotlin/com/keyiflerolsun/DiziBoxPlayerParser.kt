@@ -142,13 +142,37 @@ internal object DiziBoxPlayerParser {
             source.url.substringBefore('?').substringBefore('#').endsWith(".mp4", ignoreCase = true)
 
     /**
-     * MolyStream's stream route is `/embed/sheila/{id}`; its companion player
-     * page is `/embed/{id}`. Fetch that page so the encrypted config and tracks
-     * can be parsed before emitting the protected stream URL.
+     * The independent MolyStream resolver distinguishes the player page
+     * `/embed/{id}` from its stream endpoint `/embed/sheila/{id}`. Do not
+     * rewrite a received URL before requesting it: the `sheila` route may
+     * itself return a playlist. This companion URL is only a fallback when
+     * the received `sheila` route returns HTML with no media configuration.
      */
-    fun normalizeMolyStreamEmbedUrl(url: String): String {
-        if (!isMolyStreamHost(url)) return url
+    fun molyStreamPlayerPageUrl(url: String): String? {
+        if (!isMolyStreamStreamUrl(url)) return null
         return url.replaceFirst(Regex("""/embed/sheila/""", RegexOption.IGNORE_CASE), "/embed/")
+    }
+
+    fun isMolyStreamStreamUrl(url: String): Boolean {
+        if (!isMolyStreamHost(url)) return false
+        val path = runCatching { URI(url).path.orEmpty() }.getOrDefault("")
+        return Regex("""/embed/sheila/[^/]+/?$""", RegexOption.IGNORE_CASE).containsMatchIn(path)
+    }
+
+    fun isHlsManifest(body: String): Boolean {
+        val header = body.removePrefix("\uFEFF").trimStart()
+        return header.startsWith("#EXTM3U", ignoreCase = true) &&
+            (header.length == 7 || header[7].isWhitespace())
+    }
+
+    /** MolyStream has been observed returning a plain HTTPS URL from its stream route. */
+    fun plainHttpsTarget(body: String): String? {
+        val candidate = body.removePrefix("\uFEFF").trim()
+        if (!candidate.startsWith("https://", ignoreCase = true)) return null
+        if (candidate.any { it.isWhitespace() || it.code < 0x20 || it == 0x27.toChar() || it == 0x22.toChar() }) {
+            return null
+        }
+        return candidate.takeIf { resolveUrl(it, it) != null }
     }
 
     fun isMolyStreamHost(url: String): Boolean {
