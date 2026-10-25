@@ -202,14 +202,25 @@ class HDFilmIzle : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d("HDF", "data » ${data}")
+        Log.d("HDF", "data » $data")
         val document = app.get(data).document
+        val iframes = HDFilmIzlePlayerParser.iframeUrls(document, data)
+        if (iframes.isEmpty()) {
+            Log.d("HDF", "No player iframe found on $data")
+            return false
+        }
 
-        val iframe = document.selectFirst("iframe")?.attr("data-src") ?: ""
-        Log.d("HDF", "iframe » ${iframe}")
-        loadExtractor(iframe, mainUrl, subtitleCallback, callback)
+        var emittedLinks = 0
+        iframes.forEach { iframe ->
+            Log.d("HDF", "iframe » $iframe")
+            loadExtractor(iframe, data, subtitleCallback) { link ->
+                emittedLinks += 1
+                callback(link)
+            }
+        }
 
-        return true
+        Log.d("HDF", "Extracted links: $emittedLinks")
+        return emittedLinks > 0
     }
 
     private data class SubSource(
