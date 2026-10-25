@@ -51,7 +51,7 @@ class DiziBoxPlayerParserTest {
     fun recognizesEncryptedPlayerPayloadAndHlsSources() {
         val script = """
             CryptoJS . AES . decrypt ( "U2FsdGVkX1ciphertext==" , "player-password" )
-            jwplayer("player").setup({ sources: [{ file: "https://cdn.example/video.m3u8", type: "application/x-mpegURL" }] });
+            jwplayer("player").setup({ sources: [{ file: "https://cdn.example/video.m3u8", type: "application/x-mpegURL", label: "1080p" }] });
         """.trimIndent()
 
         val encrypted = DiziBoxPlayerParser.encryptedPayload(script)
@@ -61,23 +61,72 @@ class DiziBoxPlayerParserTest {
 
         val source = DiziBoxPlayerParser.mediaSources(script).single()
         assertEquals("https://cdn.example/video.m3u8", source.url)
+        assertEquals("1080p", source.label)
         assertTrue(DiziBoxPlayerParser.isHls(source))
     }
 
     @Test
-    fun recognizesCurrentMolyStreamEmbedAsHlsAndSkipsSubtitles() {
+    fun preservesExplicitSourceKindAndFiltersCaptionSources() {
         val html = """
             jwplayer("player").setup({
                 sources: [
-                    { file: "https://dbx.molystream.org/embed/sheila/abc", type: "application/x-mpegURL" },
-                    { file: "https://cdn.example/subtitles.vtt", kind: "captions", type: "text/vtt" }
+                    { file: "https://cdn.example/video.m3u8", type: "application/x-mpegURL", kind: "main", label: "720p" },
+                    { file: "https://cdn.example/subtitles.vtt", type: "text/vtt", kind: "captions", label: "Türkçe" }
                 ]
             });
         """.trimIndent()
 
         val sources = DiziBoxPlayerParser.mediaSources(html)
         assertEquals(1, sources.size)
+        assertEquals("main", sources.single().kind)
+        assertEquals("720p", sources.single().label)
         assertTrue(DiziBoxPlayerParser.isHls(sources.single()))
+    }
+
+    @Test
+    fun doesNotInferMediaSourceKindFromItsUrl() {
+        val source = DiziBoxPlayerParser.mediaSources(
+            "file: \"https://cdn.example/caption.vtt\"",
+        ).single()
+
+        assertEquals("https://cdn.example/caption.vtt", source.url)
+        assertEquals("", source.kind)
+    }
+
+    @Test
+    fun extractsLabeledSubtitleTracksWithoutTreatingOtherVttTracksAsCaptions() {
+        val html = """
+            jwplayer("player").setup({
+                tracks: [
+                    { file: "https://cdn.example/tr.vtt", label: "Türkçe", kind: "captions", srclang: "tr" },
+                    { file: "https://cdn.example/en.srt?token=1", label: "English" },
+                    { file: "https://cdn.example/chapters.vtt", label: "Chapters", kind: "chapters" }
+                ]
+            });
+        """.trimIndent()
+
+        val tracks = DiziBoxPlayerParser.subtitleTracks(html)
+        assertEquals(2, tracks.size)
+        assertEquals("Türkçe", tracks[0].label)
+        assertEquals("captions", tracks[0].kind)
+        assertEquals("tr", tracks[0].language)
+        assertEquals("English", tracks[1].label)
+    }
+
+    @Test
+    fun normalizesMolyStreamSheilaStreamRouteToItsPlayerEmbedPage() {
+        assertEquals(
+            "https://dbx.molystream.org/embed/episode-123?token=abc",
+            DiziBoxPlayerParser.normalizeMolyStreamEmbedUrl(
+                "https://dbx.molystream.org/embed/sheila/episode-123?token=abc",
+            ),
+        )
+        assertEquals(
+            "https://player.example/embed/sheila/episode-123",
+            DiziBoxPlayerParser.normalizeMolyStreamEmbedUrl(
+                "https://player.example/embed/sheila/episode-123",
+            ),
+        )
     }
 
     @Test

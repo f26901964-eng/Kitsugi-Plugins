@@ -237,31 +237,12 @@ private fun Element.toMainPageResult(): SearchResponse? {
         depth: Int = 0,
     ): Boolean {
         if (depth > 4) return false
-        val resolvedIframe = DiziBoxPlayerParser.resolveUrl(iframe, referer) ?: return false
+        val resolvedUrl = DiziBoxPlayerParser.resolveUrl(iframe, referer) ?: return false
+        val resolvedIframe = DiziBoxPlayerParser.normalizeMolyStreamEmbedUrl(resolvedUrl)
         if (!visited.add(resolvedIframe)) return false
 
         if (!DiziBoxPlayerParser.isSupportedPlayerUrl(resolvedIframe, mainUrl)) {
             return loadExtractor(resolvedIframe, referer, subtitleCallback, callback)
-        }
-
-        // The current DBX/MolyStream player returns this route as an HLS endpoint.
-        if (resolvedIframe.contains("/embed/sheila/", ignoreCase = true)) {
-            callback.invoke(
-                newExtractorLink(
-                    source = name,
-                    name = name,
-                    url = resolvedIframe,
-                    type = ExtractorLinkType.M3U8,
-                ) {
-                    headers = buildMap {
-                        put("Referer", referer)
-                        put("User-Agent", playerUserAgent)
-                        originOf(referer)?.let { put("Origin", it) }
-                    }
-                    quality = Qualities.Unknown.value
-                },
-            )
-            return true
         }
 
         var playerUrl = resolvedIframe
@@ -284,11 +265,14 @@ private fun Element.toMainPageResult(): SearchResponse? {
                     interceptor = interceptor,
                 ).text
             } else {
-                // Do not forward DiziBox cookies to the third-party MolyStream host.
+                // Do not forward DiziBox cookies to MolyStream. Its nested player
+                // document is requested with the DiziBox site as Referer; the
+                // resulting stream uses the actual MolyStream embed page below.
+                val playerReferer = if (DiziBoxPlayerParser.isMolyStreamHost(playerUrl)) mainUrl else referer
                 app.get(
                     playerUrl,
                     headers = mapOf("User-Agent" to playerUserAgent),
-                    referer = referer,
+                    referer = playerReferer,
                 ).text
             }
         } catch (exception: Exception) {
@@ -304,23 +288,35 @@ private fun Element.toMainPageResult(): SearchResponse? {
         val playerDocument = Jsoup.parse(playerHtml, playerUrl)
         var extracted = false
 
+        DiziBoxPlayerParser.subtitleTracks(playerHtml).forEach { track ->
+            val subtitleUrl = DiziBoxPlayerParser.resolveUrl(track.url, playerUrl) ?: return@forEach
+            subtitleCallback.invoke(SubtitleFile(track.label, subtitleUrl))
+        }
+
         DiziBoxPlayerParser.mediaSources(playerHtml).forEach { source ->
             val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
+            val linkName = source.label.takeIf { it.isNotBlank() }?.let { "$name - $it" } ?: name
+            val linkQuality = source.label.takeIf { it.isNotBlank() }
+                ?.let { getQualityFromName(it) } ?: Qualities.Unknown.value
+            val streamReferer = if (
+                DiziBoxPlayerParser.isMolyStreamHost(mediaUrl) &&
+                !DiziBoxPlayerParser.isMolyStreamHost(playerUrl)
+            ) mainUrl else playerUrl
             when {
                 DiziBoxPlayerParser.isHls(source) -> {
                     callback.invoke(
                         newExtractorLink(
                             source = name,
-                            name = name,
+                            name = linkName,
                             url = mediaUrl,
                             type = ExtractorLinkType.M3U8,
                         ) {
                             headers = buildMap {
-                                put("Referer", playerUrl)
+                                put("Referer", streamReferer)
                                 put("User-Agent", playerUserAgent)
-                                originOf(playerUrl)?.let { put("Origin", it) }
+                                originOf(streamReferer)?.let { put("Origin", it) }
                             }
-                            quality = Qualities.Unknown.value
+                            quality = linkQuality
                         },
                     )
                     extracted = true
@@ -329,15 +325,15 @@ private fun Element.toMainPageResult(): SearchResponse? {
                     callback.invoke(
                         newExtractorLink(
                             source = name,
-                            name = name,
+                            name = linkName,
                             url = mediaUrl,
                             type = ExtractorLinkType.VIDEO,
                         ) {
                             headers = mapOf(
-                                "Referer" to playerUrl,
+                                "Referer" to streamReferer,
                                 "User-Agent" to playerUserAgent,
                             )
-                            quality = Qualities.Unknown.value
+                            quality = linkQuality
                         },
                     )
                     extracted = true
