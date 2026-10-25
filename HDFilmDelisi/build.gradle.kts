@@ -1,20 +1,21 @@
-import java.util.zip.ZipOutputStream
-import java.util.zip.ZipEntry
+version = 19
 
-tasks.named("make") {
-    doLast {
-        val buildDir = layout.buildDirectory.get().asFile
-        buildDir.mkdirs()
-        val cs3File = File(buildDir, "${project.name}.cs3")
-        val zipFile = ZipOutputStream(cs3File.outputStream())
-        listOf("manifest.json", "classes.dex").forEach { fileName ->
-            val file = file(fileName)
-            if (file.exists()) {
-                zipFile.putNextEntry(ZipEntry(fileName))
-                file.inputStream().use { it.copyTo(zipFile) }
-                zipFile.closeEntry()
-            }
-        }
-        zipFile.close()
+cloudstream {
+    authors     = listOf("patr0n", "ByAyzen", "kraptor")
+    language    = "tr"
+    description = "En yeni ve popüler filmler; Türkçe dublaj ve altyazı, Full HD."
+    status      = 1
+    tvTypes     = listOf("Movie", "TvSeries")
+    iconUrl     = "https://www.google.com/s2/favicons?domain=hdfilmdelisi.one&sz=%size%"
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
 }

@@ -40,7 +40,7 @@ subprojects {
 
     cloudstream {
         // when running through github workflow, GITHUB_REPOSITORY should contain current repository name
-        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/keyiflerolsun/Kekik-cloudstream")
+        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "https://github.com/f26901964-eng/Kitsugi-Plugins")
 
         authors = listOf("keyiflerolsun")
     }
