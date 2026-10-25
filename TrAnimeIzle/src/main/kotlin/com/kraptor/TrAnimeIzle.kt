@@ -87,6 +87,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - Hata artık EKRANDA görünür: her basamağın nedeni kaynak panelinde
  *    ErrorLoadingException mesajı olarak gösterilir (KTS-CSP-9103 yerine).
  *  - loadLinks bölüm sayfası da içerik garantili (webViewFallback=true).
+ *  - (v21.1: derleyici tetikleyici dokunuş — kod değişikliği yok.)
  */
 class TrAnimeIzle(
     private val context: Context,
