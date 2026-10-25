@@ -583,7 +583,19 @@ class TrAnimeIzle(
     private fun izleCount(html: String?): Int {
         if (html.isNullOrBlank()) return 0
         return try {
-            Jsoup.parse(html).select("a[href*='bolum-izle'], a[href*='anime-izle']").size
+            val document = Jsoup.parse(html)
+            // 1) Klasik kart yapısı: kartlar tıklamada data-href kullanıyor.
+            val blocks = document.select("div.flx-block, .flx-block").size
+            if (blocks > 0) return blocks
+            // 2) Doğrudan bağlantılı kartlar.
+            val links = document.select("a[href*='bolum-izle'], a[href*='anime-izle']").size
+            if (links > 0) return links
+            // 3) data-href taşıyan öğeler.
+            document.select("[data-href]").count { element ->
+                val href = element.attr("data-href")
+                href.contains("bolum-izle") || href.contains("anime-izle") ||
+                    href.endsWith("-izle") || href.endsWith("-izle-hd")
+            }
         } catch (_: Exception) {
             0
         }

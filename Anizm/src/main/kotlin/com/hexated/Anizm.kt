@@ -502,6 +502,36 @@ class Anizm : MainAPI() {
     // Video kaynakları
     // ------------------------------------------------------------------
 
+    /**
+     * `/player/{id}` adresinin **302 hedefini** döndürür.
+     *
+     * Anizm'in (anizm.net/puffytr ailesi) kendi oynatıcı yolu bu: bölüm sayfasındaki
+     * `a.videoPlayerButtons[video]` → `/video/{id}`; site oynatıcıyı `/player/{id}`
+     * üzerinden açar ve **yönlendirme (Location) başlığıyla** gerçek host'a
+     * (anizmplayer / filemoon / sibnet …) gönderir. İstemci yönlendirmeyi kendi
+     * izlerse hedef adres kaybolur; bu yüzden yönlendirme KAPATILARAK okunur.
+     */
+    private suspend fun followLocation(url: String, referer: String): String? {
+        return try {
+            val response = app.get(
+                url,
+                headers = headers(referer, xhr = false),
+                allowRedirects = false,
+                timeout = 12L
+            )
+            val location = response.headers.entries
+                .firstOrNull { it.key.equals("location", ignoreCase = true) }
+                ?.value?.firstOrNull()
+                ?.trim()
+            if (location.isNullOrBlank()) null else AnizmSite.absolute(url, location)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.d(LOG_TAG, "Location okunamadı (${url.take(80)}): ${e.message}")
+            null
+        }
+    }
+
     /** Phase A çıktısı: çözülecek oynatıcı adayı. */
     private data class Candidate(val url: String, val label: String, val referer: String)
 
@@ -690,6 +720,17 @@ class Anizm : MainAPI() {
                 }
             }
             val label = "$fansub | $server"
+
+            // Aniyomi'nin kullandığı asıl yol: /video/{id} → /player/{id} → 302 Location.
+            // (Site oynatıcıyı bu yönlendirme ile açar; hedef gerçek host adresidir.)
+            val playerUrl = videoUrl.replace("/video/", "/player/")
+            if (playerUrl != videoUrl) {
+                val target = followLocation(playerUrl, pageUrl)
+                if (target != null && !isAdHost(target)) {
+                    out.add(Candidate(target, label, pageUrl))
+                }
+            }
+
             if (iframes.isEmpty()) {
                 // Yedek: dönen gövdenin kendisi oynatıcı olabilir.
                 out.add(Candidate(videoUrl, label, pageUrl))
@@ -718,6 +759,31 @@ class Anizm : MainAPI() {
         val playerHash = anizmPlayerHash(url)
         if (playerHash != null) {
             return resolveAnizmPlayer(playerHash, url, candidate.label, emitted, callback)
+        }
+
+        // 2.5) Site içi oynatıcı yolu (/player/{id} veya /video/{id}) → 302 Location.
+        if (IN_SITE_PLAYER.containsMatchIn(url)) {
+            val target = followLocation(url, candidate.referer)
+            if (target != null && target != url) {
+                val hash = anizmPlayerHash(target)
+                if (hash != null) return resolveAnizmPlayer(hash, target, candidate.label, emitted, callback)
+                val handledTarget = try {
+                    loadExtractor(target, candidate.referer, subtitleCallback, callback)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    false
+                }
+                if (handledTarget) return 1
+                val html = getText(target, candidate.referer)
+                if (html != null) {
+                    var c = 0
+                    for (link in mediaFromHtml(html, target).take(3)) {
+                        if (emitMedia(link, candidate.label, target, emitted, callback)) c++
+                    }
+                    if (c > 0) return c
+                }
+            }
         }
 
         // 3) Kütüphane/uygulama extractor'ları (filemoon, sibnet, ok.ru, voe, sendvid…).
@@ -924,6 +990,9 @@ class Anizm : MainAPI() {
                 "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
         private const val PLAYER_HOST = "https://anizmplayer.com"
+
+        /** Site içi oynatıcı yolu — 302 Location ile gerçek host'a gider. */
+        private val IN_SITE_PLAYER = Regex("/player/\\d+|/video/\\d+", RegexOption.IGNORE_CASE)
         private const val DEFAULT_BASE = "https://puffytr.com"
         private const val SEARCH_PAGE_SIZE = 24
         private const val MAX_MAIN_PAGE = 60
