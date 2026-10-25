@@ -50,6 +50,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    bot cevabı sayılır.
  *  - BotKontrol: CF challenge sayfası "yüklendi" sayılmaz (WebView kendisi
  *    çözer, beklenir).
+ *
+ * v19:
+ *  - Cihaz kanıtı (v18): arama 0 sonuç + HİÇ diyalog açılmadı → site
+ *    oturumsuz isteklere bot sayfası değil BOŞ 200 sayfa dönüyor.
+ *    DEX davranışı geri getirildi: arama/ana sayfa/load/loadLinks
+ *    isteklerinden ÖNCE oturum garantisi (sessionBootstrap; kayıtlı
+ *    oturum varsa diyalog açılmaz, yoksa WebView ~5 sn'de kapanır).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -115,7 +122,7 @@ class TrAnimeIzle(
         val enc = URLEncoder.encode(query, "UTF-8")
         val url = if (page <= 1) mainUrl + "/arama/" + enc
         else mainUrl + "/arama/" + enc + "?page=" + page
-        val html = fetchHtml(url, mainUrl + "/")
+        val html = fetchHtml(url, mainUrl + "/", ensureSession = true)
         val document = Jsoup.parse(html)
         var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
         if (results.isEmpty()) {
@@ -141,7 +148,7 @@ class TrAnimeIzle(
                 return newHomePageResponse(request.name, emptyList(), false)
             }
             val url = request.data + page
-            val html = fetchHtml(url, mainUrl + "/")
+            val html = fetchHtml(url, mainUrl + "/", ensureSession = true)
             val document = Jsoup.parse(html)
             var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
             if (results.isEmpty()) {
@@ -264,6 +271,26 @@ class TrAnimeIzle(
     }
 
     /**
+     * v19 (DEX uyumu): istek ÖNCESİ oturum garantisi.
+     *
+     * Kanıt: v18'de cihazda arama 0 sonuç + HİÇ DİYALOG AÇILMADI. Anlamı:
+     * site, oturum çerezi OLMAYAN isteklere bot sayfası değil, sessizce
+     * BOŞ/200 sayfa dönüyor → "bot cevabı gelince diyalog aç" mantığı asla
+     * tetiklenmiyordu. DEX, arama/bölüm isteklerinden ÖNCE botKontrol
+     * çağrısı yapıyordu (gate). Burası o davranışı geri getirir:
+     *  - kayıtlı oturum/CM seti varsa → anında, diyalog YOK,
+     *  - yoksa → WebView diyaloğu (challenge'sızsa ~5 sn'de kendiliğinden kapanır).
+     */
+    private suspend fun sessionBootstrap(): String {
+        return try {
+            BotKontrolKt.botKontrol(context, mainUrl, forceRefresh = false)
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Oturum başlatma hatası: ${e.message}")
+            cachedSession()
+        }
+    }
+
+    /**
      * İçerik bot/captcha/Cloudflare challenge sayfası mı?
      * v18: site Cloudflare arkasında (Error 1005 ASN ban kanıtlı) → CF
      * managed challenge başlıkları da bot cevabı sayılır. (Sadece TITLE
@@ -292,8 +319,16 @@ class TrAnimeIzle(
      * cevabı gelirse WebView diyaloğu ile oturumu yenileyip TEK bir kez
      * tekrar dener. Her adımda log bırakır (cihaz kanıtı için).
      */
-    private suspend fun fetchHtml(url: String, referer: String): String {
-        var cookie = lastCookie.ifBlank { cachedSession() }
+    private suspend fun fetchHtml(
+        url: String,
+        referer: String,
+        ensureSession: Boolean = false
+    ): String {
+        // v19: ensureSession=true → DEX gibi istek ÖNCESİ oturum garantisi
+        // (site oturumsuz isteklere sessizce boş sayfa dönebiliyor).
+        var cookie = lastCookie.ifBlank {
+            if (ensureSession) sessionBootstrap() else cachedSession()
+        }
         var resp = app.get(url, headers = browserHeaders(cookie, referer))
         if (!resp.isSuccessful || isBotBody(resp.text)) {
             Log.e(LOG_TAG, "Bot/başarısız cevap → oturum yenileniyor: $url")
@@ -319,7 +354,7 @@ class TrAnimeIzle(
 
         // v17: fetchHtml → kayıtlı oturumla dener, bot cevabı alırsa
         // WebView diyaloğuyla oturumu yeniler ve bir kez tekrar dener.
-        val html = fetchHtml(url, mainUrl + "/")
+        val html = fetchHtml(url, mainUrl + "/", ensureSession = true)
         var document = Jsoup.parse(html)
 
         val banasayfa = fixUrlNull(
@@ -615,7 +650,7 @@ class TrAnimeIzle(
         if (!TrAnimeIzleHelper.isAllowedVersion) return false
         return coroutineScope {
             Log.d(LOG_TAG, "data = $data")
-            val html = fetchHtml(data, mainUrl + "/")
+            val html = fetchHtml(data, mainUrl + "/", ensureSession = true)
             val document = Jsoup.parse(html)
 
             // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
