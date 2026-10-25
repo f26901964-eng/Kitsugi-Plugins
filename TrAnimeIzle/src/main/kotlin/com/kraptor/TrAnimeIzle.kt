@@ -13,6 +13,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.json.JSONObject
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 import java.time.LocalDate
@@ -40,6 +41,15 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - Arama sorgusu URL-kodlanıyor.
  *  - Her adım log'a yazılıyor (kraptor_TrAnime) — cihaz kanıtı için.
  *  - Harici (potansiyel olarak eski) domain listesi kaldırıldı.
+ *
+ * v18:
+ *  - Arama page 1: ÇIPLAK `/arama/{sorgu}` (site'nin kendi JS'i ?page= kullanmıyor).
+ *  - Sonuç kartları flx-block ile gelmezse href deseni (…-bolum-izle /
+ *    …-anime-izle) + resim tabanlı yedek çözümleme (parseGenericCards).
+ *  - isBotBody: Cloudflare challenge başlıkları ("Just a moment…" vb.) da
+ *    bot cevabı sayılır.
+ *  - BotKontrol: CF challenge sayfası "yüklendi" sayılmaz (WebView kendisi
+ *    çözer, beklenir).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -99,13 +109,28 @@ class TrAnimeIzle(
         // v17: sorgu kodlanıyor (boşluk/Türkçe karakter → 404 olmuyor),
         // istek oturum çerezi + tarayıcı başlıklarıyla gidiyor,
         // bot cevabında oturum yenilenip bir kez tekrar deniyor.
-        // (site.js 22.09.2026: arama `/arama/{sorgu}` biçiminde)
-        val url = mainUrl + "/arama/" + URLEncoder.encode(query, "UTF-8") + "?page=" + page
+        // v18: site kendi JS'inde arama için ÇIPLAK `/arama/{sorgu}` kullanıyor
+        // (site.js 22.09.2026 — ?page= parametresi YOK) → page 1 çıplak URL;
+        // page>1 için DEX davranışı korunur.
+        val enc = URLEncoder.encode(query, "UTF-8")
+        val url = if (page <= 1) mainUrl + "/arama/" + enc
+        else mainUrl + "/arama/" + enc + "?page=" + page
         val html = fetchHtml(url, mainUrl + "/")
-        val results = Jsoup.parse(html).select("div.flx-block").mapNotNull { toMainPageResult(it) }
+        val document = Jsoup.parse(html)
+        var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
+        if (results.isEmpty()) {
+            // v18: kart sınıfı değişmiş olabilir → href deseni tabanlı yedek çözüm.
+            results = parseGenericCards(document)
+            Log.w(LOG_TAG, "search('$query'): flx-block 0 → genel çözümleme: ${results.size}")
+        }
         Log.d(LOG_TAG, "search('$query') → ${results.size} sonuç")
         if (results.isEmpty()) {
-            Log.e(LOG_TAG, "search('$query') 0 sonuç — sayfa başı:\n" + html.take(1200))
+            Log.e(
+                LOG_TAG,
+                "search('$query') 0 sonuç — a[href*=izle] sayısı: " +
+                    document.select("a[href*='izle']").size +
+                    " | sayfa başı:\n" + html.take(2000)
+            )
         }
         return newSearchResponseList(results, true)
     }
@@ -117,9 +142,12 @@ class TrAnimeIzle(
             }
             val url = request.data + page
             val html = fetchHtml(url, mainUrl + "/")
-            val results = Jsoup.parse(html)
-                .select("div.flx-block")
-                .mapNotNull { toMainPageResult(it) }
+            val document = Jsoup.parse(html)
+            var results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
+            if (results.isEmpty()) {
+                results = parseGenericCards(document)
+                Log.w(LOG_TAG, "mainPage('${request.name}'): flx-block 0 → genel çözümleme: ${results.size}")
+            }
             Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
             newHomePageResponse(request.name, results, true)
         } catch (e: Exception) {
@@ -151,6 +179,34 @@ class TrAnimeIzle(
         return newAnimeSearchResponse(title, url, TvType.Anime) {
             this.posterUrl = poster
         }
+    }
+
+    /**
+     * v18 yedek kart çözümleme: sonuç/liste kartlarının sınıfları değişse bile,
+     * site'nin URL desenine (…-bolum-izle / …-anime-izle) + kart içindeki
+     * resme dayanarak sonuç üretir. (Ana sayfa arşivi 22.09.2026 bu deseni
+     * doğruluyor: her kartta img + izle-sonekli href var.)
+     */
+    private fun parseGenericCards(document: Document): List<AnimeSearchResponse> {
+        val seen = LinkedHashSet<String>()
+        val out = mutableListOf<AnimeSearchResponse>()
+        for (a in document.select("a[href]")) {
+            val href = a.attr("href")
+            if (!href.contains("bolum-izle", ignoreCase = true) &&
+                !href.contains("anime-izle", ignoreCase = true)
+            ) continue
+            val url = fixUrlNull(href) ?: continue
+            if (!seen.add(url)) continue
+            val img = a.selectFirst("img") ?: continue
+            val poster = fixUrlNull(img.attr("src"))?.ifBlank { null }
+                ?: fixUrlNull(img.attr("data-src"))
+            val title = (a.selectFirst("h4,h3,h5")?.text() ?: img.attr("alt"))
+                ?.replace("İzle", "")?.trim()?.takeIf { it.isNotBlank() } ?: continue
+            out += newAnimeSearchResponse(title, url, TvType.Anime) {
+                this.posterUrl = poster
+            }
+        }
+        return out
     }
 
     // ------------------------------------------------------------------
@@ -207,7 +263,13 @@ class TrAnimeIzle(
         BotKontrolKt.getSavedCookie(context, mainUrl)
     }
 
-    /** İçerik bot/captcha sayfası mı? */
+    /**
+     * İçerik bot/captcha/Cloudflare challenge sayfası mı?
+     * v18: site Cloudflare arkasında (Error 1005 ASN ban kanıtlı) → CF
+     * managed challenge başlıkları da bot cevabı sayılır. (Sadece TITLE
+     * bazlı kontrol — gövdedeki cf- işaretleri her CF korumalı sayfada
+     * normalde de bulunur, yanlış pozitif vermemek için.)
+     */
     private fun isBotBody(text: String?): Boolean {
         val t = text ?: ""
         if (t.isEmpty()) return true
@@ -217,7 +279,12 @@ class TrAnimeIzle(
         } catch (_: Exception) {
             ""
         }
-        return title.contains("Bot", ignoreCase = true)
+        return title.contains("Bot", ignoreCase = true) ||
+            title.contains("Just a moment", ignoreCase = true) ||
+            title.contains("Checking your browser", ignoreCase = true) ||
+            title.contains("Attention Required", ignoreCase = true) ||
+            Regex("Error\\s?100[5678]|Error\\s?1015|Error\\s?1020|Access denied")
+                .containsMatchIn(title)
     }
 
     /**

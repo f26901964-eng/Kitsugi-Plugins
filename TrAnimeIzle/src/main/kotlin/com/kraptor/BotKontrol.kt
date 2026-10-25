@@ -365,14 +365,23 @@ object BotKontrolKt {
         cont.resume(value)
     }
 
-    /** Sayfa tam yüklendi mi? (readyState=complete → gövde uzunluğu, değilse -1) */
+    /**
+     * Sayfa tam yüklendi mi?
+     * @return -2 = hâlâ Cloudflare challenge sayfası, -1 = belirsiz/yüklenmedi,
+     *         >=0 = gövde uzunluğu (readyState=complete).
+     * v18: CF managed challenge sayfaları "yüklendi" sayılmamalı — WebView
+     * (gerçek Chromium) challenge'ı normalde kendiliğinden çözer, o beklenir.
+     */
     private fun pageLoadedBodyLength(webView: WebView): Int {
         val ref = java.util.concurrent.atomic.AtomicInteger(-1)
         val latch = java.util.concurrent.CountDownLatch(1)
         try {
             webView.evaluateJavascript(
-                "(function(){try{return (document.readyState==='complete')?" +
-                    "document.body.innerHTML.length:0}catch(e){return -1}})()",
+                "(function(){try{var h=document.body?document.body.innerHTML:'';" +
+                    "if(/just a moment|checking your browser|cf-challenge/i.test(" +
+                    "(document.title||'')+h))return -2;" +
+                    "return (document.readyState==='complete')?h.length:-1" +
+                    "}catch(e){return -1}})()",
                 ValueCallback { raw ->
                     ref.set(raw?.trim()?.toIntOrNull() ?: -1)
                     latch.countDown()
@@ -503,6 +512,12 @@ object BotKontrolKt {
 
             // B) Challenge'sız tam yüklendi → site bu istemciden challenge istemiyor.
             val bodyLen = pageLoadedBodyLength(webView)
+            if (bodyLen == -2) {
+                // v18: Cloudflare managed challenge — WebView'in kendisi
+                // çözer; sayfa içeriğe geçene kadar beklenir.
+                statusView.text = "Doğrulama sayfası yükleniyor (Cloudflare)…"
+                continue
+            }
             if (bodyLen >= PAGE_LOADED_MIN_BODY) {
                 Log.d(
                     TAG,
