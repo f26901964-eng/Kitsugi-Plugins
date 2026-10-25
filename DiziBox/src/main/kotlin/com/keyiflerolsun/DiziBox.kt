@@ -203,6 +203,11 @@ private fun Element.toMainPageResult(): SearchResponse? {
         "$scheme://$authority"
     }.getOrNull()
 
+    private fun playerRequestHeaders(referer: String): Map<String, String> = buildMap {
+        put("User-Agent", playerUserAgent)
+        originOf(referer)?.let { put("Origin", it) }
+    }
+
     private fun decodePackedPlayerHtml(html: String): String {
         val functionStart = html.indexOf("unescape", ignoreCase = true)
         if (functionStart < 0) return html
@@ -262,7 +267,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
         return try {
             val response = app.get(
                 url,
-                headers = mapOf("User-Agent" to playerUserAgent),
+                headers = playerRequestHeaders(referer),
                 referer = referer,
             ).text
             when {
@@ -271,7 +276,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
                     val target = DiziBoxPlayerParser.plainHttpsTarget(response) ?: return null
                     val targetResponse = app.get(
                         target,
-                        headers = mapOf("User-Agent" to playerUserAgent),
+                        headers = playerRequestHeaders(referer),
                         referer = referer,
                     ).text
                     target.takeIf { DiziBoxPlayerParser.isHlsManifest(targetResponse) }
@@ -319,7 +324,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
                 if (isDiziBoxHost(playerUrl)) {
                     app.get(
                         playerUrl,
-                        headers = mapOf("User-Agent" to playerUserAgent),
+                        headers = playerRequestHeaders(referer),
                         referer = referer,
                         cookies = playerCookies,
                         interceptor = interceptor,
@@ -329,7 +334,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
                     // King -> MolyStream chain this is king.php, not the site root.
                     app.get(
                         playerUrl,
-                        headers = mapOf("User-Agent" to playerUserAgent),
+                        headers = playerRequestHeaders(referer),
                         referer = referer,
                     ).text
                 }
