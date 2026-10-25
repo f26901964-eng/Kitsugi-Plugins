@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.nicehttp.JsonAsString
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -138,6 +139,26 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    doğrudan indirme adresine çevrilir.
  *  - Çözülemediyse bile HAM host adresi link olarak eklenir — kaynak
  *    listesinde TEK bir kaynak bile boş kalmaz.
+ *
+ * v25 (SERTLEŞTİRME + SİTENİN KENDİ 2. OYNATICI YOLU):
+ *  - site.js satır-satır yeniden incelendi (iki dönem BİREBİR aynı):
+ *    video ile ilgili TÜM uçlar: fansubSources (JSON gövde),
+ *    sourcePlayer/{id} (boş gövde → {source, contributerNotes}),
+ *    preVideoAd/{id} (boş gövde → DÜZ oynatıcı HTML'i; site günün
+ *    ilk tıklamasında bunu kullanır).
+ *  - YENİ YOL: sourcePlayer boş/bozuk dönerse site'nin kendi
+ *    ilk-tıklama yolu olan POST /api/preVideoAd/{id} denenir
+ *    (bağımsız 2. oynatıcı kaynağı).
+ *  - TÜM ağ isteklerine zaman aşımı eklendi (POST 15 sn, sayfa 10 sn) —
+ *    takılan host/iframe artık zinciri BOĞMAZ (v24'te "bir anda hata"
+ *    veren en olası mekanizma: sınırsız host sayfası çekimleri).
+ *  - CancellationException YUTULMAZ — uygulama loadLinks'i iptal
+ *    ettiğinde eklenti anında durur (arka planda işe devam edip son
+ *    anda hata vermesi engellenir).
+ *  - Host sayfası çekimi YALNINCA sayfasında stream taşıyan hostlar
+ *    için (sendvid/voe/streamtape); Gdrive adres dönüşümü çekimsiz,
+ *    diğer hostlar çekimsiz ham link.
+ *  - Beklenmedik hata mesajına istisna türü eklenir (teşhis).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -973,11 +994,13 @@ class TrAnimeIzle(
                 throw ErrorLoadingException(msg)
             }
             result
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: ErrorLoadingException) {
             throw e
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "loadLinks hatası: ${e.message}")
-            throw ErrorLoadingException("Kaynaklar yüklenemedi: ${e.message}")
+            Log.e(LOG_TAG, "loadLinks hatası: ${e::class.simpleName}: ${e.message}")
+            throw ErrorLoadingException("Kaynaklar yüklenemedi (${e::class.simpleName}): ${e.message}")
         }
     }
 
@@ -1022,7 +1045,8 @@ class TrAnimeIzle(
             var response = app.post(
                 mainUrl + "/api/fansubSources",
                 headers = xhrHeaders,
-                json = JsonAsString("""{"EpisodeId":$eid,"FansubId":$fid}""")
+                json = JsonAsString("""{"EpisodeId":$eid,"FansubId":$fid}"""),
+                timeout = 15
             )
             bodyText = response.text ?: ""
             httpOk = response.isSuccessful
@@ -1046,7 +1070,8 @@ class TrAnimeIzle(
                 response = app.post(
                     mainUrl + "/api/fansubSources",
                     data = mapOf("EpisodeId" to eid.toString(), "FansubId" to fid.toString()),
-                    headers = xhrHeaders
+                    headers = xhrHeaders,
+                    timeout = 15
                 )
                 bodyText = response.text ?: ""
                 httpOk = response.isSuccessful
@@ -1072,6 +1097,8 @@ class TrAnimeIzle(
                     }
                 }.awaitAll()
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(tag, "Error loading fansub $fansubLabel: ${e.message}")
             errors += "fansub '$fansubLabel': ${e.message}"
@@ -1113,7 +1140,8 @@ class TrAnimeIzle(
             // Eski ikili form ({sourceId}/{eid}) yalnızca yedek olarak denenecek.
             val primary = app.post(
                 mainUrl + "/api/sourcePlayer/$sourceId",
-                headers = browserHeaders(lastCookie, isXhr = true)
+                headers = browserHeaders(lastCookie, isXhr = true),
+                timeout = 15
             )
             Log.d(LOG_TAG, "sourcePlayer($sourceName) [1 param] → ${if (primary.isSuccessful) "ok" else "BAŞARISIZ"}")
             // v23: cevap JSON {source} OLABİLDİĞİ GİBİ düz oynatıcı HTML'i de
@@ -1134,7 +1162,8 @@ class TrAnimeIzle(
                 Log.d(LOG_TAG, "sourcePlayer($sourceName) → yedek form (2 param) deneniyor")
                 val legacy = app.post(
                     mainUrl + "/api/sourcePlayer/$sourceId/$eid",
-                    headers = browserHeaders(lastCookie, isXhr = true)
+                    headers = browserHeaders(lastCookie, isXhr = true),
+                    timeout = 15
                 )
                 sourceHtml = try {
                     legacy.parsedSafe<VideoApi>()?.source?.takeIf { it.isNotBlank() }
@@ -1142,6 +1171,30 @@ class TrAnimeIzle(
                     null
                 } ?: (legacy.text ?: "").trimStart().takeIf {
                     it.startsWith("<") || it.contains("<iframe") || it.contains("<video")
+                }
+            }
+            // v25 (site.js'in kendi ilk-tıklama yolu): günün ilk
+            // tıklamasında site sourcePlayer DEĞİL preVideoAd çağırır;
+            // cevap DÜZ oynatıcı HTML'i'dir (response.data birebir).
+            // sourcePlayer boşsa bu bağımsız 2. yol da denenir.
+            if (sourceHtml == null) {
+                try {
+                    val preAd = app.post(
+                        mainUrl + "/api/preVideoAd/$sourceId",
+                        headers = browserHeaders(lastCookie, isXhr = true),
+                        timeout = 15
+                    )
+                    val preBody = (preAd.text ?: "").trimStart()
+                    sourceHtml = preBody.takeIf {
+                        it.startsWith("<") || it.contains("<iframe") || it.contains("<video")
+                    }
+                    if (sourceHtml != null) {
+                        Log.d(LOG_TAG, "sourcePlayer boş → preVideoAd düz oynatıcı HTML'i döndürdü ($sourceName)")
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(LOG_TAG, "preVideoAd denemesi hatası ($sourceName): ${e.message}")
                 }
             }
             if (sourceHtml == null) {
@@ -1270,6 +1323,8 @@ class TrAnimeIzle(
                 Log.w(LOG_TAG, "source '$sourceName' çözülemedi (iframes=$iframes, host adayı yok)")
                 errors += "'$sourceName': iframe/video/host adresi bulunamadı"
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Error loading source $sourceName: ${e.message}")
             errors += "'$sourceName': ${e.message}"
@@ -1361,7 +1416,8 @@ class TrAnimeIzle(
             // CF arkasındaysa geçer; cross-site host'ta zararsız).
             val resp = app.get(
                 iframeUrl,
-                headers = browserHeaders(lastCookie, referer = iframeUrl, isXhr = false)
+                headers = browserHeaders(lastCookie, referer = iframeUrl, isXhr = false),
+                timeout = 10
             )
             if (!resp.isSuccessful) {
                 Log.e(LOG_TAG, "embed sayfası alınamadı ($sourceName): $iframeUrl")
@@ -1371,6 +1427,8 @@ class TrAnimeIzle(
             Log.d(LOG_TAG, "embed sayfası çekildi (${text.length} karakter): $iframeUrl")
             val url = directVideoUrlFromHtml(text, iframeUrl)
             url to text.replace(Regex("\\s+"), " ").take(600)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(LOG_TAG, "embed sayfası çekme hatası: ${e.message}")
             null to ""
@@ -1390,6 +1448,15 @@ class TrAnimeIzle(
     )
 
     /**
+     * v25: sayfasında DOĞRUDAN stream adresi taşıyan hostlar — yalnız
+     * bunların sayfası çekilir (10 sn zaman aşımıyla). Diğer hostlar
+     * (mega/ok.ru/sibnet vb.) için çekim YAPILMAZ, ham link eklenir.
+     */
+    private val pageFetchableHosts = listOf(
+        "sendvid", "voe.sx", "voe.to", "vdo.sx", "streamtape"
+    )
+
+    /**
      * v24: video-host adresi → doğrudan stream adresi (mümkünse).
      *  - Adres zaten video uzantılıysa → olduğu gibi.
      *  - Gdrive /file/d/{id} → doğrudan indirme adresi (confirm=t).
@@ -1405,6 +1472,11 @@ class TrAnimeIzle(
             Log.d(LOG_TAG, "Gdrive doğrudan indirme: $dl")
             return dl
         }
+        // v25: yalnızca sayfasında stream TAŞIYAN hostların sayfası
+        // çekilir; mega/ok.ru/sibnet vb. için çekim yok (ham link) —
+        // zincir boğulmasın, "bir anda hata" vermesin.
+        val lu = url.lowercase()
+        if (pageFetchableHosts.none { lu.contains(it) }) return null
         val host = Regex("https?://([^/]+)").find(url)?.groupValues?.getOrNull(1) ?: ""
         val embedId = Regex("/(?:watch|embed|v|video)/(?:video-)?([A-Za-z0-9_-]{6,})").find(url)?.groupValues?.getOrNull(1)
         val pages = mutableListOf(url)
@@ -1414,7 +1486,7 @@ class TrAnimeIzle(
         }
         for (c in pages.distinct().take(2)) {
             try {
-                val resp = app.get(c, headers = browserHeaders(lastCookie, referer = c, isXhr = false))
+                val resp = app.get(c, headers = browserHeaders(lastCookie, referer = c, isXhr = false), timeout = 10)
                 if (resp.isSuccessful) {
                     val body = resp.text ?: ""
                     val v = directVideoUrlFromHtml(body, c)
@@ -1423,6 +1495,8 @@ class TrAnimeIzle(
                         return v
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(LOG_TAG, "host sayfası çekme hatası ($sourceName): ${e.message}")
             }
