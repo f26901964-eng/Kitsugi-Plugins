@@ -23,5 +23,5 @@ TrAnimeIzle
 # ── Dizi / Film ──────────────────────────────────────────────────────────────
 FilmMakinesi
 HDFilmCehennemi
-FilmEkseni
-HDFilmDelisi
+DiziBox
+HDFilmIzle

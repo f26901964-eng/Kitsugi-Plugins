@@ -22,7 +22,10 @@ import com.lagradost.cloudstream3.fixUrlNull
 import com.lagradost.cloudstream3.mainPageOf
 import com.lagradost.cloudstream3.newHomePageResponse
 import com.lagradost.cloudstream3.newMovieLoadResponse
+import com.lagradost.cloudstream3.newEpisode
 import com.lagradost.cloudstream3.newMovieSearchResponse
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.newTvSeriesSearchResponse
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
@@ -68,15 +71,22 @@ class HDFilmIzle : MainAPI() {
         return newHomePageResponse(request.name, home)
     }
 
-    private fun Element.toSearchResult(): SearchResponse {
-        val title = this.selectFirst("h2.title")?.text() ?: ""
-        val href = fixUrlNull(this.attr("href")) ?: ""
+    private fun Element.toSearchResult(): SearchResponse? {
+        val title = this.selectFirst("h2.title")?.text()?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val href = fixUrlNull(this.attr("href")) ?: return null
         val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("data-src"))
         val score = this.selectFirst("div.poster-imdb")?.text()?.trim()
 
-        return newMovieSearchResponse(title, href, TvType.Movie) {
-            this.posterUrl = posterUrl
-            this.score = Score.from10(score)
+        return if (HDFilmIzleParser.isSeriesUrl(href)) {
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                this.posterUrl = posterUrl
+                this.score = Score.from10(score)
+            }
+        } else {
+            newMovieSearchResponse(title, href, TvType.Movie) {
+                this.posterUrl = posterUrl
+                this.score = Score.from10(score)
+            }
         }
     }
 
@@ -99,9 +109,16 @@ class HDFilmIzle : MainAPI() {
                 val href = fixUrlNull(video.slug) ?: return@forEach
                 val posterUrl = fixUrlNull(video.thumbUrl) ?: fixUrlNull(video.thumbWebp)
 
-                searchResults.add(
-                    newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = posterUrl }
-                )
+                val result = if (HDFilmIzleParser.isSeriesUrl(href)) {
+                    newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+                        this.posterUrl = posterUrl
+                    }
+                } else {
+                    newMovieSearchResponse(title, href, TvType.Movie) {
+                        this.posterUrl = posterUrl
+                    }
+                }
+                searchResults.add(result)
             }
         } catch (e: Exception) {
             println("Error parsing JSON: ${e.message}")
@@ -113,23 +130,21 @@ class HDFilmIzle : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
-        val orgTitle = document.selectFirst("div.page-title h1")?.text() ?: ""
-        val altTitle =
-            document.selectFirst("div.page-title")?.selectFirst("small.text-muted.alt-name")?.text()
-                ?: ""
-        val title =
-            if (altTitle.isNotEmpty() && orgTitle != altTitle) "$orgTitle - $altTitle" else orgTitle
+        val orgTitle = document.selectFirst("div.page-title h1")?.text()?.trim()
+            ?.takeIf { it.isNotBlank() } ?: return null
+        val altTitle = document.selectFirst("div.page-title")
+            ?.selectFirst("small.text-muted.alt-name")?.text()?.trim().orEmpty()
+        val title = if (altTitle.isNotEmpty() && orgTitle != altTitle) "$orgTitle - $altTitle" else orgTitle
         val poster = fixUrlNull(document.selectFirst("picture.poster-auto img")?.attr("data-src"))
         val tags = document.select("div.pb-2.genres a").map { it.text() }
         val year = document.selectFirst("div.page-title")?.selectFirst("small.text-muted")?.text()
             ?.replace("(", "")?.replace(")", "")?.toIntOrNull()
         val description = document.selectFirst("article.text-white > p")?.text()?.trim()
         val rating = document.selectFirst("div.rate.mb-2 span")?.text()
-        val actors = document.select("div.stories-wrapper a").map {
-            Actor(
-                it.selectFirst("div.story-item-title")!!.text(),
-                fixUrlNull(it.select("img").attr("data-src"))
-            )
+        val actors = document.select("div.stories-wrapper a").mapNotNull { actorElement ->
+            val actorName = actorElement.selectFirst("div.story-item-title")?.text()?.trim()
+                ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            Actor(actorName, fixUrlNull(actorElement.select("img").attr("data-src")))
         }
 
         val recommendations = document.select("div#swiper-wrapper-benzer").mapNotNull {
@@ -143,6 +158,30 @@ class HDFilmIzle : MainAPI() {
             }
         }
         val trailer = document.selectFirst("div.nav-link")?.attr("data-trailer")
+
+        if (HDFilmIzleParser.isSeriesUrl(url)) {
+            val episodes = document.select("a[href]").mapNotNull { anchor ->
+                val episodeUrl = fixUrlNull(anchor.attr("href")) ?: return@mapNotNull null
+                val episode = HDFilmIzleParser.parseEpisodeUrl(episodeUrl) ?: return@mapNotNull null
+                newEpisode(episode.url) {
+                    this.name = episode.name
+                    this.season = episode.season
+                    this.episode = episode.episode
+                }
+            }.distinctBy { it.data }
+            if (episodes.isEmpty()) return null
+
+            return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+                this.posterUrl = poster
+                this.year = year
+                this.plot = description
+                this.tags = tags
+                this.score = Score.from10(rating)
+                this.recommendations = recommendations
+                addActors(actors)
+                addTrailer(trailer)
+            }
+        }
 
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
             this.posterUrl = poster
