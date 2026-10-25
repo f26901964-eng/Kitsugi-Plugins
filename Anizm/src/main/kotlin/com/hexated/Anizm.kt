@@ -290,7 +290,7 @@ class Anizm : MainAPI() {
         }
         episodes.sortBy { it.episode ?: 0 }
 
-        val firstUrl = episodes.firstOrNull()?.url ?: url
+        val firstUrl = episodes.firstOrNull()?.data ?: url
         return if (episodes.isEmpty()) {
             newMovieLoadResponse(title, url, TvType.AnimeMovie, firstUrl) {
                 this.posterUrl = poster
@@ -463,13 +463,21 @@ class Anizm : MainAPI() {
     ): Boolean {
         // 1) Doğrudan akış.
         if (contentType.contains("mpegurl", true) || url.contains(".m3u8")) {
-            callback(ExtractorLink(linkName, url, "HLS", referer))
+            callback(
+                    newExtractorLink(source = linkName, name = linkName, url = url, type = INFER_TYPE) {
+                        this.referer = referer
+                    }
+                )
             return true
         }
         if (contentType.startsWith("video/", true) ||
             Regex("\\.(mp4|webm|mkv|mov)$", RegexOption.IGNORE_CASE).find(url) != null
         ) {
-            callback(ExtractorLink(linkName, url, "Düz", referer))
+            callback(
+                    newExtractorLink(source = linkName, name = linkName, url = url, type = INFER_TYPE) {
+                        this.referer = referer
+                    }
+                )
             return true
         }
 
@@ -481,7 +489,7 @@ class Anizm : MainAPI() {
             val tokenFromUrl = Regex("/video/([a-f0-9]{16,64})").find(url)?.groupValues?.getOrNull(1)
             val token = tokenFromUrl ?: settings?.token
             if (token != null) {
-                if (tryFirePlayer(token, referer, settings?.title, settings?.tracks, linkName, subtitleCallback, callback)) {
+                if (tryFirePlayer(token, referer, settings?.title, settings?.tracks ?: emptyList(), linkName, subtitleCallback, callback)) {
                     return true
                 }
             }
@@ -511,13 +519,21 @@ class Anizm : MainAPI() {
         val m3u8 = Regex("https?://[^\\s\"'<>]+?\\.m3u8[^\\s\"'<>]*").find(text)?.value
             ?: Regex("https?:\\\\//[^\\\\\"'<>]+?\\.m3u8").find(text)?.value?.replace("\\/", "/")
         if (m3u8 != null) {
-            callback(ExtractorLink(linkName, m3u8, "HLS", referer))
+            callback(
+                    newExtractorLink(source = linkName, name = linkName, url = m3u8, type = INFER_TYPE) {
+                        this.referer = referer
+                    }
+                )
             return true
         }
         val mp4 = Regex("https?://[^\\s\"'<>]+?\\.(mp4|webm|mkv)[^\\s\"'<>]*", RegexOption.IGNORE_CASE)
             .find(text)?.value?.replace("\\/", "/")
         if (mp4 != null) {
-            callback(ExtractorLink(linkName, mp4, "Düz", referer))
+            callback(
+                    newExtractorLink(source = linkName, name = linkName, url = mp4, type = INFER_TYPE) {
+                        this.referer = referer
+                    }
+                )
             return true
         }
         return false
@@ -609,7 +625,8 @@ class Anizm : MainAPI() {
             for (i in 0 until tracksArr.length()) {
                 val t = tracksArr.optJSONObject(i) ?: continue
                 if (t.optString("kind") != "captions") continue
-                val file = t.optString("file").ifBlank { continue }
+                val file = t.optString("file")
+                if (file.isBlank()) continue
                 val label = t.optString("label").ifBlank { t.optString("language").ifBlank { "Altyazı" } }
                 tracks += file to label
             }
@@ -674,7 +691,7 @@ class Anizm : MainAPI() {
         while (pos < html.length && (html[pos] == ',' || html[pos] == ' ')) pos++
         // 4) k string'i ('...' .split('|'))
         val (kStr, _) = extractJsString(html, pos) ?: throw IOException("string-array bulunamadı")
-        val k = kStr.split('|').toMutableList()
+        val k: MutableList<String?> = kStr.split('|').map { it as String? }.toMutableList()
         while (k.size < count) k.add(null)
         return decodeObfuscated(payload, a, count, k)
     }
@@ -769,7 +786,11 @@ class Anizm : MainAPI() {
         // Cevap JSON değilse düz hata mesajıdır (alert) — ama bazen düz URL de olabilir.
         if (!json.trimStart().startsWith("{")) {
             if (json.startsWith("http")) {
-                callback(ExtractorLink(linkName + qualitySuffix(quality), json, "Düz", referer))
+                callback(
+                    newExtractorLink(source = linkName, name = linkName + qualitySuffix(quality), url = json, type = INFER_TYPE) {
+                        this.referer = referer
+                    }
+                )
                 return true
             }
             Log.e(LOG_TAG, "getVideo JSON değil: ${json.take(200)}")
@@ -797,7 +818,8 @@ class Anizm : MainAPI() {
             val ck = root.optString("ck").ifBlank { null }?.let { unescapeJsHex(it) }
             for (i in 0 until sources.length()) {
                 val s = sources.optJSONObject(i) ?: continue
-                val file = s.optString("file").ifBlank { continue }
+                val file = s.optString("file")
+                if (file.isBlank()) continue
                 val label = s.optString("label").ifBlank { null }
                 val realUrl = try {
                     if (ck != null) decryptFireFile(file, ck) else null
@@ -838,8 +860,16 @@ class Anizm : MainAPI() {
         for (v in delivered) {
             val q = v.label?.takeIf { Regex("^[0-9]+p|4K", RegexOption.IGNORE_CASE).matches(it) } ?: quality
             val suffix = qualitySuffix(q)
-            val type = if (v.isHls || v.url.contains(".m3u8")) "HLS" else "Düz"
-            callback(ExtractorLink(linkName + suffix, v.url, type, referer))
+                callback(
+                    newExtractorLink(
+                        source = linkName,
+                        name = linkName + suffix,
+                        url = v.url,
+                        type = INFER_TYPE
+                    ) {
+                        this.referer = referer
+                    }
+                )
             emitted = true
         }
         return emitted
