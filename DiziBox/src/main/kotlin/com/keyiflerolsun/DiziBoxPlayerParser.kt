@@ -129,6 +129,7 @@ internal object DiziBoxPlayerParser {
         objectPattern.findAll(html)
             .mapNotNull { objectMatch -> subtitleTrackFromObject(objectMatch.value) }
             .distinctBy { it.url }
+            .toList()
 
     fun isHls(source: MediaSource): Boolean =
         source.type.contains("mpegurl", ignoreCase = true) ||

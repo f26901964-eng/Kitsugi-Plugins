@@ -42,6 +42,7 @@ internal object VidRamePlayerParser {
                 )
             }
             .distinctBy { it.file }
+            .toList()
     }
 
     /** Missing or malformed `configs.tracks` is non-fatal; video sources still parse. */
@@ -73,6 +74,7 @@ internal object VidRamePlayerParser {
                 )
             }
             .distinctBy { it.file }
+            .toList()
     }
 
     fun resolveUrl(rawUrl: String?, baseUrl: String): String? {
