@@ -111,6 +111,28 @@ jobs:
           done < player_targets.txt
           echo "--- PLAYER_HEADERS.txt ---"
           cat "$OUT/PLAYER_HEADERS.txt"
+      - name: Capture anizmplayer.com/video pages (raw HTML)
+        run: |
+          set +e
+          OUT=research/anizm-capture
+          {
+            echo "20260526023152 https://anizmplayer.com/video/002d860cc21d0ab584a0e7f0dd3a9d49"
+            echo "20260526103007 https://anizmplayer.com/video/094b7cd1111ed23f5b64a54744cb25b7"
+            echo "20260207015947 https://anizmplayer.com/video/09d1d2fa86fbc25c85269b522d96b9a9"
+            echo "20251014211916 https://anizmplayer.com/video/053b800a27404b77a2068da3169e36dd"
+          } > playerpage_targets.txt
+          while read -r TS URL; do
+            NAME=$(basename "$URL")
+            curl -sL --compressed --max-time 90 "https://web.archive.org/web/${TS}id_/${URL}" -o "$OUT/player-${NAME}.raw" 2>/dev/null
+            # gzip ise aç
+            if file "$OUT/player-${NAME}.raw" 2>/dev/null | grep -qi gzip; then
+              zcat "$OUT/player-${NAME}.raw" > "$OUT/player-${NAME}.html" 2>/dev/null || cp "$OUT/player-${NAME}.raw" "$OUT/player-${NAME}.html"
+            else
+              cp "$OUT/player-${NAME}.raw" "$OUT/player-${NAME}.html"
+            fi
+            echo "player-${NAME}: $(wc -c < "$OUT/player-${NAME}.html") B"
+          done < playerpage_targets.txt
+          rm -f playerpage_targets.txt
       - name: Commit back
         run: |
           git config user.name "arena-fetch"
