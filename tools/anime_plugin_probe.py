@@ -56,6 +56,32 @@ def fetch(url: str, referer: str = "", xhr: bool = False) -> tuple[int, str, str
         return 0, "", f"{type(error).__name__}: {error}"
 
 
+
+# --- Aktarım katmanları -----------------------------------------------------
+# Veri merkezi IP'leri Cloudflare tarafından 403 ile bloklanabiliyor. Bu yüzden
+# doğrudan istek başarısız olursa, sayfayı SUNUCU tarafında çeken herkese açık
+# köprüler denenir. Rapor hangi katmanın çalıştığını yazar.
+PROXIES = (
+    ("codetabs", "https://api.codetabs.com/v1/proxy?quest={}"),
+    ("allorigins", "https://api.allorigins.win/raw?url={}"),
+    ("jina", "https://r.jina.ai/{}"),
+)
+
+
+def fetch_any(url: str, referer: str = "", xhr: bool = False) -> tuple[int, str, str, str]:
+    """Önce doğrudan, sonra köprüler üzerinden GET. (status, body, via, not)."""
+    status, body, note = fetch(url, referer, xhr)
+    if status == 200 and body:
+        return status, body, "direct", note
+    direct = f"direct={status or note}"
+    for name, template in PROXIES:
+        proxied = template.format(urllib.parse.quote(url, safe=""))
+        pstatus, pbody, pnote = fetch(proxied)
+        if pstatus == 200 and len(pbody) > 400:
+            return pstatus, pbody, name, direct
+    return status, body, "direct", direct
+
+
 def count(html: str, pattern: str) -> int:
     return len(re.findall(pattern, html, re.IGNORECASE))
 
@@ -73,8 +99,8 @@ def probe_anizm() -> list[str]:
     out = ["### Anizm", ""]
     base = None
     for candidate in ("https://anizm.net", "https://puffytr.com"):
-        status, html, final = fetch(candidate + "/")
-        out.append(f"**{candidate}** → HTTP {status} · son adres: {final}")
+        status, html, via, final = fetch_any(candidate + "/")
+        out.append(f"**{candidate}** → HTTP {status} · katman: {via} · {final}")
         if status != 200 or not html:
             out.append("")
             continue
@@ -171,8 +197,8 @@ def probe_tranimeizle() -> list[str]:
     out = ["### TrAnimeIzle", ""]
     base = None
     for candidate in ("https://www.tranimeizle.io", "https://www.tranimeizle.live"):
-        status, html, final = fetch(candidate + "/")
-        out.append(f"**{candidate}** → HTTP {status} · son adres: {final}")
+        status, html, via, final = fetch_any(candidate + "/")
+        out.append(f"**{candidate}** → HTTP {status} · katman: {via} · {final}")
         if status != 200 or not html:
             out.append("")
             continue
