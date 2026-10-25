@@ -1,0 +1,60 @@
+# YAYIN DOGRULAMASI
+#
+# Amac: "manifestte kayit var" demekle yetinmemek. Derleyici is akisi bittikten
+# sonra YAYINDAKI gercek dosyalari uygulamanin kullandigi adreslerden indirip
+# dogrular:
+#   repo.json -> pluginLists -> plugins.json zinciri,
+#   her etkin eklenti icin kayit + status=1 + URL + boyut + sha256 + ZIP +
+#   ic manifest.json (name/version),
+#   aynalar (api.github.com, jsDelivr) ayni listeyi veriyor mu?
+#
+# jsDelivr bayat kaldiysa once purge eder, sonra tekrar bakar; hala eksikse
+# is akisi KIRMIZI olur. Boylece "eklenti depoda gorunmuyor" hatasi sessizce
+# yayina cikmaz.
+name: Yayin Dogrulama
+
+on:
+  workflow_run:
+    workflows: ["CloudStream Derleyici"]
+    types: [completed]
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "arena/**"
+    paths:
+      - "tools/verify_publish.py"
+      - "tools/purge_cdn.py"
+      - "enabled_plugins.txt"
+      - ".github/workflows/Yayin-Dogrulama.yml"
+  schedule:
+    - cron: "37 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  Dogrula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depo Kontrolu
+        uses: actions/checkout@v4.2.2
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Yayini Uctan Uca Dogrula
+        run: python3 tools/verify_publish.py
+
+      - name: Ozet
+        if: always()
+        run: |
+          {
+            echo "### Yayin dogrulama"
+            echo ""
+            echo "- Dal: \`builds\`"
+            echo "- Manifest: https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/builds/plugins.json"
+            echo "- Durum: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

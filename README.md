@@ -56,6 +56,40 @@ Aktif eklentilerin `plugins.json` kaydındaki **tanıtım alanları** (`descript
 
 ---
 
+## ✅ Yayın Doğrulama ve CDN Önbelleği
+
+`builds` dalı `git commit --amend` + force-push ile güncellendiği için **jsDelivr** gibi CDN'ler eski
+`plugins.json`'ı önbellekten döndürebiliyor. Kitsugi uygulaması depoyu okurken sırasıyla
+`raw.githubusercontent.com` → `api.github.com` → `cdn.jsdelivr.net` → Codeberg aynasını dener ve
+**ilk başarılı yanıtı** kullanır; "GitHub Vekil Sunucu (jsDelivr)" ayarı açıkken jsDelivr **birinci**
+sıradadır. Önbellek bayat kaldığında manifestte bulunan eklentiler (ör. `OpenAnime`, `TrAnimeIzle`)
+uygulamada "depoda yok" gibi görünüyordu.
+
+Bu yüzden iki otomatik adım eklendi:
+
+| Adım | Ne yapar |
+| --- | --- |
+| `tools/purge_cdn.py` | Yayından sonra `repo.json`, `plugins.json` ve tüm `.cs3` dosyaları için jsDelivr önbelleğini temizler, ardından ham GitHub ile aynayı karşılaştırır |
+| `tools/verify_publish.py` | `repo.json → plugins.json → .cs3` zincirini **uygulamanın kullandığı adreslerden** indirip doğrular: kayıt var mı, `status` 1 mi, URL bu depoyu mu gösteriyor, boyut + sha256 tutuyor mu, ZIP içinde `manifest.json`/`classes.dex` var mı, iç manifestin `name`/`version` değeri manifestle aynı mı |
+
+- `Derleyici` iş akışı yayından sonra `tools/purge_cdn.py` çalıştırır.
+- `Yayin Dogrulama` iş akışı her derlemeden sonra, `main`'e dokunan push'larda ve 6 saatte bir
+  `tools/verify_publish.py` çalıştırır; eksik/bayat bir kayıt varsa kırmızı olur (jsDelivr bayatsa
+  önce purge edip yeniden dener).
+
+Yerelde denemek için:
+
+```bash
+python3 tools/purge_cdn.py --check   # aynalar aynı mı?
+python3 tools/verify_publish.py      # uçtan uca yayın doğrulaması
+```
+
+> **Not:** Canlı site testi (arama → bölüm → video/altyazı) GitHub Actions runner'larından
+> yapılamıyor: `openani.me` ve `tranimeizle.io/.live` Cloudflare üzerinden veri merkezi IP'lerine
+> `403 Access denied` dönüyor. Bu yüzden video/ses/altyazı doğrulaması cihaz üzerinde yapılmalıdır.
+
+---
+
 ## 📥 Eklenti Deposunu Uygulamaya Ekleme
 
 Kitsugi uygulamasında eklentileri yükleyebilmek için aşağıdaki depo bağlantı adresini (Repository URL) uygulamanıza eklemeniz gerekmektedir:
