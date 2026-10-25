@@ -1,4 +1,4 @@
-version = 2
+version = 3
 
 cloudstream {
     authors     = listOf("hexated", "byayzen")
@@ -12,7 +12,10 @@ cloudstream {
      * 2: Slow
      * 3: Beta only
     **/
-    status      = 3 // Yeniden yazım — cihaz üzerinde kanıtlanana kadar "Beta only"
+    status      = 1
     tvTypes     = listOf("Anime")
     iconUrl     = "https://www.google.com/s2/favicons?domain=puffytr.com&sz=%size%"
+}
+dependencies {
+    testImplementation("junit:junit:4.13.2")
 }
