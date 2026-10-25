@@ -154,3 +154,72 @@ Bu ölçümden sonra yapılan düzeltmeler:
   görülemiyor.
 - Kullanıcının kendi IP'sinin site tarafından engelli olup olmadığı (1005 kişisel IP'de
   görülürse hiçbir istemci çalışmaz).
+
+---
+
+## 3. v30 / v5 — akış zincirinin yeniden yazımı (25.10.2026, akşam)
+
+Kullanıcı raporu: *"ne çalışıyor ne video kaynaklarını veriyor, baya bir sürüyor"* —
+özellikle **Attack on Titan 1. sezon 1. bölüm** gibi en bilinen içerikte bile kaynak yok.
+
+### 3.1 Kök nedenler
+
+| # | Kök neden | Etki | Nerede |
+|---|---|---|---|
+| 1 | **WebView/"kanıt katmanı"** her akış isteğinde devreye giriyordu (`botKontrolFetch`, oturum yenileme diyalogları, epoch probu) | Kullanıcının gördüğü "dakikalarca süren yükleme" | `TrAnimeIzle.fetchHtml`, `loadLinks` |
+| 2 | Kaynaklar **sırayla** çözülüyordu (fansub → kaynak → host → extractor) | 10 kaynaklı bölümde 30 sn+; uygulama zaman aşımına düşüp hiç kaynak göstermiyordu | `Anizm.resolveCandidate` |
+| 3 | **HLS master** listeleri tek link olarak yayınlanıyordu | Kalite seçilemiyor, bazı oynatıcılarda hiç açılmıyordu | iki eklenti |
+| 4 | `sourcePlayer` cevabındaki **`embed2/?id=<GERÇEK HOST URL>`** sarmalı tam çözülmüyordu | Liste dolu görünse de oynatılabilir link çıkmıyordu | TrAnimeIzle |
+| 5 | Anizm'de `/video/{id}` → **`/player/{id}` 302 Location** yolu, kaynak başına ekstra 2 istekle birlikte yapılıyordu | Hem yavaş hem gereksiz | Anizm |
+| 6 | İngilizce başlık ↔ sitenin romanize adı köprüsü yoktu | "Attack on Titan" aramasında 0 sonuç (site: "Shingeki no Kyojin") | iki eklenti |
+
+### 3.2 Yeni zincir (kanıt: Aniyomi `yuzono/anime-extensions`, 25.10.2026 sürümü)
+
+TrAnimeIzle (`TrAnimeIzleStreams.kt`):
+
+```
+input#EpisodeId
+  → li/div.fansubSelector[data-fid]
+  → POST /api/fansubSources        {"EpisodeId":N,"FansubId":M}
+  → li.sourceBtn[data-id]  (p = host adı)
+  → POST /api/sourcePlayer/{id}    → {"source":"<iframe src=…/embed2/?id=<HOST URL>>"}
+  → POST /api/preVideoAd/{id}      (sourcePlayer boşsa: sitenin ilk-tıklama yolu)
+  → host URL → loadExtractor (325 kayıt) → HLS varyantları
+```
+
+Anizm (`AnizmStreams.kt`):
+
+```
+div#fansec > a[translator]
+  → GET → {"data":"<html>"} → a.videoPlayerButtons[video] (metin = host adı)
+  → /video/{id} → /player/{id} → 302 Location = host adresi
+  → anizmplayer.com? POST /player/index.php?data=<hash>&do=getVideo → securedLink
+  → drive.google.com? gdriveplayer.to köprüsü
+  → host URL → loadExtractor (filemoon, sibnet, voe, sendvid, mp4upload, ok.ru,
+                               streamtape, dood, uqload, yourupload…)
+```
+
+### 3.3 Hız ve eksiksizlik önlemleri
+
+* **Paralellik**: fansub/çevirmen listesi 4 eşzamanlı, kaynak çözümü 8 eşzamanlı
+  (`Semaphore`), sonuçlar çözüldükçe yayınlanır — ilk kaynak genelde ~2 sn'de görünür.
+* **Zaman aşımı**: istek başına 12–15 sn, host sayfası 12 sn, toplam bütçe 35 sn.
+  Tek bir ölü host artık tüm listeyi kilitlemiyor.
+* **HLS**: `M3u8Helper.generateM3u8` ile master → kalite varyantları (1080p/720p/480p…).
+* **WebView yok**: sitenin uçları düz HTTP ile çalışıyor; oturum/diyalog katmanı kaldırıldı.
+* **Captcha**: site `/api/Captcha` isterse en farklı görselin MD5'i seçilerek çözülür
+  (Aniyomi `ShittyCaptchaInterceptor` ile aynı yöntem), yalnızca gerektiğinde çalışır.
+* **Eksiksizlik**: her kaynak butonu denenir; `loadExtractor` çözemezse host sayfası
+  çekilip içindeki `m3u8/mp4` veya iç iframe bir katman daha çözülür.
+* **Arama**: `queryVariants` + **Kitsu alternatif adları** (canonicalTitle + titles{} +
+  abbreviatedTitles) ile genişletilir; sıralama tüm adların en iyi skoruna göre yapılır.
+
+### 3.4 Doğrulama
+
+* Kotlin derlemesi: GitHub Actions `Derleme Testi` (tüm etkin eklentiler) — yeşil.
+* Regresyon testleri: `sourcePlayer` iframe'inin `embed2/?id=` sarmalı ve
+  `fansubSources` kaynak butonları için yeni birim testleri eklendi.
+* Canlı site testi bu ortamdan yapılamıyor: `tranimeizle.io` Cloudflare **Error 1005**
+  (ASN ban) ile veri merkezi IP'lerini engelliyor; `anizm.net` TLS el sıkışması
+  sandbox ağından geçmiyor. Zincir bu yüzden **üretimde çalışan istemci koduyla
+  birebir** eşleştirildi (Aniyomi `src/tr/tranimeizle`, `src/tr/anizm`).

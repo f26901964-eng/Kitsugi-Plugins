@@ -297,6 +297,21 @@ class Anizm : MainAPI(), AnizmHttp {
             Log.d(LOG_TAG, "HTML arama sonrası: ${collected.size} kart")
         }
 
+        // 2.5) v5: İngilizce başlık ↔ sitenin romanize adı.
+        //      "Attack on Titan" → Kitsu alternatif adları ("Shingeki no Kyojin")
+        //      → bunlarla sunucu/HTML araması. Kullanıcının "aradığım anime
+        //      çıkmıyor" şikâyetinin ana nedeni buydu.
+        val synonyms = if (page <= 1) titlesFromKitsu(trimmed) else emptyList()
+        if (collected.size < 3 && synonyms.isNotEmpty()) {
+            for (alt in synonyms.take(4)) {
+                if (collected.size >= 8) break
+                if (variants.any { it.equals(alt, ignoreCase = true) }) continue
+                searchServer(alt, 1).forEach(::merge)
+                if (collected.size < 5) searchHtml(alt).forEach(::merge)
+            }
+            Log.d(LOG_TAG, "eş anlamlı arama sonrası: ${collected.size} kart (${synonyms.size} ad)")
+        }
+
         // 3) Yerel katalog (/getAnimeListForSearch — sitenin kendi arama indeksi).
         //    İngilizce/Japonca alternatif adlarla eşleşmenin asıl kaynağı ama
         //    ÇOK büyük (canlı ölçüm: >3 MB). Bu yüzden yalnızca yukarıdakiler
@@ -317,7 +332,7 @@ class Anizm : MainAPI(), AnizmHttp {
 
         val ranked = AnizmMatch.rank(
             items = collected.values.toList(),
-            queries = variants,
+            queries = (variants + synonyms).distinct(),
             nameOf = { listOf(it.name) + it.altNames },
             limit = 40
         )
@@ -330,6 +345,49 @@ class Anizm : MainAPI(), AnizmHttp {
             this.posterUrl = this@toSearchResponse.poster
             this.score = this@toSearchResponse.score?.let { Score.from10(it) }
         }
+
+    /** Kitsu ad önbelleği (sorgu → alternatif adlar). */
+    private val kitsuTitleCache = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+
+    /**
+     * Kitsu'dan alternatif adlar (canonicalTitle + titles{} + abbreviatedTitles).
+     * Türkçe siteler romanize/İngilizce ad kullandığı için arama bu adlarla
+     * genişletilir. Tek istek, 8 sn zaman aşımı, önbellekli.
+     */
+    private suspend fun titlesFromKitsu(query: String): List<String> {
+        val key = query.lowercase().trim()
+        if (key.length < 2) return emptyList()
+        kitsuTitleCache[key]?.let { return it }
+        val out = LinkedHashSet<String>()
+        try {
+            val url = "https://kitsu.io/api/edge/anime?filter[text]=" +
+                URLEncoder.encode(key, "UTF-8") + "&page[limit]=3"
+            val data = JSONObject(app.get(url, timeout = 8).text).optJSONArray("data")
+            if (data != null) {
+                for (i in 0 until data.length()) {
+                    val attrs = data.optJSONObject(i)?.optJSONObject("attributes") ?: continue
+                    attrs.optString("canonicalTitle").takeIf { it.isNotBlank() }?.let(out::add)
+                    attrs.optJSONObject("titles")?.let { titles ->
+                        for (lang in titles.keys()) {
+                            titles.optString(lang).takeIf { it.isNotBlank() }?.let(out::add)
+                        }
+                    }
+                    attrs.optJSONArray("abbreviatedTitles")?.let { arr ->
+                        for (j in 0 until arr.length()) {
+                            arr.optString(j).takeIf { it.isNotBlank() }?.let(out::add)
+                        }
+                    }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.d(LOG_TAG, "Kitsu adları alınamadı ('$query'): ${e.message}")
+        }
+        val list = out.map { it.trim() }.filter { it.length in 2..120 }.distinct().take(8)
+        kitsuTitleCache[key] = list
+        return list
+    }
 
     /** `GET /searchAnime?query=..&page=..&type=detailed` (XHR başlıkları zorunlu). */
     private suspend fun searchServer(query: String, page: Int): List<AnizmCard> {
