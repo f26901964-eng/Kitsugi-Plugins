@@ -40,7 +40,12 @@ class Hexload : ExtractorApi() {
     ) {
         try {
             Log.d(name, "Hexload extraction started: $url")
-            val id = url.substringAfterLast("/", "")
+            // v17: hem çıplak id hem "?id=<id>" içeren tam URL desteklenir.
+            val id = if (url.contains("id=")) {
+                url.substringAfterLast("id=").substringBefore("&").substringBefore("/")
+            } else {
+                url.substringAfterLast("/", "")
+            }
             Log.d(name, "Extracted ID: $id")
 
             val response = app.post(

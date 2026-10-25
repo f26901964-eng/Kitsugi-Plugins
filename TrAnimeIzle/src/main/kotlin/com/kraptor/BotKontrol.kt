@@ -12,6 +12,7 @@ import android.webkit.CookieManager
 import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.widget.LinearLayout
+import android.widget.TextView
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -33,32 +34,44 @@ import java.net.URLEncoder
 import kotlin.coroutines.resume
 
 /**
- * Bot kontrolü (DEX'teki BotKontrolKt'nin kaynak yeniden yazımı).
+ * Bot kontrolü (DEX'teki BotKontrolKt'nin kaynak yeniden yazımı + v17 sertleştirme).
  *
  * Yasal yol (A1): cihazda bir WebView açılır, site normal bir oturumla yüklenir.
  * Challenge sayfası göründüğünde 5 parçalık bulmaca HTTP üzerinden çözülür
  * (parça hash'leri DOM'dan, parça resim boyutları doğrudan istekle alınır;
  * boyutu diğerlerinden farklı olan parça cevap olarak gönderilir).
- * Oturum kurulunca `AitrWeb.Session` çerezi WebView'in cookie kutusundan
- * okunup kalıcı SharedPreferences'e ("bot_cookies") kaydedilir.
  * Harici captcha çözme servisi, bot ordusu, UA/TLS oyunu KULLANILMAZ.
  *
- * NOT (T3): DEX'te BASE_URL "https://www.tranimeizle.io" sabitti; uygulama
- * tarafı ".live" kullanıyordu. Bu yeniden yazımda tüm adresler verilen
- * [url]'in host'undan türetilir — tek doğru host, eklentinin mainUrl'i.
+ * v17 DEĞİŞİKLİKLERİ (kanıt: cihaz ekran görüntüsü + site arşivi 22.09.2026):
+ *  - Site Cloudflare Error 1005 (ASN ban) arkasında: veri merkezi IP'leri kapalı,
+ *    cihaz (residential) challenge'sız ya da IconCaptcha (v2.5.0) ile geçer.
+ *  - Başarı ARTIK yalnız `AitrWeb.Session` değil: sayfa challenge olmadan
+ *    tam yüklendiyse (readyState=complete + gövde eşiği üstünde) siteye ait
+ *    TÜM çerez seti (cf_clearance vs. dahil) oturum olarak kabul edilir.
+ *  - Uygulamanın kendi WebView'i siteyi zaten açtıysa (KNOWN_WEBVIEW_PLUGINS
+ *    kancası) CookieManager seti ÖNCE kontrol edilir — diyalog hiç açılmaz.
+ *  - Diyaloğa durum satırı eklenir ("oturum açılıyor", "doğrulama çözülüyor") —
+ *    kullanıcı artık ne olduğunu görebilir (v16'da 42 sn "anlamsız sayfa").
+ *  - "Çerez gerekmedi" onayı kalıcı tutulur (bot_session_ok) → sonraki
+ *    çalıştırmalarda diyalog açılmaz; site davranışı değişirse ilk bot
+ *    cevabında otomatik yenileme devreye girer.
+ *  - Captcha akışı, arşivdeki icon-captcha.min.js (IconCaptcha v2.5.0) ile
+ *    birebir: [icon-hash] ×5, GET ?cid=0&hash=, POST {cID,pC,rT:2}.
  */
 object BotKontrolKt {
 
-    private const val TAG = "Ayzen_tranimeizle"
+    const val TAG = "kraptor_TrAnime"
+
+    const val UA_FIREFOX =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"
+
     private const val BOT_TIMEOUT_MS = 45_000L
     private const val HTTP_TIMEOUT_MS = 7_000
     private const val PREFS_NAME = "bot_cookies"
     private const val SESSION_COOKIE_NAME = "AitrWeb.Session"
-    private const val MONITOR_MAX_ITERATIONS = 42
+    private const val MONITOR_MAX_ITERATIONS = 45
     private const val MONITOR_POLL_MS = 1_000L
-
-    private const val UA_FIREFOX =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0"
+    private const val PAGE_LOADED_MIN_BODY = 1_500
 
     @Volatile
     private var activeDialog: AlertDialog? = null
@@ -72,19 +85,63 @@ object BotKontrolKt {
     }
 
     // ------------------------------------------------------------------
-    // Kalıcı çerez (SharedPreferences: "bot_cookies", anahtar = host)
+    // Çerez seti (SharedPreferences: "bot_cookies", anahtar = host)
     // ------------------------------------------------------------------
 
+    /**
+     * CookieManager'dan site host'u için TOPLAM çerez setini döndürür
+     * (hem `host` hem `www.host` için; "a=b; c=d" biçimi).
+     * Uygulamanın kendi WebView'inin yüklediği çerezleri de yakalar.
+     */
+    fun collectJar(anySiteUrl: String): String {
+        val base = hostOf(anySiteUrl).removePrefix("www.")
+        val cm = CookieManager.getInstance()
+        val seen = LinkedHashSet<String>()
+        for (u in listOf("https://$base/", "https://www.$base/")) {
+            try {
+                cm.getCookie(u)?.split(";")?.forEach { part ->
+                    part.trim().takeIf { it.isNotEmpty() }?.let(seen::add)
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return seen.joinToString("; ")
+    }
+
+    /** Sette bir oturum çerezi var mı? (AitrWeb.Session veya Cloudflare) */
+    fun jarHasSession(jar: String): Boolean =
+        jar.contains(SESSION_COOKIE_NAME, ignoreCase = true) ||
+            jar.contains("cf_clearance", ignoreCase = true)
+
+    /** Önceki çalıştırmada kaydedilen oturum seti (yoksa ""). */
     fun getSavedCookie(context: Context, url: String): String {
         val host = hostOf(url)
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(host, "") ?: ""
     }
 
+    /** Oturum setini kalıcı olarak kaydeder (boş set yazılmaz). */
+    fun saveJar(context: Context, url: String, jar: String) {
+        if (jar.isBlank()) return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(hostOf(url), jar).apply()
+        CookieManager.getInstance().flush()
+    }
+
+    /** "Challenge yok, çerez gerekmedi" onayı (kalıcı). */
+    fun markSessionOk(context: Context, url: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(hostOf(url) + ":ok", "1").apply()
+    }
+
+    fun isSessionOk(context: Context, url: String): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(hostOf(url) + ":ok", "") == "1"
+
     fun clearCookie(context: Context, url: String) {
         val host = hostOf(url)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().remove(host).apply()
+            .edit().remove(host).remove(host + ":ok").apply()
         CookieManager.getInstance().flush()
     }
 
@@ -94,8 +151,8 @@ object BotKontrolKt {
      */
     fun resetCookieManagerTo(cookieString: String, siteUrl: String) {
         val cm = CookieManager.getInstance()
-        // compileSdk 35 stub'larinda artik-argsiz removeAllCookies() yok;
-        // API 26 altinda kaldirma atlanir (aynis host'a setCookie ile ezilir).
+        // compileSdk 35 stub'larında artık-argsız removeAllCookies() yok;
+        // API 26 altında kaldırma atlanır (aynı host'a setCookie ile ezilir).
         if (Build.VERSION.SDK_INT >= 26) {
             cm.removeAllCookies(null)
         }
@@ -154,12 +211,14 @@ object BotKontrolKt {
     // ------------------------------------------------------------------
 
     /**
-     * [url] sayfasının bot korumasını aşarak oturum çerezi döndürür.
+     * [url] sayfasının bot koruması için oturum çerez seti döndürür.
      *
-     *  - forceRefresh=false ve geçerli bir kayıt varsa WebView AÇILMAZ,
-     *    kayıtlı çerez geri verilir (ve cookie kutusuna yazılır).
-     *  - Aksi halde WebView diyalogu ile challenge çözülür.
-     *  - Toplam 45 sn'yi aşarsa (Mutex TIMEOUT) kayıtlı çereze düşülür.
+     *  forceRefresh=false ve geçerli bir oturum varsa WebView AÇILMAZ:
+     *    1) CookieManager setinde oturum çerezi (uygulamanın WebView'i),
+     *    2) kayıtlı çerez seti,
+     *    3) "çerez gerekmedi" onayı ("" döner).
+     *  Aksi halde (veya forceRefresh=true) WebView diyalogu ile oturum açılır.
+     *  Toplam 45 sn'yi aşarsa kayıtlı çereze düşülür.
      */
     suspend fun botKontrol(
         context: Context,
@@ -170,11 +229,21 @@ object BotKontrolKt {
             withTimeout(BOT_TIMEOUT_MS) {
                 webViewMutex.withLock {
                     if (!forceRefresh) {
+                        val jar = collectJar(url)
+                        if (jarHasSession(jar)) {
+                            Log.d(TAG, "CookieManager seti geçerli — WebView açılmadı")
+                            saveJar(context, url, jar)
+                            return@withLock jar
+                        }
                         val cached = getSavedCookie(context, url)
                         if (cached.isNotEmpty()) {
                             resetCookieManagerTo(cached, url)
-                            Log.d(TAG, "Cached cookie kullanılıyor (WebView açılmadı)")
+                            Log.d(TAG, "Kayıtlı oturum çerezi kullanılıyor — WebView açılmadı")
                             return@withLock cached
+                        }
+                        if (isSessionOk(context, url)) {
+                            Log.d(TAG, "Önceden onaylı: challenge yok, çerez gerekmedi — WebView açılmadı")
+                            return@withLock ""
                         }
                     }
                     runCaptchaSolve(context, url, forceRefresh)
@@ -197,7 +266,6 @@ object BotKontrolKt {
     ): String = suspendCancellableCoroutine { cont ->
         val guard = ResumeGuard()
         val host = hostOf(url)
-        val baseUrl = "https://$host"
         val prefs: SharedPreferences =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -220,6 +288,15 @@ object BotKontrolKt {
                         )
                     )
                 }
+
+                // v17: durum satırı — "anlamsız sayfa" yerine ne olduğu görünsün.
+                val statusView = TextView(context).apply {
+                    text = "TrAnimeIzle oturumu açılıyor…"
+                    setTextColor(0xFFFFFFFF.toInt())
+                    textSize = 14f
+                    setPadding(0, 0, 0, (8 * context.resources.displayMetrics.density).toInt())
+                }
+                container.addView(statusView)
 
                 val webView = WebView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(-1, -1)
@@ -248,6 +325,7 @@ object BotKontrolKt {
                     .setView(container)
                     .setCancelable(false)
                     .setNegativeButton("İptal") { _, _ ->
+                        Log.w(TAG, "Kullanıcı oturumu iptal etti")
                         safeResume(guard, cont, "")
                     }
                     .create()
@@ -268,7 +346,7 @@ object BotKontrolKt {
 
                 // Challenge izleme döngüsü (ayrı coroutine, UI thread).
                 MainScope().launch {
-                    monitorChallenge(webView, guard, cont, url, host, prefs)
+                    monitorChallenge(webView, statusView, guard, cont, url, host, prefs)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "WebView başlatılamadı: ${e.message}")
@@ -287,17 +365,37 @@ object BotKontrolKt {
         cont.resume(value)
     }
 
+    /** Sayfa tam yüklendi mi? (readyState=complete → gövde uzunluğu, değilse -1) */
+    private fun pageLoadedBodyLength(webView: WebView): Int {
+        val ref = java.util.concurrent.atomic.AtomicInteger(-1)
+        val latch = java.util.concurrent.CountDownLatch(1)
+        try {
+            webView.evaluateJavascript(
+                "(function(){try{return (document.readyState==='complete')?" +
+                    "document.body.innerHTML.length:0}catch(e){return -1}})()",
+                ValueCallback { raw ->
+                    ref.set(raw?.trim()?.toIntOrNull() ?: -1)
+                    latch.countDown()
+                }
+            )
+        } catch (e: Exception) {
+            return -1
+        }
+        latch.await(2, java.util.concurrent.TimeUnit.SECONDS)
+        return ref.get()
+    }
+
     /**
-     * Challenge izleyici döngüsü:
-     *  1. Sayfa /api/Captcha üzerindeyse → DOM'dan 5 [icon-hash] topla.
-     *  2. Her hash'in resim boyutunu HTTP ile al (boyutu farklı olan = cevap).
-     *  3. Cevabı POST et (cID=0&pC=<hash>&rT=2, 200 beklenir).
-     *  4. /api/CaptchaChallenge/ GET'i ile 302 doğrula.
-     *  5. WebView'in challenge'dan içeri geçip `AitrWeb.Session` çerezini
-     *     cookie kutusuna yazmasını bekle; yazılınca kaydet + diyalogu kapat.
+     * Oturum izleme döngüsü (v17 başarı koşulları, öncelik sırasıyla):
+     *   A) `AitrWeb.Session` (veya cf_clearance) çerezi sette göründü → oturum.
+     *   B) Sayfa challenge'sız tam yüklendi (gövde eşiği üstünde) → site bu
+     *      IP'de challenge istemiyor; set (boş dahil) oturum kabul edilir.
+     *   C) Sayfa /api/Captcha üzerinde → 5 parçalık bulmaca çözülür, sonra
+     *      A/B tekrar denenir.
      */
     private suspend fun monitorChallenge(
         webView: WebView,
+        statusView: TextView,
         guard: ResumeGuard,
         cont: CancellableContinuation<String>,
         url: String,
@@ -306,6 +404,7 @@ object BotKontrolKt {
     ) {
         val sizeCache = HashMap<String, Int>()
         var iterations = 0
+        var warnedSmallBody = false
 
         while (iterations++ < MONITOR_MAX_ITERATIONS && guard.active) {
             delay(MONITOR_POLL_MS)
@@ -319,11 +418,12 @@ object BotKontrolKt {
                 null
             }
             if (pageUrl == null) continue
-            val cm = CookieManager.getInstance()
+            val jar = collectJar(url)
             val inChallenge = pageUrl.contains("/api/Captcha", ignoreCase = true)
 
             if (inChallenge) {
-                val jarCookie = cm.getCookie(url) ?: ""
+                statusView.text = "Doğrulama sayfası çözümleniyor…"
+                val jarCookie = CookieManager.getInstance().getCookie(url) ?: ""
                 val hashes = withContext(Dispatchers.Main) { getIconHashes(webView) }
                 when {
                     hashes == null ->
@@ -391,33 +491,33 @@ object BotKontrolKt {
                         delay(2_000)
                     }
                 }
+                continue
             }
 
-            val session = extractSessionCookie(cm.getCookie(url))
-            if (session.isNotEmpty()) {
+            // A) Oturum çerezi sette göründü.
+            if (jarHasSession(jar)) {
+                Log.d(TAG, ">>> OTURUM ÇEREZİ ALINDI (set ${jar.length} karakter) <<<")
+                finishSession(statusView, guard, cont, url, host, prefs, jar, noChallenge = false)
+                return
+            }
+
+            // B) Challenge'sız tam yüklendi → site bu istemciden challenge istemiyor.
+            val bodyLen = pageLoadedBodyLength(webView)
+            if (bodyLen >= PAGE_LOADED_MIN_BODY) {
                 Log.d(
                     TAG,
-                    if (pageUrl.contains("/api/Captcha", ignoreCase = true))
-                        ">>> CAPTCHA ÇÖZÜLDÜ (challenge→article) <<<"
-                    else
-                        ">>> CACHED COOKIE GEÇERLİ (captcha gerekmedi) <<<"
+                    ">>> SAYFA CHALLENGE'SIZ YÜKLENDİ (gövde ${bodyLen} karakter, set ${jar.length} karakter) <<<"
                 )
-                prefs.edit().putString(host, session).apply()
-                withContext(Dispatchers.Main) {
-                    webView.evaluateJavascript(
-                        "(function() { document.body.innerHTML = " +
-                            "'<h1 style=\"color:#00ff00;font-size:48px;" +
-                            "text-align:center;margin-top:40%\">Doğrulama Tamamlandı!</h1>'; });",
-                        null
-                    )
-                }
-                delay(800)
-                withContext(Dispatchers.Main) {
-                    activeDialog?.dismiss()
-                    activeDialog = null
-                }
-                safeResume(guard, cont, session)
+                finishSession(statusView, guard, cont, url, host, prefs, jar, noChallenge = true)
                 return
+            }
+
+            if (!warnedSmallBody && iterations >= 6) {
+                warnedSmallBody = true
+                Log.w(TAG, "Sayfa hâlâ küçük (body=$bodyLen) — beklenmeye devam")
+            }
+            if (iterations == 3) {
+                statusView.text = "Sayfa yükleniyor…"
             }
         }
 
@@ -427,6 +527,34 @@ object BotKontrolKt {
             activeDialog = null
         }
         safeResume(guard, cont, "")
+    }
+
+    /** Oturum tamamlandı: seti kaydet + diyalogu kapat + continuation'ı sürdür. */
+    private suspend fun finishSession(
+        statusView: TextView,
+        guard: ResumeGuard,
+        cont: CancellableContinuation<String>,
+        url: String,
+        host: String,
+        prefs: SharedPreferences,
+        jar: String,
+        noChallenge: Boolean
+    ) {
+        if (jar.isNotEmpty()) {
+            prefs.edit().putString(host, jar).apply()
+        }
+        if (noChallenge && !jarHasSession(jar)) {
+            // Challenge'sız yol: site bu istemciden çerez istemiyor → onayla,
+            // bir sonraki çalıştırmada diyalog açılmasın.
+            prefs.edit().putString(host + ":ok", "1").apply()
+        }
+        statusView.text = "Oturum tamamlandı"
+        Log.d(TAG, "Diyalog kapatılıyor")
+        withContext(Dispatchers.Main) {
+            activeDialog?.dismiss()
+            activeDialog = null
+        }
+        safeResume(guard, cont, jar)
     }
 
     /**
@@ -504,7 +632,7 @@ object BotKontrolKt {
 
     /**
      * Cevabı gönderir: POST `<base>/api/Captcha/` gövde `cID=0&pC=<hash>&rT=2`.
-     * Başarı = HTTP 200.
+     * Başarı = HTTP 200. (IconCaptcha v2.5.0: {cID, pC, rT:2})
      */
     private suspend fun submitCaptchaAnswer(
         base: String,

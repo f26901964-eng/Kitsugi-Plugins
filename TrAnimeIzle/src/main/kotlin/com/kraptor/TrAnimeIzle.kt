@@ -11,10 +11,10 @@ import com.lagradost.cloudstream3.utils.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -25,7 +25,21 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * Akış: arama/anasayfa/bölüm listesi → `load` (metadata + Kitsu zenginleştirme +
  * bölümler) → `loadLinks` (fansub → sourcePlayer → iframe → loadExtractor).
- * Bot kontrolü [BotKontrolKt] üzerinden yapılır (WebView oturumu + AitrWeb.Session).
+ * Bot kontrolü [BotKontrolKt] üzerinden yapılır.
+ *
+ * v17 (cihaz kanıtı + site arşivi 22.09.2026):
+ *  - Site Cloudflare Error 1005 (ASN ban) arkasında; cihaz WebView oturumu
+ *    tek yasal yol. Tüm site istekleri [fetchHtml] üzerinden: tarayıcı
+ *    başlıkları (Firefox UA, Referer, Accept-Language) + kayıtlı oturum;
+ *    bot/başarısız cevapta WebView diyaloğuyla oturum yenileme + tek tekrar.
+ *  - sourcePlayer: site kendi JS'inde TEK PARAMETRELİ `POST /api/sourcePlayer/{id}`
+ *    kullanıyor (data-id) → birincil yol; eski iki parametreli form yedek.
+ *  - Sonuç kartları tıklamada `data-href`'e gidiyor → URL çözümü önce data-href.
+ *  - episodeId: input#EpisodeId yoksa `animeWatch.initialize(aId, eId, ...)`
+ *    script çağrısından regex ile.
+ *  - Arama sorgusu URL-kodlanıyor.
+ *  - Her adım log'a yazılıyor (kraptor_TrAnime) — cihaz kanıtı için.
+ *  - Harici (potansiyel olarak eski) domain listesi kaldırıldı.
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -39,7 +53,8 @@ class TrAnimeIzle(
     override var lang = "tr"
     override val supportedTypes = setOf(TvType.Anime)
 
-    // ! Yollar DEX'teki ile birebir aynı (mainUrl + suffix).
+    // ! Yollar DEX'teki ile birebir aynı (mainUrl + suffix); listeler/* yolları
+    //   22.09.2026 ana sayfa arşivinde doğrulandı (/listeler/eklenen/sayfa-1 vb.).
     override val mainPage = mainPageOf(
         "$mainUrl/listeler/yenibolum/sayfa-" to "Yeni Bölümler",
         "$mainUrl/listeler/eklenen/sayfa-" to "Yeni Animeler",
@@ -81,9 +96,17 @@ class TrAnimeIzle(
         if (!TrAnimeIzleHelper.isAllowedVersion) {
             return newSearchResponseList(emptyList(), false)
         }
-        val url = mainUrl + "/arama/" + query + "?page=" + page
-        val document = app.get(url).document
-        val results = document.select("div.flx-block").mapNotNull { toMainPageResult(it) }
+        // v17: sorgu kodlanıyor (boşluk/Türkçe karakter → 404 olmuyor),
+        // istek oturum çerezi + tarayıcı başlıklarıyla gidiyor,
+        // bot cevabında oturum yenilenip bir kez tekrar deniyor.
+        // (site.js 22.09.2026: arama `/arama/{sorgu}` biçiminde)
+        val url = mainUrl + "/arama/" + URLEncoder.encode(query, "UTF-8") + "?page=" + page
+        val html = fetchHtml(url, mainUrl + "/")
+        val results = Jsoup.parse(html).select("div.flx-block").mapNotNull { toMainPageResult(it) }
+        Log.d(LOG_TAG, "search('$query') → ${results.size} sonuç")
+        if (results.isEmpty()) {
+            Log.e(LOG_TAG, "search('$query') 0 sonuç — sayfa başı:\n" + html.take(1200))
+        }
         return newSearchResponseList(results, true)
     }
 
@@ -93,13 +116,11 @@ class TrAnimeIzle(
                 return newHomePageResponse(request.name, emptyList(), false)
             }
             val url = request.data + page
-            val response = app.get(url)
-            if (!response.isSuccessful) {
-                throw ErrorLoadingException("Siteye ulaşılamıyor! Tarayıcıdan test edin.")
-            }
-            val results = response.document
+            val html = fetchHtml(url, mainUrl + "/")
+            val results = Jsoup.parse(html)
                 .select("div.flx-block")
                 .mapNotNull { toMainPageResult(it) }
+            Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
             newHomePageResponse(request.name, results, true)
         } catch (e: Exception) {
             throw ErrorLoadingException("Siteye ulaşılamıyor! Tarayıcıdan test edin.")
@@ -109,7 +130,11 @@ class TrAnimeIzle(
     private fun toMainPageResult(el: Element): AnimeSearchResponse? {
         val title = el.selectFirst("h4")?.text()?.replace("İzle", "")?.takeIf { it.isNotBlank() }
             ?: return null
-        val url = fixUrlNull(el.selectFirst("a")?.attr("href")) ?: return null
+        // v17 (site.js kanıtı, 22.09.2026): .flx-block kartları tıklamada
+        // `data-href` özniteliğine yönlendiriyor — <a href> ile aynı olmak zorunda
+        // değil; önce data-href, sonra <a href> denenir.
+        val url = fixUrlNull(el.attr("data-href"))
+            ?: fixUrlNull(el.selectFirst("a")?.attr("href")) ?: return null
         val poster = fixUrlNull(el.selectFirst("img")?.attr("src"))
         val rating = el.selectFirst("rating")?.attr("data-src")
         return newAnimeSearchResponse(title, url, TvType.Anime) {
@@ -129,29 +154,116 @@ class TrAnimeIzle(
     }
 
     // ------------------------------------------------------------------
+    // v17: oturum + tarayıcı başlıkları + bot cevabı işleme
+    // ------------------------------------------------------------------
+
+    /** Son bilinen oturum çerez seti (fetchHtml tarafından güncellenir). */
+    private var lastCookie: String = ""
+
+    /**
+     * Tarayıcı benzeri başlıklar. CloudStream'in varsayılan UA'sı bot imzası
+     * olduğu için tüm site isteklerinde Firefox UA + Referer + Accept-Language
+     * ile gidiyoruz (BotKontrol'un WebView'inde kullandığı ile aynı UA).
+     */
+    private fun browserHeaders(
+        cookie: String,
+        referer: String = mainUrl + "/"
+    ): Map<String, String> = buildMap {
+        put("User-Agent", BotKontrolKt.UA_FIREFOX)
+        put(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+        )
+        put("Accept-Language", "tr-TR,tr;q=0.9,en;q=0.8")
+        put("Referer", referer)
+        if (cookie.isNotEmpty()) put("Cookie", cookie)
+    }
+
+    /**
+     * Suskun (diyalog açmayan) oturum çözümü:
+     *  1) CookieManager'daki site seti (uygulamanın kendi WebView'i siteyi
+     *     zaten açmış olabilir — KNOWN_WEBVIEW_PLUGINS kancası),
+     *  2) önceki WebView akışından kayıtlı çerez seti.
+     */
+    private fun cachedSession(): String {
+        val jar = BotKontrolKt.collectJar(mainUrl)
+        if (BotKontrolKt.jarHasSession(jar)) {
+            BotKontrolKt.saveJar(context, mainUrl, jar)
+            return jar
+        }
+        val cached = BotKontrolKt.getSavedCookie(context, mainUrl)
+        if (cached.isNotEmpty()) {
+            BotKontrolKt.resetCookieManagerTo(cached, mainUrl)
+            return cached
+        }
+        return ""
+    }
+
+    /** WebView diyaloğu ile oturumu YENİLER (bot cevabı alındıysa). */
+    private suspend fun refreshSession(url: String): String = try {
+        BotKontrolKt.botKontrol(context, url, forceRefresh = true)
+    } catch (e: Exception) {
+        Log.e(LOG_TAG, "Oturum yenileme hatası: ${e.message}")
+        BotKontrolKt.getSavedCookie(context, mainUrl)
+    }
+
+    /** İçerik bot/captcha sayfası mı? */
+    private fun isBotBody(text: String?): Boolean {
+        val t = text ?: ""
+        if (t.isEmpty()) return true
+        if (t.contains("/api/Captcha", ignoreCase = true)) return true
+        val title = try {
+            Jsoup.parse(t).selectFirst("title")?.text() ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+        return title.contains("Bot", ignoreCase = true)
+    }
+
+    /**
+     * v17 çekirdek GET: önce kayıtlı oturumla dener; başarısız/bot/captcha
+     * cevabı gelirse WebView diyaloğu ile oturumu yenileyip TEK bir kez
+     * tekrar dener. Her adımda log bırakır (cihaz kanıtı için).
+     */
+    private suspend fun fetchHtml(url: String, referer: String): String {
+        var cookie = lastCookie.ifBlank { cachedSession() }
+        var resp = app.get(url, headers = browserHeaders(cookie, referer))
+        if (!resp.isSuccessful || isBotBody(resp.text)) {
+            Log.e(LOG_TAG, "Bot/başarısız cevap → oturum yenileniyor: $url")
+            cookie = refreshSession(url)
+            resp = app.get(url, headers = browserHeaders(cookie, referer))
+        }
+        lastCookie = cookie
+        val ok = resp.isSuccessful
+        val text = resp.text
+        Log.d(LOG_TAG, "GET $url → ${if (ok) "başarılı" else "BAŞARISIZ"}, ${text?.length ?: 0} karakter")
+        if (text.isNullOrBlank()) {
+            throw ErrorLoadingException("Siteye ulaşılamadı.")
+        }
+        return text
+    }
+
+    // ------------------------------------------------------------------
     // Bölüm sayfası (load)
     // ------------------------------------------------------------------
 
     override suspend fun load(url: String): LoadResponse? {
         if (!TrAnimeIzleHelper.isAllowedVersion) return null
 
-        var cookie = BotKontrolKt.getSavedCookie(context, mainUrl)
-        Log.d(LOG_TAG, "cookies = $cookie")
-
-        var document = app.get(url, headers = mapOf("Cookie" to cookie)).document
-
-        val pageTitle = document.selectFirst("title")?.text()?.toString() ?: ""
-        if (pageTitle.contains("Bot", ignoreCase = true)) {
-            cookie = BotKontrolKt.botKontrol(context, mainUrl, forceRefresh = true)
-            document = app.get(url, headers = mapOf("Cookie" to cookie)).document
-        }
+        // v17: fetchHtml → kayıtlı oturumla dener, bot cevabı alırsa
+        // WebView diyaloğuyla oturumu yeniler ve bir kez tekrar dener.
+        val html = fetchHtml(url, mainUrl + "/")
+        var document = Jsoup.parse(html)
 
         val banasayfa = fixUrlNull(
             document.selectFirst("ol.breadcrumb li + li:not(.active) a")?.attr("href")
         )
         Log.d(LOG_TAG, "banasayfa = $banasayfa")
         if (!banasayfa.isNullOrEmpty()) {
-            document = app.get(banasayfa, headers = mapOf("Cookie" to cookie)).document
+            val banHtml = app.get(banasayfa, headers = browserHeaders(lastCookie)).text
+            if (!banHtml.isNullOrBlank()) {
+                document = Jsoup.parse(banHtml)
+            }
         }
 
         val title = document.selectFirst("div.playlist-title h1")?.text()
@@ -436,26 +548,26 @@ class TrAnimeIzle(
         if (!TrAnimeIzleHelper.isAllowedVersion) return false
         return coroutineScope {
             Log.d(LOG_TAG, "data = $data")
-            var cookie = BotKontrolKt.getSavedCookie(context, mainUrl)
-            var headers = if (cookie.isNotEmpty()) mapOf("Cookie" to cookie) else emptyMap()
+            val html = fetchHtml(data, mainUrl + "/")
+            val document = Jsoup.parse(html)
 
-            var document = app.get(data, headers = headers).document
-            val pageTitle = document.selectFirst("title")?.text()?.toString() ?: ""
-            if (pageTitle.contains("Bot", ignoreCase = true)) {
-                cookie = BotKontrolKt.botKontrol(context, mainUrl, forceRefresh = true)
-                if (cookie.isNotEmpty()) {
-                    headers = mapOf("Cookie" to cookie)
-                    document = app.get(data, headers = headers).document
-                }
-            }
-
+            // v17 (site.js kanıtı, 22.09.2026): bölüm sayfası episodeId'i
+            // `animeWatch.initialize(animeId, episodeId, fansubId, ...)` script
+            // çağrısında taşır; input#EpisodeId yoksa buradan çıkılır.
             val episodeId = document.selectFirst("input#EpisodeId")?.attr("value")?.toIntOrNull()
+                ?: Regex("animeWatch\\.initialize\\(\\s*(\\d+)\\s*,\\s*(\\d+)")
+                    .find(html)?.groupValues?.getOrNull(2)?.toIntOrNull()
+            Log.d(LOG_TAG, "episodeId = $episodeId")
             val found = AtomicBoolean(false)
 
             val fansubItems = document.select("div.playlist-title div.fansubSelector li")
+            Log.d(LOG_TAG, "fansubSelector li sayısı: ${fansubItems.size}")
+            if (fansubItems.isEmpty()) {
+                Log.e(LOG_TAG, "fansubSelector boş — sayfa başı:\n" + html.take(1200))
+            }
             coroutineScope {
                 fansubItems.map { li ->
-                    async { loadFansubSources(li, episodeId, headers, found, subtitleCallback, callback) }
+                    async { loadFansubSources(li, episodeId, found, subtitleCallback, callback) }
                 }.awaitAll()
             }
             found.get()
@@ -465,41 +577,45 @@ class TrAnimeIzle(
     private suspend fun loadFansubSources(
         li: Element,
         episodeId: Int?,
-        headers: Map<String, String>,
         found: AtomicBoolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
         val fansubId = li.attr("data-fid").toIntOrNull()
         val fansubLabel = li.attr("data-fad")
+        val tag = "kraptor_$fansubLabel"
         try {
+            // v17 (site.js kanıtı, 22.09.2026): POST /api/fansubSources gövdesi
+            // {EpisodeId, FansubId} — güncel site ile birebir aynı.
             val response = app.post(
                 mainUrl + "/api/fansubSources",
                 data = mapOf(
                     "EpisodeId" to (episodeId ?: 0).toString(),
                     "FansubId" to (fansubId ?: 0).toString()
                 ),
-                headers = headers +
+                headers = browserHeaders(lastCookie) +
                     mapOf(
-                        "Referer" to mainUrl,
                         "Accept" to "application/json, text/plain, */*",
                         "Content-Type" to "application/json"
                     )
             )
             val sourceButtons = response.document.select("li.sourceBtn")
+            Log.d(tag, "fansubSources(fid=$fansubId) → ${if (response.isSuccessful) "başarılı" else "BAŞARISIZ"}, ${sourceButtons.size} kaynak")
+            if (sourceButtons.isEmpty()) {
+                Log.e(tag, "sourceBtn yok — cevap başı:\n" + (response.text ?: "").take(600))
+            }
             coroutineScope {
                 sourceButtons.map { btn ->
-                    async { loadSingleSource(btn, headers, found, subtitleCallback, callback) }
+                    async { loadSingleSource(btn, found, subtitleCallback, callback) }
                 }.awaitAll()
             }
         } catch (e: Exception) {
-            Log.e("kraptor_$fansubLabel", "Error loading fansub $fansubLabel: ${e.message}")
+            Log.e(tag, "Error loading fansub $fansubLabel: ${e.message}")
         }
     }
 
     private suspend fun loadSingleSource(
         btn: Element,
-        headers: Map<String, String>,
         found: AtomicBoolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
@@ -509,24 +625,59 @@ class TrAnimeIzle(
         val sourceName = btn.selectFirst("p.title")?.text()?.trim() ?: "Bilinmeyen"
         try {
             Log.d(LOG_TAG, "Video: $sourceName | ID: $sourceId | EID: $eid")
-            val response = app.post(
-                mainUrl + "/api/sourcePlayer/$sourceId/$eid",
-                headers = headers +
+            // v17 (site.js kanıtı, 22.09.2026): site kendi JS'inde TEK PARAMETRELİ
+            // `POST /api/sourcePlayer/{id}` kullanıyor (li.sourceBtn'un data-id'si).
+            // Eski ikili form ({sourceId}/{eid}) yalnızca yedek olarak denenecek.
+            val primary = app.post(
+                mainUrl + "/api/sourcePlayer/$sourceId",
+                headers = browserHeaders(lastCookie) +
                     mapOf(
-                        "Referer" to mainUrl,
                         "Accept" to "application/json, text/plain, */*",
                         "Content-Type" to "application/json"
                     )
             )
-            val videoApi = response.parsedSafe<VideoApi>() ?: return
+            Log.d(LOG_TAG, "sourcePlayer($sourceName) [1 param] → ${if (primary.isSuccessful) "başarılı" else "BAŞARISIZ"}")
+            val videoApi = try {
+                primary.parsedSafe<VideoApi>()?.takeIf { it.source.isNotBlank() }
+            } catch (e: Exception) {
+                null
+            } ?: try {
+                Log.d(LOG_TAG, "sourcePlayer($sourceName) → yedek form (2 param) deneniyor")
+                val legacy = app.post(
+                    mainUrl + "/api/sourcePlayer/$sourceId/$eid",
+                    headers = browserHeaders(lastCookie) +
+                        mapOf(
+                            "Accept" to "application/json, text/plain, */*",
+                            "Content-Type" to "application/json"
+                        )
+                )
+                legacy.parsedSafe<VideoApi>()?.takeIf { it.source.isNotBlank() }
+            } catch (e: Exception) {
+                null
+            }
+            if (videoApi == null) {
+                Log.e(LOG_TAG, "sourcePlayer JSON parse hatası: ${(primary.text ?: "").take(500)}")
+                return
+            }
             val iframe = Jsoup.parse(videoApi.source).selectFirst("iframe")?.attr("src")
-            // DEX: yalnız luffy embed'ları çözülür; id'si loadExtractor'a verilir.
-            val value = iframe?.substringAfter(LUFFY_PREFIX, "") ?: ""
-            if (value.isNotEmpty()) {
-                Log.d(LOG_TAG, "iframe = $value")
-                if (loadExtractor(value, mainUrl + "/", subtitleCallback, callback)) {
+            Log.d(LOG_TAG, "iframe = $iframe")
+            if (iframe.isNullOrBlank()) {
+                Log.e(LOG_TAG, "iframe bulunamadı — source HTML başı:\n" + videoApi.source.take(800))
+                return
+            }
+            // DEX davranışı: luffy embed'in id'si loadExtractor'a verilirdi.
+            // v17: o çalışmazsa TAM iframe URL'si de denenir (kayıtlı
+            // çözücü mainUrl eşleştirmesiyle tutarlı olan standart yol).
+            val luffyId = iframe.substringAfter(LUFFY_PREFIX, "")
+            val candidates = if (luffyId.isNotEmpty()) listOf(luffyId, iframe) else listOf(iframe)
+            for (target in candidates) {
+                if (loadExtractor(target, mainUrl + "/", subtitleCallback, callback)) {
                     found.set(true)
+                    break
                 }
+            }
+            if (!found.get()) {
+                Log.w(LOG_TAG, "source '$sourceName' çözülemedi (adaylar: $candidates)")
             }
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Error loading source $sourceName: ${e.message}")
@@ -536,50 +687,26 @@ class TrAnimeIzle(
     companion object {
         private const val LOG_TAG = "kraptor_TrAnime"
         private const val LUFFY_PREFIX = "luffytra2.top/embed2/?id="
-        private const val RAW_DOMAIN_LIST_URL =
-            "https://raw.githubusercontent.com/Kraptor123/domainListesi/refs/heads/main/eklenti_domainleri.txt"
 
         // T3: tek doğru host (repo'daki eklenti_domainleri.txt ve uygulamanın
-        // DEFAULT_PLUGIN_DOMAINS değeriyle uyumlu). DEX'in sabit ".io" değeri
-        // burayı kullanmaz; cihazda T2 doğrulamasıyla teyit edilecek.
+        // DEFAULT_PLUGIN_DOMAINS değeriyle uyumlu); 22.09.2026 arşivinde de
+        // aktif domain olarak doğrulandı. DEX'in sabit ".io" değeri kullanılmaz.
         private const val DEFAULT_DOMAIN = "https://www.tranimeizle.live"
 
         /**
-         * Domain çözümleme (DEX Companion.getDomain'in yeniden yazımı):
-         *  - SharedPreferences ("DomainListesi", anahtar = eklenti adı) önde.
-         *  - Kayıt yoksa uzak `eklenti_domainleri.txt` çekilir
-         *    (biçim: `Ad:https://domain|Ad2:https://domain2`) ve eşleşen
-         *    kayıt + zaman damgası yazılır.
-         *  - Uzak liste de alınamazsa sabit yedek domain döndürülür.
-         *    (DEX'in aksine — DEX bu durumda "" döndürüyordu — asgari
-         *    kullanılabilir davranış garantisi için.)
+         * Domain çözümleme (v17, DEX Companion.getDomain'in sadeleştirilmiş hali):
+         *  - SharedPreferences ("DomainListesi", anahtar = eklenti adı) önde
+         *    (uygulama bu alana seçili domain'i yazar).
+         *  - Yoksa sabit [DEFAULT_DOMAIN].
+         *  - DEX ayrıca harici bir domain listesi (Kraptor123/domainListesi)
+         *    çekiyordu; o liste ESKİ domain'ler (ör. .io) taşıyabildiği için
+         *    v17'de kaldırıldı — tek kaynak: uygulama tercihi + yedek.
          */
-        fun getDomain(prefs: SharedPreferences, pluginName: String): String = runBlocking {
-            val lastUpdate = prefs.getLong("last_domain_update", 0L)
-            val now = System.currentTimeMillis()
-            val cached = prefs.getString(pluginName, "")
-            if (cached.isNullOrBlank() && now - lastUpdate >= 0) {
-                try {
-                    // Buradaki `app`, com.lagradost.cloudstream3 paketindeki
-                    // üst düzey (top-level) istemci (DEX de aynı yerden çağırıyordu).
-                    val text = app.get(RAW_DOMAIN_LIST_URL).text
-                    if (!text.isNullOrBlank()) {
-                        text.split("|").filter { it.isNotBlank() }.forEach { entry ->
-                            val parts = entry.trim().split(":")
-                            if (parts.size == 2 && parts[0].trim() == pluginName) {
-                                prefs.edit()
-                                    .putString(pluginName, parts[1].trim())
-                                    .putLong("last_domain_update", now)
-                                    .apply()
-                            }
-                        }
-                    }
-                } catch (_: Exception) {
-                    // Uzak listeye erişilemedi → yedek domain.
-                }
-            }
-            return@runBlocking prefs.getString(pluginName, "")?.ifBlank { null }
+        fun getDomain(prefs: SharedPreferences, pluginName: String): String {
+            val domain = prefs.getString(pluginName, "")?.ifBlank { null }
                 ?: DEFAULT_DOMAIN
+            Log.d(LOG_TAG, "domain = $domain")
+            return domain
         }
     }
 }
