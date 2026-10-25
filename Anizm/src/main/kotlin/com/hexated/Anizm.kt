@@ -519,11 +519,13 @@ class Anizm : MainAPI() {
                 allowRedirects = false,
                 timeout = 12L
             )
-            val location = response.headers.entries
-                .firstOrNull { it.key.equals("location", ignoreCase = true) }
-                ?.value?.firstOrNull()
+            // Bu fork'ta `Response.headers` Map<String, String> (başlık adı büyük/küçük
+            // harfe duyarlı olabildiği için iki biçim de denenir).
+            val location = (response.headers["Location"]
+                ?: response.headers["location"])
                 ?.trim()
-            if (location.isNullOrBlank()) null else AnizmSite.absolute(url, location)
+                ?.takeIf { it.isNotEmpty() }
+            if (location == null) null else AnizmSite.absolute(url, location)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
