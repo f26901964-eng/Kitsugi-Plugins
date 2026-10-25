@@ -1,0 +1,23 @@
+PWD: /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins
+RUNNER: Linux runnervmtai0g 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+DATE: Sun Oct 25 14:29:41 UTC 2026
+--- ls research/anizm-capture ---
+total 36
+drwxr-xr-x 2 runner runner 4096 Oct 25 14:29 .
+drwxr-xr-x 3 runner runner 4096 Oct 25 14:29 ..
+-rw-r--r-- 1 runner runner    0 Oct 25 14:29 .done
+-rw-r--r-- 1 runner runner  245 Oct 25 14:29 DEBUG.txt
+-rw-r--r-- 1 runner runner 5530 Oct 25 14:29 anime.html
+-rw-r--r-- 1 runner runner    0 Oct 25 14:29 api-hints.txt
+-rw-r--r-- 1 runner runner    0 Oct 25 14:29 assets-map.txt
+-rw-r--r-- 1 runner runner    0 Oct 25 14:29 assets.txt
+-rw-r--r-- 1 runner runner 5590 Oct 25 14:29 episode.html
+-rw-r--r-- 1 runner runner    0 Oct 25 14:29 fetch-hints.txt
+-rw-r--r-- 1 runner runner 5455 Oct 25 14:29 home.html
+-rw-r--r-- 1 runner runner    0 Oct 25 14:29 req-hints.txt
+--- git status ---
+?? research/anizm-capture/
+--- git log -1 ---
+233794c fetch workflow v5: permissions contents:write
+--- network testi ---
+puffytr HTTP 403 (0.064562s) ip=104.21.64.236
