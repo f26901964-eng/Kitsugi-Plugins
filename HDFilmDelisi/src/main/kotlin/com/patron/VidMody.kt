@@ -9,6 +9,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.app
 
 /**
@@ -69,7 +70,7 @@ class VidMody : ExtractorApi() {
 
             if (masterPlaylist.contains("#EXTM3U")) {
                 HDFilmDelisiPlayerParser.hlsSubtitles(masterPlaylist, masterUrl).forEach { track ->
-                    subtitleCallback(SubtitleFile(track.label, track.url))
+                    subtitleCallback(newSubtitleFile(track.label, track.url))
                 }
 
                 // Ses parçaları master playlist içindeki AUDIO medya grubunda;

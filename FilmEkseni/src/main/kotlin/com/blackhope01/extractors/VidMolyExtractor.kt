@@ -7,6 +7,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import com.lagradost.cloudstream3.newSubtitleFile
 
 class VidMolyExtractor : ExtractorApi() {
     override val name = "VidMoly"
@@ -40,7 +41,7 @@ class VidMolyExtractor : ExtractorApi() {
             ?: response.text
 
         FilmEkseniPlayerParser.subtitles(script).forEach { track ->
-            subtitleCallback(SubtitleFile(track.label, track.url))
+            subtitleCallback(newSubtitleFile(track.label, track.url))
         }
 
         val mediaFiles = FilmEkseniPlayerParser.mediaFiles(script)

@@ -37,11 +37,11 @@ internal object HDFilmDelisiPlayerParser {
         RegexOption.IGNORE_CASE,
     )
     private val directVidsPattern = Regex(
-        """(https?:\\?/\\?/[^\s"'<>]+/vids/[^\s"'<>]+\.(?:mp4|m3u8)(?:\?[^\s"'<>]*)?)""",
+        """(https?:\\?/\\?/[^\s"'<>]*?\\?/vids\\?/[^\s"'<>]+\.(?:mp4|m3u8)(?:\?[^\s"'<>]*)?)""",
         RegexOption.IGNORE_CASE,
     )
     private val embedUrlPattern = Regex(
-        """(https?:\\?/\\?/[^\s"'<>]+/embed/[^\s"'<>]+)""",
+        """(https?:\\?/\\?/[^\s"'<>]*?\\?/embed\\?/[^\s"'<>]+)""",
         RegexOption.IGNORE_CASE,
     )
     private val scriptFilePattern = Regex(
