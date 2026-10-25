@@ -3,6 +3,9 @@
 # Teşhis: her adım $GITHUB_STEP_SUMMARY'ye yazar (log erişimi kapalı).
 name: Anizm Site Capture
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:
