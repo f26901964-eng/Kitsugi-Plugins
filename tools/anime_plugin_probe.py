@@ -82,6 +82,48 @@ def fetch_any(url: str, referer: str = "", xhr: bool = False) -> tuple[int, str,
     return status, body, "direct", direct
 
 
+
+def jina_md(url: str) -> tuple[int, str]:
+    """r.jina.ai üzerinden sayfayı MARKDOWN olarak al (HTML öznitelikleri yok)."""
+    status, body, _ = fetch("https://r.jina.ai/" + url)
+    return status, body
+
+
+def md_links(markdown: str, limit: int = 12) -> list[str]:
+    found = re.findall(r"\]\((https?://[^)\s]+)\)", markdown)
+    cleaned: list[str] = []
+    for link in found:
+        path = urllib.parse.urlsplit(link)
+        short = f"{path.netloc}{path.path}"
+        if short not in cleaned:
+            cleaned.append(short)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
+def jina_section(label: str, url: str, limit: int = 12) -> list[str]:
+    status, body = jina_md(url)
+    header = f"**{label}** → jina HTTP {status} · {len(body)} karakter"
+    if status != 200 or not body:
+        return [header, ""]
+    cloudflare = any(
+        marker in body.lower()
+        for marker in ("just a moment", "verifying you are human", "enable javascript and cookies")
+    )
+    lines = [
+        header,
+        f"- Cloudflare/JS duvarı: {'EVET' if cloudflare else 'hayır'}",
+        f"- 'bolum' geçişi: {len(re.findall('bolum', body, re.IGNORECASE))}",
+        f"- 'izle' geçişi: {len(re.findall('izle', body, re.IGNORECASE))}",
+    ]
+    links = md_links(body, limit)
+    if links:
+        lines.append("- örnek bağlantılar:")
+        lines.extend(f"  - `{link}`" for link in links)
+    lines.append("")
+    return lines
+
 def count(html: str, pattern: str) -> int:
     return len(re.findall(pattern, html, re.IGNORECASE))
 
@@ -115,6 +157,10 @@ def probe_anizm() -> list[str]:
             base = candidate
     if base is None:
         return out
+
+    out.extend(jina_section("Anizm ana sayfa (markdown)", base + "/"))
+    out.extend(jina_section("Anizm /getAnimeListForSearch (markdown)", base + "/getAnimeListForSearch"))
+    out.extend(jina_section("Anizm /arama?q=one piece (markdown)", base + "/arama?q=one+piece"))
 
     status, body, _ = fetch(base + "/getAnimeListForSearch", base + "/", xhr=True)
     out.append(f"**`/getAnimeListForSearch`** → HTTP {status} · {len(body)} bayt")
@@ -212,6 +258,10 @@ def probe_tranimeizle() -> list[str]:
             base = candidate
     if base is None:
         return out
+
+    out.extend(jina_section("TrAnimeIzle ana sayfa (markdown)", base + "/"))
+    out.extend(jina_section("TrAnimeIzle /arama/one piece (markdown)", base + "/arama/one%20piece?page=1"))
+    out.extend(jina_section("TrAnimeIzle /anime/one-piece-izle (markdown)", base + "/anime/one-piece-izle"))
 
     for path in ("/arama/one%20piece?page=1", "/listeler/populer/sayfa-1", "/listeler/yenibolum/sayfa-1"):
         status, body, _ = fetch(base + path, base + "/")
