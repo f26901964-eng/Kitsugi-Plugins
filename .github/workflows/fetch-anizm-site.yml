@@ -1,5 +1,6 @@
 # GEÇİCİ: puffytr.com (Anizm) site HTML/JS yakalama — plugin kodu için.
-# Sadece arena/fetch-anizm* dallarında çalışır; .done flag'i ile tek sefer.
+# Sadece arena/fetch-anizm* dallarında; .done flag'i ile tek sefer.
+# Teşhis: her adım $GITHUB_STEP_SUMMARY'ye yazar (log erişimi kapalı).
 name: Anizm Site Capture
 
 on:
@@ -17,25 +18,30 @@ jobs:
           UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
         run: |
           OUT=research/anizm-capture
+          rm -rf "$OUT"
           mkdir -p "$OUT"
-          if [ -f "$OUT/.done" ]; then echo "ZATEN ALINDI - cikis"; exit 0; fi
+          if [ -f "$OUT/.done" ]; then echo "ZATEN ALINDI" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
           dl() {
             url="$1"; file="$2"
-            code=$(curl -sL -A "$UA" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" -H "Accept-Language: tr-TR,tr;q=0.9,en;q=0.5" -o "$file" -w "%{http_code}" --max-time 60 "$url" 2>/dev/null || echo "000")
-            echo "[$code] $url -> $file ($(wc -c < "$file" 2>/dev/null || echo 0) B)"
+            code=$(curl -sL -A "$UA" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" -H "Accept-Language: tr-TR,tr;q=0.9,en;q=0.5" -o "$file" -w "%{http_code}" --max-time 90 "$url" 2>/dev/null || echo "000")
+            sz=$(wc -c < "$file" 2>/dev/null || echo 0)
+            echo "[$code] $url -> $file (${sz} B)" | tee -a "$GITHUB_STEP_SUMMARY"
           }
           dl "https://puffytr.com/" "$OUT/home.html"
           dl "https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" "$OUT/episode.html"
           dl "https://puffytr.com/shingeki-no-kyojin" "$OUT/anime.html"
-          if [ -f "$OUT/episode.html" ]; then head -c 300 "$OUT/episode.html" > "$OUT/episode-head.txt"; echo; fi
+          if [ ! -s "$OUT/episode.html" ]; then
+            echo "FATAL: episode.html BOS (siteye ulaşılamadı?)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          { echo "## episode.html başı"; head -c 600 "$OUT/episode.html"; echo; } >> "$GITHUB_STEP_SUMMARY"
           cat "$OUT"/*.html 2>/dev/null | grep -oE '(src|href|content)="[^"]+\.(js|mjs|css)(\?[^"]*)?"' | sed -E 's/^[a-zA-Z]+="([^"]+)"/\1/' | sort -u > "$OUT/assets.txt" || true
-          cat "$OUT/assets.txt" > "$OUT/assets-cnt.txt" || true
-          echo "asset sayisi: $(wc -l < "$OUT/assets.txt" 2>/dev/null || echo 0)"
+          { echo "## asset listesi ($(wc -l < "$OUT/assets.txt" 2>/dev/null || echo 0) adet)"; cat "$OUT/assets.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
           : > "$OUT/assets-map.txt"
           n=0
           if [ -f "$OUT/assets.txt" ]; then
             while IFS= read -r p; do
-              n=$((n+1)); [ "$n" -gt 50 ] && break
+              n=$((n+1)); [ "$n" -gt 60 ] && break
               case "$p" in
                 http*) u="$p" ;;
                 //*) u="https:$p" ;;
@@ -43,22 +49,29 @@ jobs:
                 *) u="https://puffytr.com/$p" ;;
               esac
               fn="asset-$(printf '%s' "$u" | md5sum | cut -c1-12)"
-              curl -sL -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -H "Referer: https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" --max-time 60 "$u" -o "$OUT/$fn.bin" 2>/dev/null || true
-              echo "$u -> $fn.bin ($(wc -c < "$OUT/$fn.bin" 2>/dev/null || echo 0) B)" >> "$OUT/assets-map.txt" || true
+              curl -sL -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -H "Referer: https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" --max-time 90 "$u" -o "$OUT/$fn.bin" 2>/dev/null || true
+              sz=$(wc -c < "$OUT/$fn.bin" 2>/dev/null || echo 0)
+              echo "$u -> $fn.bin (${sz} B)" >> "$OUT/assets-map.txt"
             done < "$OUT/assets.txt"
           fi
-          cat "$OUT/assets-map.txt" || true
+          { echo "## indirilen asset'ler"; cat "$OUT/assets-map.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
           grep -ohE "/api/[a-zA-Z0-9_/.-]+" "$OUT"/*.bin 2>/dev/null | sort -u > "$OUT/api-hints.txt" || true
-          grep -ohE "fetch\([^)]{0,140}" "$OUT"/*.bin 2>/dev/null | head -40 > "$OUT/fetch-hints.txt" || true
-          grep -ohE "axios[^;]{0,140}" "$OUT"/*.bin 2>/dev/null | head -20 > "$OUT/axios-hints.txt" || true
-          echo "API HINTS:"; cat "$OUT/api-hints.txt" || true
+          grep -ohE "fetch\([^)]{0,160}" "$OUT"/*.bin 2>/dev/null | head -60 > "$OUT/fetch-hints.txt" || true
+          grep -ohE "(axios|post|get)\(['\"][^'\"]{0,120}" "$OUT"/*.bin 2>/dev/null | head -60 > "$OUT/req-hints.txt" || true
+          { echo "## API HINTS"; cat "$OUT/api-hints.txt" 2>/dev/null; echo; echo "## FETCH HINTS"; cat "$OUT/fetch-hints.txt" 2>/dev/null; echo; echo "## REQ HINTS"; cat "$OUT/req-hints.txt" 2>/dev/null; } >> "$GITHUB_STEP_SUMMARY"
           touch "$OUT/.done"
-          echo "CAPTURE-TAMAM"
+          echo "CAPTURE-TAMAM" >> "$GITHUB_STEP_SUMMARY"
       - name: Commit back
         run: |
+          { echo "## commit-back"; ls -la research/anizm-capture 2>/dev/null | head -30; echo "git status:"; git status --short | head -20; } >> "$GITHUB_STEP_SUMMARY"
           git config user.name "arena-fetch"
           git config user.email "arena-fetch@users.noreply.github.com"
-          git add research/anizm-capture 2>/dev/null || true
-          if git diff --cached --quiet; then echo "degisiklik yok"; else git commit -m "anizm site capture $(date -u +%F)" || true; fi
+          git add research/anizm-capture 2>>"$GITHUB_STEP_SUMMARY" || true
+          if git diff --cached --quiet; then
+            echo "STAGED-DEGISIKLIK-YOK" >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "anizm site capture $(date -u +%F)" || echo "COMMIT-HATA" >> "$GITHUB_STEP_SUMMARY"
+            echo "COMMIT-YAPILDI $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          fi
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin HEAD || echo "push basarisiz"
+          git push origin HEAD 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" || echo "PUSH-BASARISIZ" >> "$GITHUB_STEP_SUMMARY"
