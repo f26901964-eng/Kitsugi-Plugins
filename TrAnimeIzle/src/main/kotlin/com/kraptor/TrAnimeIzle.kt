@@ -1009,9 +1009,9 @@ class TrAnimeIzle(
             if (!v.isNullOrBlank() && v.startsWith("http")) return v
         }
         val patterns = listOf(
-            Regex("(?:file|src|source|url)\s*[:=]\s*[\"']([^\"']+\.mp4[^\"']*)[\"']", RegexOption.IGNORE_CASE),
-            Regex("[\"'](https?://[^\"']+\.m3u8[^\"']*)[\"']", RegexOption.IGNORE_CASE),
-            Regex("[\"'](https?://[^\"']+\.mp4[^\"']*)[\"']", RegexOption.IGNORE_CASE)
+            Regex("""(?:file|src|source|url)\s*[:=]\s*["']([^"']+\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["'](https?://[^"']+\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["'](https?://[^"']+\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE)
         )
         for (p in patterns) {
             p.find(html)?.groupValues?.getOrNull(1)?.takeIf { it.startsWith("http") }?.let { return it }
