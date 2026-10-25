@@ -60,7 +60,7 @@ class Hexload : ExtractorApi() {
                 )
             )
             val parsed = response.text
-                ?.let { response.parser.parseSafe(it, Response::class) }
+                ?.let { response.parser?.parseSafe(it, Response::class) }
             val videoUrl = parsed?.result?.url
             if (videoUrl == null) {
                 Log.d(name, "Hexload extraction failed: Video URL is null")

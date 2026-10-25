@@ -220,7 +220,7 @@ class TrAnimeIzle(
                     this.posterUrl = kitsuEp?.thumb?.ifBlank { null } ?: thumb
                     if (kitsuEp != null) this.description = kitsuEp.description
                     this.episode = number
-                    if (date != null) this.date = date
+                    if (date != null) this.addDate(date)
                 }
             )
         }
