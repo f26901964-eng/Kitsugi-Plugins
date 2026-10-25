@@ -868,24 +868,24 @@
         "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Tabii.cs3"
     },
     {
-        "iconUrl": "https://www.google.com/s2/favicons?domain=anizm.net&sz=%size%",
+        "iconUrl": "https://www.google.com/s2/favicons?domain=puffytr.com&sz=%size%",
         "apiVersion": 1,
-        "repositoryUrl": "https://github.com/hexated/cloudstream-extensions-hexated",
+        "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
         "fileSize": 16554,
-        "status": 0,
+        "status": 3,
         "language": "tr",
         "authors": [
-            "Hexated"
+            "hexated",
+            "byayzen"
         ],
         "tvTypes": [
-            "AnimeMovie",
-            "Anime",
-            "OVA"
+            "Anime"
         ],
         "version": 1,
         "internalName": "Anizm",
         "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/Anizm.cs3",
-        "name": "Anizm"
+        "name": "Anizm",
+        "description": "Anizm (puffytr.com) anime arşivi: arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü."
     },
     {
         "iconUrl": "https://www.google.com/s2/favicons?domain=turkish123.com&sz=%size%",
