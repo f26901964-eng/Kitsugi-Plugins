@@ -999,11 +999,15 @@ class TrAnimeIzle(
         Log.d(LOG_TAG, "load($url): ${episodes.size} bölüm, tip=${animeTipi ?: "?"}")
 
         val metaTitle = meta?.title
-        return if ((animeTipi?.contains("Dizi", ignoreCase = true) == true ||
-                    animeTipi?.contains("OVA", ignoreCase = true) == true) &&
-            metaTitle != null
-        ) {
-            // Dizi/OVA + Kitsu eşleşmesi → film (tek parça) olarak sunulur (DEX davranışı).
+        // v28: "Dizi" (TV) dizisi film sayılıp TEK PARÇA olarak sunuluyordu → kullanıcı
+        // dizinin yalnızca 1. bölümünü "film" olarak görüyordu. Artık yalnızca gerçek
+        // film ("Film"/"Movie" etiketi) veya tek bölümlü yapımlar film sayılır.
+        val isFilmType = animeTipi?.let {
+            it.contains("film", ignoreCase = true) || it.contains("movie", ignoreCase = true)
+        } == true
+        val useMovieResponse = metaTitle != null && (isFilmType || episodes.size <= 1)
+        return if (useMovieResponse) {
+            // Film / tek bölümlük yapım (tek parça) olarak sunulur.
             newMovieLoadResponse(
                 metaTitle,
                 url,
@@ -1259,15 +1263,14 @@ class TrAnimeIzle(
                     Log.e(LOG_TAG, "fansub öğesi yok — sayfa ${html.length} karakter, başı:\n" + html.take(800))
                     errors += "sayfada fansub listesi yok (sayfa ${html.length / 1000}k)"
                 }
-                coroutineScope {
-                    fansubItems.mapIndexed { i, li ->
-                        async {
-                            loadFansubSources(
-                                li, i, episodeId, found, errors, evidence, subsFound,
-                                subCb, callback
-                            )
-                        }
-                    }.awaitAll()
+                // v28: fansublar SIRAYLA işlenir (her fansubun kaynakları kendi
+                // içinde paralel). Sınırsız paralellik + WebView katmanı site
+                // hız sınırına takılıyordu.
+                for ((i, li) in fansubItems.withIndex()) {
+                    loadFansubSources(
+                        li, i, episodeId, found, errors, evidence, subsFound,
+                        subCb, callback
+                    )
                 }
                 // v23-1: kaynak listesi sayfanın KENDİNDE sunucu tarafı
                 // önceden render edilmiş olabilir (default fansub) — API
@@ -1449,15 +1452,19 @@ class TrAnimeIzle(
                 Log.e(tag, "sourceBtn yok — cevap başı:\n" + bodyText.take(600))
                 errors += "fansub '$fansubLabel': kaynak listesi ${if (httpOk) "boş" else "alınamadı (HTTP)"}"
             }
-            coroutineScope {
-                sourceButtons.mapIndexed { j, btn ->
-                    async {
-                        loadSingleSource(
-                            btn, j, episodeId, found, errors, evidence, subsFound,
-                            subCb, callback
-                        )
-                    }
-                }.awaitAll()
+            // v28: kaynaklar 4'erli gruplarla çözülür — sınırsız paralellik sitenin
+            // hız sınırına (429) takılıp TÜM kaynakların boş dönmesine yol açıyordu.
+            for (chunk in sourceButtons.withIndex().chunked(4)) {
+                coroutineScope {
+                    chunk.map { (j, btn) ->
+                        async {
+                            loadSingleSource(
+                                btn, j, episodeId, found, errors, evidence, subsFound,
+                                subCb, callback
+                            )
+                        }
+                    }.awaitAll()
+                }
             }
         } catch (e: CancellationException) {
             throw e
