@@ -25,6 +25,7 @@ import json
 from collections import Counter
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -38,18 +39,35 @@ UA = "Kitsugi-Publish-Verifier/1.0"
 ENABLED_FILE = "enabled_plugins.txt"
 
 
-def get(url, timeout=45):
+def get(url, timeout=45, retries=3, backoff=8.0):
+    """GET + KISA RETRI.
+
+    Yayin dogrulamasi `Derleyici` is akisi bittigi anda calisir; o sirada
+    ham (raw) ve jsDelivr aynalari henuz kendi kuyruklarini isliyor olabilir.
+    Ag/kuyruk kaynakli hatalarda (HTTP 429/5xx, baglanti hatasi) kisaca
+    geri cekilip tekrar denenir — aksi halde dogru yayin "kirmizi" gorunuyor.
+    """
     headers = {"User-Agent": UA}
     if "api.github.com/repos/" in url:
         headers["Accept"] = "application/vnd.github.raw"
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, r.read()
-    except urllib.error.HTTPError as e:
-        return e.code, e.read()[:300]
-    except Exception as e:  # noqa: BLE001
-        return None, str(e).encode()
+    last_status, last_body = None, b""
+    for attempt in range(1, retries + 1):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.status, r.read()
+        except urllib.error.HTTPError as e:
+            last_status, last_body = e.code, e.read()[:300]
+            retryable = e.code in (429, 500, 502, 503, 504)
+        except Exception as e:  # noqa: BLE001
+            last_status, last_body = None, str(e).encode()
+            retryable = True
+        if not retryable or attempt == retries:
+            break
+        wait = backoff * attempt
+        print(f"  ! {url} -> {'HTTP ' + str(last_status) if last_status else last_body[:80].decode(errors='replace')}; {wait:.0f} sn sonra deneme {attempt + 1}/{retries}")
+        time.sleep(wait)
+    return last_status, last_body
 
 
 def enabled_plugins():

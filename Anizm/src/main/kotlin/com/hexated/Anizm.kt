@@ -1,5 +1,6 @@
 package com.hexated
 
+import android.util.Base64 as AndroidBase64 // v27: java.util.Base64 API 26+ (minSdk 21'de cokerdi)
 import android.util.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.mvvm.safeApiCall
@@ -14,7 +15,6 @@ import org.jsoup.nodes.Document
 import java.io.IOException
 import java.net.URLEncoder
 import java.security.MessageDigest
-import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -64,6 +64,13 @@ import javax.crypto.spec.SecretKeySpec
  * kind=captions olan VTT'ler subtitleCallback ile eklenir (varsa).
  * Diğer fansub videolarında altyazı videoya gömülüdür (sitenin standardı).
  */
+/**
+ * v27: SubtitleFile public constructor'u deprecated; fork'un önerdigi
+ * newSubtitleFile ayni nesneyi üretir (Anizm eski API'de kalmisti).
+ */
+private fun newSubtitleFile(lang: String, url: String): SubtitleFile =
+    SubtitleFile(lang, url)
+
 class Anizm : MainAPI() {
 
     override var mainUrl = "https://puffytr.com"
@@ -138,7 +145,9 @@ class Anizm : MainAPI() {
 
     private suspend fun fetchDoc(url: String, referer: String): String {
         val resp = try {
-            app.get(url, headers = docHeaders(referer))
+            // v27: zaman asimi ZORUNLU — sinirsiz bekleme "takilma + son anda
+            // hata" mekanizmasinin kacak halidir (TrAnimeIzle v24 kaniti).
+            app.get(url, headers = docHeaders(referer), timeout = 15)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -147,7 +156,12 @@ class Anizm : MainAPI() {
         }
         if (!resp.isSuccessful) {
             Log.e(LOG_TAG, "GET başarısız: $url → HTTP ${resp.code}")
-            throw ErrorLoadingException("Anizm HTTP ${resp.code}: $url")
+            throw ErrorLoadingException(
+                if (resp.code == 403)
+                    "Anizm erişimi engelledi (HTTP 403). Tarayıcıdan test edin."
+                else
+                    "Anizm yanıt vermedi (HTTP ${resp.code})."
+            )
         }
         val text = resp.text
         if (text.isNullOrBlank()) throw ErrorLoadingException("Boş sayfa döndü: $url")
@@ -156,19 +170,19 @@ class Anizm : MainAPI() {
 
     private suspend fun fetchJson(url: String, referer: String, csrf: String? = null): String {
         val resp = try {
-            app.get(url, headers = xhrHeaders(referer, csrf))
+            app.get(url, headers = xhrHeaders(referer, csrf), timeout = 15)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(LOG_TAG, "JSON GET ağ hatası: $url → ${e.message}")
-            throw IOException("Kaynak listesi alınamadı: $url (${e.message})")
+            throw ErrorLoadingException("Kaynak listesi alınamadı (${e::class.simpleName})")
         }
         if (!resp.isSuccessful) {
             Log.e(LOG_TAG, "JSON GET başarısız: $url → HTTP ${resp.code}")
-            throw IOException("Kaynak listesi HTTP ${resp.code}: $url")
+            throw ErrorLoadingException("Kaynak listesi HTTP ${resp.code}")
         }
         val text = resp.text
-        if (text.isNullOrBlank()) throw IOException("Boş JSON: $url")
+        if (text.isNullOrBlank()) throw ErrorLoadingException("Kaynak listesi boş yanıt verdi")
         return text
     }
 
@@ -180,15 +194,23 @@ class Anizm : MainAPI() {
     private fun toAnimeUrl(href: String): String? {
         if (href.isBlank()) return null
         val u = fixUrlNull(href) ?: return null
-        // Yalnız kendi domainimiz kabul edilir (footer'da eski domain linkleri var).
-        if (u.substringAfter("://").substringBefore("/").substringBefore(":")
-            != mainUrl.substringAfter("://").substringBefore("/")
-        ) return null
+        // Yalnız kendi domainimiz kabul edilir (footer'da eski domain linkleri
+        // var). v27: `www.` ve port farkları toleranslı — uygulama mainUrl'i
+        // enjekte ettiğinde (www.'li/portsuz) tüm kartlar eleniyordu.
+        if (hostOf(u) != hostOf(mainUrl)) return null
         val path = u.substringAfter("://").substringAfter("/").substringBefore("?").substringBefore("#")
         val slug = EPISODE_SUFFIX.replace(path, "")
         if (!SLUG_RE.matches(slug) || BLOCKED_SLUGS.contains(slug)) return null
         return "$mainUrl/$slug"
     }
+
+    /** v27: şema/www/port bağımsız host adı. */
+    private fun hostOf(url: String): String = url
+        .substringAfter("://", url)
+        .substringBefore("/")
+        .substringBefore(":")
+        .removePrefix("www.")
+        .lowercase()
 
     private fun cleanAlt(alt: String?): String? = alt
         ?.substringBefore(" - Anizm.TV")
@@ -224,6 +246,19 @@ class Anizm : MainAPI() {
     // ------------------------------------------------------------------
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
+        // v27: arama ASLA istisna fırlatmaz — kontrolsüz istisna eklenti
+        // çubuğundan yayılır ve uygulamayı çökertir (kullanıcı raporu).
+        return try {
+            searchInternal(query, page)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "search('$query') hatası: ${e::class.simpleName}: ${e.message}")
+            newSearchResponseList(emptyList(), false)
+        }
+    }
+
+    private suspend fun searchInternal(query: String, page: Int): SearchResponseList {
         val enc = URLEncoder.encode(query, "UTF-8")
         val url = "$mainUrl/arama?q=$enc" + if (page > 1) "&sayfa=$page" else ""
         val html = fetchDoc(url, "$mainUrl/")
@@ -233,11 +268,21 @@ class Anizm : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = request.data + page
-        val html = fetchDoc(url, "$mainUrl/")
-        val results = parseAnimeCards(Jsoup.parse(html))
-        Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
-        return newHomePageResponse(request.name, results, results.isNotEmpty())
+        return try {
+            val url = request.data + page
+            val html = fetchDoc(url, "$mainUrl/")
+            val results = parseAnimeCards(Jsoup.parse(html))
+            Log.d(LOG_TAG, "mainPage('${request.name}') → ${results.size} sonuç")
+            newHomePageResponse(request.name, results, results.isNotEmpty())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(LOG_TAG, "mainPage('${request.name}') hatası: ${e::class.simpleName}: ${e.message}")
+            // v27: hata diyaloğunda koca HTML/stacktrace yerine kısa mesaj.
+            throw ErrorLoadingException(
+                "Anizm ana sayfa alınamadı (${e::class.simpleName})".take(400)
+            )
+        }
     }
 
     // ------------------------------------------------------------------
@@ -316,7 +361,16 @@ class Anizm : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val html = fetchDoc(data, "$mainUrl/")
+        // v27: loadLinks istisna firlatirsa oynatici yuku duseye kadar
+        // yayilabiliyor — buradan CIKANYI kisa mesajla bos listeye ceviriyoruz.
+        val html = try {
+            fetchDoc(data, "$mainUrl/")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "loadLinks sayfa hatası: ${e::class.simpleName}: ${e.message}")
+            return false
+        }
         val doc = Jsoup.parse(html)
         val csrf = doc.selectFirst("meta[name=csrf-token]")?.attr("content")?.ifBlank { null }
 
@@ -324,7 +378,9 @@ class Anizm : MainAPI() {
         val translators = doc.select("button[data-v3-translator], [data-v3-translator]")
         if (translators.isEmpty()) {
             Log.e(LOG_TAG, "loadLinks: çevirmen butonu yok — sayfa ${html.length / 1000}k")
-            throw ErrorLoadingException("Bu bölümde çevirmen listesi bulunamadı.")
+            // v27: "kaynak yok" hata degil bos listedir; istisna firlatmak
+            // uygulamada kirmizi cokme kutusu olarak gorunuyordu.
+            return false
         }
         Log.d(LOG_TAG, "loadLinks: ${translators.size} çevirmen bulundu")
 
@@ -356,11 +412,13 @@ class Anizm : MainAPI() {
             JSONObject(json)
         } catch (e: Exception) {
             Log.e(LOG_TAG, "$sourcesUrl JSON parse hatası: ${json.take(200)}")
-            throw IOException("Kaynak listesi JSON değil: $sourcesUrl")
+            throw ErrorLoadingException("Kaynak listesi çözülemedi (JSON değil)")
         }
         if (!root.optBoolean("success", false)) {
             Log.e(LOG_TAG, "$sourcesUrl success=false: ${root.optString("message")}")
-            throw IOException("Kaynak listesi başarısız: ${root.optString("message").ifBlank { sourcesUrl }}")
+            throw ErrorLoadingException(
+                "Kaynak listesi başarısız: ${root.optString("message").ifBlank { "site hayır dedi" }}"
+            )
         }
         val videos = root.optJSONArray("videos")
         if (videos == null || videos.length() == 0) {
@@ -421,12 +479,17 @@ class Anizm : MainAPI() {
         var currentReferer = episodeUrl
         for (hop in 1..5) {
             val resp = try {
-                app.get(currentUrl, headers = docHeaders(currentReferer), allowRedirects = false)
+                app.get(
+                    currentUrl,
+                    headers = docHeaders(currentReferer),
+                    allowRedirects = false,
+                    timeout = 12
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(LOG_TAG, "player GET hatası: $currentUrl → ${e.message}")
-                throw IOException("Oynatıcı sayfası alınamadı: $currentUrl")
+                throw IOException("Oynatıcı sayfası alınamadı: $currentUrl (${e::class.simpleName})")
             }
             val code = resp.code
             if (code in 300..399) {
@@ -463,21 +526,13 @@ class Anizm : MainAPI() {
     ): Boolean {
         // 1) Doğrudan akış.
         if (contentType.contains("mpegurl", true) || url.contains(".m3u8")) {
-            callback(
-                    newExtractorLink(source = linkName, name = linkName, url = url, type = INFER_TYPE) {
-                        this.referer = referer
-                    }
-                )
+            emitLink(url, linkName + " [HLS]", referer, callback)
             return true
         }
         if (contentType.startsWith("video/", true) ||
             Regex("\\.(mp4|webm|mkv|mov)$", RegexOption.IGNORE_CASE).find(url) != null
         ) {
-            callback(
-                    newExtractorLink(source = linkName, name = linkName, url = url, type = INFER_TYPE) {
-                        this.referer = referer
-                    }
-                )
+            emitLink(url, linkName, referer, callback)
             return true
         }
 
@@ -508,7 +563,8 @@ class Anizm : MainAPI() {
             // yedek: iframe sayfasını düz çek, içindeki videoyu ara.
             try {
                 val ih = fetchDoc(iframeSrc, referer)
-                if (handlePlayerBody(iframeSrc, url, "", ih, linkName, subtitleCallback, callback)) return true
+                // v27: referer = iframe'in KENDİ adresi olmalı (url değil).
+                if (handlePlayerBody(iframeSrc, iframeSrc, "", ih, linkName, subtitleCallback, callback)) return true
             } catch (e: Exception) {
                 Log.e(LOG_TAG, "iframe çözülemiyor: $iframeSrc → ${e.message}")
             }
@@ -519,21 +575,13 @@ class Anizm : MainAPI() {
         val m3u8 = Regex("https?://[^\\s\"'<>]+?\\.m3u8[^\\s\"'<>]*").find(text)?.value
             ?: Regex("https?:\\\\//[^\\\\\"'<>]+?\\.m3u8").find(text)?.value?.replace("\\/", "/")
         if (m3u8 != null) {
-            callback(
-                    newExtractorLink(source = linkName, name = linkName, url = m3u8, type = INFER_TYPE) {
-                        this.referer = referer
-                    }
-                )
+            emitLink(m3u8, linkName + " [HLS]", referer, callback)
             return true
         }
         val mp4 = Regex("https?://[^\\s\"'<>]+?\\.(mp4|webm|mkv)[^\\s\"'<>]*", RegexOption.IGNORE_CASE)
             .find(text)?.value?.replace("\\/", "/")
         if (mp4 != null) {
-            callback(
-                    newExtractorLink(source = linkName, name = linkName, url = mp4, type = INFER_TYPE) {
-                        this.referer = referer
-                    }
-                )
+            emitLink(mp4, linkName, referer, callback)
             return true
         }
         return false
@@ -755,7 +803,7 @@ class Anizm : MainAPI() {
         // Altyazılar (kind=captions VTT) — var ise.
         for ((file, label) in tracks) {
             try {
-                subtitleCallback(SubtitleFile(label, fixUrlNull(file) ?: file))
+                subtitleCallback(newSubtitleFile(label, fixUrlNull(file) ?: file))
             } catch (e: Exception) {
                 Log.w(LOG_TAG, "altyazı eklenemedi: $file → ${e.message}")
             }
@@ -767,6 +815,7 @@ class Anizm : MainAPI() {
         val json = try {
             app.post(
                 postUrl,
+                timeout = 15,
                 data = mapOf("hash" to token, "r" to referer),
                 headers = buildMap {
                     put("User-Agent", UA)
@@ -786,11 +835,7 @@ class Anizm : MainAPI() {
         // Cevap JSON değilse düz hata mesajıdır (alert) — ama bazen düz URL de olabilir.
         if (!json.trimStart().startsWith("{")) {
             if (json.startsWith("http")) {
-                callback(
-                    newExtractorLink(source = linkName, name = linkName + qualitySuffix(quality), url = json, type = INFER_TYPE) {
-                        this.referer = referer
-                    }
-                )
+                emitLink(json, linkName + qualitySuffix(quality), referer, callback)
                 return true
             }
             Log.e(LOG_TAG, "getVideo JSON değil: ${json.take(200)}")
@@ -860,19 +905,39 @@ class Anizm : MainAPI() {
         for (v in delivered) {
             val q = v.label?.takeIf { Regex("^[0-9]+p|4K", RegexOption.IGNORE_CASE).matches(it) } ?: quality
             val suffix = qualitySuffix(q)
-                callback(
-                    newExtractorLink(
-                        source = linkName,
-                        name = linkName + suffix,
-                        url = v.url,
-                        type = INFER_TYPE
-                    ) {
-                        this.referer = referer
-                    }
-                )
+            emitLink(v.url, linkName + suffix, referer, callback)
             emitted = true
         }
         return emitted
+    }
+
+    /**
+     * v27: tek noktadan oynatıcı linki. Fork sözleşmesi: `source` = LİNKİ
+     * ÜRETEN EKLENTİ (burada "Anizm"), `name` = kullanıcıya görünen etiket.
+     * v1'de ikisine de kaynak etiketi verildiği için uygulama tarafında
+     * sağlayıcı ayrımı bozuluyordu. Tip (M3U8/VIDEO) URL'den, kalite
+     * etiketten türetilir.
+     */
+    private inline fun emitLink(
+        url: String,
+        label: String,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val type = if (url.contains(".m3u8", ignoreCase = true)) {
+            ExtractorLinkType.M3U8
+        } else {
+            ExtractorLinkType.VIDEO
+        }
+        callback(
+            newExtractorLink(source = name, name = label, url = url, type = type) {
+                this.referer = referer
+                this.quality = getQualityFromName(label)
+                if (referer.isNotBlank()) {
+                    this.headers = mapOf("Referer" to referer, "User-Agent" to UA)
+                }
+            }
+        )
     }
 
     private fun qualitySuffix(q: String?): String =
@@ -892,7 +957,7 @@ class Anizm : MainAPI() {
      */
     private fun decryptFireFile(encrypted: String, password: String): String {
         val jo = JSONObject(encrypted)
-        val ct = Base64.getDecoder().decode(jo.getString("ct"))
+        val ct = AndroidBase64.decode(jo.getString("ct"), AndroidBase64.DEFAULT)
         val ivHex = jo.optString("iv", "")
         val saltHex = jo.optString("s", "")
         val salt = if (saltHex.isNotEmpty()) saltHex.hexToBytes() else ByteArray(0)

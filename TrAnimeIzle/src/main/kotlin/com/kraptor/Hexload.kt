@@ -50,6 +50,10 @@ class Hexload : ExtractorApi() {
 
             val response = app.post(
                 url = "$mainUrl/download",
+                // v27: zaman asimi — onlinesiz istek takilan hostte akisi
+                // süresiz bekletip uygulamanin "çökme" gibi görünmesine yol
+                // açıyordu (TrAnimeIzle v24 cihaz kanıtı).
+                timeout = 15,
                 data = mapOf(
                     "op" to "download3",
                     "id" to id,
