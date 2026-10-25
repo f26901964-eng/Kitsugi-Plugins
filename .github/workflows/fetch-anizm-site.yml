@@ -1,4 +1,4 @@
-# GEÇİCİ: puffytr.com (Anizm) site HTML/JS yakalama — platin kodu için.
+# GEÇİCİ: puffytr.com (Anizm) site HTML/JS yakalama — plugin kodu için.
 # Sadece arena/fetch-anizm* dallarında çalışır; .done flag'i ile tek sefer.
 name: Anizm Site Capture
 
@@ -13,48 +13,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Capture
+        env:
+          UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
         run: |
-          set -e
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0"
           OUT=research/anizm-capture
           mkdir -p "$OUT"
-          if [ -f "$OUT/.done" ]; then echo "ZATEN ALINDI — çıkış"; exit 0; fi
-          H1="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-          H2="Accept-Language: tr-TR,tr;q=0.9,en;q=0.5"
-          curl -sL -A "$UA" -H "$H1" -H "$H2" "https://puffytr.com/" -o "$OUT/home.html" || true
-          curl -sL -A "$UA" -H "$H1" -H "$H2" "https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" -o "$OUT/episode.html" || true
-          curl -sL -A "$UA" -H "$H1" -H "$H2" "https://puffytr.com/shingeki-no-kyojin" -o "$OUT/anime.html" || true
-          ls -la "$OUT"
-          head -c 400 "$OUT/episode.html"; echo
-          # asset'leri bul (script src, link href, modulepreload, inline url() hariç)
-          cat "$OUT"/*.html 2>/dev/null | grep -oE '(src|href|content)="[^"]+\.(js|mjs|css)(\?[^"]*)?"' | sed -E 's/^[a-z]+="([^"]+)"/\1/' | sort -u > "$OUT/assets.txt" || true
-          cat "$OUT/assets.txt"
-          rm -f "$OUT/assets-map.txt"
+          if [ -f "$OUT/.done" ]; then echo "ZATEN ALINDI - cikis"; exit 0; fi
+          dl() {
+            url="$1"; file="$2"
+            code=$(curl -sL -A "$UA" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" -H "Accept-Language: tr-TR,tr;q=0.9,en;q=0.5" -o "$file" -w "%{http_code}" --max-time 60 "$url" 2>/dev/null || echo "000")
+            echo "[$code] $url -> $file ($(wc -c < "$file" 2>/dev/null || echo 0) B)"
+          }
+          dl "https://puffytr.com/" "$OUT/home.html"
+          dl "https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" "$OUT/episode.html"
+          dl "https://puffytr.com/shingeki-no-kyojin" "$OUT/anime.html"
+          if [ -f "$OUT/episode.html" ]; then head -c 300 "$OUT/episode.html" > "$OUT/episode-head.txt"; echo; fi
+          cat "$OUT"/*.html 2>/dev/null | grep -oE '(src|href|content)="[^"]+\.(js|mjs|css)(\?[^"]*)?"' | sed -E 's/^[a-zA-Z]+="([^"]+)"/\1/' | sort -u > "$OUT/assets.txt" || true
+          cat "$OUT/assets.txt" > "$OUT/assets-cnt.txt" || true
+          echo "asset sayisi: $(wc -l < "$OUT/assets.txt" 2>/dev/null || echo 0)"
+          : > "$OUT/assets-map.txt"
           n=0
-          while read -r p; do
-            n=$((n+1)); [ "$n" -gt 50 ] && break
-            case "$p" in
-              http*) u="$p" ;;
-              //*) u="https:$p" ;;
-              /*) u="https://puffytr.com$p" ;;
-              *) u="https://puffytr.com/$p" ;;
-            esac
-            fn="asset-$(printf '%s' "$u" | md5sum | cut -c1-12)"
-            curl -sL -A "$UA" -H "$H2" -H "Referer: https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" "$u" -o "$OUT/$fn.bin" || true
-            echo "$u -> $fn.bin ($(wc -c < "$OUT/$fn.bin" 2>/dev/null || echo 0) B)" >> "$OUT/assets-map.txt"
-          done < "$OUT/assets.txt"
-          cat "$OUT/assets-map.txt"
-          # API ipuçları: yakalanan dosyalarda /api/ ve fetch( desenleri
-          grep -ohE '["'"'"']/?api/[a-zA-Z0-9_/.{}$-]+["'"'"']' "$OUT"/*.bin 2>/dev/null | sort -u > "$OUT/api-hints.txt" || true
-          grep -ohE 'fetch\([^)]{0,120}' "$OUT"/*.bin 2>/dev/null | head -40 > "$OUT/fetch-hints.txt" || true
-          head -60 "$OUT/api-hints.txt"
+          if [ -f "$OUT/assets.txt" ]; then
+            while IFS= read -r p; do
+              n=$((n+1)); [ "$n" -gt 50 ] && break
+              case "$p" in
+                http*) u="$p" ;;
+                //*) u="https:$p" ;;
+                /*) u="https://puffytr.com$p" ;;
+                *) u="https://puffytr.com/$p" ;;
+              esac
+              fn="asset-$(printf '%s' "$u" | md5sum | cut -c1-12)"
+              curl -sL -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -H "Referer: https://puffytr.com/shingeki-no-kyojin-1-bolum-izle" --max-time 60 "$u" -o "$OUT/$fn.bin" 2>/dev/null || true
+              echo "$u -> $fn.bin ($(wc -c < "$OUT/$fn.bin" 2>/dev/null || echo 0) B)" >> "$OUT/assets-map.txt" || true
+            done < "$OUT/assets.txt"
+          fi
+          cat "$OUT/assets-map.txt" || true
+          grep -ohE "/api/[a-zA-Z0-9_/.-]+" "$OUT"/*.bin 2>/dev/null | sort -u > "$OUT/api-hints.txt" || true
+          grep -ohE "fetch\([^)]{0,140}" "$OUT"/*.bin 2>/dev/null | head -40 > "$OUT/fetch-hints.txt" || true
+          grep -ohE "axios[^;]{0,140}" "$OUT"/*.bin 2>/dev/null | head -20 > "$OUT/axios-hints.txt" || true
+          echo "API HINTS:"; cat "$OUT/api-hints.txt" || true
           touch "$OUT/.done"
+          echo "CAPTURE-TAMAM"
       - name: Commit back
         run: |
-          cd "$GITHUB_WORKSPACE"
           git config user.name "arena-fetch"
           git config user.email "arena-fetch@users.noreply.github.com"
-          git add research/anizm-capture || true
-          git diff --cached --quiet || git commit -m "anizm site capture $(date -u +%F)"
+          git add research/anizm-capture 2>/dev/null || true
+          if git diff --cached --quiet; then echo "degisiklik yok"; else git commit -m "anizm site capture $(date -u +%F)" || true; fi
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin HEAD || echo "push başarısız"
+          git push origin HEAD || echo "push basarisiz"
