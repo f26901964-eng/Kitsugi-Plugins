@@ -4,12 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.core.type.TypeReference
 import com.lagradost.cloudstream3.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addActorsOnly
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.utils.ExtractorLink
-import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -35,7 +33,7 @@ class TrAnimeIzle(
 ) : MainAPI() {
 
     override var mainUrl: String = Companion.getDomain(domainPrefs, "TrAnimeIzle")
-    override val name = "TrAnimeIzle"
+    override var name = "TrAnimeIzle"
     override val hasMainPage = true
     override val hasQuickSearch = true
     override var lang = "tr"
@@ -222,7 +220,7 @@ class TrAnimeIzle(
                     this.posterUrl = kitsuEp?.thumb?.ifBlank { null } ?: thumb
                     if (kitsuEp != null) this.description = kitsuEp.description
                     this.episode = number
-                    if (date != null) addDate(this, date)
+                    if (date != null) this.date = date
                 }
             )
         }
@@ -246,7 +244,7 @@ class TrAnimeIzle(
                 this.score = meta?.score?.let { Score.from(it, 0) } ?: Score.from10(rating)
                 this.duration = meta?.duration ?: duration
                 this.recommendations = recommendations
-                addActorsOnly(actors)
+                addActors(actors.map { Actor(it, null) })
                 val finalTrailer = meta?.trailerUrl ?: trailer
                 if (finalTrailer != null) addTrailer(finalTrailer)
                 meta?.kitsuId?.let { syncData["kitsu"] = it }
@@ -262,7 +260,6 @@ class TrAnimeIzle(
                 this.posterUrl = meta?.cover?.ifBlank { null } ?: poster
                 if (description != null) this.plot = meta?.description
                 this.year = meta?.year ?: year
-                this.dubStatus = DubStatus.Subbed
                 this.episodes = mutableMapOf(DubStatus.Subbed to episodes)
                 this.tags = tags.distinct()
                 this.synonyms = meta?.synonyms
@@ -277,7 +274,7 @@ class TrAnimeIzle(
                     isCompleted -> ShowStatus.Completed
                     else -> ShowStatus.Ongoing
                 }
-                addActorsOnly(actors)
+                addActors(actors.map { Actor(it, null) })
                 val finalTrailer = meta?.trailerUrl ?: trailer
                 if (finalTrailer != null) addTrailer(finalTrailer)
                 meta?.kitsuId?.let { syncData["kitsu"] = it }
@@ -479,8 +476,8 @@ class TrAnimeIzle(
             val response = app.post(
                 mainUrl + "/api/fansubSources",
                 data = mapOf(
-                    "EpisodeId" to (episodeId ?: 0),
-                    "FansubId" to (fansubId ?: 0)
+                    "EpisodeId" to (episodeId ?: 0).toString(),
+                    "FansubId" to (fansubId ?: 0).toString()
                 ),
                 headers = headers +
                     mapOf(
@@ -521,11 +518,7 @@ class TrAnimeIzle(
                         "Content-Type" to "application/json"
                     )
             )
-            val sourceText = response.text ?: return
-            val videoApi = getMapper().readValue(
-                sourceText,
-                object : TypeReference<VideoApi>() {}
-            )
+            val videoApi = response.parsedSafe<VideoApi>() ?: return
             val iframe = Jsoup.parse(videoApi.source).selectFirst("iframe")?.attr("src")
             // DEX: yalnız luffy embed'ları çözülür; id'si loadExtractor'a verilir.
             val value = iframe?.substringAfter(LUFFY_PREFIX, "") ?: ""

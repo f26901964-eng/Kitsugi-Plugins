@@ -34,11 +34,11 @@ object TrAnimeIzleHelper {
         private set
 
     fun setup(context: Context) {
-        val package = gercekPaketAdiniBul(context)
-        if (hataliPaketAdlari.contains(package)) return
-        val hash = imzaHashiniAl(context, package)
+        val pkg = gercekPaketAdiniBul(context)
+        if (hataliPaketAdlari.contains(pkg)) return
+        val hash = imzaHashiniAl(context, pkg)
         isAllowedVersion = izinliImzaHashleri.contains(hash)
-        Log.d(TAG, "Paket: $package izinliSurum: $isAllowedVersion")
+        Log.d(TAG, "Paket: $pkg izinliSurum: $isAllowedVersion")
     }
 
     fun setAllowedVersion(value: Boolean) {

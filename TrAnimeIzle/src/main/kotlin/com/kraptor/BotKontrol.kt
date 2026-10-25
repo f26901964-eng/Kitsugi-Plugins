@@ -3,6 +3,7 @@ package com.kraptor
 import android.app.AlertDialog
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -93,8 +94,11 @@ object BotKontrolKt {
      */
     fun resetCookieManagerTo(cookieString: String, siteUrl: String) {
         val cm = CookieManager.getInstance()
-        @Suppress("DEPRECATION")
-        cm.removeAllCookies()
+        // compileSdk 35 stub'larinda artik-argsiz removeAllCookies() yok;
+        // API 26 altinda kaldirma atlanir (aynis host'a setCookie ile ezilir).
+        if (Build.VERSION.SDK_INT >= 26) {
+            cm.removeAllCookies(null)
+        }
         cm.flush()
         if (cookieString.isBlank()) return
         val host = hostOf(siteUrl)
@@ -224,9 +228,6 @@ object BotKontrolKt {
                         domStorageEnabled = true
                         useWideViewPort = true
                         loadWithOverviewMode = true
-                        supportZoom = false
-                        displayZoomControls = false
-                        builtInZoomControls = false
                     }
                     setFocusable(true)
                     setFocusableInTouchMode(true)

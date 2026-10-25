@@ -3,6 +3,7 @@ package com.kraptor
 import android.util.Log
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.INFER_TYPE
@@ -59,7 +60,7 @@ class Hexload : ExtractorApi() {
                 )
             )
             val parsed = response.text
-                ?.let { response.parser.parseSafe(it, Response::class.java) }
+                ?.let { response.parser.parseSafe(it, Response::class) }
             val videoUrl = parsed?.result?.url
             if (videoUrl == null) {
                 Log.d(name, "Hexload extraction failed: Video URL is null")
