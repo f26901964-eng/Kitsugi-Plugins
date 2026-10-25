@@ -109,7 +109,7 @@ class Anizm : MainAPI() {
         url: String,
         referer: String = mainUrl + "/",
         xhr: Boolean = false,
-        timeout: Int = 12
+        timeout: Long = 12L
     ): String? {
         return try {
             val response = app.get(url, headers = headers(referer, xhr), timeout = timeout)
@@ -135,7 +135,7 @@ class Anizm : MainAPI() {
         json: String? = null,
         form: Map<String, String>? = null,
         extraHeaders: Map<String, String> = emptyMap(),
-        timeout: Int = 12
+        timeout: Long = 12L
     ): String? {
         val merged = headers(referer, xhr) + extraHeaders
         return try {
@@ -873,7 +873,7 @@ class Anizm : MainAPI() {
         return found.toList()
     }
 
-    private fun emitMedia(
+    private suspend fun emitMedia(
         url: String,
         label: String,
         referer: String,
