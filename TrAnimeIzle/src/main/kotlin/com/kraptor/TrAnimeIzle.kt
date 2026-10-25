@@ -963,11 +963,10 @@ class TrAnimeIzle(
         val eid = btn.attr("data-eid").ifBlank { episodeId?.toString() ?: "" }
         val sourceName = btn.selectFirst("p.title")?.text()?.trim()
             ?: btn.text().trim().ifBlank { "Kaynak ${sourceId.ifBlank { "?" }}" }
-        // v22: kaynak adı kalite etiketi taşıyorsa (1080p, 720p, 4K, HD, Full HD)
-        // ExtractorLink.quality olarak kullanılır → arayüzde kalite seçimi.
-        val quality = sourceName.takeIf {
-            Regex("(?i)\\d{3,4}\\s?p|4\\s?k|full\\s?hd|^hd$").containsMatchIn(it)
-        }
+        // v22: KALİTE — her kaynak (sourceBtn) ayrı bir ExtractorLink olarak
+        // sunulur; kaynak adı (p.title: 1080p/720p/fansub adı) arayüzde kalite
+        // seçimi görevi görür (site bu zinciri böyle sunuyor; ayrı kalite API yok).
+        Log.d(LOG_TAG, "Kaynak adı (kalite/fansub): $sourceName")
         try {
             Log.d(LOG_TAG, "Video: $sourceName | ID: $sourceId | EID: $eid")
             // v17 (site.js kanıtı, 22.09.2026): site kendi JS'inde TEK PARAMETRELİ
@@ -1031,7 +1030,6 @@ class TrAnimeIzle(
             if (directUrl != null) {
                 callback(
                     newExtractorLink(source = sourceName, name = sourceName, url = directUrl, type = INFER_TYPE) {
-                        this.quality = quality
                         this.headers = mapOf("Referer" to mainUrl + "/")
                     }
                 )
@@ -1061,7 +1059,6 @@ class TrAnimeIzle(
                     if (genUrl != null) {
                         callback(
                             newExtractorLink(source = sourceName, name = sourceName, url = genUrl, type = INFER_TYPE) {
-                                this.quality = quality
                                 this.headers = mapOf("Referer" to mainUrl + "/")
                             }
                         )
@@ -1103,7 +1100,7 @@ class TrAnimeIzle(
                 if (!url.startsWith("http")) return@forEach
                 val lang = t.attr("srclang").ifBlank { t.attr("lang") }
                 val label = t.attr("label").ifBlank { lang.ifBlank { "Altyazı" } }
-                subtitleCallback(SubtitleFile(label, url, lang.ifBlank { null }, false, true))
+                subtitleCallback(SubtitleFile(lang.ifBlank { label }, url))
                 added = true
                 Log.d(LOG_TAG, "Altyazı (track): $label → $url")
             }
@@ -1117,7 +1114,7 @@ class TrAnimeIzle(
                 .distinct()
                 .take(3)
                 .forEach { url ->
-                    subtitleCallback(SubtitleFile("Altyazı", url, null, false, true))
+                    subtitleCallback(SubtitleFile("Altyazı", url))
                     added = true
                     Log.d(LOG_TAG, "Altyazı (url): $url")
                 }
