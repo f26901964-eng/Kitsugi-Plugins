@@ -34,8 +34,8 @@ jobs:
             print('')
           "
           }
-          for path in "/" "/shingeki-no-kyojin-1-bolum-izle" "/shingeki-no-kyojin" "/arama/frieren"; do
-            name=$(echo "$path" | sed 's|[/.-]|_|g'); name=${name#_}
+          for path in "/" "/shingeki-no-kyojin-1-bolum-izle" "/shingeki-no-kyojin" "/arama?q=frieren" "/bolum/13270/cevirmen/109542"; do
+            name=$(echo "$path" | sed 's|[/?&=.-]|_|g'); name=${name#_}
             [ -z "$name" ] && name="home"
             line=$(snap "https://puffytr.com$path")
             ts=$(echo "$line" | awk '{print $1}'); cap=$(echo "$line" | awk '{print $2}')
@@ -90,11 +90,32 @@ jobs:
             echo "## LOCALSTORAGE"; cat "$OUT/localstorage-hints.txt" 2>/dev/null
           } >> "$OUT/SUMMARY.md"
           touch "$OUT/.done"
+      - name: Player 302 redirect targets (X-Archive-Orig-Location)
+        run: |
+          set +e
+          OUT=research/anizm-capture
+          echo "=== /player/{id} 302 REDIRECT HEDİFLERİ ===" > "$OUT/PLAYER_HEADERS.txt"
+          {
+            echo "20260607185035 https://puffytr.com/player/1656125"
+            echo "20260505102943 https://puffytr.com/player/1847501"
+            echo "20260606215551 https://puffytr.com/player/1454877"
+            echo "20250919174409 https://puffytr.com/player/1777595"
+          } > player_targets.txt
+          while read -r TS URL; do
+            echo "--- $URL @ $TS" >> "$OUT/PLAYER_HEADERS.txt"
+            echo "[HEAD]" >> "$OUT/PLAYER_HEADERS.txt"
+            curl -sI --compressed --max-time 90 "https://web.archive.org/web/${TS}id_/${URL}" >> "$OUT/PLAYER_HEADERS.txt" 2>&1
+            echo "[GET body ilk 400]" >> "$OUT/PLAYER_HEADERS.txt"
+            curl -s --compressed --max-time 90 "https://web.archive.org/web/${TS}id_/${URL}" 2>/dev/null | head -c 400 >> "$OUT/PLAYER_HEADERS.txt"
+            echo "" >> "$OUT/PLAYER_HEADERS.txt"
+          done < player_targets.txt
+          echo "--- PLAYER_HEADERS.txt ---"
+          cat "$OUT/PLAYER_HEADERS.txt"
       - name: Commit back
         run: |
           git config user.name "arena-fetch"
           git config user.email "arena-fetch@users.noreply.github.com"
-          rm -f research/anizm-capture/DEBUG.txt
+          rm -f research/anizm-capture/DEBUG.txt player_targets.txt
           git add -A research/ 2>&1
           git commit -m "anizm capture: $(date -u +%H%M%S)" --allow-empty 2>&1
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
