@@ -14,6 +14,7 @@ on:
       - "settings.gradle.kts"
       - "build.gradle.kts"
       - "enabled_plugins.txt"
+      - ".github/workflows/Derleyici.yml"
       - "merge_plugins.py"
       - "prebuilt_plugins.json"
       - "tools/**"
