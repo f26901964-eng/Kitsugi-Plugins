@@ -69,10 +69,10 @@ Bu yüzden iki otomatik adım eklendi:
 
 | Adım | Ne yapar |
 | --- | --- |
-| `tools/purge_cdn.py` | Yayından sonra `repo.json`, `plugins.json` ve tüm `.cs3` dosyaları için jsDelivr önbelleğini temizler, ardından ham GitHub ile aynayı karşılaştırır |
+| `tools/purge_cdn.py` | Yayından sonra `repo.json`, `plugins.json` ve tüm `.cs3` dosyaları için jsDelivr önbelleğini temizler, HTTP 200 yanıtındaki `throttled`/sağlayıcı sonuçlarını da denetler ve ham GitHub ile aynayı karşılaştırır |
 | `tools/verify_publish.py` | `repo.json → plugins.json → .cs3` zincirini **uygulamanın kullandığı adreslerden** indirip doğrular: etkin listedeki her eklenti tam bir kez mi var, fazladan/yinelenen kayıt sızmış mı, `status` 1 mi, URL bu depoyu mu gösteriyor, boyut + sha256 tutuyor mu, ZIP içinde `manifest.json`/`classes.dex` var mı ve iç manifestin `name`/`version` değeri listeyle aynı mı |
 
-- `Derleyici` iş akışı yayından sonra `tools/purge_cdn.py` çalıştırır.
+- `Derleyici` iş akışı yayından sonra `tools/purge_cdn.py` çalıştırır; purge doğrulanamazsa yayın işi başarısız olur, yeşil görünmez.
 - `Yayin Dogrulama` iş akışı her derlemeden sonra, `main`'e dokunan push'larda ve 6 saatte bir
   `tools/verify_publish.py` çalıştırır; eksik/bayat bir kayıt varsa kırmızı olur (jsDelivr bayatsa
   önce purge edip yeniden dener).

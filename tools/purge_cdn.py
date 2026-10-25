@@ -49,16 +49,46 @@ def _get(url, timeout=30):
         return None, str(e).encode()
 
 
+def purge_response_succeeded(status, body, path):
+    """HTTP 200 tek basina basari degildir; jsDelivr throttle bilgisini de denetle."""
+    if status != 200:
+        return False, f"HTTP {status}"
+    try:
+        payload = json.loads(body)
+    except Exception as exc:  # noqa: BLE001
+        return False, f"gecersiz JSON: {exc}"
+
+    if payload.get("status") != "finished":
+        return False, f"purge durumu: {payload.get('status')}"
+
+    key = f"/gh/{SLUG}@{BRANCH}/{path}"
+    result = (payload.get("paths") or {}).get(key)
+    if not isinstance(result, dict):
+        return False, "yanitta hedef yol yok"
+    if result.get("throttled"):
+        reset = result.get("throttlingReset")
+        suffix = f"; {reset}s sonra tekrar deneyin" if reset is not None else ""
+        return False, f"istek kisitlandi{suffix}"
+
+    providers = result.get("providers")
+    if not isinstance(providers, dict) or not providers:
+        return False, "CDN saglayici sonucu yok"
+    failed_providers = sorted(name for name, ok in providers.items() if ok is not True)
+    if failed_providers:
+        return False, "temizlenemeyen saglayicilar: " + ", ".join(failed_providers)
+    return True, "tum CDN saglayicilari temizlendi"
+
+
 def purge(paths):
     print(f"jsDelivr önbelleği temizleniyor ({len(paths)} dosya)...")
     failed = 0
     for path in paths:
         url = PURGE.format(slug=SLUG, branch=BRANCH, path=urllib.parse.quote(path))
         status, body = _get(url, timeout=25)
-        ok = status == 200
+        ok, detail = purge_response_succeeded(status, body, path)
         if not ok:
             failed += 1
-        print(f"  {'✓' if ok else '✗'} {path} (HTTP {status})")
+        print(f"  {'✓' if ok else '✗'} {path} ({detail})")
     return failed
 
 
@@ -87,16 +117,24 @@ def published_paths():
 def check():
     """Ham GitHub ile jsDelivr kopyasını karşılaştırır; fark varsa listeler."""
     print("Ayna karşılaştırması:")
-    _, raw_body = _get(f"{RAW}/plugins.json")
-    _, jd_body = _get(f"{JSDELIVR}/plugins.json")
+    raw_status, raw_body = _get(f"{RAW}/plugins.json")
+    jd_status, jd_body = _get(f"{JSDELIVR}/plugins.json")
+    if raw_status != 200:
+        print(f"  ✗ raw manifest okunamadı (HTTP {raw_status})")
+        return 1
+    if jd_status != 200:
+        print(f"  ✗ jsDelivr manifest okunamadı (HTTP {jd_status})")
+        return 1
     try:
         raw_names = {p.get("internalName") for p in json.loads(raw_body)}
-    except Exception:  # noqa: BLE001
-        raw_names = set()
-    try:
         jd_names = {p.get("internalName") for p in json.loads(jd_body)}
-    except Exception:  # noqa: BLE001
-        jd_names = set()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ✗ manifest JSON okunamadı: {exc}")
+        return 1
+
+    if not raw_names or None in raw_names or not jd_names or None in jd_names:
+        print("  ✗ en az bir manifest boş veya internalName alanı eksik")
+        return 1
 
     print(f"  raw : {len(raw_names)} kayıt")
     print(f"  jsDelivr: {len(jd_names)} kayıt")
@@ -115,9 +153,12 @@ def main():
         return check()
     paths = published_paths()
     failed = purge(paths)
+    mirror_status = check()
     if failed:
-        print(f"  ! {failed} yol temizlenemedi (jsDelivr purge API'si kritik değil).")
-    return check()
+        print(f"  ✗ {failed} yolun purge isteği başarısız veya throttled.")
+    # Ayna güncel olsa bile başarısız purge'leri sıfır koduyla raporlamayalım:
+    # .cs3 dosyaları da aynı mutable CDN yollarını kullanıyor.
+    return 1 if failed or mirror_status else 0
 
 
 if __name__ == "__main__":

@@ -159,15 +159,11 @@ jobs:
 
       # ───────────────────────────────────────────────────────────────────────
       # KRITIK: `builds` dalini amend + force-push ile guncelledigimiz icin
-      # jsDelivr gibi CDN'ler ESKI plugins.json'i onbellekten dondurmeye devam
-      # ediyor. Uygulama "GitHub Vekil Sunucu (jsDelivr)" ayari acikken birincil
-      # olarak, kapaliyken 3. yedek olarak jsDelivr'i okuyor. Onbellek bayat
-      # kaldiginda manifestte OLAN eklentiler (or. OpenAnime / TrAnimeIzle)
-      # uygulamada "depoda yok" gibi gorunuyordu. Bu adim onbellegi acikca
-      # temizler. Hata olursa yayin durmaz (CDN purge API'si kritik degil).
-      - name: "CDN Onbellegini Temizle (jsDelivr)"
-        continue-on-error: true
+      # jsDelivr eski manifest veya .cs3 dosyalarini onbellekten dondurebilir.
+      # Purge API'si HTTP 200 ile throttled yaniti verebildiginden betik hem
+      # saglayici sonucunu hem de son aynayi dogrular. Purge dogrulanamazsa
+      # yayin isi kirmizi kalir; uygulamada guncel oldugu varsayilmaz.
+      - name: "CDN Onbellegini Temizle ve Dogrula (jsDelivr)"
         run: |
           cd $GITHUB_WORKSPACE/src
-          python3 tools/purge_cdn.py --check || true
-          python3 tools/purge_cdn.py || true
+          python3 tools/purge_cdn.py
