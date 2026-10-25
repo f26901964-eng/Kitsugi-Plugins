@@ -8,8 +8,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Gerçek hdfilmdelisi.one sayfalarından yakalanmış HTML fixture'ları ile
- * Next.js/RSC yapısının doğru ayrıştırıldığını doğrular.
+ * Yakalanmış ana sayfa/detay HTML'i ve canlı dizi sayfasından alınmış minimal
+ * route/veri örneğiyle Next.js/RSC ayrıştırmasını doğrular.
  */
 class HDFilmDelisiMarkupTest {
 
@@ -74,6 +74,44 @@ class HDFilmDelisiMarkupTest {
         assertTrue(urls.any { it.contains("/embed/") })
         assertTrue(refs.none { it.url.contains("\\") })
         assertTrue(refs.none { it.url.contains("\"") })
+    }
+
+    @Test
+    fun seriesPage_parsesSeasonCountsAndLiveEpisodeRoutes() {
+        val document = Jsoup.parse(resource("/hdfilmdelisi_series_sample.html"), "$baseUrl/dizi/dogaustu")
+        val detail = HDFilmDelisiMarkup.parseDetail(document)
+        val episodes = HDFilmDelisiMarkup.parseEpisodes(document, "$baseUrl/dizi/dogaustu")
+
+        assertEquals(15, detail.seasonCount)
+        assertEquals(327, detail.episodeCount)
+        assertEquals(3, episodes.size)
+        assertEquals("Pilot", episodes[0].name)
+        assertEquals(1, episodes[0].season)
+        assertEquals(1, episodes[0].episode)
+        assertEquals(
+            "https://hdfilmdelisi.one/uploads/series/1783299038887_ep-6a4afbdeb9eb7f9e210e9a2f-s1-b1.webp",
+            episodes[0].poster,
+        )
+        assertEquals(46 * 60, episodes[0].runtimeSeconds)
+        assertEquals("Wendigo", episodes[1].name)
+        assertEquals(2, episodes[1].episode)
+        assertEquals("Şeytan Tuzağı", episodes[2].name)
+        assertEquals("https://hdfilmdelisi.one/dizi/dogaustu/sezon-1/bolum-22", episodes[2].href)
+        assertEquals((1..15).toList(), HDFilmDelisiMarkup.parseSeasonNumbers(document, episodes))
+        assertEquals(
+            "https://hdfilmdelisi.one/dizi/dogaustu/sezon-15/bolum-1",
+            HDFilmDelisiMarkup.firstEpisodeUrl("$baseUrl/dizi/dogaustu/", 15),
+        )
+    }
+
+    @Test
+    fun parseEpisodes_rejectsLookalikeCrossDomainHosts() {
+        val html = """
+            <a href="https://hdfilmdelisi.one.evil/dizi/dogaustu/sezon-1/bolum-23">fake</a>
+        """.trimIndent()
+        val document = Jsoup.parse(html, "$baseUrl/dizi/dogaustu")
+
+        assertTrue(HDFilmDelisiMarkup.parseEpisodes(document, "$baseUrl/dizi/dogaustu").isEmpty())
     }
 
     @Test

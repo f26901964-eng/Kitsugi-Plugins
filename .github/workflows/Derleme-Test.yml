@@ -14,6 +14,11 @@ on:
       - "build.gradle.kts"
       - "enabled_plugins.txt"
   workflow_dispatch:
+    inputs:
+      plugins:
+        description: "Boşsa tüm etkin eklentiler; örnek: FilmEkseni HDFilmDelisi"
+        required: false
+        default: ""
 
 jobs:
   Derle:
@@ -37,12 +42,18 @@ jobs:
 
       - name: Etkin Eklentileri Derle
         id: build
+        env:
+          REQUESTED_PLUGINS: ${{ inputs.plugins }}
         run: |
           chmod +x gradlew
 
           ENABLED=""
           if [ -f enabled_plugins.txt ]; then
             ENABLED=$(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
+          fi
+          if [ -n "$REQUESTED_PLUGINS" ]; then
+            ENABLED="$REQUESTED_PLUGINS"
+            echo "Manuel derleme listesi: $ENABLED"
           fi
 
           TASKS=""
@@ -89,11 +100,17 @@ jobs:
 
       - name: "Birim Testleri (regresyon)"
         id: test
+        env:
+          REQUESTED_PLUGINS: ${{ inputs.plugins }}
         run: |
           chmod +x gradlew
 
+          TEST_PLUGINS=$(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//' || true)
+          if [ -n "$REQUESTED_PLUGINS" ]; then
+            TEST_PLUGINS="$REQUESTED_PLUGINS"
+          fi
           TEST_TASKS=""
-          for dir in $(grep -vE '^[[:space:]]*(#|$)' enabled_plugins.txt | tr -d '\r' | sed 's/[[:space:]]*$//'); do
+          for dir in $TEST_PLUGINS; do
             if [ -d "$dir/src/test" ]; then
               TEST_TASKS="$TEST_TASKS :$dir:test"
               echo "Test edilecek: $dir"
@@ -132,6 +149,17 @@ jobs:
           fi
 
           echo "✅ Birim testleri başarılı"
+
+      - name: Derlenen eklentileri indirilebilir artifact olarak ekle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kitsugi-Plugins-${{ github.run_id }}
+          path: |
+            FilmEkseni/build/FilmEkseni.cs3
+            HDFilmDelisi/build/HDFilmDelisi.cs3
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Hatayı PR'a Yaz
         if: failure()

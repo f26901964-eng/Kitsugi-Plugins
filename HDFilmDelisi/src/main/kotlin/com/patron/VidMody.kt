@@ -6,11 +6,10 @@ import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
-import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.app
+import kotlinx.coroutines.CancellationException
 
 /**
  * Güncel VidMody akışı (2026):
@@ -52,95 +51,118 @@ class VidMody : ExtractorApi() {
         }
 
         val streamId = HDFilmDelisiPlayerParser.extractVarId(playerHtml)
-        if (!streamId.isNullOrBlank()) {
-            val masterUrl = "https://vidmody.com/vs/$streamId"
+        val masterUrl = streamId?.takeIf { it.isNotBlank() }?.let { "https://vidmody.com/vs/$it" }
+        val masterHeaders = mapOf(
+            "User-Agent" to userAgent,
+            "Referer" to cleanUrl,
+            "Origin" to "https://vidmody.com",
+        )
+        if (masterUrl != null) {
             Log.d(name, "VidMody master playlist: $masterUrl")
-
-            val masterHeaders = mapOf(
-                "User-Agent" to userAgent,
-                "Referer" to cleanUrl,
-                "Origin" to "https://vidmody.com",
-            )
             val masterPlaylist = try {
                 app.get(masterUrl, headers = masterHeaders).text
+            } catch (error: CancellationException) {
+                throw error
             } catch (e: Exception) {
                 Log.e(name, "VidMody master playlist indirilemedi: ${e.message}")
                 ""
             }
 
             if (masterPlaylist.contains("#EXTM3U")) {
-                HDFilmDelisiPlayerParser.hlsSubtitles(masterPlaylist, masterUrl).forEach { track ->
-                    subtitleCallback(newSubtitleFile(track.label, track.url))
-                }
-
-                // Ses parçaları master playlist içindeki AUDIO medya grubunda;
-                // ExoPlayer/Cloudstream oynatıcı bu parçaları otomatik sunar.
-                HDFilmDelisiPlayerParser.hlsAudioTracks(masterPlaylist, masterUrl)
-                    .forEach { track -> Log.d(name, "VidMody ses parçası: ${track.label}") }
-
-                M3u8Helper.generateM3u8(
-                    name,
-                    masterUrl,
-                    cleanUrl,
+                HDFilmDelisiHlsResolver.emit(
+                    url = masterUrl,
+                    source = name,
+                    referer = cleanUrl,
                     headers = masterHeaders,
-                ).forEach(callback)
+                    subtitleCallback = subtitleCallback,
+                    callback = callback,
+                    playlistText = masterPlaylist,
+                )
                 return
             }
         }
 
-        // Eski oynatıcı: şifreli blok içinden HLS çıkarma yedek akışı.
-        resolveLegacyPlayer(playerHtml, cleanUrl, safeReferer, callback)
+        // Eski oynatıcı: önce sayfa içi/şifreli kaynakları dene. Eğer bunlar yoksa
+        // ve yeni biçimde bir ID vardıysa, master URL'yi son bir kez HLS olarak sun.
+        val legacyResolved = resolveLegacyPlayer(playerHtml, cleanUrl, safeReferer, subtitleCallback, callback)
+        if (!legacyResolved && masterUrl != null) {
+            HDFilmDelisiHlsResolver.emit(
+                url = masterUrl,
+                source = name,
+                referer = cleanUrl,
+                headers = masterHeaders,
+                subtitleCallback = subtitleCallback,
+                callback = callback,
+            )
+        }
     }
 
     private suspend fun resolveLegacyPlayer(
         playerBody: String,
         cleanUrl: String,
         referer: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
-    ) {
+    ): Boolean {
         val directFile = HDFilmDelisiPlayerParser.mediaFileFromScript(playerBody)
         if (directFile != null) {
             Log.d(name, "VidMody doğrudan dosya (legacy): $directFile")
             if (directFile.contains(".m3u8", ignoreCase = true)) {
-                M3u8Helper.generateM3u8(
-                    name,
-                    directFile,
-                    referer,
+                HDFilmDelisiHlsResolver.emit(
+                    url = directFile,
+                    source = name,
+                    referer = referer,
                     headers = mapOf("User-Agent" to userAgent, "Referer" to referer),
-                ).forEach(callback)
+                    subtitleCallback = subtitleCallback,
+                    callback = callback,
+                )
             } else {
                 callback(
                     newExtractorLink(name, name, directFile, ExtractorLinkType.VIDEO) {
                         this.referer = referer
                         this.quality = Qualities.Unknown.value
+                        this.headers = mapOf("User-Agent" to userAgent, "Referer" to referer)
                     },
                 )
             }
-            return
+            return true
         }
 
         val jsRegex = Regex("""(?:decrypt|\))\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*(\d+)\s*\)""")
         val jsMatch = jsRegex.find(playerBody) ?: run {
             Log.e(name, "VidMody: ne `var id` ne de şifreli blok bulundu")
-            return
+            return false
         }
 
         val hexString = jsMatch.groupValues[1]
-        val key = jsMatch.groupValues[2].toIntOrNull() ?: return
+        val key = jsMatch.groupValues[2].toIntOrNull() ?: return false
         val decryptedBlock = decrypt(hexString, key)
-        val masterUrl = HDFilmDelisiPlayerParser.mediaFileFromScript(decryptedBlock) ?: return
+        val masterUrl = HDFilmDelisiPlayerParser.mediaFileFromScript(decryptedBlock) ?: return false
 
         val masterHeaders = mapOf(
             "User-Agent" to userAgent,
             "Referer" to cleanUrl,
             "Origin" to "https://vidmody.com",
         )
-        M3u8Helper.generateM3u8(
-            name,
-            masterUrl,
-            cleanUrl,
-            headers = masterHeaders,
-        ).forEach(callback)
+        if (masterUrl.contains(".m3u8", ignoreCase = true)) {
+            HDFilmDelisiHlsResolver.emit(
+                url = masterUrl,
+                source = name,
+                referer = cleanUrl,
+                headers = masterHeaders,
+                subtitleCallback = subtitleCallback,
+                callback = callback,
+            )
+        } else {
+            callback(
+                newExtractorLink(name, name, masterUrl, ExtractorLinkType.VIDEO) {
+                    this.referer = cleanUrl
+                    this.quality = Qualities.Unknown.value
+                    this.headers = masterHeaders
+                },
+            )
+        }
+        return true
     }
 
     private fun decrypt(hex: String, key: Int): String {

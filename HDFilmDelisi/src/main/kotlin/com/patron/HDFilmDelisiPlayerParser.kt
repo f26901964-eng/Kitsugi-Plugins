@@ -22,9 +22,9 @@ internal data class PlayerVideoRef(
     enum class Kind { VIDMODY, DIRECT_MEDIA, EMBED }
 }
 
-internal data class HlsSubtitleTrack(val label: String, val url: String)
+internal data class HlsSubtitleTrack(val label: String, val url: String, val language: String? = null)
 
-internal data class HlsAudioTrack(val label: String, val url: String)
+internal data class HlsAudioTrack(val label: String, val url: String, val language: String? = null)
 
 internal object HDFilmDelisiPlayerParser {
 
@@ -55,7 +55,10 @@ internal object HDFilmDelisiPlayerParser {
         """\bid\s*:\s*["']([^"']+)["']""",
     )
     private val mediaLinePattern = Regex("""#EXT-X-MEDIA:[^\r\n]+""")
-    private val attrPatternCache = HashMap<String, Regex>()
+    private val hlsAttributePattern = Regex(
+        """(?:^|,)\s*([A-Z0-9-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^,]*))""",
+        RegexOption.IGNORE_CASE,
+    )
 
     /**
      * Sayfa HTML'inden sırayla VidMody player, doğrudan medya ve embed
@@ -99,24 +102,46 @@ internal object HDFilmDelisiPlayerParser {
     fun hlsSubtitles(masterPlaylist: String, baseUrl: String): List<HlsSubtitleTrack> =
         mediaLinePattern.findAll(masterPlaylist)
             .map { it.value }
-            .filter { line -> line.contains("TYPE=SUBTITLES", ignoreCase = true) }
             .mapNotNull { line ->
-                val label = attr(line, "NAME") ?: return@mapNotNull null
-                val uri = attr(line, "URI") ?: return@mapNotNull null
-                HlsSubtitleTrack(label, resolveUrl(baseUrl, normalizeUrl(uri)))
+                val attributes = hlsAttributes(line)
+                if (!attributes["TYPE"].equals("SUBTITLES", ignoreCase = true)) return@mapNotNull null
+                val uri = attributes["URI"]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val language = attributes["LANGUAGE"]?.takeIf { it.isNotBlank() }
+                val label = attributes["NAME"]?.takeIf { it.isNotBlank() }
+                    ?: language
+                    ?: "Subtitle"
+                HlsSubtitleTrack(label, resolveUrl(baseUrl, normalizeUrl(uri)), language)
             }
+            .distinctBy { it.url }
             .toList()
+
+    /** Whether a master declares an alternate audio group, including groups without URI. */
+    fun hasHlsAudioRenditions(masterPlaylist: String): Boolean =
+        mediaLinePattern.findAll(masterPlaylist)
+            .map { hlsAttributes(it.value)["TYPE"] }
+            .any { it.equals("AUDIO", ignoreCase = true) }
+
+    /** Whether a master declares subtitles, including playlists handled natively by the player. */
+    fun hasHlsSubtitleRenditions(masterPlaylist: String): Boolean =
+        mediaLinePattern.findAll(masterPlaylist)
+            .map { hlsAttributes(it.value)["TYPE"] }
+            .any { it.equals("SUBTITLES", ignoreCase = true) }
 
     /** HLS master playlistindeki tüm ses medya gruplarını çıkarır. */
     fun hlsAudioTracks(masterPlaylist: String, baseUrl: String): List<HlsAudioTrack> =
         mediaLinePattern.findAll(masterPlaylist)
             .map { it.value }
-            .filter { line -> line.contains("TYPE=AUDIO", ignoreCase = true) }
             .mapNotNull { line ->
-                val label = attr(line, "NAME") ?: return@mapNotNull null
-                val uri = attr(line, "URI") ?: return@mapNotNull null
-                HlsAudioTrack(label, resolveUrl(baseUrl, normalizeUrl(uri)))
+                val attributes = hlsAttributes(line)
+                if (!attributes["TYPE"].equals("AUDIO", ignoreCase = true)) return@mapNotNull null
+                val uri = attributes["URI"]?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val language = attributes["LANGUAGE"]?.takeIf { it.isNotBlank() }
+                val label = attributes["NAME"]?.takeIf { it.isNotBlank() }
+                    ?: language
+                    ?: "Audio"
+                HlsAudioTrack(label, resolveUrl(baseUrl, normalizeUrl(uri)), language)
             }
+            .distinctBy { it.url }
             .toList()
 
     /** Göreceli bir HLS varlık adresini mutlak hale getirir. */
@@ -139,8 +164,17 @@ internal object HDFilmDelisiPlayerParser {
         .replace("\\", "")
         .trim()
 
-    private fun attr(line: String, key: String): String? {
-        val regex = attrPatternCache.getOrPut(key) { Regex("""$key="([^"]+)"""") }
-        return regex.find(line)?.groupValues?.getOrNull(1)
-    }
+    private fun hlsAttributes(line: String): Map<String, String> =
+        hlsAttributePattern.findAll(line.substringAfter(':', ""))
+            .mapNotNull { match ->
+                val key = match.groupValues[1].uppercase(java.util.Locale.ROOT)
+                val value = sequenceOf(
+                    match.groupValues.getOrNull(2),
+                    match.groupValues.getOrNull(3),
+                    match.groupValues.getOrNull(4),
+                ).filterNotNull().firstOrNull { it.isNotBlank() }?.trim()
+                    ?: return@mapNotNull null
+                key to value
+            }
+            .toMap()
 }

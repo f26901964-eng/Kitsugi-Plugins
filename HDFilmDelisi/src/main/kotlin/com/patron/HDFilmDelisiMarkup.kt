@@ -1,7 +1,7 @@
 package com.patron
 
 import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
+import java.net.URI
 
 /**
  * hdfilmdelisi.one işlenmiş HTML'i (Next.js SSR) üzerinden saf veri çıkaran
@@ -31,6 +31,8 @@ internal data class DetailData(
     val tags: List<String>,
     val actors: List<ActorInfo>,
     val trailerYoutubeId: String?,
+    val seasonCount: Int? = null,
+    val episodeCount: Int? = null,
 )
 
 internal data class EpisodeData(
@@ -38,6 +40,8 @@ internal data class EpisodeData(
     val href: String,
     val season: Int,
     val episode: Int,
+    val poster: String? = null,
+    val runtimeSeconds: Int? = null,
 )
 
 internal object HDFilmDelisiMarkup {
@@ -48,6 +52,16 @@ internal object HDFilmDelisiMarkup {
     private val imdbPattern = Regex("""IMDb\s*:\s*([0-9](?:[.,]\d)?)""", RegexOption.IGNORE_CASE)
     private val seasonPattern = Regex("""(?:sezon|season)[-_]?(\d+)""", RegexOption.IGNORE_CASE)
     private val episodePattern = Regex("""(?:bolum|bölüm|episode|ep)[-_]?(\d+)""", RegexOption.IGNORE_CASE)
+    private val episodeRoutePattern = Regex(
+        """/(?:sezon|season)-?(\d+)/(?:bolum|bölüm|episode|ep)-?(\d+)(?:/|$)""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val seriesCountPattern = Regex(
+        """(\d+)\s*Sezon\s*[·•]\s*(\d+)\s*Bölüm""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val seasonTabPattern = Regex("""^\s*(\d+)\s*\.?\s*Sezon\s*$""", RegexOption.IGNORE_CASE)
+    private val reverseSeasonTabPattern = Regex("""^\s*Sezon\s*(\d+)\s*$""", RegexOption.IGNORE_CASE)
 
     /** Ana sayfa, kategori ve arama sonuçlarındaki poster kartlarını ayrıştırır. */
     fun parseCards(document: Document): List<CardData> {
@@ -122,6 +136,9 @@ internal object HDFilmDelisiMarkup {
         val duration = spanTexts.firstNotNullOfOrNull { text ->
             durationPattern.find(text)?.groupValues?.get(1)?.toIntOrNull()
         }
+        val seriesCounts = seriesCountPattern.find(document.text())
+        val seasonCount = seriesCounts?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val episodeCount = seriesCounts?.groupValues?.getOrNull(2)?.toIntOrNull()
 
         val tags = document.select("a[href*='/tur/']")
             .filter { it.closest("nav, header, footer") == null }
@@ -158,51 +175,109 @@ internal object HDFilmDelisiMarkup {
             tags = tags,
             actors = actors,
             trailerYoutubeId = trailerYoutubeId,
+            seasonCount = seasonCount,
+            episodeCount = episodeCount,
         )
     }
 
     /**
-     * Dizi detay sayfasındaki bölüm bağlantılarını toplar. Sayfa yapısı değişse
-     * bile çalışması için yalnızca URL kalıbına göre sezon/bölüm numarası türetir.
+     * Dizi sayfasında render edilmiş sezon/bölüm kartlarını toplar. HDFilmDelisi'nin
+     * doğrulanmış route biçimi `/dizi/{slug}/sezon-N/bolum-N` şeklindedir.
      */
     fun parseEpisodes(document: Document, seriesUrl: String): List<EpisodeData> {
-        val baseHref = seriesUrl.removeSuffix("/")
+        val baseUri = runCatching { URI(seriesUrl) }.getOrNull()
+        val baseHost = baseUri?.host.orEmpty()
+        val seriesPath = baseUri?.path?.trimEnd('/').orEmpty()
+        if (seriesPath.isBlank()) return emptyList()
 
-        val candidates = document.select("a[href]").mapNotNull { anchor ->
+        return document.select("a[href]").mapNotNull { anchor ->
             val href = anchor.attr("href").trim()
             if (href.isBlank() || href.startsWith("#")) return@mapNotNull null
-            val absolute = when {
-                href.startsWith("http") -> href
-                href.startsWith("/") -> {
-                    val root = Regex("""(https?://[^/]+)""").find(seriesUrl)?.groupValues?.get(1).orEmpty()
-                    "$root$href"
-                }
-                else -> "$baseHref/$href"
-            }
-            if (!absolute.startsWith(baseHref) || absolute == baseHref) return@mapNotNull null
-            if (!absolute.contains(Regex("""(sezon|season|bolum|bölüm|episode|ep)[-_]?\d""", RegexOption.IGNORE_CASE)) &&
-                !absolute.removePrefix(baseHref).contains(Regex("""\d"""))
-            ) {
+
+            val absolute = runCatching {
+                baseUri?.resolve(href)?.normalize()
+            }.getOrNull() ?: return@mapNotNull null
+            val path = absolute.path.orEmpty()
+
+            // Hostu URI ile karşılaştır: startsWith(baseUrl) tek başına
+            // hdfilmdelisi.one.evil gibi sahte hostları da kabul ederdi.
+            if (baseHost.isNotBlank() && !baseHost.equals(absolute.host, ignoreCase = true)) {
                 return@mapNotNull null
             }
-            absolute
-        }.distinct()
+            if (!path.startsWith("$seriesPath/")) return@mapNotNull null
 
-        val episodes = candidates.mapIndexed { index, href ->
-            val season = seasonPattern.find(href)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-            val episode = episodePattern.find(href)?.groupValues?.get(1)?.toIntOrNull()
-                ?: Regex("""[-_](\d+)(?:\?|#|$)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
-                ?: (index + 1)
+            val route = episodeRoutePattern.find(path)
+            val hasEpisodeToken = Regex(
+                """(?:bolum|bölüm|episode|ep)[-_]?\d""",
+                RegexOption.IGNORE_CASE,
+            ).containsMatchIn(path)
+            if (route == null && !hasEpisodeToken) return@mapNotNull null
+
+            val season = route?.groupValues?.getOrNull(1)?.toIntOrNull()
+                ?: seasonPattern.find(path)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                ?: 1
+            val episode = route?.groupValues?.getOrNull(2)?.toIntOrNull()
+                ?: episodePattern.find(path)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                ?: return@mapNotNull null
+
+            val image = anchor.selectFirst("img")
+            val episodeTitle = image?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
+                ?: anchor.attr("title").trim().ifBlank { null }
+            val name = episodeTitle ?: "$episode. Bölüm"
+            val poster = image?.let { img ->
+                val attribute = if (img.attr("data-src").isNotBlank()) "data-src" else "src"
+                img.absUrl(attribute).ifBlank { img.attr(attribute) }.ifBlank { null }
+            }
+            val runtimeSeconds = durationPattern.find(anchor.text())?.groupValues?.getOrNull(1)
+                ?.toIntOrNull()?.times(60)
+
             EpisodeData(
-                name = "$season. Sezon $episode. Bölüm",
-                href = href,
+                name = name,
+                href = absolute.toString(),
                 season = season,
                 episode = episode,
+                poster = poster,
+                runtimeSeconds = runtimeSeconds,
             )
-        }.distinctBy { "${it.season}-${it.episode}" }
+        }
+            .distinctBy { "${it.season}-${it.episode}" }
             .sortedWith(compareBy({ it.season }, { it.episode }))
+    }
 
-        return episodes
+    /**
+     * Sezon sayısı varsa 1..N aralığını, yoksa gerçek sezon sekmelerini ve
+     * bölüm linklerinden çıkan sezonları döndürür.
+     */
+    fun parseSeasonNumbers(document: Document, episodes: List<EpisodeData>): List<Int> {
+        val declaredCount = seriesCountPattern.find(document.text())
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?.takeIf { it in 1..100 }
+        if (declaredCount != null) return (1..declaredCount).toList()
+
+        val tabSeasons = document.select("a, button, [role=tab], [role=button], [data-season], [data-season-number]")
+            .mapNotNull { element ->
+                val label = element.text().trim()
+                seasonTabPattern.matchEntire(label)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    ?: reverseSeasonTabPattern.matchEntire(label)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                    ?: listOf("data-season", "data-season-number", "value")
+                        .asSequence()
+                        .map { element.attr(it) }
+                        .mapNotNull { value ->
+                            seasonPattern.find(value)?.groupValues?.getOrNull(1)?.toIntOrNull()
+                                ?: value.toIntOrNull()
+                        }
+                        .firstOrNull()
+            }
+        return (tabSeasons + episodes.map { it.season })
+            .filter { it in 0..100 }
+            .distinct()
+            .sorted()
+    }
+
+    /** Route builder based on the live site's season/episode URLs. */
+    fun firstEpisodeUrl(seriesUrl: String, season: Int): String {
+        val cleanSeriesUrl = seriesUrl.substringBefore('?').substringBefore('#').trimEnd('/')
+        return "$cleanSeriesUrl/sezon-$season/bolum-1"
     }
 
     /** Arama RSC payload içinde kalmış olabilecek slug'ları yedek olarak çıkarır. */
