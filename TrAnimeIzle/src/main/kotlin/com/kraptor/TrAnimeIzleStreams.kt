@@ -496,21 +496,47 @@ internal class TrAnimeIzleStreams(
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val id = Regex("""/d/([A-Za-z0-9_-]{6,})""").find(url)?.groupValues?.getOrNull(1)
-        val bridged = "https://gdriveplayer.to/embed2.php?link=" +
-            java.net.URLEncoder.encode(url, "UTF-8")
-        if (tryExtractors(bridged, referer, label, subtitleCallback, callback)) return true
-        if (id != null) {
-            // Son çare: doğrudan indirme adresi (bazı dosyalarda çalar).
-            emitMedia(
-                "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t",
-                label,
-                referer,
-                callback,
-                trusted = true
-            )
+            ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+
+        // Drive uyarı sayfasındaki gizli form alanlarından GERÇEK indirme adresi.
+        // (Büyük dosyalarda `...&confirm=t` tek başına HTML döndürüyor.)
+        val page = http.get(
+            "https://drive.usercontent.google.com/download?id=$id&export=download",
+            "https://drive.google.com/"
+        )
+        val resolved = page?.let { driveDownloadUrl(it) }
+        if (resolved != null) {
+            emitMedia(resolved, label, "https://drive.google.com/", callback, trusted = true)
             return true
         }
-        return false
+        emitMedia(
+            "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t",
+            label,
+            "https://drive.google.com/",
+            callback,
+            trusted = true
+        )
+        return true
+    }
+
+    /** Drive uyarı sayfası → gerçek indirme adresi (form alanları veya hazır bağlantı). */
+    private fun driveDownloadUrl(body: String): String? {
+        if (body.isBlank()) return null
+        val unescaped = body.replace("&amp;", "&").replace("\\/", "/")
+        val ready = Regex("""(https://drive\.usercontent\.google\.com/download\?[^"'<>\\\s]+)""")
+            .find(unescaped)?.groupValues?.getOrNull(1)
+        if (ready != null && ready.contains("confirm=")) return ready
+        val action = Regex("""<form[^>]+action="(https://drive\.usercontent\.google\.com/download[^"]*)"""")
+            .find(unescaped)?.groupValues?.getOrNull(1) ?: return ready
+        val fields = Regex("""<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"""")
+            .findAll(unescaped)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        if (fields.isEmpty()) return ready
+        val query = fields.entries.joinToString("&") {
+            "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
+        }
+        return "$action?$query"
     }
 
     // ------------------------------------------------------------------

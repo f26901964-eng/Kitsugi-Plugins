@@ -581,28 +581,7 @@ internal class AnizmStreams(
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
 
         if (url.contains("drive.google") || url.contains("docs.google")) {
-            // Yerel çözüm önce: sitedeki "GDrive" kaynakları `/player/{id}`
-            // üzerinden `drive.google.com/file/d/<id>/preview` adresine gidiyor.
-            // Doğrudan indirme ucu (usercontent) ağ beklemeden yayınlanır;
-            // böylece her GDrive kaynağı için 10-20 sn'lik köprü denemesi
-            // yapılması gerekmez.
-            val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
-                ?.groupValues?.getOrNull(1)
-                ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)
-                    ?.groupValues?.getOrNull(1)
-            if (fileId != null) {
-                emitMedia(
-                    "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
-                    label,
-                    referer,
-                    callback,
-                    trusted = true
-                )
-                return true
-            }
-            val bridged = "https://gdriveplayer.to/embed2.php?link=" +
-                URLEncoder.encode(url, "UTF-8")
-            if (tryExtractors(bridged, referer, label, subtitleCallback, callback)) return true
+            if (resolveGoogleDrive(url, label, referer, callback)) return true
         }
 
         if (tryExtractors(url, referer, label, subtitleCallback, callback)) return true
@@ -646,6 +625,74 @@ internal class AnizmStreams(
     private fun isOkRu(url: String): Boolean {
         val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
         return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    }
+
+    /**
+     * **Google Drive** — Anizm'de en sık geçen kaynak türü ("GDrive").
+     *
+     * Ölçüm (26.10.2026): `/player/{id}` → 302 → `drive.google.com/file/d/<id>/preview`.
+     * `drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`
+     * adresi büyük dosyalarda **HTML uyarı sayfası** döndürüyor (content-type
+     * text/html) → oynatıcı açılmıyordu. Doğru yol, tarayıcının yaptığı gibi o
+     * sayfadaki gizli form alanlarını (`id/export/confirm/uuid`) alıp gerçek
+     * indirme adresini kurmaktır.
+     */
+    private suspend fun resolveGoogleDrive(
+        url: String,
+        label: String,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
+            ?.groupValues?.getOrNull(1)
+            ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)
+                ?.groupValues?.getOrNull(1)
+            ?: return false
+
+        // 1) Uyarı sayfasını çek ve gizli form alanlarından gerçek adresi kur.
+        val warningPage = http.get(
+            "https://drive.usercontent.google.com/download?id=$fileId&export=download",
+            "https://drive.google.com/"
+        )
+        val resolved = warningPage?.let { driveDownloadUrl(it) }
+        if (resolved != null) {
+            Log.d(TAG, "gdrive: form çözümlendi ($fileId)")
+            emitMedia(resolved, label, "https://drive.google.com/", callback, trusted = true)
+            return true
+        }
+
+        // 2) Uyarı sayfası yoksa dosya doğrudan iniyordur.
+        emitMedia(
+            "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
+            label,
+            "https://drive.google.com/",
+            callback,
+            trusted = true
+        )
+        return true
+    }
+
+    /**
+     * Drive uyarı sayfasındaki `<form action=…>` + gizli `<input>` alanlarını
+     * gerçek indirme adresine çevirir. Alternatif olarak sayfada hazır duran
+     * `drive.usercontent.google.com/download?…` bağlantısı da kabul edilir.
+     */
+    private fun driveDownloadUrl(body: String): String? {
+        if (body.isBlank()) return null
+        val unescaped = body.replace("&amp;", "&").replace("\\/", "/")
+        val ready = Regex("""(https://drive\.usercontent\.google\.com/download\?[^"'<>\\\s]+)""")
+            .find(unescaped)?.groupValues?.getOrNull(1)
+        if (ready != null && ready.contains("confirm=")) return ready
+        val action = Regex("""<form[^>]+action="(https://drive\.usercontent\.google\.com/download[^"]*)"""")
+            .find(unescaped)?.groupValues?.getOrNull(1) ?: return ready
+        val fields = Regex("""<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"""")
+            .findAll(unescaped)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        if (fields.isEmpty()) return ready
+        val query = fields.entries.joinToString("&") {
+            "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}"
+        }
+        return "$action?$query"
     }
 
     private fun isSibnet(url: String): Boolean =
