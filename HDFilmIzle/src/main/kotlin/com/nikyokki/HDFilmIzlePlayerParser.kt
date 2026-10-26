@@ -78,6 +78,10 @@ object HDFilmIzlePlayerParser {
         fun add(rawUrl: String, lang: String = "", playerName: String = "") {
             val url = resolveUrl(rawUrl.replace("\\/", "/").replace("\\", ""), baseUrl) ?: return
             if (junkFrame.containsMatchIn(url)) return
+            // JS tarafında doldurulması gereken ama ham HTML'de ölü kalan şablonlar
+            // (ör. ".../player/${src}") gerçek çerçeve değildir; yanında gelen
+            // statik iframe'ler (vidrame vb.) zaten ayrı toplanır.
+            if (url.contains("\${") || url.contains("{{")) return
             ordered.putIfAbsent(url, PageFrame(url, lang, playerName))
         }
 

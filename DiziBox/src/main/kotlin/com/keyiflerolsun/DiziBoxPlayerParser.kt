@@ -359,7 +359,7 @@ internal object DiziBoxPlayerParser {
         elements.mapNotNull { iframe ->
             val candidates = listOf(iframe.attr("src"), iframe.attr("data-src"))
             candidates.firstNotNullOfOrNull { candidate -> resolveUrl(candidate, pageUrl) }
-        }.distinct()
+        }.filterNot { it.contains("\${") || it.contains("{{") }.distinct()
 
     private fun mediaSourceFromObject(sourceObject: String): MediaSource? {
         val fileMatch = fileProperty.find(sourceObject) ?: return null

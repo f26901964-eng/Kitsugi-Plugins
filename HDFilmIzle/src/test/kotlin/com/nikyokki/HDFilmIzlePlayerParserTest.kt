@@ -97,6 +97,27 @@ class HDFilmIzlePlayerParserTest {
     }
 
     @Test
+    fun pageFramesDropsUnresolvedJsTemplatePlaceholders() {
+        // Canlı dökümde görülen gerçek durum: JS'in doldurması gereken ölü bir
+        // şablon iframe'i (${src}) yanında gerçek vidrame çerçeveleri duruyor.
+        val html = """
+            <iframe src="https://www.hdfilmizle.to/dizi/pluribus/${'$'}{src}"></iframe>
+            <iframe data-src="https://vidrame.pro/vr/0abac375"></iframe>
+            <iframe src="https://vidrame.pro/vr/395c60dd"></iframe>
+        """.trimIndent()
+
+        val frames = HDFilmIzlePlayerParser.pageFrames(html, pageUrl)
+
+        assertEquals(
+            listOf(
+                "https://vidrame.pro/vr/0abac375",
+                "https://vidrame.pro/vr/395c60dd",
+            ),
+            frames.map { it.url },
+        )
+    }
+
+    @Test
     fun partFramesManualFallbackWorksWhenJsonIsLoose() {
         val loose = """[{"name":"SetPlay","lang":"tr","data":"<iframe src=\"https:\/\/setplay.shop\/player\/stfplay.php?t=1\"><\/iframe>"}]"""
         val frames = HDFilmIzlePlayerParser.partFrames(loose)

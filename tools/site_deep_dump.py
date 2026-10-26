@@ -531,6 +531,11 @@ HDFILM_BASE = "https://www.hdfilmizle.to"
 DIZIBOX_COOKIE_HEADER = {"Cookie": "LockUser=true; isTrustedUser=true; dbxu=1743289650198"}
 _IFRAME_RE = re.compile(r"(?i)<iframe[^>]+(?:src|data-src)\s*=\s*[\"']([^\"']+)[\"']")
 _OPTION_RE = re.compile(r"(?i)<option[^>]+value\s*=\s*[\"']([^\"']+)[\"']")
+
+
+def _is_template(url: str) -> bool:
+    """JS'in doldurması gereken ölü şablonlar (ör. .../player/${src}) gerçek çerçeve değildir."""
+    return "${" in url or "{{" in url
 _PLAYER_HINT = re.compile(r"(?i)vidrame|vidmoxy|vidmoly|setplay|fastplay|stfplay|molystream|king\.php|moly\.php|haydi\.php")
 
 
@@ -594,7 +599,7 @@ def dump_dizibox() -> None:
         frames += [m.group(1) for m in _IFRAME_RE.finditer(alt_page.text or "") if _PLAYER_HINT.search(m.group(1))]
 
     seen: set[str] = set()
-    for i, raw in enumerate(uniq(frames)[:5]):
+    for i, raw in enumerate(uniq(f for f in frames if not _is_template(f))[:5]):
         frame = urllib.parse.urljoin(episode, html_mod.unescape(raw).replace(r"\/", "/"))
         if frame in seen:
             continue
@@ -632,7 +637,7 @@ def dump_hdfilmizle() -> None:
     for block in parts_blocks:
         frames += _IFRAME_RE.findall(block.replace(r"\/", "/").replace(r"\"", '"'))
     seen: set[str] = set()
-    for i, raw in enumerate(uniq(frames)[:5]):
+    for i, raw in enumerate(uniq(f for f in frames if not _is_template(f))[:5]):
         frame = urllib.parse.urljoin(episode, html_mod.unescape(raw).replace(r"\/", "/"))
         if not frame.startswith("http") or frame in seen:
             continue
