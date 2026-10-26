@@ -515,6 +515,10 @@ internal class AnizmStreams(
             }
         }
 
+        // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
+        if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
+        if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
+
         if (url.contains("drive.google") || url.contains("docs.google")) {
             val bridged = "https://gdriveplayer.to/embed2.php?link=" +
                 URLEncoder.encode(url, "UTF-8")
@@ -548,6 +552,67 @@ internal class AnizmStreams(
             if (resolveTarget(inner, url, label, subtitleCallback, callback, depth + 1)) found = true
         }
         return found
+    }
+
+    // ------------------------------------------------------------------
+    // Yerel host çözücüleri (ok.ru, sibnet)
+    // ------------------------------------------------------------------
+
+    private fun isOkRu(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
+        return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    }
+
+    private fun isSibnet(url: String): Boolean =
+        url.contains("sibnet.ru", ignoreCase = true)
+
+    /**
+     * ok.ru: `metadataUrl` → `{videos:[{name,url}], hlsManifestUrl}`.
+     * (Tarayıcıdaki `postMessage`/`flashvars` yolunun HTTP karşılığı.)
+     */
+    private suspend fun resolveOkRu(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val id = Regex("""(?:videoembed|video)/(\d{6,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        val body = http.get("https://ok.ru/dk?cmd=videoPlayerMetadata&mid=$id", "$OKRU/") ?: return false
+        val json = runCatching { JSONObject(body.trim()) }.getOrNull() ?: return false
+        var found = false
+        json.optString("hlsManifestUrl").takeIf { it.startsWith("http") }?.let { hls ->
+            emitMedia(hls, label, "$OKRU/", callback)
+            found = true
+        }
+        json.optJSONArray("videos")?.let { videos ->
+            for (index in 0 until videos.length()) {
+                val item = videos.optJSONObject(index) ?: continue
+                val file = item.optString("url")
+                if (!file.startsWith("http")) continue
+                val name = item.optString("name")
+                emitMedia(file, if (name.isBlank()) label else "$label • $name", "$OKRU/", callback)
+                found = true
+            }
+        }
+        return found
+    }
+
+    /** sibnet: `shell.php?videoid=<id>` → `player.src([{src:"/videos/…"}])`. */
+    private suspend fun resolveSibnet(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val id = Regex("""(?:videoid=|/video)(\d{3,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: Regex("""/([A-Za-z0-9_-]{6,})/?$""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        val shell = if (url.contains("shell.php")) url else "$SIBNET/shell.php?videoid=$id"
+        val body = http.get(shell, "$SIBNET/") ?: return false
+        val path = Regex("""player\.src\(\[\{src:\s*["']([^"']+)["']""").find(body)?.groupValues?.getOrNull(1)
+            ?: Regex("""["'](/videos/[^"']+\.(?:mp4|m3u8)[^"']*)["']""").find(body)?.groupValues?.getOrNull(1)
+            ?: return false
+        emitMedia(AnizmSite.absolute("$SIBNET/", path) ?: path, label, "$SIBNET/", callback)
+        return true
     }
 
     private fun buildLabel(source: Source): String {
@@ -831,6 +896,8 @@ internal class AnizmStreams(
     companion object {
         private const val TAG = "hexated_AnizmStreams"
         private const val PLAYER_HOST = "https://anizmplayer.com"
+        private const val OKRU = "https://ok.ru"
+        private const val SIBNET = "https://video.sibnet.ru"
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
         private const val TOTAL_BUDGET_MS = 30_000L
