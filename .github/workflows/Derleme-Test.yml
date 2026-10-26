@@ -360,6 +360,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           rm -rf /tmp/probepush && mkdir -p /tmp/probepush
           cd /tmp/probepush
@@ -373,7 +374,12 @@ jobs:
           fi
           git add -A
           git commit -qm "spa probe ${GITHUB_RUN_ID}" || true
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:spa-probe && echo "spa-probe itildi"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:spa-probe && echo "spa-probe itildi" || true
+          cd - >/dev/null
+          if [ -s /tmp/probepush/audit-ozet.txt ] && [ -n "$PR_NUMBER" ]; then
+            { echo "## Kaynak verdict dökümü"; echo; echo '```'; head -c 55000 /tmp/probepush/audit-ozet.txt; echo '```'; } > /tmp/verdict.md
+            gh pr comment "$PR_NUMBER" --body-file /tmp/verdict.md || true
+          fi
 
       - name: Hatayı PR'a Yaz
         if: failure()
