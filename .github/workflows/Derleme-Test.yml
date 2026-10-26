@@ -369,7 +369,7 @@ jobs:
           git checkout -q -b spa-probe
           if [ -f /tmp/audit-anizm.log ]; then
             grep -a "\[PROBE\]" /tmp/audit-anizm.log | sed 's/^.*\[PROBE\]//' > spa-probe.txt || true
-            grep -a "SORUNLU\|KAPSANMIYOR\|ÖZET\|toplam kaynak\|kapsamında\|oynatılabilir" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' > audit-ozet.txt || true
+            grep -a "SORUNLU\|KAPSANMIYOR\|ÖZET\|toplam kaynak\|kapsamında\|oynatılabilir\|    · \|      drive form" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' > audit-ozet.txt || true
           fi
           git add -A
           git commit -qm "spa probe ${GITHUB_RUN_ID}" || true
