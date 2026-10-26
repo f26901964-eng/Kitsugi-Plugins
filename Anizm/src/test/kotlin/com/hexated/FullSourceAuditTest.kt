@@ -261,8 +261,20 @@ class FullSourceAuditTest {
     private fun sistennProbe(loc: String, host: String): String {
         val origin = "https://$host"
         val code = loc.substringAfter('#', "").takeIf { it.length in 4..32 } ?: return "kod yok"
-        raw("$origin/api/v1/info?id=$code", "$origin/")
-        val r = raw("$origin/api/v1/video?id=$code&w=1920&h=1080&r=anizm.com.tr", "$origin/")
+        val apiExtra = mapOf(
+            "Origin" to origin,
+            "Accept" to "*/*",
+            "Sec-Fetch-Site" to "same-origin",
+            "Sec-Fetch-Mode" to "cors",
+            "Sec-Fetch-Dest" to "empty"
+        )
+        raw("$origin/api/v1/info?id=$code", "$origin/", xhr = true, extra = apiExtra)
+        val r = raw(
+            "$origin/api/v1/video?id=$code&w=1920&h=1080&r=anizm.com.tr",
+            "$origin/",
+            xhr = true,
+            extra = apiExtra
+        )
         if (r.status !in 200..299) return "HATA ${r.status} (video)"
         val plain = sisDecrypt(r.body ?: "") ?: return "HATA (AES çözülemedi, ${r.bytes}B)"
         val json = runCatching { org.json.JSONObject(plain) }.getOrNull() ?: return "HATA (JSON değil)"

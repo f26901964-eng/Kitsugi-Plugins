@@ -676,6 +676,18 @@ class TrAnimeIzle(
             if (!resp.isSuccessful) null else resp.text
         }
 
+    override suspend fun getWith(url: String, extra: Map<String, String>): String? =
+        guarded("GET(w) ${url.take(110)}") {
+            val base = url.substringBefore("/api/").ifEmpty { mainUrl }
+            val resp = app.get(
+                url,
+                headers = browserHeaders(lastCookie, "$base/") + extra,
+                timeout = 12
+            )
+            mergeCookies(resp.cookies)
+            if (!resp.isSuccessful) null else resp.text
+        }
+
     override suspend fun postJson(url: String, json: String, referer: String?): String? =
         guarded("POST-JSON ${url.take(110)}") {
             // site.js (axios) birebir JSON gövdesi gönderir; form gövde kaynak

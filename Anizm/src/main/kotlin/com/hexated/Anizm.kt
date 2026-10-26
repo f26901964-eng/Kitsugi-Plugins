@@ -797,6 +797,21 @@ class Anizm : MainAPI(), AnizmHttp {
     override suspend fun location(url: String, referer: String?): String? =
         followLocation(url, referer ?: mainUrl + "/")
 
+    override suspend fun getWith(url: String, extra: Map<String, String>): String? = try {
+        val base = url.substringBefore("/api/").ifEmpty { mainUrl }
+        val response = app.get(
+            url,
+            headers = headers("$base/", true) + extra,
+            timeout = 12L
+        )
+        if (!response.isSuccessful) null else response.text
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(LOG_TAG, "GET(w) hatası (${e.javaClass.simpleName}): ${url.take(120)}")
+        null
+    }
+
     override suspend fun postJson(url: String, json: String, referer: String?): String? =
         postText(
             url = url,

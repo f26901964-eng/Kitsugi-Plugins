@@ -752,10 +752,16 @@ internal class AnizmStreams(
         val code = match.groupValues[2]
         val origin = "https://$host"
         val siteHost = runCatching { java.net.URI(base()).host.orEmpty() }.getOrDefault("")
-        val apiHeaders = streamHeaders("$origin/") + mapOf("Origin" to origin, "Accept" to "*/*")
+        val apiHeaders = streamHeaders("$origin/") + mapOf(
+            "Origin" to origin,
+            "Accept" to "*/*",
+            "Sec-Fetch-Site" to "same-origin",
+            "Sec-Fetch-Mode" to "cors",
+            "Sec-Fetch-Dest" to "empty"
+        )
 
         // Sayfa önce /info'yu çağırır; kimlik geçersizse hemen söyler.
-        runCatching { http.get("$origin/api/v1/info?id=$code", "$origin/") }
+        runCatching { http.getWith("$origin/api/v1/info?id=$code", apiHeaders) }
 
         var capacity: Pair<String, String>? = null
         var video: JSONObject? = null
@@ -766,7 +772,7 @@ internal class AnizmStreams(
                     "&capacityTokenExpire=" + URLEncoder.encode(it.second, "UTF-8")
             }.orEmpty()
             val target = "$origin/api/v1/video?id=$code&w=1920&h=1080&r=$siteHost$capQuery"
-            val body = http.get(target, "$origin/")
+            val body = http.getWith(target, apiHeaders)
             if (body.isNullOrBlank()) return false
             val plain = sistennDecrypt(body.trim()) ?: run {
                 Log.d(TAG, "Sistenn: yanıt çözülemedi (${body.take(24)})")
@@ -1520,6 +1526,9 @@ internal interface AnizmHttp {
 
     /** Yönlendirme İZLENMEDEN GET → `Location` başlığı (302 hedefi). */
     suspend fun location(url: String, referer: String? = null): String?
+
+    /** Başlık denetimli GET (Sistenn `/api/v1/*` uçları Origin/Sec-Fetch bekler). */
+    suspend fun getWith(url: String, extra: Map<String, String>): String?
 
     /** JSON gövdeli POST (FireStream `resolve` gibi uçlar). */
     suspend fun postJson(url: String, json: String, referer: String? = null): String?
