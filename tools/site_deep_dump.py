@@ -645,16 +645,8 @@ def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     which = args[0].lower() if args else "all"
     os.makedirs(OUT, exist_ok=True)
-    if which in ("all", "anizm"):
-        try:
-            dump_anizm()
-        except Exception as exc:  # noqa: BLE001
-            log(f"- !! Anizm dökümü çöktü: {exc!r}")
-    if which in ("all", "tranime", "tranimeizle"):
-        try:
-            dump_tranimeizle()
-        except Exception as exc:  # noqa: BLE001
-            log(f"- !! TrAnimeIzle dökümü çöktü: {exc!r}")
+    # Önce PR'ın öznesi olan iki site dökülsün: uzun anizm dökümü iş
+    # bütçesini tüketip bizimkileri aç bırakmasın.
     if which in ("all", "dizibox"):
         try:
             dump_dizibox()
@@ -665,6 +657,16 @@ def main() -> int:
             dump_hdfilmizle()
         except Exception as exc:  # noqa: BLE001
             log(f"- !! HDFilmİzle dökümü çöktü: {exc!r}")
+    if which in ("all", "anizm"):
+        try:
+            dump_anizm()
+        except Exception as exc:  # noqa: BLE001
+            log(f"- !! Anizm dökümü çöktü: {exc!r}")
+    if which in ("all", "tranime", "tranimeizle"):
+        try:
+            dump_tranimeizle()
+        except Exception as exc:  # noqa: BLE001
+            log(f"- !! TrAnimeIzle dökümü çöktü: {exc!r}")
     save("SUMMARY.md", "\n".join(LOG) + "\n")
     return 0
 

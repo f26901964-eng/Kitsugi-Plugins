@@ -278,11 +278,11 @@ object HDFilmIzlePlayerParser {
             }
         }
 
-        // tracks / configs.tracks blokları
-        Regex("""(?:tracks|configs)\s*:\s*(\[[\s\S]*?\])""").findAll(script).forEach { blockMatch ->
-            val block = blockMatch.groupValues[1]
-            Regex("""\{[^{}]*\}""").findAll(block).forEach { objMatch ->
-                val obj = objMatch.value
+        // tracks / configs.tracks blokları — fx iç içe dizileri nedeniyle dengeli dilim şart.
+        Regex("""(?:tracks|configs)\s*:\s*\[""").findAll(script).forEach { marker ->
+            val start = script.indexOf('[', marker.range.first)
+            val block = balancedSlice(script, start) ?: return@forEach
+            balancedObjects(block).forEach { obj ->
                 if (obj.contains("thumbnails", true)) return@forEach
                 val label = Regex("""label\s*:\s*["']([^"']*)["']""").find(obj)?.groupValues?.get(1).orEmpty()
                 val lang = Regex("""(?:lang|srclang)\s*:\s*["']([^"']*)["']""").find(obj)?.groupValues?.get(1).orEmpty()
@@ -332,10 +332,11 @@ object HDFilmIzlePlayerParser {
 
     /** FastPlay `subtitles: [...]` bloğunu ayrıştırır; küçük resim parçalarını atlar. */
     fun fastplaySubtitles(html: String, baseUrl: String): List<JsTrack> {
-        val block = subtitlesBlockRegex.find(html)?.groupValues?.get(1) ?: return emptyList()
+        val marker = subtitlesBlockRegex.find(html) ?: return emptyList()
+        val start = html.indexOf('[', marker.range.first)
+        val block = balancedSlice(html, start) ?: return emptyList()
         val out = mutableListOf<JsTrack>()
-        Regex("""\{[^{}]*\}""").findAll(block).forEach { match ->
-            val obj = match.value
+        balancedObjects(block).forEach { obj ->
             if (obj.contains("thumbnails", true)) return@forEach
             val file = Regex("""file\s*:\s*["']([^"']+)["']""").find(obj)?.groupValues?.get(1) ?: return@forEach
             val label = Regex("""label\s*:\s*["']([^"']*)["']""").find(obj)?.groupValues?.get(1).orEmpty()
@@ -374,6 +375,26 @@ object HDFilmIzlePlayerParser {
             }.getOrNull()
             else -> runCatching { URI(baseUrl).resolve(cleaned).toString() }.getOrNull()
         }
+    }
+
+    /** Bir blok içindeki tüm üst seviye `{...}` nesnelerini (iç içe olanlar dahil) böler. */
+    fun balancedObjects(block: String): List<String> {
+        val out = mutableListOf<String>()
+        var index = 0
+        while (index < block.length) {
+            if (block[index] == '{') {
+                val slice = balancedSlice(block, index, '{', '}')
+                if (slice == null) {
+                    index++
+                } else {
+                    out.add(slice)
+                    index += slice.length
+                }
+            } else {
+                index++
+            }
+        }
+        return out
     }
 
     /** [start] konumundaki açma parantezinden eşleşen kapatma parantezine kadar dilimler. */
