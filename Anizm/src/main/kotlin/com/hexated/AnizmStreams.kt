@@ -470,6 +470,10 @@ internal class AnizmStreams(
                 out.add(Source("Sayfa", "Doğrudan", media))
             }
         }
+        // Sayfada JS ile duran host adresleri (iframe'e dönüşmeden).
+        for (host in embedUrlsFrom(html).take(4)) {
+            out.add(Source("Sayfa", "Oynatıcı", host))
+        }
         // anizmplayer hash'i doğrudan sayfada varsa
         val hash = Regex("anizmplayer\\.com/(?:video|player|embed)/([A-Za-z0-9_-]{8,64})")
             .find(html)?.groupValues?.getOrNull(1)
@@ -607,6 +611,11 @@ internal class AnizmStreams(
             .distinct()
         for (inner in nested.take(2)) {
             if (resolveTarget(inner, url, label, subtitleCallback, callback, depth + 1)) found = true
+        }
+        // JS ile gömülen host adresleri (iframe yoksa): tanınan video host'ları
+        // gövdeden çıkarılıp aynı zincirle çözülür (Gdrive/Mega/Voe/SendVid/…).
+        for (host in embedUrlsFrom(page).filter { it != url }.take(3)) {
+            if (resolveTarget(host, url, label, subtitleCallback, callback, depth + 1)) found = true
         }
         return found
     }
@@ -1008,6 +1017,25 @@ internal class AnizmStreams(
         return AD_HOSTS.any { lower.contains(it) }
     }
 
+    /**
+     * HTML/JS içinde geçen, **tanınan video host'larına** ait adresler.
+     * Oynatıcı katmanı iframe yerine `var url = "https://voe.sx/e/…"` yazdığında
+     * kaynak kaybolmasın diye (Anizm bölüm sayfası + site `/player/{id}` sayfası).
+     */
+    private fun embedUrlsFrom(html: String): List<String> {
+        if (html.isBlank()) return emptyList()
+        val unescaped = html.replace("\\/", "/")
+        val out = LinkedHashSet<String>()
+        for (match in Regex("""https?://[^"'\s\\]+""").findAll(unescaped)) {
+            val url = match.value.trimEnd('"', '\'', ')', ',', ';', '\\')
+            if (!EMBED_HOSTS.any { url.contains(it, ignoreCase = true) }) continue
+            if (isAdHost(url)) continue
+            out.add(url)
+            if (out.size >= 6) break
+        }
+        return out.toList()
+    }
+
     /** HTML/JS içindeki m3u8/mp4/mpd adresleri (kaçışlı `\/` biçimi dahil). */
     private fun mediaFromHtml(html: String, base: String): List<String> {
         if (html.isBlank()) return emptyList()
@@ -1035,6 +1063,16 @@ internal class AnizmStreams(
 
     companion object {
         private const val TAG = "hexated_AnizmStreams"
+
+        /** Anizm'in kullandığı video host'ları (bölüm sayfası/oynatıcı gövdelerinde aranır). */
+        private val EMBED_HOSTS = listOf(
+            "anizmplayer", "voe.", "filemoon", "mixdrop", "mp4upload", "sendvid", "sibnet",
+            "ok.ru", "odnoklassniki", "vudeo", "upstream", "hdvid", "hexload", "optraco",
+            "luffytra", "mega.nz", "mega.co", "mail.ru", "yandex", "drive.google",
+            "docs.google", "vidcache", "yourupload", "streamlare", "dood", "vidmoly",
+            "luluvdo", "uqload", "gofile", "bylt", "streamtape", "dailymotion", "youtube",
+            "abyssplayer", "playmogo", "sitemio"
+        )
         private const val PLAYER_HOST = "https://anizmplayer.com"
         private const val OKRU = "https://ok.ru"
         private const val SIBNET = "https://video.sibnet.ru"
