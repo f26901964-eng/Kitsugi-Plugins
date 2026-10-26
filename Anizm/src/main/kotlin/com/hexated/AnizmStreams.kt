@@ -582,7 +582,7 @@ internal class AnizmStreams(
         // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
         if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
 
-        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): /api/v1/*?id=<kod>
+        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): /api/v1/…?id=<kod>
         if (resolveSistennPlayer(url, label, callback)) return true
 
         // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
@@ -724,7 +724,7 @@ internal class AnizmStreams(
 
     /**
      * **Sistenn ailesi** — `uns.bio`, `rpmvid.com`, `strp2p.com` … (React SPA,
-     * `player-version="16.x"`). Akışı sayfanın JS paketi `/api/v1/*` uçlarından
+     * `player-version="16.x"`). Akışı sayfanın JS paketi `/api/v1/...` uçlarından
      * alır; kullanıcıya görünen tek şey `#<kısa kod>` parçasıdır:
      *
      *     /api/v1/info?id=<kod>      dosya bilgisi
