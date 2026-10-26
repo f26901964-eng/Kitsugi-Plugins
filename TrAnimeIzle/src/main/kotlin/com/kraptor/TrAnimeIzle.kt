@@ -903,7 +903,17 @@ class TrAnimeIzle(
      */
     private fun remapDomain(url: String): String {
         if (url.startsWith(mainPageBase)) return mainUrl + url.substring(mainPageBase.length)
-        return url
+        // v32: kayıtlı URL eski domainde (.io/.top) kalmış olabilir — host'u
+        // bilinen aday listesiyle eşleştirip mevcut domaine taşı, YOL KORUNUR.
+        // (Domain 301 ile taşındığı için eski adresler yavaş/çerez kaybıyla
+        // açılıyordu; arama ve kaynak uçları bu yüzden boş dönüyordu.)
+        val knownHosts = DOMAIN_CANDIDATES.mapNotNull { candidate ->
+            runCatching { java.net.URI(candidate).host?.lowercase() }.getOrNull()
+        }.toSet()
+        val host = runCatching { java.net.URI(url).host?.lowercase() }.getOrNull() ?: return url
+        if (host !in knownHosts) return url
+        val tail = url.substringAfter("://").substringAfter("/", "")
+        return if (tail.isEmpty()) "$mainUrl/" else "$mainUrl/$tail"
     }
 
     private var sessionValidated = false
@@ -1493,20 +1503,22 @@ class TrAnimeIzle(
         private const val LOG_TAG = "kraptor_TrAnime"
         private const val LUFFY_PREFIX = "luffytra2.top/embed2/?id="
 
-        // v26: ana domain (25.10.2026 kanıtı): izleani.me canlı takipçisi
-        // sitenin SON bölümlerini www.tranimeizle.io üzerinden listeliyor;
-        // Semrush'a göre .io 14.47M ziyaret/ay (ana domain); cs-kraptor'un
-        // günlük güncellenen domain dosyası da .io taşıyor. .live artık
-        // aktif domain DEĞİL — ama tek domain'e kilitlenmek bir daha asla
-        // olmaz: DOMAIN_CANDIDATES otomatik rotasyonda denenir.
-        private const val DEFAULT_DOMAIN = "https://www.tranimeizle.io"
+        // v32: ana domain **www.tranimeizle.live**.
+        // KANIT (uygulamanın kendi teşhis raporu, `plugin_diagnostic_report.md`,
+        // 25.10.2026): `https://www.tranimeizle.io` → **301 → https://www.tranimeizle.live/**.
+        // Yani .io artık yalnızca yönlendirme kabuğu; oturum/çerez ve API
+        // uçları (.live) üzerinde kuruluyor. Eski varsayılan .io olduğu için
+        // arama boş dönüyor, kaynak listeleri 0 geliyordu.
+        // Tek domain'e kilitlenme yok: DOMAIN_CANDIDATES sırayla denenir,
+        // .io/.top yedek olarak korunur (site domain'i yılda birkaç kez taşıyor).
+        private const val DEFAULT_DOMAIN = "https://www.tranimeizle.live"
 
-        /** v26: otomatik rotasyon aday domainleri (sıra = öncelik). */
+        /** v32: otomatik rotasyon aday domainleri (sıra = öncelik). */
         private val DOMAIN_CANDIDATES = listOf(
-            "https://www.tranimeizle.io",
-            "https://tranimeizle.io",
             "https://www.tranimeizle.live",
             "https://tranimeizle.live",
+            "https://www.tranimeizle.io",
+            "https://tranimeizle.io",
             "https://www.tranimeizle.top",
             "https://tranimeizle.top"
         )

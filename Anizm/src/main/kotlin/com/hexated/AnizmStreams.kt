@@ -133,6 +133,21 @@ internal class AnizmStreams(
             }
             .distinctBy { it.url }
 
+        // Sunucu HTML'i çoğu zaman YALNIZCA aktif çevirmeni taşıyor (diğerleri JS ile
+        // geliyor). Eksik kalan çevirmenleri bölüm dizininden tamamla — yoksa
+        // "kaynaklar eksik geliyor" durumu oluşuyor.
+        val bolumId = bolumIdOf(pageUrl)
+            ?: doc.select("a[href*=/bolum/]").mapNotNull { bolumIdOf(it.attr("href")) }.firstOrNull()
+        if (translators.size < 3 && bolumId != null) {
+            for (cid in listOf("1", "2", "3")) {
+                val path = translatorPaths(bolumId, cid, pageUrl.contains("/episode/")).first()
+                if (translators.keys.none { it.contains("/cevirmen/$cid") || it.contains("/translator/$cid") }) {
+                    translators[AnizmSite.absolute(pageUrl, path) ?: continue] =
+                        Translator(site + path, "Çevirmen $cid", false)
+                }
+            }
+        }
+
         val out = Collections.synchronizedList(mutableListOf<Source>())
         if (translators.isNotEmpty()) {
             val gate = Semaphore(4)
@@ -581,7 +596,7 @@ internal class AnizmStreams(
         val json = runCatching { JSONObject(body.trim()) }.getOrNull() ?: return false
         var found = false
         json.optString("hlsManifestUrl").takeIf { it.startsWith("http") }?.let { hls ->
-            emitMedia(hls, label, "$OKRU/", callback)
+            emitMedia(hls, label, "$OKRU/", callback, trusted = true)
             found = true
         }
         json.optJSONArray("videos")?.let { videos ->
@@ -590,7 +605,13 @@ internal class AnizmStreams(
                 val file = item.optString("url")
                 if (!file.startsWith("http")) continue
                 val name = item.optString("name")
-                emitMedia(file, if (name.isBlank()) label else "$label • $name", "$OKRU/", callback)
+                emitMedia(
+                    file,
+                    if (name.isBlank()) label else "$label • $name",
+                    "$OKRU/",
+                    callback,
+                    trusted = true
+                )
                 found = true
             }
         }
@@ -611,7 +632,13 @@ internal class AnizmStreams(
         val path = Regex("""player\.src\(\[\{src:\s*["']([^"']+)["']""").find(body)?.groupValues?.getOrNull(1)
             ?: Regex("""["'](/videos/[^"']+\.(?:mp4|m3u8)[^"']*)["']""").find(body)?.groupValues?.getOrNull(1)
             ?: return false
-        emitMedia(AnizmSite.absolute("$SIBNET/", path) ?: path, label, "$SIBNET/", callback)
+        emitMedia(
+            AnizmSite.absolute("$SIBNET/", path) ?: path,
+            label,
+            "$SIBNET/",
+            callback,
+            trusted = true
+        )
         return true
     }
 
@@ -638,7 +665,15 @@ internal class AnizmStreams(
 
     /**
      * `POST https://anizmplayer.com/player/index.php?data=<hash>&do=getVideo`
-     * (form: hash, r) → `securedLink`.
+     * (form: `hash`, `r`) → JSON.
+     *
+     * **Oynatılabilir adres `videoSource` alanındadır.** Bu oynatıcı ailesi
+     * (LoadX / FirePlayer / HDPlayerSystem) için iki bağımsız açık kaynak çözücü
+     * yalnızca `videoSource` kullanır:
+     *  - ResolveURL `loadx.py`: `json['videoSource']` → doğrudan HLS
+     *  - stream-bypass `loadx.ts`: `responseJson['videoSource']` → tip HLS
+     * `securedLink` göreli bir yol olabiliyor (`<hash>/master.m3u8`); onu
+     * oynatıcı köküne göre çözmek 403 veriyordu (v6'da yaşanan hata).
      */
     private suspend fun resolveAnizmPlayer(
         hash: String,
@@ -658,9 +693,13 @@ internal class AnizmStreams(
         var found = false
         val json = runCatching { JSONObject(body) }.getOrNull()
         if (json != null) {
-            val secured = json.optString("securedLink").ifBlank { json.optString("videoSource") }
-            if (secured.isNotBlank()) {
-                emitMedia(secured, label, "$PLAYER_HOST/", callback)
+            // Öncelik: videoSource (mutlak, oynatılabilir). securedLink göreli olabilir;
+            // yalnızca mutlaklaşıyorsa ve videoSource yoksa kullanılır.
+            val videoSource = json.optString("videoSource")
+            val securedLink = json.optString("securedLink")
+            for (candidate in listOf(videoSource, securedLink)) {
+                val url = resolvePlayerUrl(candidate) ?: continue
+                emitMedia(url, label, "$PLAYER_HOST/", callback, trusted = true)
                 found = true
             }
             val array = json.optJSONArray("video")
@@ -677,7 +716,8 @@ internal class AnizmStreams(
                         file,
                         if (quality.isBlank()) label else "$label • $quality",
                         "$PLAYER_HOST/",
-                        callback
+                        callback,
+                        trusted = true
                     )
                     found = true
                 }
@@ -690,6 +730,24 @@ internal class AnizmStreams(
             }
         }
         return found
+    }
+
+    /**
+     * Oynatıcı cevabındaki **mutlak** medya adresi. Göreli değer (`<hash>/master.m3u8`)
+     * KABUL EDİLMEZ: oynatıcı köküne göre çözüldüğünde 403 / "Video bulunamadı"
+     * veriyordu (v6'da cihazda kanıtlandı). Bu durumda adres uydurmak yerine
+     * `null` döneriz; başka adaylar (`video[]`, sayfa taraması) denenir.
+     */
+    private fun resolvePlayerUrl(raw: String?): String? {
+        val value = raw?.trim()?.replace("\\/", "/") ?: return null
+        if (value.isEmpty()) return null
+        // Protokol-göreli adres (`//cdn.host/…`) mutlaktır: host bellidir.
+        if (value.startsWith("//")) return "https:$value"
+        if (!value.startsWith("http")) {
+            Log.d(TAG, "oynatıcı göreli adres atlandı: ${value.take(90)}")
+            return null
+        }
+        return value
     }
 
     // ------------------------------------------------------------------
@@ -713,7 +771,16 @@ internal class AnizmStreams(
         }
         if (bag.isEmpty()) return false
         for (link in bag) {
-            emitLink(link.url, label, referer, link.type, link.quality, link.headers, callback)
+            emitLink(
+                link.url,
+                label,
+                referer,
+                link.type,
+                link.quality,
+                link.headers,
+                callback,
+                trusted = true
+            )
         }
         return true
     }
@@ -722,7 +789,8 @@ internal class AnizmStreams(
         rawUrl: String,
         label: String,
         referer: String,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
+        trusted: Boolean = false
     ) {
         val url = normalize(AnizmSite.absolute(referer, rawUrl) ?: rawUrl)
         if (url.isEmpty()) return
@@ -753,7 +821,8 @@ internal class AnizmStreams(
                         ExtractorLinkType.M3U8,
                         variant.quality,
                         variant.headers,
-                        callback
+                        callback,
+                        trusted = true
                     )
                 }
                 return
@@ -766,10 +835,17 @@ internal class AnizmStreams(
             if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
             null,
             null,
-            callback
+            callback,
+            trusted = trusted
         )
     }
 
+    /**
+     * @param trusted adresi biz çözmediysek (kayıtlı extractor çıktısı, m3u8
+     *   varyantı, oynatıcı JSON'undaki `videoSource`, ok.ru/sibnet medyası)
+     *   `true`. Bunlar tanım gereği oynatılabilir; uzantısız CDN adresleri
+     *   (`/get_video?…`) yanlışlıkla elenmesin.
+     */
     private suspend fun emitLink(
         rawUrl: String,
         label: String,
@@ -777,10 +853,18 @@ internal class AnizmStreams(
         type: ExtractorLinkType,
         quality: Int?,
         extraHeaders: Map<String, String>?,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
+        trusted: Boolean = false
     ) {
         val url = normalize(rawUrl)
         if (url.isEmpty() || !emitted.add(url)) return
+        // EMİSYON KURALI: sayfa/embed adresi ASLA yayınlanmaz. Yayınlanırsa
+        // uygulama onu kendi derin tarayıcısına (EmbedMediaScanner) veriyor ve
+        // tarayıcı yolu patladığında kartta KTS-CSP-9110 görünüyor (v31'de yaşandı).
+        if (!trusted && !isPlayableUrl(url, type)) {
+            Log.d(TAG, "medya olmayan adres yayınlanmadı (9110 koruması): ${url.take(110)}")
+            return
+        }
         val ref = referer.ifBlank { base() + "/" }
         val headers = streamHeaders(ref) + (extraHeaders ?: emptyMap())
         val link = newExtractorLink(
@@ -797,6 +881,20 @@ internal class AnizmStreams(
             emittedCount += 1
             callback(link)
         }
+    }
+
+    /**
+     * Doğrudan oynatılabilir medya mı? (sayfa/embed adresleri yayınlanmaz)
+     * `M3U8`/`DASH` tipi zaten medya demektir; `VIDEO` tipinde yol uzantısına
+     * bakılır. Yalnızca HTML'den kazınan adaylar bu kontrolü görür.
+     */
+    private fun isPlayableUrl(url: String, type: ExtractorLinkType): Boolean {
+        if (type != ExtractorLinkType.VIDEO) return true
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        val mediaExt = listOf(".m3u8", ".mpd", ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts", ".flv")
+        if (mediaExt.any { path.endsWith(it) }) return true
+        // Sorgu içinde uzantı taşıyan CDN adresleri (…?format=m3u8, …&type=mp4)
+        return path.contains(".m3u8") || path.contains(".mp4")
     }
 
     private fun streamHeaders(referer: String): Map<String, String> = mapOf(
@@ -900,7 +998,7 @@ internal class AnizmStreams(
         private const val SIBNET = "https://video.sibnet.ru"
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
-        private const val TOTAL_BUDGET_MS = 30_000L
+        private const val TOTAL_BUDGET_MS = 26_000L
 
         /** Reklam/analitik host işaretleri — oynatıcı adayı olarak alınmaz. */
         private val AD_HOSTS = listOf(

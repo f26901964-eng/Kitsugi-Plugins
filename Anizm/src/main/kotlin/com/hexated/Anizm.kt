@@ -486,7 +486,19 @@ class Anizm : MainAPI(), AnizmHttp {
     private fun cardFromJsonObject(obj: JSONObject): AnizmCard? {
         val title = obj.optString("info_title").ifBlank { obj.optString("title") }
         val slug = obj.optString("info_slug").ifBlank { obj.optString("slug") }
-        val poster = obj.optString("info_poster").ifBlank { obj.optString("poster") }
+        // Poster alanı sürümden sürüme ad değiştiriyor; hepsi sırayla denenir
+        // (boş poster = arama listesinde boş kart).
+        val poster = listOf(
+            "info_poster",
+            "info_pcover",
+            "pcover",
+            "poster",
+            "cover",
+            "image",
+            "poster_url",
+            "thumbnail"
+        ).asSequence().map { key -> obj.optString(key).trim() }
+            .firstOrNull { it.isNotEmpty() } ?: ""
         val year = obj.optString("info_year").toIntOrNull() ?: obj.optInt("year", 0).takeIf { it > 0 }
         val score = obj.optString("info_malpoint").replace(',', '.').toDoubleOrNull()
             ?: obj.optDouble("malpoint", 0.0).takeIf { it > 0.0 }

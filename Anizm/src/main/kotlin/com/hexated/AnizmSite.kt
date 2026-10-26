@@ -67,7 +67,22 @@ internal object AnizmSite {
 
     private val EPISODE_PATH = Regex("^(.*?)-(\\d{1,4})-bolum(?:-[a-z0-9]+)*$", RegexOption.IGNORE_CASE)
 
-    private val IMAGE_ATTRS = listOf("data-src", "data-original", "data-lazy-src", "data-url", "src")
+    /**
+     * Poster adresi taşıyabilen öznitelikler (lazy-load eklentileri farklı adlar
+     * kullanıyor). Sıra = güven sırası: `src` çoğu zaman 1x1 yer tutucudur,
+     * bu yüzden sonda.
+     */
+    private val IMAGE_ATTRS = listOf(
+        "data-src",
+        "data-original",
+        "data-lazy-src",
+        "data-lazy",
+        "data-url",
+        "data-image",
+        "data-poster",
+        "data-cover",
+        "src"
+    )
 
     // ------------------------------------------------------------------
     // URL yardımcıları
@@ -171,29 +186,47 @@ internal object AnizmSite {
     // Kart çözümleme (arama / ana sayfa)
     // ------------------------------------------------------------------
 
-    /** Bir <img> öğesinden kullanılabilir poster adresi (lazy-load öznitelikleri dahil). */
-    fun imageUrl(img: Element?): String? {
+    /**
+     * Bir <img> öğesinden **mutlak** poster adresi (lazy-load öznitelikleri dahil).
+     *
+     * v32: adres artık her zaman mutlaklaştırılır. Eskiden `img.absUrl(attr)`
+     * boş dönünce öznitelik ham hâliyle (ör. `/storage/pcovers/x.jpg`) veriliyordu
+     * ve uygulama göreli adresi yükleyemiyordu → **boş poster**.
+     */
+    fun imageUrl(img: Element?, base: String? = null): String? {
         if (img == null) return null
+        val docBase = base?.takeIf { it.isNotBlank() } ?: img.baseUri()
         for (attr in IMAGE_ATTRS) {
             val value = img.attr(attr).trim()
-            if (value.isNotEmpty() && !value.startsWith("data:") &&
-                !value.contains("placeholder") && !value.endsWith(".svg")
-            ) {
-                return img.absUrl(attr).ifBlank { value }
-            }
+            if (value.isEmpty() || value.startsWith("data:")) continue
+            if (value.contains("placeholder") || value.endsWith(".svg")) continue
+            absoluteImage(docBase, value)?.let { return it }
         }
-        val srcset = img.attr("srcset").trim()
+        // srcset / data-srcset: son giriş genelde en büyük görsel.
+        val srcset = img.attr("srcset").ifBlank { img.attr("data-srcset") }.trim()
         if (srcset.isNotEmpty()) {
-            return srcset.split(',').firstOrNull()?.trim()?.substringBefore(' ')
+            val last = srcset.split(',').map { it.trim().substringBefore(' ') }
+                .lastOrNull { it.isNotEmpty() }
+            if (last != null) absoluteImage(docBase, last)?.let { return it }
         }
         return null
+    }
+
+    /** Görsel adresini mutlaklaştırır (protokol-göreli ve kök-göreli dahil). */
+    private fun absoluteImage(base: String, raw: String): String? {
+        val value = raw.trim()
+        if (value.isEmpty() || value.startsWith("data:")) return null
+        if (value.startsWith("http")) return value
+        if (value.startsWith("//")) return "https:$value"
+        val resolved = if (base.isBlank()) null else absolute(base, value)
+        return resolved ?: value.takeIf { it.startsWith("http") }
     }
 
     private fun bestImage(el: Element): String? {
         val img = el.selectFirst("img") ?: el.parents().firstOrNull { it.selectFirst("img") != null }
             ?.selectFirst("img")
             ?: return null
-        return imageUrl(img)
+        return imageUrl(img, el.baseUri())
     }
 
     private fun titleOf(el: Element): String? {
@@ -288,8 +321,20 @@ internal object AnizmSite {
         val name = AnizmMatch.cleanTitle(title) ?: AnizmMatch.cleanTitle(titleFromSlug(cleanSlug)) ?: return null
         if (isInvalidTitle(name)) return null
         val url = if (cleanSlug.startsWith("http")) cleanSlug else "$base/${cleanSlug.removePrefix("/")}"
-        val posterUrl = poster?.trim()?.takeIf { it.isNotEmpty() }
-            ?.let { if (it.startsWith("http")) it else "$base/storage/pcovers/$it" }
+        // Poster değeri siteden üç biçimde gelebiliyor:
+        //  1) tam adres            → olduğu gibi
+        //  2) "storage/pcovers/x"  → kök göreli
+        //  3) yalnızca dosya adı   → /storage/pcovers/ altında
+        val posterUrl = poster?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("data:") }
+            ?.let { raw ->
+                when {
+                    raw.startsWith("http") -> raw
+                    raw.startsWith("//") -> "https:$raw"
+                    raw.startsWith("/") -> "$base$raw"
+                    raw.contains('/') -> "$base/${raw.removePrefix("/")}"
+                    else -> "$base/storage/pcovers/$raw"
+                }
+            }
         return AnizmCard(
             name = name,
             url = url,
@@ -344,8 +389,10 @@ internal object AnizmSite {
 
         val poster = imageUrl(
             doc.selectFirst("div.infoPosterImg > img, div.infoPosterImg img, img.animePoster, .anizm_poster img")
-                ?: doc.selectFirst("div.poster img, .poster-image img, img.img-fluid, article img")
+                ?: doc.selectFirst("div.poster img, .poster-image img, img.img-fluid, article img"),
+            base = pageUrl
         ) ?: meta(doc, "meta[itemprop=image]", "meta[property=og:image]", "meta[property=og:image:secure_url]")
+            ?.let { absoluteImage(pageUrl, it) }
 
         val plot = firstText(
             doc,
@@ -432,7 +479,9 @@ internal object AnizmSite {
                 ) ?: anchor.attr("data-episode-title").takeIf { it.isNotBlank() }
                     ?: label.takeIf { it.isNotBlank() } ?: "$number. Bölüm",
                 date = date,
-                poster = imageUrl(anchor.selectFirst("img"))
+                // Bölüm küçük görseli; yoksa detay sayfasının posteri kullanılır
+                // (Anizm.kt `posterUrl = episode.poster ?: detail.poster`).
+                poster = imageUrl(anchor.selectFirst("img"), base)
             )
             loose[url] = episode
             val series = seriesPathOf(url)
