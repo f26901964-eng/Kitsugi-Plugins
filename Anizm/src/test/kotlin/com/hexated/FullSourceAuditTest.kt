@@ -302,7 +302,7 @@ class FullSourceAuditTest {
         fun probe(url: String, ref: String, post: Boolean = false) {
             val r = if (post) postRaw(url, ref, "{}") else raw(url, ref)
             val body = (r.body ?: "").replace("\n", " ").take(320)
-            p("EP $url → ${r.code} (${r.bytes}B) $body")
+            p("EP $url → ${r.status} (${r.bytes}B) $body")
         }
         // 1) Sistenn üçlüsü
         for (page in listOf(
