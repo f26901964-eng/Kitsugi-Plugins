@@ -30,7 +30,7 @@ jobs:
   Derle:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
     steps:
       - name: "Depo Kontrolu"
@@ -91,6 +91,116 @@ jobs:
           if [ -s /tmp/anime-chain.md ]; then
             { echo "## Anime akis zinciri (derin prob)"; echo; cat /tmp/anime-chain.md; } > /tmp/anime-chain-comment.md
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/anime-chain-comment.md || true
+          fi
+
+      - name: Site HTML / kaynak zinciri tam dökümü
+        id: site_dump
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
+        continue-on-error: true
+        env:
+          SITE_DUMP_DIR: site-dump
+        run: |
+          python3 tools/site_deep_dump.py > /tmp/site-dump.md || true
+          cat /tmp/site-dump.md
+          ls -la site-dump | head -40
+
+      - name: Site dökümünü PR'a yaz
+        if: always() && steps.site_dump.outcome != 'skipped' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s /tmp/site-dump.md ]; then
+            { echo "## Site HTML dökümü (ham)"; echo; echo '```'; head -c 55000 /tmp/site-dump.md; echo '```'; } > /tmp/site-dump-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/site-dump-comment.md || true
+          fi
+
+      - name: Site dökümü artifact
+        if: always() && steps.site_dump.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-dump-${{ github.run_id }}
+          path: site-dump/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Artifact'lar sandbox'tan indirilemiyor; ham HTML'i `site-dump-data`
+      # dalına iterek okunabilir hâle getiriyoruz (zorla itme, tek amaç dal).
+      - name: Site dökümünü dala it
+        if: always() && steps.site_dump.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -d site-dump ]; then echo "site-dump yok"; exit 0; fi
+          rm -rf /tmp/dumppush && mkdir -p /tmp/dumppush
+          cp -r site-dump/. /tmp/dumppush/
+          cd /tmp/dumppush
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git checkout -q -b site-dump-data
+          git add -A
+          git commit -qm "site dump ${GITHUB_RUN_ID}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:site-dump-data && echo "döküm site-dump-data dalına itildi"
+
+      # Eklentinin GERÇEK Kotlin kodu canlı siteye karşı koşar (LiveChainProbeTest).
+      # Böylece "arama buluyor mu, bölüm listesi doğru mu, kaç akış çıkıyor"
+      # sorusu tahminle değil, ölçümle yanıtlanır.
+      - name: Canlı zincir probu (gerçek eklenti kodu)
+        id: live_chain
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
+        continue-on-error: true
+        env:
+          LIVE_PROBE: "1"
+        run: |
+          chmod +x gradlew
+          set +e
+          ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*LiveChainProbeTest*" \
+              > /tmp/live-anizm.log 2>&1
+          echo "anizm çıkış=$?"
+          ./gradlew --no-daemon :TrAnimeIzle:testDebugUnitTest --tests "*LiveChainProbeTest*" \
+              > /tmp/live-tizle.log 2>&1
+          echo "tranimeizle çıkış=$?"
+          set -e
+          {
+            echo "# Canlı zincir probu (Kotlin)"
+            echo
+            echo '```'
+            grep -a "\[LIVE\]" /tmp/live-anizm.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 28000 || true
+            echo
+            echo '```'
+            echo
+            echo '```'
+            grep -a "\[LIVE\]" /tmp/live-tizle.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 22000 || true
+            echo
+            echo '```'
+            if ! grep -qa "\[LIVE\]" /tmp/live-anizm.log; then
+              echo
+              echo "<details><summary>Anizm derleme/koşum hatası</summary>"
+              echo
+              echo '```'
+              tail -n 60 /tmp/live-anizm.log
+              echo '```'
+              echo "</details>"
+            fi
+            if ! grep -qa "\[LIVE\]" /tmp/live-tizle.log; then
+              echo
+              echo "<details><summary>TrAnimeIzle derleme/koşum hatası</summary>"
+              echo
+              echo '```'
+              tail -n 60 /tmp/live-tizle.log
+              echo '```'
+              echo "</details>"
+            fi
+          } > /tmp/live-chain.md
+          head -c 55000 /tmp/live-chain.md
+
+      - name: Canlı zincir raporunu PR'a yaz
+        if: always() && steps.live_chain.outcome != 'skipped' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s /tmp/live-chain.md ]; then
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/live-chain.md || true
           fi
 
       - name: JDK 17 Ayarla

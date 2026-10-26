@@ -36,3 +36,4 @@ google-services.json
 # Python cache
 __pycache__/
 *.pyc
+site-dump/

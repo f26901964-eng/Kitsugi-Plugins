@@ -1,9 +1,9 @@
-version = 7
+version = 8
 
 cloudstream {
     authors     = listOf("hexated", "byayzen")
     language    = "tr"
-    description = "Anizm (anizm.net / puffytr.com) anime arşivi: isim eşleştirmeli arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü."
+    description = "Anizm (anizm.com.tr / anizm.net) anime arşivi: isim eşleştirmeli arama, kategoriler, detay ve bölümler; tüm fansub/video kaynaklarıyla oynatıcı çözücü."
 
     /**
      * Status int as the following:
@@ -18,4 +18,13 @@ cloudstream {
 }
 dependencies {
     testImplementation("junit:junit:4.13.2")
+}
+
+// Canlı prob (LiveChainProbeTest) çıktısı CI günlüğünde/PR yorumunda görünsün.
+tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach {
+    testLogging {
+        showStandardStreams = true
+        events("passed", "failed", "skipped")
+    }
+    outputs.upToDateWhen { false }
 }

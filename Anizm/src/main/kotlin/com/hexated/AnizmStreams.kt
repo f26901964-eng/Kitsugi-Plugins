@@ -581,6 +581,25 @@ internal class AnizmStreams(
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
 
         if (url.contains("drive.google") || url.contains("docs.google")) {
+            // Yerel çözüm önce: sitedeki "GDrive" kaynakları `/player/{id}`
+            // üzerinden `drive.google.com/file/d/<id>/preview` adresine gidiyor.
+            // Doğrudan indirme ucu (usercontent) ağ beklemeden yayınlanır;
+            // böylece her GDrive kaynağı için 10-20 sn'lik köprü denemesi
+            // yapılması gerekmez.
+            val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
+                ?.groupValues?.getOrNull(1)
+                ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)
+                    ?.groupValues?.getOrNull(1)
+            if (fileId != null) {
+                emitMedia(
+                    "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
+                    label,
+                    referer,
+                    callback,
+                    trusted = true
+                )
+                return true
+            }
             val bridged = "https://gdriveplayer.to/embed2.php?link=" +
                 URLEncoder.encode(url, "UTF-8")
             if (tryExtractors(bridged, referer, label, subtitleCallback, callback)) return true
@@ -779,6 +798,34 @@ internal class AnizmStreams(
                 emitMedia(stream, label, playerUrl, callback)
                 found = true
             }
+        }
+        if (!found) {
+            // getVideo ucu engellendiğinde (Cloudflare, 403) oynatıcı SAYFASI
+            // okunur: sayfa JWPlayer kurulumunu ve `securedLink` alanını satır
+            // içi taşıyabiliyor. Böylece API kapalıyken de kaynak düşmez.
+            for (pageUrl in arrayOf(
+                "$PLAYER_HOST/video/$hash",
+                "$PLAYER_HOST/embed/$hash",
+                "$PLAYER_HOST/player/$hash"
+            )) {
+                val page = http.get(pageUrl, "$PLAYER_HOST/") ?: continue
+                for (stream in mediaFromHtml(page, pageUrl).take(3)) {
+                    emitMedia(stream, label, pageUrl, callback)
+                    found = true
+                }
+                if (!found) {
+                    val secured = Regex(
+                        """"securedLink"\s*:\s*"([^"]+)""""
+                    ).find(page)?.groupValues?.getOrNull(1)
+                    val url = resolvePlayerUrl(secured)
+                    if (url != null) {
+                        emitMedia(url, label, "$PLAYER_HOST/", callback, trusted = true)
+                        found = true
+                    }
+                }
+                if (found) break
+            }
+            if (!found) Log.d(TAG, "anizmplayer: getVideo ve sayfa fallback sonuçsuz ($hash)")
         }
         return found
     }
