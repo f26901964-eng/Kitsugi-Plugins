@@ -133,7 +133,7 @@ internal class TrAnimeIzleStreams(
 
         // 3) Kaynak butonlarını çöz — 8 eşzamanlı, dar zaman aşımı, sonuç
         //    çözüldükçe yayınlanır.
-        runBounded(allSources, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { src ->
+        runBounded(allSources, concurrency = 10, perItemMs = PER_ITEM_MS) { src ->
             val label = buildLabel(src)
             // Sayfa düzeyinde bulunan HAZIR host adresleri (`Src.id` = URL):
             // sourcePlayer ucu yok, doğrudan çözülür.
@@ -290,11 +290,16 @@ internal class TrAnimeIzleStreams(
 
         if (targets.isEmpty()) return false
 
+        // v34: bu ÇAĞRIYA ait yayın sayısı ölçülür. Eskiden küresel `emittedCount`
+        // kontrol ediliyordu; ilk kaynak bir şey yayınladıktan sonra her kaynak
+        // "başarılı" sayılıyor ve `preVideoAd` yedeği HİÇ çalışmıyordu → o
+        // kaynaklar sessizce eksik kalıyordu.
+        val before = emittedCount
         var any = false
-        runBounded(targets.take(6), concurrency = 4, budgetMs = SOURCE_BUDGET_MS) { target ->
+        runBounded(targets.take(6), concurrency = 4, perItemMs = SOURCE_BUDGET_MS) { target ->
             if (resolveTarget(target, pageUrl, label, subtitleCallback, callback, depth = 0)) any = true
         }
-        return any || emittedCount > 0
+        return any || emittedCount > before
     }
 
     // ------------------------------------------------------------------
@@ -657,30 +662,45 @@ internal class TrAnimeIzleStreams(
      * Sınırlı eşzamanlılık + toplam süre bütçesi. Tek bir yavaş host
      * tüm listeyi kilitlemez; bütçe dolunca o ana kadar çözülenler geçerlidir.
      */
+    /**
+     * Havuz: en fazla [concurrency] eşzamanlı, **her öğe için ayrı** zaman aşımı.
+     *
+     * v34 KRİTİK DÜZELTME — "eksik kaynak" hatasının kökü: eski sürüm tüm havuzu
+     * tek bir `withTimeoutOrNull(bütçe)` ile sarmalıyordu. Süre dolduğunda
+     * **henüz başlamamış ve sırada bekleyen kaynaklar iptal ediliyordu**; bölümde
+     * 20+ kaynak varsa son dalga hiç denenmeden yok oluyordu. Kullanıcı bunu
+     * "kaynak eksik geliyor" olarak görüyordu.
+     *
+     * Yeni davranış: iptal YOK. Her kaynak kendi zaman aşımına sahip; biri
+     * yavaşsa yalnızca kendisi düşer, diğerleri etkilenmez.
+     */
     private suspend fun <T> runBounded(
         items: List<T>,
         concurrency: Int,
-        budgetMs: Long,
+        perItemMs: Long,
         block: suspend (T) -> Unit
     ) {
         if (items.isEmpty()) return
         val gate = Semaphore(concurrency)
-        withTimeoutOrNull(budgetMs) {
-            coroutineScope {
-                items.map { item ->
-                    async {
-                        gate.withPermit {
-                            try {
-                                block(item)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
-                            }
+        val timedOut = java.util.concurrent.atomic.AtomicInteger(0)
+        coroutineScope {
+            items.map { item ->
+                async {
+                    gate.withPermit {
+                        try {
+                            val ok = withTimeoutOrNull(perItemMs) { block(item); true }
+                            if (ok == null) timedOut.incrementAndGet()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
                         }
                     }
-                }.awaitAll()
-            }
+                }
+            }.awaitAll()
+        }
+        if (timedOut.get() > 0) {
+            Log.w(TAG, "zaman aşımı: ${timedOut.get()}/${items.size} kaynak (diğerleri tamam)")
         }
     }
 
@@ -712,7 +732,8 @@ internal class TrAnimeIzleStreams(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 
         /** Tüm kaynak araması için üst sınır — kullanıcı bu süreden fazla beklemez. */
-        private const val TOTAL_BUDGET_MS = 26_000L
+        /** Tek bir kaynak butonunun (sourcePlayer → iframe → akış) üst sınırı. */
+        private const val PER_ITEM_MS = 20_000L
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
         private const val SOURCE_BUDGET_MS = 14_000L

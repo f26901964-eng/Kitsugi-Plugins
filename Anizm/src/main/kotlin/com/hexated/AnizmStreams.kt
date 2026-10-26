@@ -103,7 +103,7 @@ internal class AnizmStreams(
 
         if (all.isEmpty()) return emittedCount
 
-        runBounded(all, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { source ->
+        runBounded(all, concurrency = 10, perItemMs = PER_ITEM_MS) { source ->
             resolveSource(source, pageUrl, subtitleCallback, callback)
         }
         Log.d(TAG, "toplam $emittedCount akış yayınlandı")
@@ -1018,30 +1018,45 @@ internal class AnizmStreams(
         }
     }
 
+    /**
+     * Havuz: en fazla [concurrency] eşzamanlı, **her öğe için ayrı** zaman aşımı.
+     *
+     * v34 KRİTİK DÜZELTME — "eksik kaynak" hatasının kökü: eski sürüm tüm havuzu
+     * tek bir `withTimeoutOrNull(bütçe)` ile sarmalıyordu. Süre dolduğunda
+     * **henüz başlamamış ve sırada bekleyen kaynaklar iptal ediliyordu**; bölümde
+     * 20+ kaynak varsa son dalga hiç denenmeden yok oluyordu. Kullanıcı bunu
+     * "kaynak eksik geliyor" olarak görüyordu.
+     *
+     * Yeni davranış: iptal YOK. Her kaynak kendi zaman aşımına sahip; biri
+     * yavaşsa yalnızca kendisi düşer, diğerleri etkilenmez.
+     */
     private suspend fun <T> runBounded(
         items: List<T>,
         concurrency: Int,
-        budgetMs: Long,
+        perItemMs: Long,
         block: suspend (T) -> Unit
     ) {
         if (items.isEmpty()) return
         val gate = Semaphore(concurrency)
-        withTimeoutOrNull(budgetMs) {
-            coroutineScope {
-                items.map { item ->
-                    async {
-                        gate.withPermit {
-                            try {
-                                block(item)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
-                            }
+        val timedOut = java.util.concurrent.atomic.AtomicInteger(0)
+        coroutineScope {
+            items.map { item ->
+                async {
+                    gate.withPermit {
+                        try {
+                            val ok = withTimeoutOrNull(perItemMs) { block(item); true }
+                            if (ok == null) timedOut.incrementAndGet()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
                         }
                     }
-                }.awaitAll()
-            }
+                }
+            }.awaitAll()
+        }
+        if (timedOut.get() > 0) {
+            Log.w(TAG, "zaman aşımı: ${timedOut.get()}/${items.size} kaynak (diğerleri tamam)")
         }
     }
 
@@ -1125,7 +1140,8 @@ internal class AnizmStreams(
         private const val SIBNET = "https://video.sibnet.ru"
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
-        private const val TOTAL_BUDGET_MS = 26_000L
+        /** Tek bir kaynağın (video → oynatıcı → akış) üst sınırı. */
+        private const val PER_ITEM_MS = 18_000L
 
         /** Reklam/analitik host işaretleri — oynatıcı adayı olarak alınmaz. */
         private val AD_HOSTS = listOf(
