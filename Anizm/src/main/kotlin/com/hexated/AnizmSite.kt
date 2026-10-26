@@ -401,7 +401,8 @@ internal object AnizmSite {
             poster = bestImage(el),
             score = score,
             episodeHint = AnizmMatch.episodeOf(anchor.text())
-                ?: AnizmMatch.episodeOf(el.selectFirst(".v3-card-copy span, .v3-card-tag")?.text())
+                ?: el.selectFirst(".v3-card-copy span, .v3-card-tag")?.text()
+                    ?.let { tag -> AnizmMatch.episodeOf(tag) }
                 ?: episodeNumberFromUrl(href)
         )
     }
