@@ -157,6 +157,9 @@ jobs:
           ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*LiveChainProbeTest*" \
               > /tmp/live-anizm.log 2>&1
           echo "anizm çıkış=$?"
+          ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*FullSourceAuditTest*" \
+              > /tmp/audit-anizm.log 2>&1
+          echo "audit çıkış=$?"
           ./gradlew --no-daemon :TrAnimeIzle:testDebugUnitTest --tests "*LiveChainProbeTest*" \
               > /tmp/live-tizle.log 2>&1
           echo "tranimeizle çıkış=$?"
@@ -165,7 +168,14 @@ jobs:
             echo "# Canlı zincir probu (Kotlin)"
             echo
             echo '```'
-            grep -a "\[LIVE\]" /tmp/live-anizm.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 28000 || true
+            grep -a "\[LIVE\]" /tmp/live-anizm.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 20000 || true
+            echo
+            echo '```'
+            echo
+            echo "## Tam kaynak denetimi (Anizm)"
+            echo
+            echo '```'
+            grep -a "\[AUDIT\]" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]/[AUDIT]/' | head -c 24000 || true
             echo
             echo '```'
             echo
