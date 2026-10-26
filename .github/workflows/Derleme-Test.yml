@@ -75,6 +75,24 @@ jobs:
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/live-player-probe.md || true
           fi
 
+      - name: Opsiyonel anime akis zinciri probu (derin)
+        id: chain_probe
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
+        continue-on-error: true
+        run: |
+          python3 tools/anime_chain_probe.py > /tmp/anime-chain.md
+          cat /tmp/anime-chain.md
+
+      - name: Zincir raporunu PR'a yaz
+        if: always() && steps.chain_probe.outcome != 'skipped' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s /tmp/anime-chain.md ]; then
+            { echo "## Anime akis zinciri (derin prob)"; echo; cat /tmp/anime-chain.md; } > /tmp/anime-chain-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/anime-chain-comment.md || true
+          fi
+
       - name: JDK 17 Ayarla
         uses: actions/setup-java@v4.6.0
         with:
