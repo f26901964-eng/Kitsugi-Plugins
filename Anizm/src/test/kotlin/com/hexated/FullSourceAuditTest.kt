@@ -155,6 +155,25 @@ class FullSourceAuditTest {
         }
     }
 
+    /** Kapsanmayan oynatıcının gerçekte ne servis ettiğini yazar (çözücü yazmak için kanıt). */
+    private fun dumpHost(url: String, name: String, base: String) {
+        val r = raw(url, "$base/")
+        val body = r.body ?: ""
+        p("      ┌ DÖKÜM [$name] $url")
+        p("      │ HTTP ${r.status} ctype=${r.ctype} bytes=${body.length}")
+        p("      │ başlık: " + (Regex("<title[^>]*>([^<]*)", RegexOption.IGNORE_CASE)
+            .find(body)?.groupValues?.get(1)?.trim()?.take(80) ?: "-"))
+        val media = Regex("""(?:https?:)?//[^"'\s<>]+?\.(?:m3u8|mp4|mpd)[^"'\s<>]*""")
+            .findAll(body.replace("\\/", "/")).map { it.value }.distinct().take(3).toList()
+        if (media.isNotEmpty()) p("      │ medya: $media")
+        val iframes = Regex("""<iframe[^>]+src=["']([^"']+)""", RegexOption.IGNORE_CASE)
+            .findAll(body).map { it.groupValues[1] }.distinct().take(3).toList()
+        if (iframes.isNotEmpty()) p("      │ iframe: $iframes")
+        p("      │ anahtar: " + Regex("\"([A-Za-z_][A-Za-z0-9_]*)\"\s*:").findAll(body)
+            .map { it.groupValues[1] }.distinct().take(12).joinToString(","))
+        p("      └ gövde: " + body.replace(Regex("\\s+"), " ").take(500))
+    }
+
     @Test
     fun auditEverySource() {
         assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
@@ -232,7 +251,9 @@ class FullSourceAuditTest {
                     }
                     val host = hostOf(loc)
                     val cov = coverage(host)
-                    if (cov != "KAPSANMIYOR") coveredSources++ else uncovered.add(host)
+                    if (cov != "KAPSANMIYOR") coveredSources++ else if (uncovered.add(host)) {
+                        dumpHost(loc, "$name", base)
+                    }
 
                     // anizmplayer doğrudan API ile denenir; engellenirse not düşülür.
                     val verdict = when {
@@ -257,10 +278,27 @@ class FullSourceAuditTest {
                         host.contains("drive.google") -> {
                             val fid = Regex("/d/([A-Za-z0-9_-]{6,})").find(loc)?.groupValues?.get(1)
                             if (fid == null) "id yok"
-                            else probePlayable(
-                                "https://drive.usercontent.google.com/download?id=$fid&export=download&confirm=t",
-                                "$base/"
-                            )
+                            else {
+                                // Eklentinin YENİ akışı: uyarı sayfası → gizli form → gerçek adres.
+                                val warn = raw(
+                                    "https://drive.usercontent.google.com/download?id=$fid&export=download",
+                                    "https://drive.google.com/"
+                                ).body ?: ""
+                                val action = Regex(
+                                    """<form[^>]+action="(https://drive\.usercontent\.google\.com/download[^"]*)""""
+                                ).find(warn)?.groupValues?.get(1)
+                                val fields = Regex("""<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"""")
+                                    .findAll(warn).associate { it.groupValues[1] to it.groupValues[2] }
+                                val target = if (action != null && fields.isNotEmpty()) {
+                                    action + "?" + fields.entries.joinToString("&") {
+                                        "${it.key}=" + java.net.URLEncoder.encode(it.value, "UTF-8")
+                                    }
+                                } else {
+                                    "https://drive.usercontent.google.com/download?id=$fid&export=download&confirm=t"
+                                }
+                                p("      drive form=${if (action != null && fields.isNotEmpty()) "VAR" else "YOK"} (${fields.keys})")
+                                probePlayable(target, "https://drive.google.com/")
+                            }
                         }
                         else -> probePlayable(loc, epUrl)
                     }
