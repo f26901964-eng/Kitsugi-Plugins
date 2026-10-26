@@ -130,6 +130,7 @@ jobs:
       # dalına iterek okunabilir hâle getiriyoruz (zorla itme, tek amaç dal).
       - name: Site dökümünü dala it
         if: always() && steps.site_dump.outcome != 'skipped'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -356,6 +357,7 @@ jobs:
 
       - name: SPA prob dökümünü dala it
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
