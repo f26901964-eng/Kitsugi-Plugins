@@ -547,6 +547,9 @@ class Anizm : MainAPI(), AnizmHttp {
         val pathEncoded = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
         val attempts = listOf(
             "$mainUrl/arama?q=$encoded",
+            // Canlı sitede gözlenen parametre adları (farklı tema/sürümler):
+            "$mainUrl/arama?arama=$encoded",
+            "$mainUrl/arama?search=$encoded",
             "$mainUrl/fullViewSearch?search=$encoded&skip=0",
             "$mainUrl/arama/$pathEncoded"
         )
