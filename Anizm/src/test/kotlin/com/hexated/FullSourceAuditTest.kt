@@ -186,6 +186,40 @@ class FullSourceAuditTest {
         p("      └ gövde: " + body.replace(Regex("\\s+"), " ").take(500))
     }
 
+    /**
+     * **Site içi oynatıcı** (`pl.puffytr.tr/watch/<hash>`) — Anizm'in kendi
+     * video.js oynatıcısı. Ham HTML'de akışın nerede durduğunu gösterir ve
+     * `/api/view/<hash>` ucunu dener.
+     */
+    @Test
+    fun dumpOwnPlayer() {
+        assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
+        val url = "https://pl.puffytr.tr/watch/75e0c057cc792b5bb79f76c3502372ef"
+        val r = raw(url, "https://anizm.com.tr/")
+        val body = r.body ?: return
+        p("== SITE OYNAYICISI ==")
+        p("HTTP ${r.status} bytes=${body.length}")
+        for (kw in listOf("m3u8", ".mp4", "playlist", "sources", "videoUrl", "manifest", "/api/", "stream")) {
+            val idx = body.lowercase().indexOf(kw)
+            if (idx >= 0) {
+                val start = maxOf(0, idx - 120)
+                val end = minOf(body.length, idx + 220)
+                p("  [$kw] …" + body.substring(start, end).replace(Regex("[\\r\\n\\s]+"), " ") + "…")
+            } else {
+                p("  [$kw] YOK")
+            }
+        }
+        val hash = url.substringAfterLast('/')
+        for (api in listOf(
+            "https://pl.puffytr.tr/api/view/$hash",
+            "https://pl.puffytr.tr/api/source/$hash",
+            "https://pl.puffytr.tr/api/video/$hash"
+        )) {
+            val a = raw(api, url, xhr = true)
+            p("  API $api → ${a.status} (${(a.body ?: "").length}B) ${(a.body ?: "").take(300).replace(Regex("[\\r\\n\\s]+"), " ")}")
+        }
+    }
+
     @Test
     fun auditEverySource() {
         assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
