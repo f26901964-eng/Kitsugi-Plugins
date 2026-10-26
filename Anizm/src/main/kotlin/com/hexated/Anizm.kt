@@ -84,6 +84,19 @@ class Anizm : MainAPI(), AnizmHttp {
         "$mainUrl/temalar/27?sayfa=" to "Oyun"
     )
 
+    /**
+     * Laravel CSRF belirteci (bölüm sayfasındaki `meta[name=csrf-token]`).
+     * v3 kaynak uçları `/bolum/{ep}/cevirmen/{id}` ve `/video/{id}` bu başlığı
+     * bekliyor; yoksa HTML kabuğu/403 dönebiliyor.
+     */
+    @Volatile
+    private var csrfToken: String? = null
+
+    private val csrfRegex = Regex(
+        """<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)""",
+        RegexOption.IGNORE_CASE
+    )
+
     // ------------------------------------------------------------------
     // HTTP katmanı
     // ------------------------------------------------------------------
@@ -98,6 +111,7 @@ class Anizm : MainAPI(), AnizmHttp {
             put("sec-fetch-dest", "empty")
             put("sec-fetch-mode", "cors")
             put("sec-fetch-site", "same-origin")
+            csrfToken?.let { put("X-CSRF-TOKEN", it) }
         } else {
             put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
             put("Upgrade-Insecure-Requests", "1")
@@ -117,7 +131,11 @@ class Anizm : MainAPI(), AnizmHttp {
                 Log.w(LOG_TAG, "GET ${response.code}: ${url.take(120)}")
                 null
             } else {
-                response.text
+                val text = response.text
+                if (csrfToken == null) {
+                    csrfRegex.find(text)?.groupValues?.getOrNull(1)?.let { csrfToken = it }
+                }
+                text
             }
         } catch (e: CancellationException) {
             throw e
@@ -474,13 +492,19 @@ class Anizm : MainAPI(), AnizmHttp {
             ?: obj.optDouble("malpoint", 0.0).takeIf { it > 0.0 }
         val altNames = mutableListOf<String>()
         fun addAlt(raw: String?) {
-            raw?.split(',', '/', '|')
-                ?.map { it.trim() }
-                ?.filter { it.length in 2..120 }
-                ?.let(altNames::addAll)
+            // Tam adı da koru ("Fate/stay night" bölünmemeli), sonra parçaları ekle.
+            val text = raw?.trim().orEmpty()
+            if (text.length in 2..120) altNames.add(text)
+            text.split(',', '/', '|')
+                .map { it.trim() }
+                .filter { it.length in 2..120 && it != text }
+                .let(altNames::addAll)
         }
         addAlt(obj.optString("info_othernames"))
         addAlt(obj.optString("info_japanese"))
+        // v6: "Attack on Titan" gibi İngilizce/romaji aramaların anahtarı.
+        addAlt(obj.optString("info_titleenglish"))
+        addAlt(obj.optString("info_titleoriginal"))
         obj.optJSONArray("names")?.let { names ->
             for (i in 0 until names.length()) {
                 names.optString(i).takeIf { it.isNotBlank() }?.let(altNames::add)
@@ -529,6 +553,9 @@ class Anizm : MainAPI(), AnizmHttp {
         val pathEncoded = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
         val attempts = listOf(
             "$mainUrl/arama?q=$encoded",
+            // Canlı sitede gözlenen parametre adları (farklı tema/sürümler):
+            "$mainUrl/arama?arama=$encoded",
+            "$mainUrl/arama?search=$encoded",
             "$mainUrl/fullViewSearch?search=$encoded&skip=0",
             "$mainUrl/arama/$pathEncoded"
         )
@@ -710,6 +737,14 @@ class Anizm : MainAPI(), AnizmHttp {
 
     override suspend fun get(url: String, referer: String?): String? =
         getText(url, referer ?: mainUrl + "/", xhr = false, timeout = 12L)
+
+    /**
+     * v3 kaynak uçları (`/bolum/{ep}/cevirmen/{id}`, `/video/{vid}`) AJAX ile
+     * beslenir: `X-Requested-With` + `Accept: application/json` + `Sec-Fetch-*: same-origin`.
+     * Düz belge isteği bu uçlardan HTML kabuğu döndürebiliyor.
+     */
+    override suspend fun getXhr(url: String, referer: String?): String? =
+        getText(url, referer ?: mainUrl + "/", xhr = true, timeout = 12L)
 
     override suspend fun location(url: String, referer: String?): String? =
         followLocation(url, referer ?: mainUrl + "/")

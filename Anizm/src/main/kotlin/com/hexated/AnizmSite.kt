@@ -413,7 +413,9 @@ internal object AnizmSite {
             if (strict.containsKey(url) || loose.containsKey(url)) return
 
             val label = anchor.text().trim()
+            // v3 şablonu numarayı öznitelikte taşır: data-episode-number="12"
             val number = forceNumber
+                ?: anchor.attr("data-episode-number").trim().toIntOrNull()
                 ?: AnizmMatch.episodeOf(label)
                 ?: episodeNumberFromUrl(url)
                 ?: return
@@ -425,7 +427,10 @@ internal object AnizmSite {
                 number = number,
                 // "2. Bölüm" gibi bilgi taşımayan etiketler temizlenince boşalır;
                 // o durumda ham etiket korunur (oynatıcıda "2. Bölüm" görünür).
-                name = AnizmMatch.cleanTitle(label) ?: label.takeIf { it.isNotBlank() } ?: "$number. Bölüm",
+                name = AnizmMatch.cleanTitle(
+                    anchor.attr("data-episode-title").ifBlank { label }
+                ) ?: anchor.attr("data-episode-title").takeIf { it.isNotBlank() }
+                    ?: label.takeIf { it.isNotBlank() } ?: "$number. Bölüm",
                 date = date,
                 poster = imageUrl(anchor.selectFirst("img"))
             )

@@ -171,13 +171,21 @@ internal class TrAnimeIzleStreams(
         pageUrl: String
     ): List<Src> {
         val site = base()
-        val body = http.postJson(
-            "$site/api/fansubSources",
-            """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}""",
-            pageUrl
-        )
+        val url = "$site/api/fansubSources"
+        val json = """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}"""
+        val form = mapOf("EpisodeId" to episodeId.toString(), "FansubId" to fansub.id.toString())
+
+        var body = http.postJson(url, json, pageUrl)
+        // Eski/yeni sürümlerde uç yalnızca form gövdesini kabul edebiliyor (yuzono portu).
+        if (body.isNullOrBlank()) body = http.postForm(url, form, pageUrl)
         if (body.isNullOrBlank()) {
             Log.d(TAG, "fansubSources boş (fid=${fansub.id})")
+            return emptyList()
+        }
+        if (isProbeGate(body)) {
+            // Anti-bot "rtt probe" kapısı: tarayıcı parmak izi ister; çözmek yerine
+            // diğer yollara (sayfa düzeyi butonlar, preVideoAd) bırakılır.
+            Log.w(TAG, "fansubSources rtt-probe kapısı döndürdü (fid=${fansub.id})")
             return emptyList()
         }
         if (looksLikeCaptcha(body)) {
@@ -185,19 +193,28 @@ internal class TrAnimeIzleStreams(
             captchaLock.withLock {
                 if (!captchaSolved) captchaSolved = http.solveCaptcha()
             }
-            val retry = http.postJson(
-                "$site/api/fansubSources",
-                """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}""",
-                pageUrl
-            )
-            if (retry.isNullOrBlank()) return emptyList()
-            return TrAnimeIzleSite.sourcesFrom(retry).map {
-                Src(it.id, it.label, fansub.label)
-            }
+            body = http.postJson(url, json, pageUrl) ?: http.postForm(url, form, pageUrl)
+            if (body.isNullOrBlank()) return emptyList()
         }
-        val parsed = TrAnimeIzleSite.sourcesFrom(body)
-        if (parsed.isEmpty()) Log.d(TAG, "kaynak butonu yok (fid=${fansub.id}, ${body.length} krkt)")
+
+        var parsed = TrAnimeIzleSite.sourcesFrom(body)
+        if (parsed.isEmpty()) {
+            // JSON gövdede buton yok → aynı uç form gövdesiyle bir kez daha denenir.
+            val alt = http.postForm(url, form, pageUrl)
+            if (!alt.isNullOrBlank()) parsed = TrAnimeIzleSite.sourcesFrom(alt)
+        }
+        if (parsed.isEmpty()) {
+            Log.d(TAG, "kaynak butonu yok (fid=${fansub.id}, ${body.length} krkt)")
+        }
         return parsed.map { Src(it.id, it.label, fansub.label) }
+    }
+
+    /** Anti-bot "rtt probe" / Cloudflare JS kapısı mı? */
+    private fun isProbeGate(body: String): Boolean {
+        val lower = body.lowercase()
+        return lower.contains("rtt-cfg") ||
+            lower.contains("rtt probe") ||
+            (lower.contains("<title>just a moment") && lower.contains("cloudflare"))
     }
 
     /** Sayfada sunucu tarafında render edilmiş kaynak butonları. */
@@ -241,6 +258,10 @@ internal class TrAnimeIzleStreams(
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        if (isProbeGate(body)) {
+            Log.d(TAG, "oynatıcı cevabı rtt-probe kapısı (${body.length} krkt)")
+            return false
+        }
         val html = TrAnimeIzleSite.unwrapJsonHtml(body).ifBlank { body }
         emitSubtitles(html, pageUrl, subtitleCallback)
 
@@ -287,6 +308,10 @@ internal class TrAnimeIzleStreams(
             return true
         }
 
+        // Host'a özel yerel çözücüler (extractor katmanı bu iki hostta kırılgan).
+        if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
+        if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
+
         // Google Drive → gdriveplayer köprüsü (tarayıcıda oynayan yol).
         if (url.contains("drive.google.com") || url.contains("docs.google.com")) {
             if (resolveGoogleDrive(url, referer, label, subtitleCallback, callback)) return true
@@ -321,6 +346,63 @@ internal class TrAnimeIzleStreams(
             if (resolveTarget(inner, url, label, subtitleCallback, callback, depth + 1)) found = true
         }
         return found
+    }
+
+    // ------------------------------------------------------------------
+    // Yerel host çözücüleri (ok.ru, sibnet)
+    // ------------------------------------------------------------------
+
+    private fun isOkRu(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
+        return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    }
+
+    private fun isSibnet(url: String): Boolean = url.contains("sibnet.ru", ignoreCase = true)
+
+    /** ok.ru: `videoPlayerMetadata` → `hlsManifestUrl` + `videos[]`. */
+    private suspend fun resolveOkRu(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val id = Regex("""(?:videoembed|video)/(\d{6,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        val body = http.get("https://ok.ru/dk?cmd=videoPlayerMetadata&mid=$id", "$OKRU/") ?: return false
+        val json = runCatching { org.json.JSONObject(body.trim()) }.getOrNull() ?: return false
+        var found = false
+        json.optString("hlsManifestUrl").takeIf { it.startsWith("http") }?.let { hls ->
+            emitMedia(hls, label, "$OKRU/", callback)
+            found = true
+        }
+        json.optJSONArray("videos")?.let { videos ->
+            for (index in 0 until videos.length()) {
+                val item = videos.optJSONObject(index) ?: continue
+                val file = item.optString("url")
+                if (!file.startsWith("http")) continue
+                val name = item.optString("name")
+                emitMedia(file, if (name.isBlank()) label else "$label • $name", "$OKRU/", callback)
+                found = true
+            }
+        }
+        return found
+    }
+
+    /** sibnet: `shell.php?videoid=<id>` → `player.src([{src:"/videos/…"}])`. */
+    private suspend fun resolveSibnet(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val id = Regex("""(?:videoid=|/video)(\d{3,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: Regex("""/([A-Za-z0-9_-]{6,})/?$""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        val shell = if (url.contains("shell.php")) url else "$SIBNET/shell.php?videoid=$id"
+        val body = http.get(shell, "$SIBNET/") ?: return false
+        val path = Regex("""player\.src\(\[\{src:\s*["']([^"']+)["']""").find(body)?.groupValues?.getOrNull(1)
+            ?: Regex("""["'](/videos/[^"']+\.(?:mp4|m3u8)[^"']*)["']""").find(body)?.groupValues?.getOrNull(1)
+            ?: return false
+        emitMedia(TrAnimeIzleSite.absolute("$SIBNET/", path) ?: path, label, "$SIBNET/", callback)
+        return true
     }
 
     /** Kayıtlı extractor'ları dener; yayınlanan her linki kendi etiketimizle geçirir. */
@@ -535,10 +617,13 @@ internal class TrAnimeIzleStreams(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 
         /** Tüm kaynak araması için üst sınır — kullanıcı bu süreden fazla beklemez. */
-        private const val TOTAL_BUDGET_MS = 35_000L
+        private const val TOTAL_BUDGET_MS = 26_000L
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
-        private const val SOURCE_BUDGET_MS = 20_000L
+        private const val SOURCE_BUDGET_MS = 14_000L
+
+        private const val OKRU = "https://ok.ru"
+        private const val SIBNET = "https://video.sibnet.ru"
     }
 }
 
