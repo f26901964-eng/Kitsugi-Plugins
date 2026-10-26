@@ -289,6 +289,13 @@ private fun Element.toMainPageResult(): SearchResponse? {
         }.getOrDefault(html)
     }
 
+    /**
+     * M3U8 linkini oynatıcıya verir. db5.*.xyz gibi uçlardaki bölümler ".png"
+     * uzantısıyla maskelenmiş TS segmentleri içerebilir; ExoPlayer/HLS segmenti
+     * playlist'teki URI'den uzantıya bakmadan çeker ve aşağıdaki başlıkları tüm
+     * isteklere uygular. İmzalı segment URI'larını eklenti tarafında yeniden
+     * yazmak imzayı bozabileceği için bilerek dokunmuyoruz.
+     */
     private suspend fun emitHlsLink(
         url: String,
         referer: String,
