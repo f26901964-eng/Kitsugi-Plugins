@@ -508,7 +508,22 @@ internal class TrAnimeIzleStreams(
             ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)?.groupValues?.getOrNull(1)
             ?: return false
 
-        // Drive uyarı sayfasındaki gizli form alanlarından GERÇEK indirme adresi.
+        // 0) Drive'ın kendi oynatma API'si — indirme kotasına girmez.
+        val playback = drivePlaybackStreams(id)
+        if (playback.isNotEmpty()) {
+            for ((height, mediaUrl) in playback) {
+                emitMedia(
+                    mediaUrl,
+                    if (height > 0) "$label ${height}p" else label,
+                    "https://drive.google.com/",
+                    callback,
+                    trusted = true
+                )
+            }
+            return true
+        }
+
+        // 1) Drive uyarı sayfasındaki gizli form alanlarından GERÇEK indirme adresi.
         // (Büyük dosyalarda `...&confirm=t` tek başına HTML döndürüyor.)
         val page = http.get(
             "https://drive.usercontent.google.com/download?id=$id&export=download",
@@ -530,6 +545,45 @@ internal class TrAnimeIzleStreams(
     }
 
     /** Drive uyarı sayfası → gerçek indirme adresi (form alanları veya hazır bağlantı). */
+    /**
+     * Drive oynatma API'si: `preview` sayfasındaki `AIza…` anahtarı +
+     * `content-workspacevideo-pa.googleapis.com/v1/drive/media/<id>/playback`
+     * → `progressiveTranscodes[]` (yükseklik + doğrudan MP4).
+     */
+    private suspend fun drivePlaybackStreams(fileId: String): List<Pair<Int, String>> {
+        val preview = http.get(
+            "https://drive.google.com/file/d/$fileId/preview",
+            "https://drive.google.com/"
+        ) ?: return emptyList()
+        val keys = Regex("""AIza[0-9A-Za-z_\-]{35}""").findAll(preview)
+            .map { it.value }.distinct().take(4).toList()
+        if (keys.isEmpty()) return emptyList()
+        for (key in keys) {
+            val body = http.getWith(
+                "https://content-workspacevideo-pa.googleapis.com/v1/drive/media/$fileId/playback" +
+                    "?key=$key&auditContext=forDisplay",
+                mapOf(
+                    "Origin" to "https://drive.google.com",
+                    "Referer" to "https://drive.google.com/",
+                    "Accept" to "*/*"
+                )
+            ) ?: continue
+            val json = runCatching { org.json.JSONObject(body) }.getOrNull() ?: continue
+            val progressive = json.optJSONObject("mediaStreamingData")
+                ?.optJSONObject("formatStreamingData")
+                ?.optJSONArray("progressiveTranscodes") ?: continue
+            val out = ArrayList<Pair<Int, String>>()
+            for (index in 0 until progressive.length()) {
+                val item = progressive.optJSONObject(index) ?: continue
+                val mediaUrl = item.optString("url").takeIf { it.startsWith("http") } ?: continue
+                val height = item.optJSONObject("transcodeMetadata")?.optInt("height", 0) ?: 0
+                out += height to mediaUrl
+            }
+            if (out.isNotEmpty()) return out.distinctBy { it.first }.sortedByDescending { it.first }
+        }
+        return emptyList()
+    }
+
     private fun driveDownloadUrl(body: String): String? {
         if (body.isBlank()) return null
         val unescaped = body.replace("&amp;", "&").replace("\\/", "/")
@@ -545,7 +599,7 @@ internal class TrAnimeIzleStreams(
         val query = fields.entries.joinToString("&") {
             "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
         }
-        return "$action?$query"
+        return action + (if (action.contains('?')) "&" else "?") + query
     }
 
     // ------------------------------------------------------------------
