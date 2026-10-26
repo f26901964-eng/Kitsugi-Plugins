@@ -120,12 +120,10 @@ class LiveChainProbeTest {
             frames.none { it.url.contains("\${") || it.url.contains("{{") },
         )
         // Desteklenen oynatıcı alan adlarından en az biri bulunmalı.
+        val playerTokens = listOf("vidrame", "vidmoxy", "vidmoly", "setplay", "fastplay", "stfplay")
         assertTrue(
             "desteklenen oynatıcı çerçevesi bulunamadı",
-            frames.any { url ->
-                listOf("vidrame", "vidmoxy", "vidmoly", "setplay", "fastplay", "stfplay")
-                    .any { token -> url.contains(token, ignoreCase = true) }
-            },
+            frames.any { frame -> playerTokens.any { token -> frame.url.contains(token, ignoreCase = true) } },
         )
         assertFalse("hiç çerçeve dönmedi", frames.isEmpty())
 
