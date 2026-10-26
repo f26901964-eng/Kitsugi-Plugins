@@ -576,6 +576,9 @@ internal class AnizmStreams(
             }
         }
 
+        // Anizm'in KENDİ oynatıcısı (pl.puffytr.tr) — HLS master'ı doğrudan verir.
+        if (resolveSitePlayer(url, label, callback)) return true
+
         // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
         if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
@@ -625,6 +628,44 @@ internal class AnizmStreams(
     private fun isOkRu(url: String): Boolean {
         val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
         return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    }
+
+    /**
+     * **Site içi oynatıcı** — `pl.puffytr.tr/watch/<slug>` (kaynak adı "Beta Player").
+     *
+     * Kanıt (26.10.2026, canlı HTML): oynatıcı sayfasının kendi script'i
+     *
+     *     const masterUrl       = "/stream/<slug>/master.txt";
+     *     const nativeMasterUrl = "/stream/<slug>/native.m3u8";
+     *
+     * diyor. Yani akış, iframe'in içinde JS ile değil, doğrudan HLS master
+     * adresinde duruyor. Adres yine de **doğrulanır**: yalnızca `#EXTM3U`
+     * içeren yanıt yayınlanır (ölü bağlantı gösterilmez).
+     */
+    private suspend fun resolveSitePlayer(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("puffytr.", ignoreCase = true)) return false
+        val slug = Regex("""/(?:watch|embed|v)/([A-Za-z0-9_-]{8,})""").find(url)
+            ?.groupValues?.getOrNull(1) ?: return false
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        var found = false
+        for (path in listOf("/stream/$slug/native.m3u8", "/stream/$slug/master.txt")) {
+            val streamUrl = origin + path
+            val body = http.get(streamUrl, "$origin/") ?: continue
+            if (!body.contains("#EXTM3U")) {
+                Log.d(TAG, "site oynatıcısı: manifest değil ($streamUrl)")
+                continue
+            }
+            emitMedia(streamUrl, label, "$origin/", callback, trusted = true)
+            found = true
+            break
+        }
+        if (!found) Log.d(TAG, "site oynatıcısı: akış bulunamadı ($slug)")
+        return found
     }
 
     /**

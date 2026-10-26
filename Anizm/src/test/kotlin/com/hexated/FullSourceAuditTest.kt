@@ -231,30 +231,52 @@ class FullSourceAuditTest {
         val hosts = listOf(
             "https://sistenn.uns.bio/#mp1owk",
             "https://anizm.rpmvid.com/#8qtems",
+            "https://anizm.strp2p.com/#kt3xp4",
             "https://bysesayeveum.com/e/4257ixn8m6gk",
             "https://flyf.lat/e/nP3lWDHayM2a0hA",
-            "https://streamcash.to/embed/0uXv_dii4k",
-            "https://firestream.to/e/C9H_60xO"
+            "https://streamcash.to/embed/0uXv_dii4k"
         )
         for (page in hosts) {
-            val root = page.substringBefore('#').substringBefore("/e/").let {
-                if (it.endsWith("/")) it else it + "/"
-            }
-            val html = raw(page, "https://anizm.com.tr/").body ?: continue
-            val js = Regex("""<script[^>]+src=["']([^"']+\.js[^"']*)""", RegexOption.IGNORE_CASE)
-                .findAll(html).map { it.groupValues[1] }
-                .firstOrNull { !it.contains("cloudflareinsights") && !it.contains("google") }
-                ?: continue
-            val jsUrl = if (js.startsWith("http")) js else root.trimEnd('/') + js
-            val bundle = raw(jsUrl, page).body ?: continue
-            val apis = Regex("""["'`](/?(?:api|v1|v2|source|sources|video|stream|player|file|download)/[A-Za-z0-9_./{}$:-]{2,60})["'`]""")
-                .findAll(bundle).map { it.groupValues[1] }.distinct().take(12).toList()
-            val fetches = Regex("""(?:fetch|axios\.(?:get|post))\(\s*["'`]([^"'`]{3,80})["'`]""")
-                .findAll(bundle).map { it.groupValues[1] }.distinct().take(8).toList()
+            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
+            val html = raw(page, "$origin/").body ?: continue
+            val scripts = Regex("""<script[^>]+src=["']([^"']+\.js[^"']*)""", RegexOption.IGNORE_CASE)
+                .findAll(html).map { it.groupValues[1] }.toList()
             p("SPA $page")
+            p("    scriptlar: " + scripts.take(6).joinToString(" | "))
+            val jsv = scripts.firstOrNull { it.contains("/assets/") || it.contains("/build/") || it.contains("/embed/") || it.contains("player") }
+                ?: scripts.firstOrNull { !it.contains("acscdn") && !it.contains("google") } ?: continue
+            val jsUrl = if (jsv.startsWith("http")) jsv else origin + jsv
+            val bundle = raw(jsUrl, page).body ?: continue
+            val apis = Regex("""["'`](/api/[A-Za-z0-9_./{}$:?=&-]{1,70})["'`]""")
+                .findAll(bundle).map { it.groupValues[1] }.distinct().take(14).toList()
+            val m3u8 = Regex("""["'`](/[A-Za-z0-9_./{}$:?=&-]{0,60}m3u8[A-Za-z0-9_./{}$:?=&-]{0,40})["'`]""")
+                .findAll(bundle).map { it.groupValues[1] }.distinct().take(8).toList()
+            val play = Regex("""["'`](/[A-Za-z0-9_./{}$:?=&-]{0,50}(?:stream|source|embed|video|file|download)[A-Za-z0-9_./{}$:?=&-]{0,50})["'`]""")
+                .findAll(bundle).map { it.groupValues[1] }.distinct().take(14).toList()
             p("    paket: $jsUrl (${bundle.length}B)")
             p("    api  : $apis")
-            p("    fetch: $fetches")
+            p("    m3u8 : $m3u8")
+            p("    yol  : $play")
+        }
+    }
+
+    @Test
+    fun dumpFireStream() {
+        assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
+        for (page in listOf("https://firestream.to/e/C9H_60xO", "https://streamcash.to/embed/0uXv_dii4k")) {
+            val html = raw(page, "https://anizm.com.tr/").body ?: continue
+            p("FS $page (${html.length}B)")
+            for (k in listOf("signedVideoUrl", "encodedPath", "m3u8", "/api/", "videoUrl", "sources")) {
+                var i = html.indexOf(k)
+                var n = 0
+                while (i >= 0 && n < 2) {
+                    val a = (i - 120).coerceAtLeast(0)
+                    val b = (i + 200).coerceAtMost(html.length)
+                    p("    [$k] …" + html.substring(a, b).replace("\n", " "))
+                    i = html.indexOf(k, i + 1)
+                    n++
+                }
+            }
         }
     }
 
