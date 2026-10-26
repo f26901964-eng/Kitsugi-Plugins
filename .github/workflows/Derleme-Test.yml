@@ -351,6 +351,18 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      - name: SPA prob dökümünü dala it
+        if: always()
+        run: |
+          if grep -qa "\[PROBE\]" /tmp/audit-anizm.log; then
+            grep -a "\[PROBE\]" /tmp/audit-anizm.log | sed 's/^.*\[PROBE\]//' > research/spa-probe.txt || true
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add research/spa-probe.txt
+            git commit -m "SPA prob dökümü (otomatik)" || true
+            git push || true
+          fi
+
       - name: Hatayı PR'a Yaz
         if: failure()
         env:

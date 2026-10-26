@@ -295,74 +295,66 @@ class FullSourceAuditTest {
         }
     }
 
-    /** Sistenn/BYSE/FlyF/StreamCash/FireStream uçlarını **doğrudan** dener. */
+    private fun pp(line: String) = println("[PROBE] $line")
+
+    /** FireStream / StreamCash / Sistenn / BYSE / FlyF uçlarını doğrudan dener. */
     @Test
     fun probeEndpoints() {
         assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
 
-        // ── 1) FireStream: gerçek token blob ile resolve ────────────────
+        // ── 1) FireStream ───────────────────────────────────────────────
         val fsPage = "https://firestream.to/e/C9H_60xO"
-        val fsHtml = raw(fsPage, "https://anizm.com.tr/").body
-        val blob = fsHtml?.let {
-            Regex("""<script[^>]*id=["']token-blob["'][^>]*>([^<]{8,4000})</script>""")
-                .find(it)?.groupValues?.getOrNull(1)?.trim()
+        var fsHtml = raw(fsPage, "https://anizm.com.tr/")
+        if (fsHtml.status !in 200..299) {
+            Thread.sleep(1500)
+            fsHtml = raw(fsPage, "https://anizm.com.tr/")
         }
-        p("FS blob=${blob?.length ?: -1}B ${blob?.take(40)}")
+        pp("FS page=${fsHtml.status} bytes=${fsHtml.bytes}")
+        val fsBody = fsHtml.body ?: ""
+        pp("FS token-blob var mı: ${fsBody.contains("token-blob")}; uzunluk=${fsBody.length}")
+        val blob = Regex("""<script[^>]*token-blob[^>]*>([^<]{4,4000})</script>""")
+            .find(fsBody)?.groupValues?.getOrNull(1)?.trim()
+        pp("FS blob=${blob?.length ?: -1} ${blob?.take(60)}")
         for (body in listOf(
-            "{\"blob\": " + org.json.JSONObject.quote(blob ?: "") + "}",
-            "{\"token\": " + org.json.JSONObject.quote(blob ?: "") + "}"
+            "{\"blob\":" + org.json.JSONObject.quote(blob ?: "") + "}",
+            "{\"token\":" + org.json.JSONObject.quote(blob ?: "") + "}",
+            "{\"blob\":" + org.json.JSONObject.quote(blob ?: "") + ",\"slug\":\"C9H_60xO\"}"
         )) {
             val r = postRaw("https://firestream.to/api/videos/C9H_60xO/resolve", fsPage, body)
-            p("FS resolve ${body.take(12)} → ${r.status} ${(r.body ?: "").replace("\n", " ").take(400)}")
+            pp("FS resolve ${body.take(14)} → ${r.status} ${r.body?.take(600)}")
         }
 
-        // ── 2) StreamCash: embed-player.js ──────────────────────────────
-        val sc = raw("https://streamcash.to/js/embed-player.js", "https://streamcash.to/").body ?: ""
-        p("SC embed-player.js ${sc.length}B")
-        p("SC ön: " + sc.take(1400).replace("\n", " "))
-        for (k in listOf("sources", "file", "/api", "packed", "m3u8")) {
-            val i = sc.indexOf(k)
-            if (i >= 0) p("SC [$k] …" + sc.substring((i - 100).coerceAtLeast(0), (i + 260).coerceAtMost(sc.length)).replace("\n", " "))
-        }
+        // ── 2) StreamCash — oynatıcı JS'inin tamamı ─────────────────────
+        val sc = raw("https://streamcash.to/js/embed-player.js", "https://streamcash.to/embed/0uXv_dii4k")
+        pp("SC js=${sc.status} bytes=${sc.bytes}")
+        pp("SC-BODY>>>" + (sc.body ?: "").replace("\n", " ") + "<<<SC-BODY")
 
-        // ── 3) Sistenn: klasör kimliğiyle video ucu + paket bağlamı ─────
-        val folderId = raw("https://sistenn.uns.bio/api/v1/folder?id=mp1owk", "https://sistenn.uns.bio/")
-            .body?.trim()
-        p("SISTENN folderId=$folderId")
-        if (folderId != null) {
-            for (ep in listOf("/api/v1/video?id=", "/api/v1/info?id=", "/api/v1/download?id=")) {
-                val r = raw("https://sistenn.uns.bio$ep$folderId", "https://sistenn.uns.bio/")
-                p("  $ep$folderId → ${r.status} ${(r.body ?: "").take(300)}")
-            }
-        }
-        val infoHex = raw("https://sistenn.uns.bio/api/v1/info?id=mp1owk", "https://sistenn.uns.bio/").body ?: ""
-        p("SISTENN info ${infoHex.length}B ön=${infoHex.take(24)} hex=${infoHex.all { it.isDigit() || it in 'a'..'f' }}")
-        val bundle = raw("https://sistenn.uns.bio/assets/index-Ke1_7gwr.js", "https://sistenn.uns.bio/").body ?: ""
-        for (k in listOf("api/v1/video", "api/v1/info", "decrypt", "AES", "atob", "fromCharCode")) {
-            var i = bundle.indexOf(k)
-            var n = 0
-            while (i >= 0 && n < 2) {
-                p("  SPA $k …" + bundle.substring((i - 90).coerceAtLeast(0), (i + 190).coerceAtMost(bundle.length)).replace("\n", " "))
-                i = bundle.indexOf(k, i + 1)
-                n++
+        // ── 3) Sistenn — klasör kimliği ve kod ile tüm uçlar ────────────
+        val st = "https://sistenn.uns.bio"
+        val folder = raw("$st/api/v1/folder?id=mp1owk", "$st/").body?.trim().orEmpty()
+        pp("SISTENN folder=$folder")
+        for (id in listOf("mp1owk", folder)) {
+            if (id.isEmpty()) continue
+            for (ep in listOf("/api/v1/video?id=", "/api/v1/info?id=", "/api/v1/player?t=", "/api/v1/download?id=")) {
+                val r = raw("$st$ep$id", "$st/")
+                pp("SISTENN $ep$id → ${r.status} ${(r.body ?: "").take(240)}")
             }
         }
 
-        // ── 4) BYSE / FlyF: paketteki /api/ kullanım bağlamı ────────────
-        for ((page, jsHost) in listOf(
+        // ── 4) BYSE / FlyF — paket içindeki /api/ kullanımları ──────────
+        for ((page, jsUrl) in listOf(
             "https://bysesayeveum.com/e/4257ixn8m6gk" to "https://bysesayeveum.com/assets/index-DocunfmE.js",
             "https://flyf.lat/e/nP3lWDHayM2a0hA" to "https://flyf.lat/assets/index-D71DZ4GA.js"
         )) {
-            val b = raw(jsHost, page).body ?: continue
-            p("BUNDLE $page ${b.length}B")
-            for (k in listOf("/api/", "fetch(", "download/")) {
-                var i = b.indexOf(k)
-                var n = 0
-                while (i >= 0 && n < 3) {
-                    p("  [$k] …" + b.substring((i - 110).coerceAtLeast(0), (i + 200).coerceAtMost(b.length)).replace("\n", " "))
-                    i = b.indexOf(k, i + 1)
-                    n++
-                }
+            val b = raw(jsUrl, page)
+            pp("BUNDLE $page ${b.status} ${b.bytes}B")
+            val text = b.body ?: continue
+            var i = text.indexOf("/api/")
+            var n = 0
+            while (i >= 0 && n < 8) {
+                pp("BUNDLE-CTX …" + text.substring((i - 130).coerceAtLeast(0), (i + 230).coerceAtMost(text.length)).replace("\n", " "))
+                i = text.indexOf("/api/", i + 1)
+                n++
             }
         }
     }
