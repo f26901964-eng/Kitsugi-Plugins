@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """Anizm + TrAnimeIzle **tam HTML / tam zincir dökümü** (salt-okunur, canlı site).
 
-Bu araç eklentilerin dayandığı HER ŞEYİ ham hâliyle diske yazar:
+Eklentilerin dayandığı her şeyi ham hâliyle diske yazar:
 
-* ana sayfa, arama sayfası, anime detay sayfası, bölüm sayfası HTML'i,
-* sayfadaki tüm `<script src>` dosyaları (oynatıcı/AJAX uçlarını bulmak için),
-* bölüm sayfasındaki çevirmen/fansub butonları ve onların JSON yanıtları,
-* her video kimliği için oynatıcı JSON'u, `/player/<id>` yönlendirmesi,
-* anizmplayer.com `getVideo` yanıtı (iki farklı referer varyantıyla),
+* ana sayfa, arama, anime detay, bölüm sayfası HTML'i (tam, kırpılmadan),
+* sayfadaki `<script src>` dosyaları,
+* `button[data-v3-translator]` / `[data-sources]` / `[data-video][data-url]` etiketleri,
+* `meta[name=csrf-token]`,
+* `data-sources` → `{videos:[...]}` JSON'u (düz / XHR / XHR+CSRF varyantları),
+* `/video/<id>` JSON'u, `/player/<id>` 302 `Location` başlığı,
+* anizmplayer `getVideo` yanıtı (referer varyantları),
 * TrAnimeIzle `fansubSources` / `sourcePlayer` / `preVideoAd` yanıtları.
 
-Çıktı `site-dump/` klasörüne yazılır ve CI'da artifact olarak yüklenir; böylece
-site HTML'i tahmin etmeden, satır satır incelenebilir.
+Çıktı `site-dump/` altına yazılır; CI bu klasörü `site-dump-data` dalına iter,
+böylece site HTML'i tahmin etmeden satır satır incelenebilir.
 
 Kullanım:
-    python3 tools/site_deep_dump.py                 # ikisi
+    python3 tools/site_deep_dump.py            # ikisi
     python3 tools/site_deep_dump.py anizm
     python3 tools/site_deep_dump.py tranime
 """
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import gzip
 import html as html_mod
+import io
 import json
 import os
 import re
@@ -43,10 +46,11 @@ BASE_HEADERS = {
     "Accept-Encoding": "gzip",
 }
 SSL_CTX = ssl.create_default_context()
-MAX_BYTES = 6 * 1024 * 1024
+MAX_BYTES = 8 * 1024 * 1024
 OUT = os.environ.get("SITE_DUMP_DIR", "site-dump")
 
 LOG: list[str] = []
+SECRETS: set[str] = set()
 
 
 def log(line: str = "") -> None:
@@ -55,139 +59,121 @@ def log(line: str = "") -> None:
 
 
 class Fetched:
-    def __init__(self, url, status, text, headers, final_url, error=""):
+    def __init__(self, url, status, text, headers, final_url, error="", via=""):
         self.url = url
         self.status = status
         self.text = text
         self.headers = headers
         self.final_url = final_url
         self.error = error
+        self.via = via
 
     @property
     def ok(self):
         return 200 <= self.status < 300 and not self.error
 
     def header(self, name):
-        for k, v in self.headers.items():
+        for k, v in (self.headers or {}).items():
             if k.lower() == name.lower():
                 return v
         return ""
 
 
 def _decompress(raw: bytes, encoding: str) -> str:
-    enc = (encoding or "").lower()
-    if "gzip" in enc:
+    if "gzip" in (encoding or "").lower():
         try:
-            raw = gzip.GzipFile(fileobj=__import__("io").BytesIO(raw)).read()
+            raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read()
         except Exception:  # noqa: BLE001
             pass
     return raw.decode("utf-8", "replace")
 
 
-def _curl(url, referer, data, headers_extra):
-    cmd = [
-        "curl", "-sS", "-L", "--compressed", "--max-time", "25",
-        "-A", UA, "-w", "\n__CURL_STATUS__%{http_code}",
-    ]
-    if referer:
-        cmd += ["-e", referer]
-    for k, v in headers_extra.items():
-        cmd += ["-H", f"{k}: {v}"]
-    if data is not None:
-        cmd += ["--data-raw", data]
-    cmd.append(url)
-    try:
-        out = subprocess.run(cmd, capture_output=True, timeout=40).stdout.decode("utf-8", "replace")
-    except Exception as exc:  # noqa: BLE001
-        return 0, "", str(exc)
-    m = re.search(r"\n__CURL_STATUS__(\d+)$", out)
-    status = int(m.group(1)) if m else 0
-    return status, out[: m.start()] if m else out, ""
-
-
-def fetch(url, referer="", data=None, xhr=False, follow=True, extra=None, cookie=""):
-    headers = dict(BASE_HEADERS)
-    if referer:
-        headers["Referer"] = referer
-    if data is not None:
-        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
-        headers["Accept"] = "application/json, text/plain, */*"
-    if xhr:
-        headers["X-Requested-With"] = "XMLHttpRequest"
-    if cookie:
-        headers["Cookie"] = cookie
-    if extra:
-        headers.update(extra)
-
-    # 1) önce curl (gerçek tarayıcı TLS parmak izine daha yakın), sonra urllib
-    order = ("curl", "urllib")
-    result = None
-    for kind in order:
-        if kind == "curl":
-            status, text, err = _curl(url, referer, data, headers)
-            hdrs = {}
-            if follow is False:
-                # curl -L kullanıldı; yönlendirmesiz istek için ayrı çağrı
-                status, text, err = _curl_nofollow(url, referer, data, headers)
-            result = Fetched(url, status, text, hdrs, url, err)
-        else:
-            body = data.encode() if isinstance(data, str) else data
-            req = urllib.request.Request(url, data=body, headers=headers)
-            opener = urllib.request.build_opener()
-            if not follow:
-                class NoRedirect(urllib.request.HTTPRedirectHandler):
-                    def redirect_request(self, *a, **kw):  # noqa: D401
-                        return None
-
-                opener = urllib.request.build_opener(NoRedirect)
-            try:
-                with opener.open(req, timeout=25) as resp:
-                    raw = resp.read(MAX_BYTES)
-                    result = Fetched(
-                        url,
-                        resp.status,
-                        _decompress(raw, resp.headers.get("Content-Encoding", "")),
-                        dict(resp.headers),
-                        resp.geturl(),
-                    )
-            except urllib.error.HTTPError as exc:
-                raw = exc.read(MAX_BYTES)
-                result = Fetched(
-                    url,
-                    exc.code,
-                    _decompress(raw, exc.headers.get("Content-Encoding", "") if exc.headers else ""),
-                    dict(exc.headers or {}),
-                    exc.geturl(),
-                )
-            except Exception as exc:  # noqa: BLE001
-                if result is None:
-                    result = Fetched(url, 0, "", {}, url, str(exc))
-        if result is not None and result.ok and len(result.text) > 400:
-            return result
-    return result
-
-
-def _curl_nofollow(url, referer, data, headers_extra):
-    cmd = ["curl", "-sS", "--compressed", "--max-time", "25", "-A", UA,
-           "-D", "-", "-o", "/dev/null", "-w", "%{http_code}"]
+def _curl(url, referer="", data=None, headers_extra=None, follow=True):
+    cmd = ["curl", "-sS", "--compressed", "--max-time", "30", "-A", UA]
+    cmd += ["-L"] if follow else []
+    cmd += ["-w", "\n__STATUS__%{http_code}"]
     if referer:
         cmd += ["-e", referer]
     for k, v in (headers_extra or {}).items():
-        if k in ("Accept-Encoding", "User-Agent"):
+        if k.lower() in ("user-agent",):
             continue
         cmd += ["-H", f"{k}: {v}"]
     if data is not None:
         cmd += ["--data-raw", data]
     cmd.append(url)
     try:
-        out = subprocess.run(cmd, capture_output=True, timeout=40).stdout.decode("utf-8", "replace")
+        out = subprocess.run(cmd, capture_output=True, timeout=60).stdout.decode("utf-8", "replace")
     except Exception as exc:  # noqa: BLE001
-        return 0, "", str(exc)
-    status = 0
-    m = re.search(r"(\d{3})\s*$", out.strip())
-    if m:
-        status = int(m.group(1))
-    return status, out, ""
+        return 0, "", "", str(exc)
+    m = re.search(r"\n__STATUS__(\d+)$", out)
+    status = int(m.group(1)) if m else 0
+    body = out[: m.start()] if m else out
+    return status, body, "", ""
+
+
+def fetch(url, referer="", data=None, xhr=False, json_body=False, extra=None, follow=True):
+    headers = dict(BASE_HEADERS)
+    if referer:
+        headers["Referer"] = referer
+    if data is not None:
+        headers["Content-Type"] = (
+            "application/json; charset=UTF-8" if json_body
+            else "application/x-www-form-urlencoded; charset=UTF-8"
+        )
+        headers["Accept"] = "application/json, text/plain, */*"
+    if xhr:
+        headers["X-Requested-With"] = "XMLHttpRequest"
+    if extra:
+        headers.update(extra)
+
+    status, body, _, err = _curl(url, referer, data, headers, follow)
+    if 200 <= status < 300 and len(body) > 200:
+        return Fetched(url, status, body, {}, url, "", "curl")
+
+    req = urllib.request.Request(url, data=data.encode() if isinstance(data, str) else data, headers=headers)
+    opener = urllib.request.build_opener()
+    if not follow:
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a, **kw):  # noqa: D401
+                return None
+
+        opener = urllib.request.build_opener(NoRedirect)
+    try:
+        with opener.open(req, timeout=30) as resp:
+            raw = resp.read(MAX_BYTES)
+            return Fetched(url, resp.status, _decompress(raw, resp.headers.get("Content-Encoding", "")),
+                           dict(resp.headers), resp.geturl(), "", "urllib")
+    except urllib.error.HTTPError as exc:
+        raw = exc.read(MAX_BYTES)
+        return Fetched(url, exc.code,
+                       _decompress(raw, (exc.headers or {}).get("Content-Encoding", "")),
+                       dict(exc.headers or {}), exc.geturl(), "", "urllib")
+    except Exception as exc:  # noqa: BLE001
+        return Fetched(url, 0, "", {}, url, str(exc) or err, "urllib")
+
+
+def fetch_via_jina(url: str, raw_html: bool = True) -> Fetched:
+    """Cloudflare'ı aşan okuma katmanı. `x-respond-with: html` ham HTML döndürür."""
+    headers = {"x-respond-with": "html" if raw_html else "markdown"}
+    status, body, _, err = _curl("https://r.jina.ai/" + url, "", None, headers)
+    return Fetched(url, status, body, {}, url, err, "jina-html")
+
+
+def fetch_any(candidates: list[str], referer="", xhr=False, extra=None, allow_jina=True) -> Fetched:
+    """Sırayla dener; 403/0 alırsa jina katmanına düşer."""
+    last = None
+    for url in candidates:
+        r = fetch(url, referer=referer, xhr=xhr, extra=extra)
+        last = r
+        if r.ok and len(r.text) > 800 and "just a moment" not in r.text.lower():
+            return r
+    if allow_jina and last is not None and not last.ok:
+        ju = candidates[0]
+        j = fetch_via_jina(ju)
+        if j.ok and len(j.text) > 800 and "<html" in j.text.lower():
+            return j
+        return j if j.ok else last
+    return last
 
 
 def save(name: str, text: str) -> str:
@@ -201,14 +187,14 @@ def save(name: str, text: str) -> str:
     return path
 
 
-def save_resp(name: str, r: Fetched) -> None:
+def save_resp(name: str, r: Fetched, prefix: str = "") -> None:
     head = (
-        f"# {r.url}\n# status={r.status} final={r.final_url} error={r.error}\n"
-        f"# content-type={r.header('Content-Type')} location={r.header('Location')}\n"
-        f"# bytes={len(r.text)}\n\n"
+        f"<!-- {r.url}\n  status={r.status} via={r.via} final={r.final_url} error={r.error}\n"
+        f"  content-type={r.header('Content-Type')} location={r.header('Location')}\n"
+        f"  bytes={len(r.text)} -->\n"
     )
-    save(name, head + (r.text or ""))
-    log(f"  → {name}: status={r.status} bytes={len(r.text)} loc={r.header('Location')[:120]}")
+    save(name, (prefix + "\n" if prefix else "") + head + (r.text or ""))
+    log(f"  → {name}: status={r.status} via={r.via} bytes={len(r.text)}")
 
 
 def uniq(seq):
@@ -221,11 +207,12 @@ def uniq(seq):
 
 
 def scripts_of(html: str, base: str) -> list[str]:
-    urls = re.findall(r"""<script[^>]+src=["']([^"']+)["']""", html, re.I)
-    out = []
-    for u in urls:
-        out.append(urllib.parse.urljoin(base, html_mod.unescape(u)))
-    return uniq(out)
+    return uniq(urllib.parse.urljoin(base, html_mod.unescape(u))
+                for u in re.findall(r"""<script[^>]+src=["']([^"']+)["']""", html, re.I))
+
+
+def attrs_block(html: str, pattern: str, limit: int = 12) -> list[str]:
+    return uniq(re.findall(pattern, html, re.I))[:limit]
 
 
 def looks_blocked(text: str) -> bool:
@@ -236,180 +223,178 @@ def looks_blocked(text: str) -> bool:
 # ══════════════════════════════════════════════════════════════════════════
 # ANIZM
 # ══════════════════════════════════════════════════════════════════════════
-ANIZM_DOMAINS = [
-    "https://anizm.net",
-    "https://anizm.com.tr",
-    "https://anizm.org",
-    "https://anizm.tv",
-]
+ANIZM_DOMAINS = ["https://anizm.com.tr", "https://anizm.net", "https://anizm.org", "https://anizm.tv"]
 
 
 def dump_anizm() -> None:
     log("\n## ANIZM")
-    base = ""
-    home = None
+    base, home = "", None
     for dom in ANIZM_DOMAINS:
-        r = fetch(dom + "/")
-        tag = dom.split("//")[1].replace(".", "_")
-        save_resp(f"anizm__home__{tag}.html", r)
-        log(f"- {dom}/ → status={r.status} bytes={len(r.text)} ctype={r.header('Content-Type')}")
-        if r.ok and not looks_blocked(r.text):
+        r = fetch(dom + "/", allow_jina=True) if False else fetch(dom + "/")
+        save_resp("anizm__home__" + dom.split("//")[1].replace(".", "_") + ".html", r)
+        log(f"- {dom}/ → {r.status} via={r.via} bytes={len(r.text)}")
+        if r.ok and not looks_blocked(r.text) and len(r.text) > 20000:
             base, home = dom, r
             break
     if not home:
-        log("- !! Anizm ana sayfasına erişilemedi (tüm alan adları).")
+        log("- !! Anizm ana sayfasına erişilemedi")
         return
 
     html = home.text
-    for sel in [
-        "v3-catalog-card", "v3-series-card", "v3-episode-card", "v3-catalog-poster",
-        "data-v3-deferred-src", "v3-card-copy", "v3-poster-rail", "arama", "searchAnime",
-        "episodeListTabContent", "bolumKutucugu", "data-anime-episode-grid",
-    ]:
-        log(f"  · '{sel}' geçiş sayısı: {html.count(sel)}")
+    for sel in ["v3-series-card", "v3-episode-card", "v3-catalog-card", "data-v3-deferred-src",
+                "v3-card-copy", "v3-poster-rail", "searchAnime", "/arama"]:
+        log(f"  · '{sel}': {html.count(sel)}")
 
-    # ---- arama uçları ----
-    queries = ["naruto", "attack on titan", "shingeki no kyojin"]
-    search_tried = []
-    for q in queries:
-        for path in ["/arama?arama={q}", "/search?q={q}", "/arama/{q}", "/searchAnime?q={q}"]:
+    # --- arama uçları ---
+    for q in ["naruto", "attack on titan"]:
+        for path in ["/arama?q={q}", "/arama?arama={q}",
+                     "/searchAnime?query={q}&page=1&type=detailed&limit=10", "/searchAnime?q={q}"]:
             url = base + path.format(q=urllib.parse.quote(q))
-            if url in search_tried:
-                continue
-            search_tried.append(url)
             r = fetch(url, referer=base + "/")
-            ctype = r.header("Content-Type")
-            name = "anizm__search__" + re.sub(r"[^a-z0-9]+", "_", path.format(q=q).lower())[:60] + ".txt"
-            save_resp(name, r)
-            hits = len(re.findall(r'href="[^"]*(?:/anime/|/seri/|/[a-z0-9-]+-bolum)', r.text or ""))
-            log(f"  · arama {url} → {r.status} ctype={ctype} linkSayısı={hits}")
+            if r.header("Content-Type").startswith("application/json") or (r.text or "").lstrip().startswith("{"):
+                save_resp("anizm__search_json__" + re.sub(r"[^a-z0-9]+", "_", path.format(q=q).lower())[:50] + ".json", r)
+            else:
+                save_resp("anizm__search__" + re.sub(r"[^a-z0-9]+", "_", path.format(q=q).lower())[:50] + ".html", r)
+            log(f"  · arama {url} → {r.status} {len(r.text)}B ctype={r.header('Content-Type')[:40]}")
 
-    # ---- anime detay sayfası ----
-    detail_candidates = uniq(
-        re.findall(r"""href=["'](https?://[^"']*anizm[^"']*/(?:anime|seri|dizi)/[^"'#?]+)["']""", html, re.I)
-        + [urllib.parse.urljoin(base, h) for h in re.findall(
-            r"""href=["'](/[^"'#?]*(?:anime|seri)/[^"'#?]+)["']""", html, re.I)]
+    # --- detay sayfası ---
+    slug_links = uniq(
+        urllib.parse.urljoin(base, h) for h in re.findall(r"""href=["'](/(?!arama|yeniler|takvim|magaza|girisyap|uyeol|profil|fansub|storage|images|assets|js|css|api)[a-z0-9][a-z0-9-]{2,})["']""", html, re.I)
     )
-    if not detail_candidates:
-        detail_candidates = uniq(urllib.parse.urljoin(base, h) for h in re.findall(r"""href=["'](/[a-z0-9-]{3,})["']""", html))[:12]
-    log(f"- detay adayı: {len(detail_candidates)} → {detail_candidates[:3]}")
-    detail_url = detail_candidates[0] if detail_candidates else ""
+    card_links = uniq(
+        urllib.parse.urljoin(base, h) for h in re.findall(
+            r"""<a[^>]+class=["'][^"']*(?:v3-card|poster|card-title|v3-series)[^"']*["'][^>]*href=["']([^"']+)["']""", html, re.I)
+    )
+    detail_candidates = uniq(card_links + slug_links)
+    log(f"- detay adayı: {len(detail_candidates)} → {detail_candidates[:4]}")
+
     detail = None
-    for cand in detail_candidates[:6]:
+    detail_url = ""
+    for cand in detail_candidates[:10]:
         r = fetch(cand, referer=base + "/")
-        if r.ok:
+        if r.ok and "-bolum-izle" not in cand:
             detail, detail_url = r, cand
             break
-    if detail:
+    if detail is None:
+        log("- !! detay sayfası açılamadı")
+        # doğrudan bilinen seri sayfası
+        r = fetch(base + "/one-piece", referer=base + "/")
+        if r.ok:
+            detail, detail_url = r, base + "/one-piece"
+
+    if detail is not None:
         save_resp("anizm__detail.html", detail)
         d = detail.text
-        for sel in ["v3-anime-detail-cover", "v3-anime-detail-meta", "v3-anime-detail-tags",
-                    "v3-anime-summary-content", "data-anime-episode-grid", "data-episode-id",
-                    "bolumKutucugu", "episodeListTabContent", "data-progress", "data-url=", "cevirmen"]:
+        for sel in ["v3-anime-detail-cover", "v3-anime-facts", "v3-anime-detail-meta",
+                    "v3-anime-detail-tags", "v3-anime-summary-content", "#bolumler",
+                    "data-anime-episode-grid", "data-episode-number", "data-episode-id",
+                    "-bolum-izle", "bolumKutucugu", "episodeListTabContent"]:
             log(f"  · detay '{sel}': {d.count(sel)}")
-        for s in scripts_of(d, base)[:10]:
-            sr = fetch(s, referer=detail_url)
-            save_resp("anizm__js__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:80], sr)
+        for s in scripts_of(d, base)[:8]:
+            save_resp("anizm__js__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:70], fetch(s, referer=detail_url))
 
         ep_links = uniq(
-            re.findall(r"""href=["'](https?://[^"']*anizm[^"']*/[^"'#?]*bolum[^"'#?]*)["']""", d, re.I)
-            + [urllib.parse.urljoin(base, h) for h in re.findall(
-                r"""href=["'](/[^"'#?]*bolum[^"'#?]*)["']""", d, re.I)]
+            urllib.parse.urljoin(base, h) for h in re.findall(
+                r"""<a[^>]+href=["']([^"']*-bolum-izle[^"']*)["']""", d, re.I)
         )
         log(f"  · bölüm bağlantısı: {len(ep_links)} → {ep_links[:3]}")
+        # "sıradaki bölüm" en iyi örnek: ilk bölüm
         if ep_links:
             dump_anizm_episode(ep_links[0], base)
-    else:
-        log("- !! detay sayfası açılamadı")
 
 
 def dump_anizm_episode(ep_url: str, base: str) -> None:
     r = fetch(ep_url, referer=base + "/")
     save_resp("anizm__episode.html", r)
-    if not r.ok:
+    if not r.ok or looks_blocked(r.text):
+        log(f"  !! bölüm sayfası alınamadı: {r.status}")
         return
     page = r.text
-    for sel in ["data-sources", "cevirmen", "translator", "videoPlayerButtons", "data-episode-id",
-                "data-anime-episode-grid", "player/", "bolum/"]:
+    for sel in ["data-v3-translator", "data-sources", "cevirmen", "translator",
+                "data-video", "data-url", "csrf-token", "videoPlayerButtons", "player"]:
         log(f"  · bölüm '{sel}': {page.count(sel)}")
 
-    ep_id = ""
-    m = (re.search(r"/bolum/(\d+)", ep_url)
-         or re.search(r'data-url=["\'][^"\']*/bolum/(\d+)', page)
-         or re.search(r'data-episode-id=["\'](\d+)', page)
-         or re.search(r'data-progress=["\'][^"\']*/bolum/(\d+)', page))
-    if m:
-        ep_id = m.group(1)
-    log(f"  · epId={ep_id}")
+    csrf_m = re.search(r"""<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)""", page, re.I)
+    csrf = csrf_m.group(1) if csrf_m else ""
+    log(f"  · csrf-token: {'VAR' if csrf else 'YOK'}")
 
-    for s in scripts_of(page, base)[:10]:
-        sr = fetch(s, referer=ep_url)
-        save_resp("anizm__epjs__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:80], sr)
+    for tag in attrs_block(page, r"<button[^>]*(?:data-sources|data-v3-translator)[^>]*>", 8):
+        log(f"  · buton: {tag[:400]}")
+    for tag in attrs_block(page, r"<[a-z]+[^>]+data-video[^>]*>", 8):
+        log(f"  · video etiketi: {tag[:300]}")
 
-    # çevirmenler: hem data-sources hem translator= hem /cevirmen/
+    inline = re.findall(r"<script(?![^>]*src)[^>]*>([\s\S]{0,4000}?)</script>", page)
+    interesting = [s for s in inline if "/bolum/" in s or "cevirmen" in s or "video" in s.lower()]
+    save("anizm__episode_inline_scripts.js", "\n\n/* ---- */\n\n".join(interesting))
+    log(f"  · ilgili inline script: {len(interesting)}")
+
+    for s in scripts_of(page, base)[:8]:
+        save_resp("anizm__epjs__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:70], fetch(s, referer=ep_url))
+
+    # çevirmen kaynak uçları
     trs = uniq(
         re.findall(r'data-sources=["\']([^"\']+)["\']', page)
+        + re.findall(r'data-v3-translator=["\']([^"\']+)["\']', page)
         + re.findall(r'translator=["\']([^"\']+)["\']', page)
-        + re.findall(r'(/[^"\'\s]*cevirmen/\d+[^"\'\s]*)', page)
-        + re.findall(r'(https?://[^"\'\s]*/episode/\d+/translator/\d+)', page)
     )
-    log(f"  · çevirmen kaynağı: {len(trs)} → {trs[:4]}")
+    log(f"  · çevirmen yolu: {len(trs)} → {trs[:4]}")
 
     videos: list[str] = []
-    for i, tr in enumerate(trs[:8]):
+    for i, tr in enumerate(trs[:6]):
         turl = urllib.parse.urljoin(base, html_mod.unescape(tr))
-        trr = fetch(turl, referer=ep_url, xhr=True)
-        save_resp(f"anizm__translator_{i}.json", trr)
-        body = trr.text or ""
-        try:
-            payload = json.loads(body)
-            if isinstance(payload, dict) and isinstance(payload.get("data"), str):
-                body = payload["data"]
-        except Exception:  # noqa: BLE001
-            pass
-        videos += re.findall(r'video=["\']([^"\']+)["\']', body)
-        videos += re.findall(r'/bolum/(\d+)/video/(\d+)', body) and [
-            f"/bolum/{a}/video/{b}" for a, b in re.findall(r"/bolum/(\d+)/video/(\d+)", body)
-        ] or []
-        videos += re.findall(r"/video/(\d+)", body) and [
-            f"/video/{v}" for v in re.findall(r"/video/(\d+)", body)
-        ] or []
-        log(f"    · çevirmen[{i}] {turl} → {trr.status} videoAttr={len(re.findall(chr(34)+'video=', body))}")
+        variants = [
+            ("plain", dict(xhr=False, extra={})),
+            ("xhr", dict(xhr=True, extra={})),
+            ("xhrcsrf", dict(xhr=True, extra={"X-CSRF-TOKEN": csrf, "Accept": "application/json"})),
+        ]
+        for tag, kw in variants:
+            rr = fetch(turl, referer=ep_url, **kw)
+            save_resp(f"anizm__translator_{i}_{tag}.json", rr)
+            body = rr.text or ""
+            log(f"    · çevirmen[{i}]/{tag} → {rr.status} bytes={len(body)} ilk={body.strip()[:90]!r}")
+            try:
+                payload = json.loads(body)
+                if isinstance(payload, dict) and isinstance(payload.get("data"), str):
+                    body = payload["data"]
+            except Exception:  # noqa: BLE001
+                pass
+            videos += [f"/bolum/{a}/video/{b}" for a, b in re.findall(r"/bolum/(\d+)/video/(\d+)", body)]
+            videos += [f"/video/{v}" for v in re.findall(r'video=["\']/video/(\d+)', body)]
+            videos += [f"/video/{v}" for v in re.findall(r'data-video=["\'](\d+)', body)]
+            if tag == "xhrcsrf" and videos:
+                break
 
     videos = uniq(videos)
     log(f"  · video kimliği: {len(videos)} → {videos[:6]}")
 
-    hashes = set()
-    for i, v in enumerate(videos[:14]):
+    hashes: set[str] = set()
+    for i, v in enumerate(videos[:12]):
         vurl = urllib.parse.urljoin(ep_url, html_mod.unescape(v))
-        if not re.search(r"/\d+", vurl):
-            continue
-        vr = fetch(vurl, referer=ep_url, xhr=True)
+        vr = fetch(vurl, referer=ep_url, xhr=True, extra={"Accept": "application/json"})
         save_resp(f"anizm__video_{i}.json", vr)
         try:
             payload = json.loads(vr.text or "{}")
         except Exception:  # noqa: BLE001
             payload = {}
-        log(f"    · video[{i}] {vurl} → {vr.status} keys={list(payload)[:6] if isinstance(payload, dict) else type(payload).__name__}")
+        log(f"    · video[{i}] {vurl} → {vr.status} keys={list(payload)[:6] if isinstance(payload, dict) else '-'}")
         if isinstance(payload, dict):
-            for val in (payload.get("url"), payload.get("playerOrigin"), payload.get("videoSource"),
-                        payload.get("securedLink")):
+            for key in ("url", "player", "playerOrigin", "videoSource", "securedLink", "sources"):
+                val = payload.get(key)
                 if isinstance(val, str):
                     hashes |= set(re.findall(r"\b[a-f0-9]{32}\b", val))
-
-        # /player/<id> yönlendirmesi (eski sözleşme)
+                    if key in ("url", "player") and i < 3:
+                        log(f"      · {key}={val[:180]}")
         pid = re.search(r"/video/(\d+)", vurl)
         if pid:
             purl = f"{base}/player/{pid.group(1)}"
             pr = fetch(purl, referer=ep_url, follow=False)
             save_resp(f"anizm__player_{i}_head.txt", pr)
-            if pr.header("Location"):
-                target = pr.header("Location")
-                log(f"      · /player yönlendirme → {target[:160]}")
-                hashes |= set(re.findall(r"\b[a-f0-9]{32}\b", target))
+            loc = pr.header("Location")
+            if loc:
+                log(f"      · /player/{pid.group(1)} → 302 {loc[:170]}")
+                hashes |= set(re.findall(r"\b[a-f0-9]{32}\b", loc))
 
-    # anizmplayer getVideo (iki referer varyantı)
-    for h in sorted(hashes)[:6]:
+    for h in sorted(hashes)[:5]:
         for variant, rref in (("site", base + "/"), ("player", f"https://anizmplayer.com/video/{h}")):
             body = urllib.parse.urlencode({"hash": h, "r": rref})
             r2 = fetch(
@@ -420,7 +405,7 @@ def dump_anizm_episode(ep_url: str, base: str) -> None:
                 extra={"Origin": "https://anizmplayer.com"},
             )
             save_resp(f"anizm__getVideo_{h[:8]}_{variant}.json", r2)
-            log(f"  · getVideo {h[:8]} ({variant}) → {r2.status} bytes={len(r2.text)}")
+            log(f"  · getVideo {h[:8]}/{variant} → {r2.status} {len(r2.text)}B {r2.text.strip()[:100]!r}")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -438,42 +423,53 @@ def dump_tranimeizle() -> None:
     base, home = "", None
     for dom in TIZLE_DOMAINS:
         r = fetch(dom + "/")
-        save_resp("tizle__home__" + dom.split("//")[1].replace(".", "_") + ".html", r)
-        log(f"- {dom}/ → status={r.status} bytes={len(r.text)} ctype={r.header('Content-Type')}")
-        if r.ok and not looks_blocked(r.text):
+        save_resp("tizle__home_direct__" + dom.split("//")[1].replace(".", "_") + ".html", r)
+        log(f"- {dom}/ → {r.status} via={r.via} bytes={len(r.text)}")
+        if r.ok and not looks_blocked(r.text) and len(r.text) > 5000:
             base, home = dom, r
             break
     if not home:
-        log("- !! TrAnimeIzle ana sayfasına erişilemedi.")
+        log("- doğrudan erişim yok; jina-html katmanı deneniyor")
+        for dom in TIZLE_DOMAINS:
+            j = fetch_via_jina(dom + "/")
+            save_resp("tizle__home_jina__" + dom.split("//")[1].replace(".", "_") + ".html", j)
+            log(f"- jina {dom}/ → {j.status} bytes={len(j.text)}")
+            if j.ok and len(j.text) > 5000 and not looks_blocked(j.text):
+                base, home = dom, j
+                break
+    if not home:
+        log("- !! TrAnimeIzle ana sayfasına erişilemedi (tüm katmanlar)")
         return
+
     html = home.text
-    for sel in ["fansubSelector", "sourceBtn", "data-fid", "data-fad", "animeDetail",
+    for sel in ["fansubSelector", "sourceBtn", "data-fid", "data-fad", "flx-block", "data-href",
                 "/api/fansubSources", "/api/sourcePlayer"]:
         log(f"  · '{sel}': {html.count(sel)}")
 
-    for q in ["naruto", "attack on titan"]:
-        for path in ["/arama?q={q}", "/search?q={q}", "/arama/{q}"]:
+    for q in ["naruto"]:
+        for path in ["/arama?q={q}", "/arama/{q}", "/search?q={q}"]:
             url = base + path.format(q=urllib.parse.quote(q))
             r = fetch(url, referer=base + "/")
-            save_resp("tizle__search__" + re.sub(r"[^a-z0-9]+", "_", path.format(q=q).lower())[:60] + ".txt", r)
-            log(f"  · arama {url} → {r.status} ctype={r.header('Content-Type')}")
+            if not r.ok:
+                r = fetch_via_jina(url)
+            save_resp("tizle__search__" + re.sub(r"[^a-z0-9]+", "_", path.format(q=q).lower())[:50] + ".html", r)
+            log(f"  · arama {url} → {r.status} via={r.via} bytes={len(r.text)}")
 
-    links = uniq([urllib.parse.urljoin(base, h) for h in re.findall(
-        r"""href=["'](/[^"'#?]*(?:anime|seri)[^"'#?]*)["']""", html, re.I)])
+    links = uniq(urllib.parse.urljoin(base, h) for h in re.findall(
+        r"""href=["'](/[^"'#?]*(?:anime|seri)[^"'#?]*)["']""", html, re.I))
     log(f"- detay adayı: {len(links)} → {links[:3]}")
     for cand in links[:4]:
         d = fetch(cand, referer=base + "/")
+        if not d.ok or looks_blocked(d.text):
+            d = fetch_via_jina(cand)
         if not d.ok:
             continue
         save_resp("tizle__detail.html", d)
         body = d.text
-        for sel in ["fansubSelector", "data-fid", "data-fad", "bolum", "episode"]:
+        for sel in ["fansubSelector", "data-fid", "data-fad", "-bolum-izle", "bolum"]:
             log(f"  · detay '{sel}': {body.count(sel)}")
-        for s in scripts_of(body, base)[:10]:
-            sr = fetch(s, referer=cand)
-            save_resp("tizle__js__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:80], sr)
-        eps = uniq([urllib.parse.urljoin(base, h) for h in re.findall(
-            r"""href=["'](/[^"'#?]*-[^"'#?]*bolum[^"'#?]*)["']""", body, re.I)])
+        eps = uniq(urllib.parse.urljoin(base, h) for h in re.findall(
+            r"""href=["']([^"'#?]*bolum[^"'#?]*)["']""", body, re.I))
         log(f"  · bölüm: {len(eps)} → {eps[:3]}")
         if eps:
             dump_tizle_episode(eps[0], base)
@@ -482,44 +478,49 @@ def dump_tranimeizle() -> None:
 
 def dump_tizle_episode(ep_url: str, base: str) -> None:
     r = fetch(ep_url, referer=base + "/")
+    if not r.ok or looks_blocked(r.text):
+        r = fetch_via_jina(ep_url)
     save_resp("tizle__episode.html", r)
     if not r.ok:
         return
     page = r.text
-    for sel in ["fansubSelector", "data-fid", "data-fad", "sourceBtn", "data-id", "player"]:
+    for sel in ["fansubSelector", "data-fid", "data-fad", "sourceBtn", "data-id"]:
         log(f"  · bölüm '{sel}': {page.count(sel)}")
-    for s in scripts_of(page, base)[:10]:
-        sr = fetch(s, referer=ep_url)
-        save_resp("tizle__epjs__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:80], sr)
+    for tag in attrs_block(page, r"<[a-z]+[^>]+data-fid[^>]*>", 8):
+        log(f"  · fansub etiketi: {tag[:300]}")
+
+    for s in scripts_of(page, base)[:8]:
+        save_resp("tizle__epjs__" + re.sub(r"[^A-Za-z0-9]+", "_", s.split("//")[-1])[:70], fetch(s, referer=ep_url))
 
     fansubs = uniq(re.findall(r'data-fid=["\'](\d+)["\'][^>]*?data-fad=["\'](\d+)["\']', page))
     if not fansubs:
-        fansubs = uniq([(a, b) for b, a in re.findall(r'data-fad=["\'](\d+)["\'][^>]*?data-fid=["\'](\d+)["\']', page)])
+        fansubs = uniq((a, b) for b, a in re.findall(
+            r'data-fad=["\'](\d+)["\'][^>]*?data-fid=["\'](\d+)["\']', page))
     log(f"  · fansub (fid,fad): {len(fansubs)} → {fansubs[:4]}")
 
     ids: list[str] = []
-    for fid, fad in fansubs[:6]:
-        payload = json.dumps({"fansub_id": fid, "fansub_adi": "", "anime_id": fad, "anime_adi": ""})
-        for variant, body in (
-            ("named", payload),
+    for fid, fad in fansubs[:4]:
+        bodies = [
+            ("named", json.dumps({"fansub_id": fid, "fansub_adi": "", "anime_id": fad, "anime_adi": ""})),
             ("raw", json.dumps({"fid": fid, "fad": fad})),
-        ):
+            ("form", urllib.parse.urlencode({"fansub_id": fid, "anime_id": fad})),
+        ]
+        for variant, body in bodies:
             sr = fetch(base + "/api/fansubSources", referer=ep_url, data=body, xhr=True,
-                       extra={"Content-Type": "application/json; charset=UTF-8"})
+                       json_body=(variant != "form"))
             save_resp(f"tizle__fansubSources_{fid}_{fad}_{variant}.json", sr)
             ids += re.findall(r'data-id=["\'](\d+)["\']', sr.text or "")
             ids += re.findall(r'"id"\s*:\s*"?(\d+)"?', sr.text or "")
-            log(f"    · fansubSources({fid},{fad},{variant}) → {sr.status} ids={len(ids)}")
+            log(f"    · fansubSources({fid},{fad},{variant}) → {sr.status} {sr.text.strip()[:80]!r}")
 
     ids = uniq(ids)
     log(f"  · kaynak id: {len(ids)} → {ids[:6]}")
-    for i, sid in enumerate(ids[:16]):
+    for sid in ids[:12]:
         for path in (f"/api/sourcePlayer/{sid}", f"/api/preVideoAd/{sid}"):
-            sr = fetch(base + path, referer=ep_url, xhr=True,
-                       extra={"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"})
+            sr = fetch(base + path, referer=ep_url, xhr=True)
             save_resp("tizle__" + path.strip("/").replace("/", "_") + ".json", sr)
             iframe = re.search(r'<iframe[^>]+src=["\']([^"\']+)', sr.text or "")
-            log(f"    · {path} → {sr.status} iframe={(iframe.group(1)[:110] if iframe else '-')}")
+            log(f"    · {path} → {sr.status} iframe={(iframe.group(1)[:120] if iframe else '-')}")
 
 
 def main() -> int:
@@ -537,7 +538,6 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             log(f"- !! TrAnimeIzle dökümü çöktü: {exc!r}")
     save("SUMMARY.md", "\n".join(LOG) + "\n")
-    print("\n".join(LOG[-40:]))
     return 0
 
 
