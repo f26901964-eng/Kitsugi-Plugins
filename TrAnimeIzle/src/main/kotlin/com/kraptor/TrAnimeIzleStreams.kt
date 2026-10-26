@@ -135,6 +135,12 @@ internal class TrAnimeIzleStreams(
         //    çözüldükçe yayınlanır.
         runBounded(allSources, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { src ->
             val label = buildLabel(src)
+            // Sayfa düzeyinde bulunan HAZIR host adresleri (`Src.id` = URL):
+            // sourcePlayer ucu yok, doğrudan çözülür.
+            if (src.id.startsWith("http")) {
+                resolveTarget(src.id, pageUrl, label, subtitleCallback, callback, depth = 0)
+                return@runBounded
+            }
             val body = http.postEmpty("$site/api/sourcePlayer/${src.id}", pageUrl)
             val ok = !body.isNullOrBlank() && resolvePlayerBody(body, pageUrl, label, subtitleCallback, callback)
             if (!ok) {
@@ -233,6 +239,10 @@ internal class TrAnimeIzleStreams(
                 Src(id, label, "Sayfa")
             }
         if (fromDoc.isNotEmpty()) return fromDoc
+        // Sayfada JS ile duran host adresleri.
+        val hosts = embedUrlsFrom(html).map { Src(it, "Oynatıcı", "Sayfa") }
+        if (hosts.isNotEmpty()) return hosts
+
         // Son yedek: sayfadaki data-eid/data-id çiftleri (episodeId eşleşmeli).
         return doc.select("[data-id]").mapNotNull { el ->
             val id = el.attr("data-id").trim()
@@ -345,7 +355,30 @@ internal class TrAnimeIzleStreams(
         for (inner in nested.take(2)) {
             if (resolveTarget(inner, url, label, subtitleCallback, callback, depth + 1)) found = true
         }
+        // JS ile gömülen host adresleri (iframe'e dönüşmemiş olabilir).
+        for (host in embedUrlsFrom(page).filter { it != url }.take(3)) {
+            if (resolveTarget(host, url, label, subtitleCallback, callback, depth + 1)) found = true
+        }
         return found
+    }
+
+    /**
+     * HTML/JS içinde geçen, tanınan video host'larına ait adresler. Oynatıcı
+     * katmanı iframe yerine `sources: [{file: "https://voe.sx/e/…"}]` yazdığında
+     * kaynak kaybolmasın diye.
+     */
+    private fun embedUrlsFrom(html: String): List<String> {
+        if (html.isBlank()) return emptyList()
+        val unescaped = html.replace("\\/", "/")
+        val out = LinkedHashSet<String>()
+        for (match in Regex("""https?://[^"'\s\\]+""").findAll(unescaped)) {
+            val url = match.value.trimEnd('"', '\'', ')', ',', ';', '\\')
+            if (!EMBED_HOSTS.any { url.contains(it, ignoreCase = true) }) continue
+            if (TrAnimeIzleSite.isAdUrl(url)) continue
+            out.add(url)
+            if (out.size >= 6) break
+        }
+        return out.toList()
     }
 
     // ------------------------------------------------------------------
@@ -371,7 +404,7 @@ internal class TrAnimeIzleStreams(
         val json = runCatching { org.json.JSONObject(body.trim()) }.getOrNull() ?: return false
         var found = false
         json.optString("hlsManifestUrl").takeIf { it.startsWith("http") }?.let { hls ->
-            emitMedia(hls, label, "$OKRU/", callback)
+            emitMedia(hls, label, "$OKRU/", callback, trusted = true)
             found = true
         }
         json.optJSONArray("videos")?.let { videos ->
@@ -380,7 +413,13 @@ internal class TrAnimeIzleStreams(
                 val file = item.optString("url")
                 if (!file.startsWith("http")) continue
                 val name = item.optString("name")
-                emitMedia(file, if (name.isBlank()) label else "$label • $name", "$OKRU/", callback)
+                emitMedia(
+                    file,
+                    if (name.isBlank()) label else "$label • $name",
+                    "$OKRU/",
+                    callback,
+                    trusted = true
+                )
                 found = true
             }
         }
@@ -401,7 +440,13 @@ internal class TrAnimeIzleStreams(
         val path = Regex("""player\.src\(\[\{src:\s*["']([^"']+)["']""").find(body)?.groupValues?.getOrNull(1)
             ?: Regex("""["'](/videos/[^"']+\.(?:mp4|m3u8)[^"']*)["']""").find(body)?.groupValues?.getOrNull(1)
             ?: return false
-        emitMedia(TrAnimeIzleSite.absolute("$SIBNET/", path) ?: path, label, "$SIBNET/", callback)
+        emitMedia(
+            TrAnimeIzleSite.absolute("$SIBNET/", path) ?: path,
+            label,
+            "$SIBNET/",
+            callback,
+            trusted = true
+        )
         return true
     }
 
@@ -424,7 +469,16 @@ internal class TrAnimeIzleStreams(
         }
         if (bag.isEmpty()) return false
         for (link in bag) {
-            emitLink(link.url, label, link.referer.ifBlank { referer }, link.type, link.quality, link.headers, callback)
+            emitLink(
+                link.url,
+                label,
+                link.referer.ifBlank { referer },
+                link.type,
+                link.quality,
+                link.headers,
+                callback,
+                trusted = true
+            )
         }
         return handled || bag.isNotEmpty()
     }
@@ -446,7 +500,8 @@ internal class TrAnimeIzleStreams(
                 "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t",
                 label,
                 referer,
-                callback
+                callback,
+                trusted = true
             )
             return true
         }
@@ -462,7 +517,8 @@ internal class TrAnimeIzleStreams(
         url: String,
         label: String,
         referer: String,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
+        trusted: Boolean = false
     ) {
         val clean = normalize(url)
         if (clean.isEmpty()) return
@@ -496,15 +552,31 @@ internal class TrAnimeIzleStreams(
                         ExtractorLinkType.M3U8,
                         variant.quality,
                         variant.headers,
-                        callback
+                        callback,
+                        trusted = true
                     )
                 }
                 return
             }
         }
-        emitLink(clean, label, referer, if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO, null, null, callback)
+        emitLink(
+            clean,
+            label,
+            referer,
+            if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
+            null,
+            null,
+            callback,
+            trusted = trusted
+        )
     }
 
+    /**
+     * @param trusted adresi biz çözmediysek (kayıtlı extractor'ın ürettiği adres,
+     *   m3u8 varyantı, ok.ru/sibnet medyası) `true`. Bu adresler tanım gereği
+     *   oynatılabilir medyadır; uzantısız CDN adresleri (`/get_video?…`,
+     *   `…googleusercontent.com/…=m22`) yanlışlıkla elenmesin.
+     */
     private suspend fun emitLink(
         url: String,
         label: String,
@@ -512,10 +584,18 @@ internal class TrAnimeIzleStreams(
         type: ExtractorLinkType,
         quality: Int?,
         extraHeaders: Map<String, String>?,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
+        trusted: Boolean = false
     ) {
         val clean = normalize(url)
         if (clean.isEmpty() || !emitted.add(clean)) return
+        // EMİSYON KURALI: sayfa/embed adresi ASLA yayınlanmaz. Yayınlanırsa
+        // uygulama onu kendi derin tarayıcısına (EmbedMediaScanner) veriyor ve
+        // tarayıcı yolu patladığında kartta KTS-CSP-9110 görünüyor (v31'de yaşandı).
+        if (!trusted && !isPlayableUrl(clean, type)) {
+            Log.d(TAG, "medya olmayan adres yayınlanmadı (9110 koruması): ${clean.take(110)}")
+            return
+        }
         val ref = referer.ifBlank { base() + "/" }
         val headers = streamHeaders(ref, clean) + (extraHeaders ?: emptyMap())
         val link = newExtractorLink(
@@ -532,6 +612,21 @@ internal class TrAnimeIzleStreams(
             emittedCount += 1
             callback(link)
         }
+    }
+
+    /**
+     * Doğrudan oynatılabilir medya mı? (sayfa/embed adresleri yayınlanmaz)
+     *
+     * `M3U8`/`DASH` tipi zaten medya demektir; `VIDEO` tipinde yol uzantısına
+     * bakılır. Yalnızca **bizim HTML'den kazıdığımız** adaylar bu kontrolü
+     * görür — extractor çıktıları `trusted` olarak geçer.
+     */
+    private fun isPlayableUrl(url: String, type: ExtractorLinkType): Boolean {
+        if (type != ExtractorLinkType.VIDEO) return true
+        val path = url.substringBefore('?').substringBefore('#').lowercase()
+        val mediaExt = listOf(".m3u8", ".mpd", ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".ts", ".flv")
+        if (mediaExt.any { path.endsWith(it) }) return true
+        return path.contains(".m3u8") || path.contains(".mp4")
     }
 
     /**
@@ -621,6 +716,16 @@ internal class TrAnimeIzleStreams(
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
         private const val SOURCE_BUDGET_MS = 14_000L
+
+        /** Sitede görülen video host'ları (oynatıcı gövdelerinde aranır). */
+        private val EMBED_HOSTS = listOf(
+            "voe.", "filemoon", "mixdrop", "mp4upload", "sendvid", "sibnet", "ok.ru",
+            "odnoklassniki", "vudeo", "upstream", "hdvid", "hexload", "optraco", "luffytra",
+            "mega.nz", "mega.co", "mail.ru", "yandex", "drive.google", "docs.google",
+            "vidcache", "yourupload", "streamlare", "dood", "vidmoly", "luluvdo", "uqload",
+            "gofile", "streamtape", "abyssplayer", "playmogo", "sitemio", "bysejeseji",
+            "krakenfiles", "hitfile", "turbobit"
+        )
 
         private const val OKRU = "https://ok.ru"
         private const val SIBNET = "https://video.sibnet.ru"

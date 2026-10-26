@@ -1,4 +1,4 @@
-version = 31
+version = 32
 
 cloudstream {
     authors     = listOf("kraptor", "byayzen")
@@ -14,7 +14,7 @@ cloudstream {
     **/
     status  = 1
     tvTypes = listOf("Anime")
-    iconUrl = "https://www.google.com/s2/favicons?domain=tranimeizle.io&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=tranimeizle.live&sz=%size%"
 }
 
 dependencies {
