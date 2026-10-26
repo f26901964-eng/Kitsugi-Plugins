@@ -353,15 +353,22 @@ jobs:
 
       - name: SPA prob dökümünü dala it
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if grep -qa "\[PROBE\]" /tmp/audit-anizm.log; then
-            grep -a "\[PROBE\]" /tmp/audit-anizm.log | sed 's/^.*\[PROBE\]//' > research/spa-probe.txt || true
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add research/spa-probe.txt
-            git commit -m "SPA prob dökümü (otomatik)" || true
-            git push || true
+          rm -rf /tmp/probepush && mkdir -p /tmp/probepush
+          cd /tmp/probepush
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git checkout -q -b spa-probe
+          if [ -f /tmp/audit-anizm.log ]; then
+            grep -a "\[PROBE\]" /tmp/audit-anizm.log | sed 's/^.*\[PROBE\]//' > spa-probe.txt || true
+            grep -a "SORUNLU\|KAPSANMIYOR\|ÖZET\|toplam kaynak\|kapsamında\|oynatılabilir" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' > audit-ozet.txt || true
           fi
+          git add -A
+          git commit -qm "spa probe ${GITHUB_RUN_ID}" || true
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:spa-probe && echo "spa-probe itildi"
 
       - name: Hatayı PR'a Yaz
         if: failure()
