@@ -297,3 +297,27 @@ Doğrulanan ayrıntılar:
 | Anizm: oynatıcı çözülmüyor | `anizmplayer` anahtarı yalnızca `video/<hash>` sanılıyordu | `index.php?data=<32hex>` + `securedLink` + `video[]` |
 | TrAnimeIzle: kaynak listesi boş | form gövdesi bekleyen uç sürümü | JSON → form yedeği |
 | TrAnimeIzle: saçma "kaynak" | anti-bot probe HTML'i kaynak sanılıyordu | `isProbeGate` ile ayıklanır |
+
+### 4.5 Ek bulgular (microlink DOM ölçümü, 26.10.2026)
+
+* Canlı bölüm sayfasında `[data-sources]` düğümü **var** ama `data-sources`
+  özniteliğinin değeri sunucu HTML'inde **boş** (`attribute → null`). Yani adres
+  yalnızca istemci JS'i çalıştıktan sonra doluyor. Bu yüzden eklenti üç kademeli
+  çalışır: (a) öznitelik doluysa doğrudan kullan, (b) boşsa düğümdeki `data-id` +
+  bölüm kimliğinden `/bolum/{id}/cevirmen/{cid}` kur, (c) ham `[translator]` /
+  `[video]` özniteliklerini tara (Migurdex'in `TranslatorRegex`/`VideoAttrRegex`
+  yolu), (d) son çare `/bolum/{id}` dizini.
+* `[translator]` ve `[video]` öznitelikleri **her etikette** olabilir
+  (`a`, `button`, `div`). Önceki sürüm yalnızca `a[translator]` arıyordu; v3
+  şablonunda düğüm `button` olduğu için hiç eşleşmiyordu.
+* Aynı çevirmen için iki rota biçimi de denenir: v3 `/bolum/{id}/cevirmen/{cid}`
+  ve eski kuşak `/episode/{id}/translator/{cid}`.
+* `ok.ru` ve `sibnet` için **yerel** çözücüler eklendi (extractor katmanı bu iki
+  hostta zaman zaman 403 dönüyor):
+  `ok.ru/dk?cmd=videoPlayerMetadata&mid=…` → `hlsManifestUrl` + `videos[]`;
+  `video.sibnet.ru/shell.php?videoid=…` → `player.src([{src:"/videos/…"}])`.
+* Bölüm listesi: v3 şablonu numara/başlığı `data-episode-number` ve
+  `data-episode-title` özniteliklerinde taşıyor; ayrıştırıcı artık bunları okuyor.
+
+**Derleme durumu:** `Derleme Testi` (tüm etkin eklentiler + birim testleri) yeşil;
+Anizm **v6**, TrAnimeIzle **v31**.
