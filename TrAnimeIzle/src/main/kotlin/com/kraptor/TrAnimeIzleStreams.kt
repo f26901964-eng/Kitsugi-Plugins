@@ -133,7 +133,7 @@ internal class TrAnimeIzleStreams(
 
         // 3) Kaynak butonlarını çöz — 8 eşzamanlı, dar zaman aşımı, sonuç
         //    çözüldükçe yayınlanır.
-        runBounded(allSources, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { src ->
+        runBounded(allSources, concurrency = 10, perItemMs = PER_ITEM_MS) { src ->
             val label = buildLabel(src)
             // Sayfa düzeyinde bulunan HAZIR host adresleri (`Src.id` = URL):
             // sourcePlayer ucu yok, doğrudan çözülür.
@@ -290,11 +290,16 @@ internal class TrAnimeIzleStreams(
 
         if (targets.isEmpty()) return false
 
+        // v34: bu ÇAĞRIYA ait yayın sayısı ölçülür. Eskiden küresel `emittedCount`
+        // kontrol ediliyordu; ilk kaynak bir şey yayınladıktan sonra her kaynak
+        // "başarılı" sayılıyor ve `preVideoAd` yedeği HİÇ çalışmıyordu → o
+        // kaynaklar sessizce eksik kalıyordu.
+        val before = emittedCount
         var any = false
-        runBounded(targets.take(6), concurrency = 4, budgetMs = SOURCE_BUDGET_MS) { target ->
+        runBounded(targets.take(6), concurrency = 4, perItemMs = SOURCE_BUDGET_MS) { target ->
             if (resolveTarget(target, pageUrl, label, subtitleCallback, callback, depth = 0)) any = true
         }
-        return any || emittedCount > 0
+        return any || emittedCount > before
     }
 
     // ------------------------------------------------------------------
@@ -318,6 +323,15 @@ internal class TrAnimeIzleStreams(
             return true
         }
 
+        // Site içi oynatıcılar (Beta Player / puffytr) — HLS master'ı doğrudan verir.
+        if (resolveSitePlayer(url, label, callback)) return true
+
+        // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
+        if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
+
+        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): AES'li /api/v1/video?
+        if (resolveSistennPlayer(url, label, callback)) return true
+
         // Host'a özel yerel çözücüler (extractor katmanı bu iki hostta kırılgan).
         if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
@@ -340,6 +354,11 @@ internal class TrAnimeIzleStreams(
 
         val media = TrAnimeIzleSite.directMediaFrom(page, url)
         var found = false
+        // StreamCash benzeri oynatıcılar: base64 yapılandırma (`window.__PCr`).
+        for (stream in inlineConfigMedia(page).take(3)) {
+            emitMedia(stream, label, url, callback, trusted = true)
+            found = true
+        }
         for (stream in media.take(4)) {
             emitMedia(stream, label, url, callback)
             found = true
@@ -491,21 +510,101 @@ internal class TrAnimeIzleStreams(
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val id = Regex("""/d/([A-Za-z0-9_-]{6,})""").find(url)?.groupValues?.getOrNull(1)
-        val bridged = "https://gdriveplayer.to/embed2.php?link=" +
-            java.net.URLEncoder.encode(url, "UTF-8")
-        if (tryExtractors(bridged, referer, label, subtitleCallback, callback)) return true
-        if (id != null) {
-            // Son çare: doğrudan indirme adresi (bazı dosyalarda çalar).
-            emitMedia(
-                "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t",
-                label,
-                referer,
-                callback,
-                trusted = true
-            )
+            ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+
+        // 0) Drive'ın kendi oynatma API'si — indirme kotasına girmez.
+        val playback = drivePlaybackStreams(id)
+        if (playback.isNotEmpty()) {
+            for ((height, mediaUrl) in playback) {
+                emitMedia(
+                    mediaUrl,
+                    if (height > 0) "$label ${height}p" else label,
+                    "https://drive.google.com/",
+                    callback,
+                    trusted = true
+                )
+            }
             return true
         }
-        return false
+
+        // 1) Drive uyarı sayfasındaki gizli form alanlarından GERÇEK indirme adresi.
+        // (Büyük dosyalarda `...&confirm=t` tek başına HTML döndürüyor.)
+        val page = http.get(
+            "https://drive.usercontent.google.com/download?id=$id&export=download",
+            "https://drive.google.com/"
+        )
+        val resolved = page?.let { driveDownloadUrl(it) }
+        if (resolved != null) {
+            emitMedia(resolved, label, "https://drive.google.com/", callback, trusted = true)
+            return true
+        }
+        emitMedia(
+            "https://drive.usercontent.google.com/download?id=$id&export=download&confirm=t",
+            label,
+            "https://drive.google.com/",
+            callback,
+            trusted = true
+        )
+        return true
+    }
+
+    /** Drive uyarı sayfası → gerçek indirme adresi (form alanları veya hazır bağlantı). */
+    /**
+     * Drive oynatma API'si: `preview` sayfasındaki `AIza…` anahtarı +
+     * `content-workspacevideo-pa.googleapis.com/v1/drive/media/<id>/playback`
+     * → `progressiveTranscodes[]` (yükseklik + doğrudan MP4).
+     */
+    private suspend fun drivePlaybackStreams(fileId: String): List<Pair<Int, String>> {
+        val preview = http.get(
+            "https://drive.google.com/file/d/$fileId/preview",
+            "https://drive.google.com/"
+        ) ?: return emptyList()
+        val keys = Regex("""AIza[0-9A-Za-z_\-]{35}""").findAll(preview)
+            .map { it.value }.distinct().take(4).toList()
+        if (keys.isEmpty()) return emptyList()
+        for (key in keys) {
+            val body = http.getWith(
+                "https://content-workspacevideo-pa.googleapis.com/v1/drive/media/$fileId/playback" +
+                    "?key=$key&auditContext=forDisplay",
+                mapOf(
+                    "Origin" to "https://drive.google.com",
+                    "Referer" to "https://drive.google.com/",
+                    "Accept" to "*/*"
+                )
+            ) ?: continue
+            val json = runCatching { org.json.JSONObject(body) }.getOrNull() ?: continue
+            val progressive = json.optJSONObject("mediaStreamingData")
+                ?.optJSONObject("formatStreamingData")
+                ?.optJSONArray("progressiveTranscodes") ?: continue
+            val out = ArrayList<Pair<Int, String>>()
+            for (index in 0 until progressive.length()) {
+                val item = progressive.optJSONObject(index) ?: continue
+                val mediaUrl = item.optString("url").takeIf { it.startsWith("http") } ?: continue
+                val height = item.optJSONObject("transcodeMetadata")?.optInt("height", 0) ?: 0
+                out += height to mediaUrl
+            }
+            if (out.isNotEmpty()) return out.distinctBy { it.first }.sortedByDescending { it.first }
+        }
+        return emptyList()
+    }
+
+    private fun driveDownloadUrl(body: String): String? {
+        if (body.isBlank()) return null
+        val unescaped = body.replace("&amp;", "&").replace("\\/", "/")
+        val ready = Regex("""(https://drive\.usercontent\.google\.com/download\?[^"'<>\\\s]+)""")
+            .find(unescaped)?.groupValues?.getOrNull(1)
+        if (ready != null && ready.contains("confirm=")) return ready
+        val action = Regex("""<form[^>]+action="(https://drive\.usercontent\.google\.com/download[^"]*)"""")
+            .find(unescaped)?.groupValues?.getOrNull(1) ?: return ready
+        val fields = Regex("""<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"""")
+            .findAll(unescaped)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        if (fields.isEmpty()) return ready
+        val query = fields.entries.joinToString("&") {
+            "${it.key}=${java.net.URLEncoder.encode(it.value, "UTF-8")}"
+        }
+        return action + (if (action.contains('?')) "&" else "?") + query
     }
 
     // ------------------------------------------------------------------
@@ -513,6 +612,231 @@ internal class TrAnimeIzleStreams(
     // ------------------------------------------------------------------
 
     /** Medya adresini yayınlar; HLS master ise kalite varyantlarına ayırır. */
+    /**
+     * **Site içi oynatıcı** — `pl.puffytr.tr/watch/<hash>` ("Beta Player").
+     *
+     * Oynatıcının kendi script'i: `const masterUrl = "/stream/<hash>/master.txt"`
+     * ve `nativeMasterUrl = "/stream/<hash>/native.m3u8"`. Yalnızca `#EXTM3U`
+     * içeren yanıt yayınlanır.
+     */
+    private suspend fun resolveSitePlayer(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("puffytr.", ignoreCase = true)) return false
+        val slug = Regex("""/(?:watch|embed|v)/([A-Za-z0-9_-]{8,})""").find(url)
+            ?.groupValues?.getOrNull(1) ?: return false
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        for (path in listOf("/stream/$slug/native.m3u8", "/stream/$slug/master.txt")) {
+            val target = origin + path
+            val body = http.get(target, "$origin/") ?: continue
+            if (!body.contains("#EXTM3U")) continue
+            emitMedia(target, label, "$origin/", callback, trusted = true)
+            return true
+        }
+        return false
+    }
+
+    /**
+     * **FireStream ve klonları** — sayfa `<script id="…token-blob">` içindeki
+     * imzalı blob'u `POST /api/videos/<slug>/resolve` ile değişir; yanıt
+     * `signedVideoUrl` (HLS/MP4) taşır.
+     */
+    private suspend fun resolveTokenBlobPlayer(
+        url: String,
+        referer: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1) ?: return false
+        val page = http.get(url, referer) ?: return false
+        if (!page.contains("token-blob") && !page.contains("/api/videos/")) return false
+        val slug = url.substringBefore('#').trimEnd('/').substringAfterLast('/')
+        val blob = Regex("""<script[^>]*token-blob[^>]*>([^<]{4,4000})</script>""", RegexOption.IGNORE_CASE)
+            .find(page)?.groupValues?.getOrNull(1)?.trim()
+        val bodies = mutableListOf<String>()
+        if (!blob.isNullOrBlank()) bodies += org.json.JSONObject().put("blob", blob).toString()
+        bodies += "{}"
+        for (body in bodies) {
+            val json = http.postJson("$origin/api/videos/$slug/resolve", body, url) ?: continue
+            val media = mediaFromJsonText(json)
+            if (media.isEmpty()) continue
+            for (item in media.take(2)) emitMedia(item, label, url, callback)
+            return true
+        }
+        return false
+    }
+
+    /**
+     * **Sistenn ailesi** — `https://host/#<kod>`; akış `AES-128-CBC` (sabit
+     * anahtar/IV) ile şifrelenmiş `/api/v1/video` yanıtında gelir:
+     * `cfNative`, `cf`, `source`, `hlsVideoTiktok`, `hlsVideoGoogle`.
+     */
+    private suspend fun resolveSistennPlayer(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val match = Regex("""^https?://([^/#?]+)/?#([A-Za-z0-9_-]{4,32})(?:[?&].*)?$""").find(url.trim())
+            ?: return false
+        val host = match.groupValues[1]
+        val code = match.groupValues[2]
+        val origin = "https://$host"
+        val apiHeaders = streamHeaders("$origin/", "$origin/") + mapOf(
+            "Origin" to origin,
+            "Accept" to "*/*",
+            "Sec-Fetch-Site" to "same-origin",
+            "Sec-Fetch-Mode" to "cors",
+            "Sec-Fetch-Dest" to "empty"
+        )
+        runCatching { http.getWith("$origin/api/v1/info?id=$code", apiHeaders) }
+        val body = http.getWith(
+            "$origin/api/v1/video?id=$code&w=1920&h=1080&r=www.tranimeizle.io",
+            apiHeaders
+        ) ?: return false
+        val plain = sistennDecrypt(body.trim()) ?: return false
+        val json = runCatching { org.json.JSONObject(plain) }.getOrNull() ?: return false
+        val sources = sistennSources(json, origin)
+        if (sources.isEmpty()) return false
+        val pk = json.optJSONObject("pk")
+        val pkQuery = pk?.optString("k")?.takeIf { it.isNotEmpty() }
+            ?.let { "k=$it&kx=${pk.optLong("kx")}" }.orEmpty()
+        var found = 0
+        for (source in sources) {
+            var media = source.url
+            if (pkQuery.isNotEmpty() && media.contains("/v4/")) {
+                media += (if (media.contains('?')) "&" else "?") + pkQuery
+            }
+            emitMedia(media, "$label ${source.kind}".trim(), "$origin/", callback, trusted = true)
+            found++
+        }
+        return found > 0
+    }
+
+    private data class SistennSource(val kind: String, val url: String)
+
+    private fun sistennSources(json: org.json.JSONObject, origin: String): List<SistennSource> {
+        fun abs(value: String): String? {
+            val v = value.trim()
+            if (v.isEmpty()) return null
+            if (v.startsWith("//")) return "https:$v"
+            if (v.startsWith("http")) return v
+            return runCatching { java.net.URI("$origin/").resolve(v).toString() }.getOrNull()
+        }
+        val config = runCatching { org.json.JSONObject(json.optString("streamingConfig", "")) }.getOrNull()
+        val order = config?.optJSONArray("order")?.let { array ->
+            (0 until array.length()).map { array.optString(it) }
+        } ?: listOf("Tiktok", "Google", "Cloudflare", "In-House")
+        val adjust = config?.optJSONObject("adjust")
+        val native = abs(json.optString("cfNative"))
+        val raw = mapOf(
+            "Cloudflare" to json.optString("cf"),
+            "Tiktok" to json.optString("hlsVideoTiktok"),
+            "Google" to json.optString("hlsVideoGoogle"),
+            "In-House" to json.optString("source")
+        )
+        val out = ArrayList<SistennSource>()
+        var nativeAdded = false
+        for (kind in order) {
+            if (kind == "Cloudflare" && native != null) {
+                out += SistennSource("cfNative", native)
+                nativeAdded = true
+            }
+            var media = abs(raw[kind].orEmpty()) ?: continue
+            val adjustment = adjust?.optJSONObject(kind)
+            if (adjustment?.optBoolean("disabled") == true) continue
+            adjustment?.optJSONObject("params")?.let { params ->
+                val extra = params.keys().asSequence().joinToString("&") {
+                    "$it=" + java.net.URLEncoder.encode(params.optString(it), "UTF-8")
+                }
+                if (extra.isNotEmpty()) media += (if (media.contains('?')) "&" else "?") + extra
+            }
+            val domain = adjustment?.optString("domain").orEmpty()
+            if (domain.isNotEmpty() && media.contains("/hls/")) {
+                media = media.replaceFirst("/hls/", "/hlsmod/$domain/")
+            }
+            out += SistennSource(kind, media)
+        }
+        if (native != null && !nativeAdded) out += SistennSource("cfNative", native)
+        return out
+    }
+
+    private fun sistennDecrypt(hex: String): String? {
+        val h = hex.trim()
+        if (h.length < 32 || h.length % 2 != 0) return null
+        if (!h.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return null
+        return try {
+            val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(
+                javax.crypto.Cipher.DECRYPT_MODE,
+                javax.crypto.spec.SecretKeySpec(SISTENN_KEY, "AES"),
+                javax.crypto.spec.IvParameterSpec(SISTENN_IV)
+            )
+            val bytes = ByteArray(h.length / 2) { h.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            String(cipher.doFinal(bytes), Charsets.UTF_8)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Gövdedeki base64 oynatıcı yapılandırması (`window.__PCr`) → medya adresleri. */
+    private fun inlineConfigMedia(html: String): List<String> {
+        if (!html.contains("__PCr")) return emptyList()
+        val b64 = Regex("""__PCr\s*=\s*["']([A-Za-z0-9+/=]{24,})["']""")
+            .find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
+        val decoded = runCatching {
+            String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull() ?: return emptyList()
+        return mediaFromJsonText(decoded)
+    }
+
+    /** JSON/gövde metnindeki oynatılabilir adresler (`signedVideoUrl`, `url`, …). */
+    private fun mediaFromJsonText(text: String): List<String> {
+        val found = LinkedHashSet<String>()
+        val json = runCatching {
+            val t = text.trim()
+            when {
+                t.startsWith("{") -> org.json.JSONObject(t)
+                t.startsWith("[") -> org.json.JSONArray(t)
+                else -> null
+            }
+        }.getOrNull()
+        if (json != null) collectMedia(json, found, 0)
+        if (found.isEmpty()) {
+            Regex("""https?://[^"'\s\\<>()]+""").findAll(text).forEach { m ->
+                val candidate = normalize(m.value.replace("\\/", "/"))
+                if (isDirectMedia(candidate)) found += candidate
+            }
+        }
+        return found.toList()
+    }
+
+    private fun collectMedia(node: Any?, out: MutableSet<String>, depth: Int) {
+        if (depth > 6 || out.size >= 4) return
+        when (node) {
+            is org.json.JSONObject -> {
+                for (key in node.keys()) {
+                    val value = node.opt(key)
+                    val lower = key.lowercase()
+                    if (value is String) {
+                        val candidate = value.replace("\\/", "/")
+                        val looksMedia = lower in MEDIA_KEYS || isDirectMedia(candidate)
+                        if (looksMedia && (candidate.startsWith("http") || candidate.startsWith("//"))) {
+                            out += candidate
+                        }
+                    } else {
+                        collectMedia(value, out, depth + 1)
+                    }
+                }
+            }
+            is org.json.JSONArray -> {
+                for (i in 0 until node.length()) collectMedia(node.opt(i), out, depth + 1)
+            }
+        }
+    }
+
     private suspend fun emitMedia(
         url: String,
         label: String,
@@ -657,30 +981,45 @@ internal class TrAnimeIzleStreams(
      * Sınırlı eşzamanlılık + toplam süre bütçesi. Tek bir yavaş host
      * tüm listeyi kilitlemez; bütçe dolunca o ana kadar çözülenler geçerlidir.
      */
+    /**
+     * Havuz: en fazla [concurrency] eşzamanlı, **her öğe için ayrı** zaman aşımı.
+     *
+     * v34 KRİTİK DÜZELTME — "eksik kaynak" hatasının kökü: eski sürüm tüm havuzu
+     * tek bir `withTimeoutOrNull(bütçe)` ile sarmalıyordu. Süre dolduğunda
+     * **henüz başlamamış ve sırada bekleyen kaynaklar iptal ediliyordu**; bölümde
+     * 20+ kaynak varsa son dalga hiç denenmeden yok oluyordu. Kullanıcı bunu
+     * "kaynak eksik geliyor" olarak görüyordu.
+     *
+     * Yeni davranış: iptal YOK. Her kaynak kendi zaman aşımına sahip; biri
+     * yavaşsa yalnızca kendisi düşer, diğerleri etkilenmez.
+     */
     private suspend fun <T> runBounded(
         items: List<T>,
         concurrency: Int,
-        budgetMs: Long,
+        perItemMs: Long,
         block: suspend (T) -> Unit
     ) {
         if (items.isEmpty()) return
         val gate = Semaphore(concurrency)
-        withTimeoutOrNull(budgetMs) {
-            coroutineScope {
-                items.map { item ->
-                    async {
-                        gate.withPermit {
-                            try {
-                                block(item)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
-                            }
+        val timedOut = java.util.concurrent.atomic.AtomicInteger(0)
+        coroutineScope {
+            items.map { item ->
+                async {
+                    gate.withPermit {
+                        try {
+                            val ok = withTimeoutOrNull(perItemMs) { block(item); true }
+                            if (ok == null) timedOut.incrementAndGet()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
                         }
                     }
-                }.awaitAll()
-            }
+                }
+            }.awaitAll()
+        }
+        if (timedOut.get() > 0) {
+            Log.w(TAG, "zaman aşımı: ${timedOut.get()}/${items.size} kaynak (diğerleri tamam)")
         }
     }
 
@@ -712,7 +1051,8 @@ internal class TrAnimeIzleStreams(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 
         /** Tüm kaynak araması için üst sınır — kullanıcı bu süreden fazla beklemez. */
-        private const val TOTAL_BUDGET_MS = 26_000L
+        /** Tek bir kaynak butonunun (sourcePlayer → iframe → akış) üst sınırı. */
+        private const val PER_ITEM_MS = 20_000L
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
         private const val SOURCE_BUDGET_MS = 14_000L
@@ -725,6 +1065,16 @@ internal class TrAnimeIzleStreams(
             "vidcache", "yourupload", "streamlare", "dood", "vidmoly", "luluvdo", "uqload",
             "gofile", "streamtape", "abyssplayer", "playmogo", "sitemio", "bysejeseji",
             "krakenfiles", "hitfile", "turbobit"
+        )
+
+        /** Sistenn AES-128-CBC anahtarı/IV'si (oynatıcı paketinden; sabit). */
+        private val SISTENN_KEY = "kiemtienmua911ca".toByteArray(Charsets.UTF_8)
+        private val SISTENN_IV = "1234567890oiuytr".toByteArray(Charsets.UTF_8)
+
+        /** JSON anahtarları: değeri doğrudan oynatılabilir adres olanlar. */
+        private val MEDIA_KEYS = setOf(
+            "signedvideourl", "encodedpath", "file", "src", "url", "link", "m3u8",
+            "hls", "hlsurl", "video", "videourl", "playlist", "master", "stream"
         )
 
         private const val OKRU = "https://ok.ru"
@@ -745,6 +1095,9 @@ internal interface TrStreamHttp {
 
     /** XHR GET. */
     suspend fun getXhr(url: String, referer: String? = null): String?
+
+    /** Başlık denetimli GET (Sistenn `/api/v1/...` uçları Origin/Sec-Fetch bekler). */
+    suspend fun getWith(url: String, extra: Map<String, String>): String?
 
     /** JSON gövdeli POST (`Content-Type: application/json`). */
     suspend fun postJson(url: String, json: String, referer: String? = null): String?

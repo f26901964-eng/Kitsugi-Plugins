@@ -39,6 +39,9 @@ jobs:
       - name: Python birim testleri
         run: python3 -m unittest discover -s tests -v
 
+      - name: Kotlin yorum denetimi (iç içe /* yakala)
+        run: python3 tools/check_kotlin_comments.py
+
       - name: Opsiyonel anime eklentisi canlı yapı probu
         id: anime_probe
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
@@ -127,6 +130,7 @@ jobs:
       # dalına iterek okunabilir hâle getiriyoruz (zorla itme, tek amaç dal).
       - name: Site dökümünü dala it
         if: always() && steps.site_dump.outcome != 'skipped'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -157,6 +161,9 @@ jobs:
           ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*LiveChainProbeTest*" \
               > /tmp/live-anizm.log 2>&1
           echo "anizm çıkış=$?"
+          ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*FullSourceAuditTest*" \
+              > /tmp/audit-anizm.log 2>&1
+          echo "audit çıkış=$?"
           ./gradlew --no-daemon :TrAnimeIzle:testDebugUnitTest --tests "*LiveChainProbeTest*" \
               > /tmp/live-tizle.log 2>&1
           echo "tranimeizle çıkış=$?"
@@ -171,7 +178,21 @@ jobs:
             echo "# Canlı zincir probu (Kotlin)"
             echo
             echo '```'
-            grep -a "\[LIVE\]" /tmp/live-anizm.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 28000 || true
+            grep -a "\[LIVE\]" /tmp/live-anizm.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 20000 || true
+            echo
+            echo '```'
+            echo
+            echo "## Tam kaynak denetimi (Anizm)"
+            echo
+            echo '```'
+            grep -a "\[AUDIT\]" /tmp/audit-anizm.log | grep -a "ÖZET\|toplam\|kapsamında\|oynatılabilir\|KAPSANMAYAN\|SORUNLU\|  ✗\|┌ DÖKÜM\|│ HTTP\|│ başlık\|│ medya\|│ iframe" | sed 's/^.*\[AUDIT\]/[AUDIT]/' | head -c 14000 || true
+            echo
+            echo '```'
+            echo
+            echo "## Site oynatıcısı + SPA uçları"
+            echo
+            echo '```'
+            grep -a "SITE OYNAYICISI\|EP http\|SISTENN\|API-CTX\|FS \|SC \|BUNDLE \|  SPA \|  \[m3u8\]\|  \[.mp4\]\|  \[sources\]\|  \[videoUrl\]\|  \[manifest\]\|  \[/api/\]\|  \[stream\]\|  \[playlist\]\|  API http\|SPA http\|    paket\|    api  \|    fetch" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' | head -c 18000 || true
             echo
             echo '```'
             echo
@@ -367,6 +388,32 @@ jobs:
             HDFilmIzle/build/HDFilmIzle.cs3
           if-no-files-found: warn
           retention-days: 14
+
+      - name: SPA prob dökümünü dala it
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          rm -rf /tmp/probepush && mkdir -p /tmp/probepush
+          cd /tmp/probepush
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git checkout -q -b spa-probe
+          if [ -f /tmp/audit-anizm.log ]; then
+            grep -a "\[PROBE\]" /tmp/audit-anizm.log | sed 's/^.*\[PROBE\]//' > spa-probe.txt || true
+            grep -a "SORUNLU\|KAPSANMIYOR\|ÖZET\|toplam kaynak\|kapsamında\|oynatılabilir\|    · \|      drive form" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' > audit-ozet.txt || true
+          fi
+          git add -A
+          git commit -qm "spa probe ${GITHUB_RUN_ID}" || true
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:spa-probe && echo "spa-probe itildi" || true
+          cd - >/dev/null
+          if [ -s /tmp/probepush/audit-ozet.txt ] && [ -n "$PR_NUMBER" ]; then
+            { echo "## Kaynak verdict dökümü"; echo; echo '```'; head -c 55000 /tmp/probepush/audit-ozet.txt; echo '```'; } > /tmp/verdict.md
+            gh pr comment "$PR_NUMBER" --body-file /tmp/verdict.md || true
+          fi
 
       - name: Hatayı PR'a Yaz
         if: failure()

@@ -103,7 +103,7 @@ internal class AnizmStreams(
 
         if (all.isEmpty()) return emittedCount
 
-        runBounded(all, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { source ->
+        runBounded(all, concurrency = 10, perItemMs = PER_ITEM_MS) { source ->
             resolveSource(source, pageUrl, subtitleCallback, callback)
         }
         Log.d(TAG, "toplam $emittedCount akış yayınlandı")
@@ -576,33 +576,21 @@ internal class AnizmStreams(
             }
         }
 
+        // Anizm'in KENDİ oynatıcısı (pl.puffytr.tr) — HLS master'ı doğrudan verir.
+        if (resolveSitePlayer(url, label, callback)) return true
+
+        // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
+        if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
+
+        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): AES'li /api/v1/video?…
+        if (resolveSistennPlayer(url, referer, label, callback)) return true
+
         // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
         if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
 
         if (url.contains("drive.google") || url.contains("docs.google")) {
-            // Yerel çözüm önce: sitedeki "GDrive" kaynakları `/player/{id}`
-            // üzerinden `drive.google.com/file/d/<id>/preview` adresine gidiyor.
-            // Doğrudan indirme ucu (usercontent) ağ beklemeden yayınlanır;
-            // böylece her GDrive kaynağı için 10-20 sn'lik köprü denemesi
-            // yapılması gerekmez.
-            val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
-                ?.groupValues?.getOrNull(1)
-                ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)
-                    ?.groupValues?.getOrNull(1)
-            if (fileId != null) {
-                emitMedia(
-                    "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
-                    label,
-                    referer,
-                    callback,
-                    trusted = true
-                )
-                return true
-            }
-            val bridged = "https://gdriveplayer.to/embed2.php?link=" +
-                URLEncoder.encode(url, "UTF-8")
-            if (tryExtractors(bridged, referer, label, subtitleCallback, callback)) return true
+            if (resolveGoogleDrive(url, label, referer, callback)) return true
         }
 
         if (tryExtractors(url, referer, label, subtitleCallback, callback)) return true
@@ -612,6 +600,12 @@ internal class AnizmStreams(
         emitSubtitles(page, url, subtitleCallback)
 
         var found = false
+        // StreamCash ve benzerleri: oynatıcı yapılandırması gövdede base64
+        // (`window.__PCr = "…"`) durur; çözüldüğünde akış adresi çıkar.
+        for (stream in inlineConfigMedia(page).take(3)) {
+            emitMedia(stream, label, url, callback, trusted = true)
+            found = true
+        }
         for (stream in mediaFromHtml(page, url).take(4)) {
             emitMedia(stream, label, url, callback)
             found = true
@@ -646,6 +640,439 @@ internal class AnizmStreams(
     private fun isOkRu(url: String): Boolean {
         val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
         return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    }
+
+    /**
+     * **Site içi oynatıcı** — `pl.puffytr.tr/watch/<slug>` (kaynak adı "Beta Player").
+     *
+     * Kanıt (26.10.2026, canlı HTML): oynatıcı sayfasının kendi script'i
+     *
+     *     const masterUrl       = "/stream/<slug>/master.txt";
+     *     const nativeMasterUrl = "/stream/<slug>/native.m3u8";
+     *
+     * diyor. Yani akış, iframe'in içinde JS ile değil, doğrudan HLS master
+     * adresinde duruyor. Adres yine de **doğrulanır**: yalnızca `#EXTM3U`
+     * içeren yanıt yayınlanır (ölü bağlantı gösterilmez).
+     */
+    private suspend fun resolveSitePlayer(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("puffytr.", ignoreCase = true)) return false
+        val slug = Regex("""/(?:watch|embed|v)/([A-Za-z0-9_-]{8,})""").find(url)
+            ?.groupValues?.getOrNull(1) ?: return false
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        var found = false
+        for (path in listOf("/stream/$slug/native.m3u8", "/stream/$slug/master.txt")) {
+            val streamUrl = origin + path
+            val body = http.get(streamUrl, "$origin/") ?: continue
+            if (!body.contains("#EXTM3U")) {
+                Log.d(TAG, "site oynatıcısı: manifest değil ($streamUrl)")
+                continue
+            }
+            emitMedia(streamUrl, label, "$origin/", callback, trusted = true)
+            found = true
+            break
+        }
+        if (!found) Log.d(TAG, "site oynatıcısı: akış bulunamadı ($slug)")
+        return found
+    }
+
+    /**
+     * **FireStream ve klonları** — sayfa, akışı imzalı bir "blob" ile alır:
+     *
+     *     <script id="…-token-blob" type="application/json"> … </script>
+     *     fetch('/api/videos/' + slug + '/resolve', { method:'POST',
+     *            body: JSON.stringify({ blob: blob }) })
+     *
+     * Yanıt `video.signedVideoUrl` (HLS/MP4) içerir. Sayfa kendi JS'inde
+     * `video.signedVideoUrl` nesnesini de gömebilir; ikisi de denenir.
+     */
+    private suspend fun resolveTokenBlobPlayer(
+        url: String,
+        referer: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1) ?: return false
+        val page = http.get(url, referer) ?: return false
+        if (!page.contains("token-blob") && !page.contains("/api/videos/")) {
+            // Sayfa içinde hazır imzalı adres varsa onu kullan.
+            val inline = mediaFromJsonText(page)
+            for (media in inline.take(2)) emitMedia(media, label, url, callback)
+            return inline.isNotEmpty()
+        }
+        val slug = url.substringBefore('#').trimEnd('/').substringAfterLast('/')
+        val blob = Regex(
+            """<script[^>]*(?:token-blob|blob)[^>]*>([\s\S]{8,8000}?)</script>""",
+            RegexOption.IGNORE_CASE
+        ).find(page)?.groupValues?.getOrNull(1)?.trim()
+
+        val payloads = mutableListOf<String>()
+        if (!blob.isNullOrBlank()) {
+            payloads += JSONObject().put("blob", blob).toString()
+        }
+        payloads += "{}"
+        for (body in payloads) {
+            val json = http.postJson("$origin/api/videos/$slug/resolve", body, url) ?: continue
+            val media = mediaFromJsonText(json)
+            if (media.isEmpty()) continue
+            for (item in media.take(2)) emitMedia(item, label, url, callback)
+            return true
+        }
+        // Son çare: sayfadaki gömülü video nesnesi.
+        val inline = mediaFromJsonText(page)
+        for (item in inline.take(2)) emitMedia(item, label, url, callback)
+        return inline.isNotEmpty()
+    }
+
+    /**
+     * **Sistenn ailesi** — `sistenn.uns.bio`, `anizm.rpmvid.com`, `anizm.strp2p.com`
+     * (Vue/React SPA, `player-version="16.x"`, sayfa adresi `https://host/#<kod>`).
+     *
+     * Protokol (oynatıcının kendi paketinden çözüldü; 2026-09-26 tarihli
+     * bağımsız doğrulama ve 26.10.2026 canlı ölçümüyle teyitli):
+     *
+     *   GET /api/v1/video?id=<kod>&w=<g>&h=<y>&r=<anizm-host>
+     *       → **hex** gövde = AES-128-CBC(JSON)
+     *         anahtar "kiemtienmua911ca", IV "1234567890oiuytr" (sabit)
+     *   JSON: { cfNative, cf, source, hlsVideoTiktok, hlsVideoGoogle,
+     *           streamingConfig:{order:[…], adjust:{<tür>:{domain, params, disabled}}},
+     *           pk:{k, kx}, delivery:{inHouse, capacityToken, retryAfter} }
+     *
+     * `cfNative` kendi token'ını taşıyan HLS master'ıdır; `/v4/` yayınlarına
+     * `pk` alanından gelen `k`/`kx` eklenir. Tiktok/Google (`hlsVideo*`)
+     * segmentleri resim gibi gizlenmiştir — yine de M3U8 olarak verilir.
+     */
+    private suspend fun resolveSistennPlayer(
+        url: String,
+        referer: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val match = Regex("""^https?://([^/#?]+)/?#([A-Za-z0-9_-]{4,32})(?:[?&].*)?$""").find(url.trim())
+            ?: return false
+        val host = match.groupValues[1]
+        val code = match.groupValues[2]
+        val origin = "https://$host"
+        val siteHost = runCatching { java.net.URI(base()).host.orEmpty() }.getOrDefault("")
+        val apiHeaders = streamHeaders("$origin/") + mapOf(
+            "Origin" to origin,
+            "Accept" to "*/*",
+            "Sec-Fetch-Site" to "same-origin",
+            "Sec-Fetch-Mode" to "cors",
+            "Sec-Fetch-Dest" to "empty"
+        )
+
+        // Sayfa önce /info'yu çağırır; kimlik geçersizse hemen söyler.
+        runCatching { http.getWith("$origin/api/v1/info?id=$code", apiHeaders) }
+
+        var capacity: Pair<String, String>? = null
+        var video: JSONObject? = null
+        var tried = 0
+        while (tried < 2 && video == null) {
+            val capQuery = capacity?.let {
+                "&capacityToken=" + URLEncoder.encode(it.first, "UTF-8") +
+                    "&capacityTokenExpire=" + URLEncoder.encode(it.second, "UTF-8")
+            }.orEmpty()
+            val target = "$origin/api/v1/video?id=$code&w=1920&h=1080&r=$siteHost$capQuery"
+            val body = http.getWith(target, apiHeaders)
+            if (body.isNullOrBlank()) return false
+            val plain = sistennDecrypt(body.trim()) ?: run {
+                Log.d(TAG, "Sistenn: yanıt çözülemedi (${body.take(24)})")
+                return false
+            }
+            val json = runCatching { JSONObject(plain) }.getOrNull() ?: return false
+            val sources = sistennSources(json, origin)
+            if (sources.isNotEmpty()) {
+                video = json
+                val pk = json.optJSONObject("pk")
+                val pkQuery = pk?.optString("k")?.takeIf { it.isNotEmpty() }
+                    ?.let { "k=$it&kx=${pk.optLong("kx")}" }.orEmpty()
+                var found = 0
+                for (source in sources) {
+                    var media = source.url
+                    if (pkQuery.isNotEmpty() && media.contains("/v4/")) {
+                        media += (if (media.contains('?')) "&" else "?") + pkQuery
+                    }
+                    emitMedia(media, "$label ${source.kind}".trim(), "$origin/", callback, trusted = true)
+                    found++
+                }
+                Log.d(TAG, "Sistenn: $code → ${sources.joinToString { it.kind }}")
+                return found > 0
+            }
+            val delivery = json.optJSONObject("delivery")
+            val capToken = delivery?.optString("capacityToken").orEmpty()
+            val saturated = delivery?.optString("inHouse") == "saturated"
+            if (saturated && capToken.isNotEmpty() && tried == 0) {
+                capacity = capToken to delivery?.optString("capacityTokenExpire").orEmpty()
+                tried++
+                continue
+            }
+            Log.d(TAG, "Sistenn: $code akış yok (anahtarlar ${json.keys().asSequence().take(8).joinToString()})")
+            return false
+        }
+        return video != null
+    }
+
+    /** Sistenn yanıtındaki yayın türleri — site kendi sırasını `streamingConfig` ile verir. */
+    private data class SistennSource(val kind: String, val url: String)
+
+    private fun sistennSources(json: JSONObject, origin: String): List<SistennSource> {
+        fun abs(value: String): String? {
+            val v = value.trim()
+            if (v.isEmpty()) return null
+            if (v.startsWith("//")) return "https:$v"
+            if (v.startsWith("http")) return v
+            return runCatching { java.net.URI("$origin/").resolve(v).toString() }.getOrNull()
+        }
+        val config = runCatching { JSONObject(json.optString("streamingConfig", "")) }.getOrNull()
+        val order = config?.optJSONArray("order")?.let { array ->
+            (0 until array.length()).map { array.optString(it) }
+        } ?: listOf("Tiktok", "Google", "Cloudflare", "In-House")
+        val adjust = config?.optJSONObject("adjust")
+        val native = abs(json.optString("cfNative"))
+        val raw = mapOf(
+            "Cloudflare" to json.optString("cf"),
+            "Tiktok" to json.optString("hlsVideoTiktok"),
+            "Google" to json.optString("hlsVideoGoogle"),
+            "In-House" to json.optString("source")
+        )
+        val out = ArrayList<SistennSource>()
+        var nativeAdded = false
+        for (kind in order) {
+            if (kind == "Cloudflare" && native != null) {
+                out += SistennSource("cfNative", native)
+                nativeAdded = true
+            }
+            var media = abs(raw[kind].orEmpty()) ?: continue
+            val adjustment = adjust?.optJSONObject(kind)
+            if (adjustment?.optBoolean("disabled") == true) continue
+            adjustment?.optJSONObject("params")?.let { params ->
+                val extra = params.keys().asSequence().joinToString("&") {
+                    "$it=" + URLEncoder.encode(params.optString(it), "UTF-8")
+                }
+                if (extra.isNotEmpty()) media += (if (media.contains('?')) "&" else "?") + extra
+            }
+            val domain = adjustment?.optString("domain").orEmpty()
+            if (domain.isNotEmpty() && media.contains("/hls/")) {
+                media = media.replaceFirst("/hls/", "/hlsmod/$domain/")
+            }
+            out += SistennSource(kind, media)
+        }
+        if (native != null && !nativeAdded) out += SistennSource("cfNative", native)
+        return out
+    }
+
+    /** Sistenn AES-128-CBC (sabit anahtar/IV) — hex gövdeyi JSON metnine çevirir. */
+    private fun sistennDecrypt(hex: String): String? {
+        val h = hex.trim()
+        if (h.length < 32 || h.length % 2 != 0) return null
+        if (!h.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return null
+        return try {
+            val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(
+                javax.crypto.Cipher.DECRYPT_MODE,
+                javax.crypto.spec.SecretKeySpec(SISTENN_KEY, "AES"),
+                javax.crypto.spec.IvParameterSpec(SISTENN_IV)
+            )
+            val bytes = ByteArray(h.length / 2) { h.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            String(cipher.doFinal(bytes), Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.d(TAG, "Sistenn: AES hatası (${e.javaClass.simpleName})")
+            null
+        }
+    }
+
+    /**
+     * Gövdedeki base64 oynatıcı yapılandırmasını çözer:
+     * `window.__PCr = "<base64>"` → JSON (`src`, `file`, `source`, …).
+     */
+    private fun inlineConfigMedia(html: String): List<String> {
+        if (!html.contains("__PCr")) return emptyList()
+        val b64 = Regex("""__PCr\s*=\s*["']([A-Za-z0-9+/=]{24,})["']""")
+            .find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
+        val decoded = runCatching {
+            String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull() ?: return emptyList()
+        return mediaFromJsonText(decoded)
+    }
+
+    /**
+     * Bir JSON/gövde metnindeki **oynatılabilir adresleri** toplar.
+     * `signedVideoUrl`, `encodedPath`, `file`, `src`, `url`, `m3u8`, `hls` …
+     * anahtarları önceliklidir; ardından gövdedeki medya uzantılı adresler.
+     */
+    private fun mediaFromJsonText(text: String): List<String> {
+        val found = LinkedHashSet<String>()
+        val json = runCatching {
+            val t = text.trim()
+            when {
+                t.startsWith("{") -> JSONObject(t)
+                t.startsWith("[") -> org.json.JSONArray(t)
+                else -> null
+            }
+        }.getOrNull()
+        if (json != null) collectMedia(json, found, 0)
+        if (found.isEmpty()) {
+            Regex("""https?://[^"'\s\\<>()]+""").findAll(text).forEach { m ->
+                val candidate = m.value.replace("\\/", "/").trimEnd('\'', '"', ',', ')', ']', '}')
+                if (isDirectMedia(candidate)) found += candidate
+            }
+        }
+        return found.toList()
+    }
+
+    private fun collectMedia(node: Any?, out: MutableSet<String>, depth: Int) {
+        if (depth > 6 || out.size >= 4) return
+        when (node) {
+            is JSONObject -> {
+                for (key in node.keys()) {
+                    val value = node.opt(key)
+                    val lower = key.lowercase()
+                    if (value is String) {
+                        val candidate = value.replace("\\/", "/")
+                        val looksMedia = lower in MEDIA_KEYS || isDirectMedia(candidate)
+                        if (looksMedia && (candidate.startsWith("http") || candidate.startsWith("//"))) {
+                            out += candidate
+                        }
+                    } else {
+                        collectMedia(value, out, depth + 1)
+                    }
+                }
+            }
+            is org.json.JSONArray -> {
+                for (i in 0 until node.length()) collectMedia(node.opt(i), out, depth + 1)
+            }
+        }
+    }
+
+    /**
+     * **Google Drive** — Anizm'de en sık geçen kaynak türü ("GDrive").
+     *
+     * Ölçüm (26.10.2026): `/player/{id}` → 302 → `drive.google.com/file/d/<id>/preview`.
+     * `drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`
+     * adresi büyük dosyalarda **HTML uyarı sayfası** döndürüyor (content-type
+     * text/html) → oynatıcı açılmıyordu. Doğru yol, tarayıcının yaptığı gibi o
+     * sayfadaki gizli form alanlarını (`id/export/confirm/uuid`) alıp gerçek
+     * indirme adresini kurmaktır.
+     */
+    private suspend fun resolveGoogleDrive(
+        url: String,
+        label: String,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
+            ?.groupValues?.getOrNull(1)
+            ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)
+                ?.groupValues?.getOrNull(1)
+            ?: return false
+
+        // 0) Drive'ın KENDİ oynatma API'si (indirme kotasına girmez).
+        //    Kanıt: `preview` sayfasındaki `AIza…` anahtarı +
+        //    content-workspacevideo-pa.googleapis.com/v1/drive/media/<id>/playback
+        //    → mediaStreamingData.formatStreamingData.progressiveTranscodes[].url
+        val playback = drivePlaybackStreams(fileId)
+        if (playback.isNotEmpty()) {
+            Log.d(TAG, "gdrive: oynatma API'si ${playback.size} akış verdi ($fileId)")
+            for ((height, mediaUrl) in playback) {
+                emitMedia(
+                    mediaUrl,
+                    if (height > 0) "$label ${height}p" else label,
+                    "https://drive.google.com/",
+                    callback,
+                    trusted = true
+                )
+            }
+            return true
+        }
+
+        // 1) Uyarı sayfasını çek ve gizli form alanlarından gerçek adresi kur.
+        val warningPage = http.get(
+            "https://drive.usercontent.google.com/download?id=$fileId&export=download",
+            "https://drive.google.com/"
+        )
+        val resolved = warningPage?.let { driveDownloadUrl(it) }
+        if (resolved != null) {
+            Log.d(TAG, "gdrive: form çözümlendi ($fileId)")
+            emitMedia(resolved, label, "https://drive.google.com/", callback, trusted = true)
+            return true
+        }
+
+        // 2) Uyarı sayfası yoksa dosya doğrudan iniyordur.
+        emitMedia(
+            "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
+            label,
+            "https://drive.google.com/",
+            callback,
+            trusted = true
+        )
+        return true
+    }
+
+    /**
+     * Drive oynatma API'si — `progressiveTranscodes` (yükseklik + doğrudan MP4).
+     * Anahtar, `preview` sayfasındaki `AIza…` (35 karakter) değeridir; birden
+     * çok anahtar olabilir, ilk çalışan kullanılır.
+     */
+    private suspend fun drivePlaybackStreams(fileId: String): List<Pair<Int, String>> {
+        val preview = http.get(
+            "https://drive.google.com/file/d/$fileId/preview",
+            "https://drive.google.com/"
+        ) ?: return emptyList()
+        val keys = Regex("""AIza[0-9A-Za-z_\-]{35}""").findAll(preview)
+            .map { it.value }.distinct().take(4).toList()
+        if (keys.isEmpty()) return emptyList()
+        for (key in keys) {
+            val body = http.getWith(
+                "https://content-workspacevideo-pa.googleapis.com/v1/drive/media/$fileId/playback" +
+                    "?key=$key&auditContext=forDisplay",
+                mapOf(
+                    "Origin" to "https://drive.google.com",
+                    "Referer" to "https://drive.google.com/",
+                    "Accept" to "*/*"
+                )
+            ) ?: continue
+            val json = runCatching { JSONObject(body) }.getOrNull() ?: continue
+            val progressive = json.optJSONObject("mediaStreamingData")
+                ?.optJSONObject("formatStreamingData")
+                ?.optJSONArray("progressiveTranscodes") ?: continue
+            val out = ArrayList<Pair<Int, String>>()
+            for (index in 0 until progressive.length()) {
+                val item = progressive.optJSONObject(index) ?: continue
+                val mediaUrl = item.optString("url").takeIf { it.startsWith("http") } ?: continue
+                val height = item.optJSONObject("transcodeMetadata")?.optInt("height", 0) ?: 0
+                out += height to mediaUrl
+            }
+            if (out.isNotEmpty()) return out.distinctBy { it.first }.sortedByDescending { it.first }
+        }
+        return emptyList()
+    }
+
+    /**
+     * Drive uyarı sayfasındaki `<form action=…>` + gizli `<input>` alanlarını
+     * gerçek indirme adresine çevirir. Alternatif olarak sayfada hazır duran
+     * `drive.usercontent.google.com/download?…` bağlantısı da kabul edilir.
+     */
+    private fun driveDownloadUrl(body: String): String? {
+        if (body.isBlank()) return null
+        val unescaped = body.replace("&amp;", "&").replace("\\/", "/")
+        val ready = Regex("""(https://drive\.usercontent\.google\.com/download\?[^"'<>\\\s]+)""")
+            .find(unescaped)?.groupValues?.getOrNull(1)
+        if (ready != null && ready.contains("confirm=")) return ready
+        val action = Regex("""<form[^>]+action="(https://drive\.usercontent\.google\.com/download[^"]*)"""")
+            .find(unescaped)?.groupValues?.getOrNull(1) ?: return ready
+        val fields = Regex("""<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"""")
+            .findAll(unescaped)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+        if (fields.isEmpty()) return ready
+        val query = fields.entries.joinToString("&") {
+            "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}"
+        }
+        return action + (if (action.contains('?')) "&" else "?") + query
     }
 
     private fun isSibnet(url: String): Boolean =
@@ -1018,30 +1445,45 @@ internal class AnizmStreams(
         }
     }
 
+    /**
+     * Havuz: en fazla [concurrency] eşzamanlı, **her öğe için ayrı** zaman aşımı.
+     *
+     * v34 KRİTİK DÜZELTME — "eksik kaynak" hatasının kökü: eski sürüm tüm havuzu
+     * tek bir `withTimeoutOrNull(bütçe)` ile sarmalıyordu. Süre dolduğunda
+     * **henüz başlamamış ve sırada bekleyen kaynaklar iptal ediliyordu**; bölümde
+     * 20+ kaynak varsa son dalga hiç denenmeden yok oluyordu. Kullanıcı bunu
+     * "kaynak eksik geliyor" olarak görüyordu.
+     *
+     * Yeni davranış: iptal YOK. Her kaynak kendi zaman aşımına sahip; biri
+     * yavaşsa yalnızca kendisi düşer, diğerleri etkilenmez.
+     */
     private suspend fun <T> runBounded(
         items: List<T>,
         concurrency: Int,
-        budgetMs: Long,
+        perItemMs: Long,
         block: suspend (T) -> Unit
     ) {
         if (items.isEmpty()) return
         val gate = Semaphore(concurrency)
-        withTimeoutOrNull(budgetMs) {
-            coroutineScope {
-                items.map { item ->
-                    async {
-                        gate.withPermit {
-                            try {
-                                block(item)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
-                            }
+        val timedOut = java.util.concurrent.atomic.AtomicInteger(0)
+        coroutineScope {
+            items.map { item ->
+                async {
+                    gate.withPermit {
+                        try {
+                            val ok = withTimeoutOrNull(perItemMs) { block(item); true }
+                            if (ok == null) timedOut.incrementAndGet()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Log.d(TAG, "çözümleme hatası: ${e.javaClass.simpleName}: ${e.message}")
                         }
                     }
-                }.awaitAll()
-            }
+                }
+            }.awaitAll()
+        }
+        if (timedOut.get() > 0) {
+            Log.w(TAG, "zaman aşımı: ${timedOut.get()}/${items.size} kaynak (diğerleri tamam)")
         }
     }
 
@@ -1121,11 +1563,22 @@ internal class AnizmStreams(
             "abyssplayer", "playmogo", "sitemio"
         )
         private const val PLAYER_HOST = "https://anizmplayer.com"
+
+        /** Sistenn AES-128-CBC anahtarı/IV'si (oynatıcı paketinden; sabit). */
+        private val SISTENN_KEY = "kiemtienmua911ca".toByteArray(Charsets.UTF_8)
+        private val SISTENN_IV = "1234567890oiuytr".toByteArray(Charsets.UTF_8)
+
+        /** JSON anahtarları: değeri doğrudan oynatılabilir adres olanlar. */
+        private val MEDIA_KEYS = setOf(
+            "signedvideourl", "encodedpath", "file", "src", "url", "link", "m3u8",
+            "hls", "hlsurl", "video", "videourl", "playlist", "master", "stream"
+        )
         private const val OKRU = "https://ok.ru"
         private const val SIBNET = "https://video.sibnet.ru"
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
-        private const val TOTAL_BUDGET_MS = 26_000L
+        /** Tek bir kaynağın (video → oynatıcı → akış) üst sınırı. */
+        private const val PER_ITEM_MS = 18_000L
 
         /** Reklam/analitik host işaretleri — oynatıcı adayı olarak alınmaz. */
         private val AD_HOSTS = listOf(
@@ -1151,6 +1604,12 @@ internal interface AnizmHttp {
 
     /** Yönlendirme İZLENMEDEN GET → `Location` başlığı (302 hedefi). */
     suspend fun location(url: String, referer: String? = null): String?
+
+    /** Başlık denetimli GET (Sistenn `/api/v1/...` uçları Origin/Sec-Fetch bekler). */
+    suspend fun getWith(url: String, extra: Map<String, String>): String?
+
+    /** JSON gövdeli POST (FireStream `resolve` gibi uçlar). */
+    suspend fun postJson(url: String, json: String, referer: String? = null): String?
 
     /** Form gövdeli POST (anizmplayer). */
     suspend fun postForm(
