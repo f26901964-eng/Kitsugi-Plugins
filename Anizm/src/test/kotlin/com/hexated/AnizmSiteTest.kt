@@ -241,7 +241,8 @@ class AnizmSiteTest {
     @Test
     fun upgradesCoverToLargeVersion() {
         assertEquals("$base/storage/pcovers/123l.webp", AnizmSite.largeCover("$base/storage/pcovers/123.webp"))
-        assertEquals("$base/storage/pcovers/123l.webp", AnizmSite.largeCover("$base/storage/pcovers/123.webp?v=2"))
+        // sorgu dizesi korunur
+        assertEquals("$base/storage/pcovers/123l.webp?v=2", AnizmSite.largeCover("$base/storage/pcovers/123.webp?v=2"))
         // kapak olmayan adresler dokunulmadan kalır
         assertEquals("$base/upload/assets/x.webp", AnizmSite.largeCover("$base/upload/assets/x.webp"))
     }
