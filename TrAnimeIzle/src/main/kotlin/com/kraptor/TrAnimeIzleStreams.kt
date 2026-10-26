@@ -171,13 +171,21 @@ internal class TrAnimeIzleStreams(
         pageUrl: String
     ): List<Src> {
         val site = base()
-        val body = http.postJson(
-            "$site/api/fansubSources",
-            """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}""",
-            pageUrl
-        )
+        val url = "$site/api/fansubSources"
+        val json = """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}"""
+        val form = mapOf("EpisodeId" to episodeId.toString(), "FansubId" to fansub.id.toString())
+
+        var body = http.postJson(url, json, pageUrl)
+        // Eski/yeni sürümlerde uç yalnızca form gövdesini kabul edebiliyor (yuzono portu).
+        if (body.isNullOrBlank()) body = http.postForm(url, form, pageUrl)
         if (body.isNullOrBlank()) {
             Log.d(TAG, "fansubSources boş (fid=${fansub.id})")
+            return emptyList()
+        }
+        if (isProbeGate(body)) {
+            // Anti-bot "rtt probe" kapısı: tarayıcı parmak izi ister; çözmek yerine
+            // diğer yollara (sayfa düzeyi butonlar, preVideoAd) bırakılır.
+            Log.w(TAG, "fansubSources rtt-probe kapısı döndürdü (fid=${fansub.id})")
             return emptyList()
         }
         if (looksLikeCaptcha(body)) {
@@ -185,19 +193,28 @@ internal class TrAnimeIzleStreams(
             captchaLock.withLock {
                 if (!captchaSolved) captchaSolved = http.solveCaptcha()
             }
-            val retry = http.postJson(
-                "$site/api/fansubSources",
-                """{"EpisodeId":$episodeId,"FansubId":${fansub.id}}""",
-                pageUrl
-            )
-            if (retry.isNullOrBlank()) return emptyList()
-            return TrAnimeIzleSite.sourcesFrom(retry).map {
-                Src(it.id, it.label, fansub.label)
-            }
+            body = http.postJson(url, json, pageUrl) ?: http.postForm(url, form, pageUrl)
+            if (body.isNullOrBlank()) return emptyList()
         }
-        val parsed = TrAnimeIzleSite.sourcesFrom(body)
-        if (parsed.isEmpty()) Log.d(TAG, "kaynak butonu yok (fid=${fansub.id}, ${body.length} krkt)")
+
+        var parsed = TrAnimeIzleSite.sourcesFrom(body)
+        if (parsed.isEmpty()) {
+            // JSON gövdede buton yok → aynı uç form gövdesiyle bir kez daha denenir.
+            val alt = http.postForm(url, form, pageUrl)
+            if (!alt.isNullOrBlank()) parsed = TrAnimeIzleSite.sourcesFrom(alt)
+        }
+        if (parsed.isEmpty()) {
+            Log.d(TAG, "kaynak butonu yok (fid=${fansub.id}, ${body.length} krkt)")
+        }
         return parsed.map { Src(it.id, it.label, fansub.label) }
+    }
+
+    /** Anti-bot "rtt probe" / Cloudflare JS kapısı mı? */
+    private fun isProbeGate(body: String): Boolean {
+        val lower = body.lowercase()
+        return lower.contains("rtt-cfg") ||
+            lower.contains("rtt probe") ||
+            (lower.contains("<title>just a moment") && lower.contains("cloudflare"))
     }
 
     /** Sayfada sunucu tarafında render edilmiş kaynak butonları. */
@@ -241,6 +258,10 @@ internal class TrAnimeIzleStreams(
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        if (isProbeGate(body)) {
+            Log.d(TAG, "oynatıcı cevabı rtt-probe kapısı (${body.length} krkt)")
+            return false
+        }
         val html = TrAnimeIzleSite.unwrapJsonHtml(body).ifBlank { body }
         emitSubtitles(html, pageUrl, subtitleCallback)
 
@@ -535,10 +556,10 @@ internal class TrAnimeIzleStreams(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
 
         /** Tüm kaynak araması için üst sınır — kullanıcı bu süreden fazla beklemez. */
-        private const val TOTAL_BUDGET_MS = 35_000L
+        private const val TOTAL_BUDGET_MS = 26_000L
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
-        private const val SOURCE_BUDGET_MS = 20_000L
+        private const val SOURCE_BUDGET_MS = 14_000L
     }
 }
 

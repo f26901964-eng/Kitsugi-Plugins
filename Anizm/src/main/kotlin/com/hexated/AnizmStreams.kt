@@ -18,30 +18,33 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
-import org.json.JSONArray
 import org.json.JSONObject
 import org.jsoup.Jsoup
+import java.net.URLEncoder
 import java.util.Collections
 
 /**
- * Anizm akış çözücüsü — **tek, deterministik zincir** (v5).
+ * Anizm akış çözücüsü — **v3 API + eski kuşak yedekleri** (v6).
  *
- * Sitenin kendi oynatıcı yolu (Aniyomi `src/tr/anizm`, 25.10.2026 sürümü):
+ * Sitenin 2026-10 itibarıyla canlı zinciri (kanıt: canlı bölüm sayfası HTML'i,
+ * `button[data-v3-translator]` / `.v3-translator-button[data-sources]`):
  *
- *   1. Bölüm sayfası            → `div#fansec > a[translator]`  (metin = fansub adı)
- *   2. translator adresi (GET)  → `{"data":"<html>"}`
- *                                 → `a.videoPlayerButtons[video]` (metin = host adı)
- *   3. `/video/{id}` → `/player/{id}` → **302 Location** = gerçek host adresi
- *   4. host adresi              → uygulama extractor'ları (filemoon, sibnet, voe,
- *                                 sendvid, mp4upload, ok.ru, streamtape, dood,
- *                                 uqload, yourupload, gdriveplayer…)
- *   5. `anizmplayer.com`        → `POST /player/index.php?data=<hash>&do=getVideo`
- *                                 → `securedLink` (HLS)
+ *   1. Bölüm sayfası  → `button[data-v3-translator][data-sources]`
+ *                       `data-sources = /bolum/{bolumId}/cevirmen/{cevirmenId}`
+ *                       (aynı sayfada hazır `button[data-video][data-url]` de olabilir)
+ *   2. GET {data-sources} (XHR) → JSON `{videos:[{id,name}]}` **veya** `{data:"<html>"}`
+ *                                 → `a[video]` / `button[data-video]` etiketleri
+ *   3. Her video: `{sourcesUrl}` içindeki `/cevirmen/{id}` → `/video/{vid}`
+ *                 → GET (XHR) → JSON `{url, player}`; `player` bir iframe HTML'i olabilir
+ *   4. Oynatıcı → `anizmplayer.com/video/<hash>` → `POST /player/index.php?data=<hash>&do=getVideo`
+ *                 → `securedLink` (HLS master → varyantlar)
+ *   5. Çözülemeyen host → uygulamanın 325 kayıtlı extractor'ı → host sayfası taraması
  *
- * Eski sürüm her kaynağı **sırayla** çözüyordu (kaynak başına 2–3 istek, art arda);
- * 10 kaynaklı bir bölüm 30+ saniye sürüyor ve uygulama zaman aşımına düşüyordu.
- * Bu sürüm hepsini paralel çözer, sonuçları çözüldükçe yayınlar ve HLS master
- * listelerini kalite varyantlarına ayırır.
+ * Eski kuşak (`div#fansec a[translator]` → `{data:html}` → `a.videoPlayerButtons`)
+ * ve sayfa düzeyi oynatıcılar da desteklenir; tema/kuşak değişse bile kaynak gelir.
+ *
+ * Hız: kaynaklar PARALEL çözülür (semaphore + istek zaman aşımı + toplam bütçe),
+ * sonuçlar çözüldükçe yayınlanır. Hiçbir adım istisna fırlatmaz.
  */
 internal class AnizmStreams(
     private val pluginName: String,
@@ -49,7 +52,11 @@ internal class AnizmStreams(
     private val http: AnizmHttp
 ) {
 
-    private data class Source(val fansub: String, val host: String, val playerUrl: String)
+    /** Çözülecek oynatıcı adayı. */
+    private data class Source(val fansub: String, val host: String, val url: String)
+
+    /** Bir çevirmen (fansub) düğümü. */
+    private data class Translator(val url: String, val name: String, val active: Boolean)
 
     private val emitted: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
     private val seenSubs: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
@@ -65,7 +72,7 @@ internal class AnizmStreams(
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Int {
-        val site = base()
+        val site = base().trimEnd('/')
         val referer = "$site/"
         val html = http.get(pageUrl, referer)
         if (html.isNullOrBlank()) {
@@ -75,125 +82,312 @@ internal class AnizmStreams(
         emitSubtitles(html, pageUrl, subtitleCallback)
         val doc = Jsoup.parse(html, pageUrl)
 
-        val translators = collectTranslators(doc, pageUrl)
-        Log.d(TAG, "çevirmen listesi: ${translators.size}")
-
-        val sources = if (translators.isEmpty()) {
-            pageLevelSources(doc, html, pageUrl)
-        } else {
-            val gate = Semaphore(4)
-            coroutineScope {
-                translators.map { (fansub, url) ->
-                    async {
-                        gate.withPermit {
-                            try {
-                                fetchTranslatorSources(fansub, url, pageUrl)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Throwable) {
-                                Log.w(TAG, "çevirmen '$fansub' kaynakları alınamadı: ${e.message}")
-                                emptyList()
-                            }
-                        }
-                    }
-                }.awaitAll().flatten()
-            }.distinctBy { it.playerUrl }
+        // 1) v3 çevirmen butonları → kaynak listeleri → video adresleri
+        var primary = collectV3(doc, pageUrl, site)
+        // 2) eski kuşak: a[translator] → {data:html} → a[video]
+        var stage = "v3"
+        if (primary.isEmpty()) {
+            primary = collectV2(doc, pageUrl)
+            stage = "v2"
         }
-        Log.d(TAG, "oynatıcı: ${sources.size}")
+        // 3) çevirmen dizini bölüm kimliğinden yeniden kurulur (/bolum/{id})
+        if (primary.isEmpty()) {
+            primary = collectBolumFallback(doc, html, pageUrl, site)
+            stage = "bolum"
+        }
+        // 4) sayfa düzeyi hazır oynatıcılar (her zaman eklenir)
+        val pageSources = pageLevelSources(doc, html, pageUrl, site)
 
-        if (sources.isEmpty()) return emittedCount
+        val all = (primary + pageSources).distinctBy { it.url }
+        Log.d(TAG, "aday: $stage=${primary.size} sayfa=${pageSources.size} tekil=${all.size}")
 
-        runBounded(sources, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { source ->
+        if (all.isEmpty()) return emittedCount
+
+        runBounded(all, concurrency = 8, budgetMs = TOTAL_BUDGET_MS) { source ->
             resolveSource(source, pageUrl, subtitleCallback, callback)
         }
-        Log.d(TAG, "toplam ${emittedCount} akış yayınlandı")
+        Log.d(TAG, "toplam $emittedCount akış yayınlandı")
         return emittedCount
     }
 
     // ------------------------------------------------------------------
-    // 1) Çevirmen → oynatıcı butonları
+    // 1) v3: data-v3-translator / data-sources
     // ------------------------------------------------------------------
 
-    /** `div#fansec > a[translator]` (birincil) + eski kuşak seçiciler. */
-    private fun collectTranslators(doc: org.jsoup.nodes.Document, pageUrl: String): List<Pair<String, String>> {
-        val out = LinkedHashMap<String, String>()
-        val anchors = doc.select(
-            "div#fansec > a[translator], div#fansec a[translator], " +
-                "div.episodeTranslators a[translator], a[translator]"
-        )
-        for (anchor in anchors) {
-            val url = AnizmSite.absolute(pageUrl, anchor.attr("translator")) ?: continue
-            if (!url.startsWith("http")) continue
-            val name = anchor.text().trim().ifBlank { "Çevirmen" }
-            out.putIfAbsent(url, name)
+    private suspend fun collectV3(
+        doc: org.jsoup.nodes.Document,
+        pageUrl: String,
+        site: String
+    ): List<Source> {
+        val translators = translatorButtons(doc, pageUrl)
+        Log.d(TAG, "v3 çevirmen: ${translators.size}")
+
+        // Sayfada hazır video adresleri (aktif çevirmen için sunucu tarafı render).
+        val preResolved = doc.select("button[data-video][data-url], [data-video][data-url], a[video]")
+            .mapNotNull { el ->
+                val raw = el.attr("data-url").ifBlank { el.attr("video") }
+                val url = AnizmSite.absolute(pageUrl, raw) ?: return@mapNotNull null
+                if (!url.contains("/video/") && !isDirectMedia(url)) return@mapNotNull null
+                val name = el.attr("data-video-name").ifBlank { el.text() }.trim()
+                Source("Sayfa", name.ifBlank { "Oynatıcı" }, url)
+            }
+            .distinctBy { it.url }
+
+        val out = Collections.synchronizedList(mutableListOf<Source>())
+        if (translators.isNotEmpty()) {
+            val gate = Semaphore(4)
+            coroutineScope {
+                translators.values.map { translator ->
+                    async {
+                        gate.withPermit {
+                            try {
+                                fetchV3Translator(translator.url, translator.name, pageUrl)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Throwable) {
+                                Log.d(TAG, "v3 çevirmen hatası (${translator.name}): ${e.message}")
+                                emptyList()
+                            }
+                        }
+                    }
+                }.awaitAll().forEach { out.addAll(it) }
+            }
         }
-        return out.map { (url, name) -> name to url }
+
+        // Aktif çevirmenin hazır adresleri + API'den gelenler birleşir.
+        val active = translators.values.firstOrNull { it.active }
+        val pre = preResolved.map { it.copy(fansub = active?.name ?: it.fansub) }
+        val merged = (out.toList() + pre).distinctBy { it.url }
+        if (merged.isNotEmpty()) return merged
+
+        // Hiçbiri çalışmadıysa yine de sayfadaki hazır adresleri dene.
+        return preResolved
     }
 
     /**
-     * Çevirmenin kaynak listesi: `{"data": "<html>"}` → `a.videoPlayerButtons[video]`.
-     * v3 API'si (`[data-sources]` → `videos[]`) da desteklenir.
+     * Çevirmen düğümlerini bulur. Canlı sayfada `data-sources` **boş** olabiliyor
+     * (JS dolduruyor) veya JSON/çoklu adres taşıyabiliyor; düğümdeki `data-id`
+     * (çevirmen kimliği) ve sayfadaki bölüm kimliğinden adres yeniden kurulur:
+     * `/bolum/{bolumId}/cevirmen/{cevirmenId}`.
      */
-    private suspend fun fetchTranslatorSources(
-        fansub: String,
-        translatorUrl: String,
+    private fun translatorButtons(
+        doc: org.jsoup.nodes.Document,
         pageUrl: String
-    ): List<Source> {
-        val body = http.get(translatorUrl, pageUrl) ?: return emptyList()
-        val dataHtml = try {
-            val root = JSONObject(body)
-            root.optString("data").ifBlank { body }
-        } catch (_: Exception) {
-            body
-        }
-        if (dataHtml.isBlank()) return emptyList()
-
-        val out = mutableListOf<Source>()
-        val buttons = Jsoup.parse(dataHtml, translatorUrl)
-            .select("a.videoPlayerButtons, a[video], a[data-video]")
-        for (button in buttons) {
-            val raw = button.attr("video").ifBlank { button.attr("data-video") }
-            val absolute = AnizmSite.absolute(translatorUrl, raw) ?: continue
-            if (!absolute.startsWith("http")) continue
-            val host = button.text().trim().ifBlank { "Kaynak" }
-            // Site oynatıcıyı /video/{id} → /player/{id} yönlendirmesiyle açıyor.
-            val playerUrl = when {
-                absolute.contains("/video/") -> absolute.replace("/video/", "/player/")
-                else -> absolute
+    ): LinkedHashMap<String, Translator> {
+        val out = LinkedHashMap<String, Translator>()
+        val bolumId = doc.select("a[href*=/bolum/], a[href*=/raporver/bolum/]")
+            .mapNotNull { Regex("/bolum/(\\d+)").find(it.attr("href"))?.groupValues?.getOrNull(1) }
+            .firstOrNull()
+            ?: Regex("/bolum/(\\d+)").find(pageUrl)?.groupValues?.getOrNull(1)
+        for (el in doc.select("[data-sources], [data-v3-translator], [data-translator], a[translator]")) {
+            val name = el.attr("title").ifBlank { el.attr("data-fansub-name") }
+                .ifBlank { el.attr("data-name") }
+                .ifBlank { el.text() }
+                .trim().replace(Regex("\\s+"), " ")
+                .ifBlank { "Çevirmen" }
+            val active = el.attr("aria-pressed").equals("true", true) ||
+                el.classNames().any { it.contains("active", true) }
+            val raw = el.attr("data-sources").ifBlank { el.attr("data-v3-translator") }
+                .ifBlank { el.attr("data-translator") }
+                .ifBlank { el.attr("translator") }
+            for (candidate in sourceUrlsOf(raw, el, bolumId, pageUrl)) {
+                out.putIfAbsent(candidate, Translator(candidate, name, active))
             }
-            out.add(Source(fansub, host, playerUrl))
         }
-        if (out.isNotEmpty()) return out
-
-        // v3: {success, videos:[{id,name}]} → /video/{id} → {url}
-        return try {
-            val videos = JSONObject(body).optJSONArray("videos") ?: JSONArray()
-            for (index in 0 until videos.length()) {
-                val video = videos.optJSONObject(index) ?: continue
-                val id = video.optInt("id", 0)
-                if (id <= 0) continue
-                val host = video.optString("name").ifBlank { "Kaynak ${index + 1}" }
-                val videoUrl = translatorUrl.replace(Regex("/cevirmen/\\d+$"), "/video/$id")
-                out.add(Source(fansub, host, videoUrl.replace("/video/", "/player/")))
-            }
-            out
-        } catch (_: Exception) {
-            out
-        }
+        return out
     }
 
-    /** Sayfada hazır oynatıcı varsa (çevirmen listesi yoksa) doğrudan kullanılır. */
+    /** Bir çevirmen düğümünün taşıyabileceği tüm adres biçimlerini çözer. */
+    private fun sourceUrlsOf(
+        raw: String,
+        el: org.jsoup.nodes.Element,
+        bolumId: String?,
+        pageUrl: String
+    ): List<String> {
+        val value = raw.trim()
+        val out = LinkedHashSet<String>()
+        if (value.startsWith("[") || value.startsWith("{")) {
+            // JSON: dizi, nesne veya `{"url": "…"}` — tüm http adreslerini topla.
+            for (match in Regex("""https?://[^"'\s\\]+""").findAll(value.replace("\\/", "/"))) {
+                out.add(match.value)
+            }
+            for (match in Regex("/[a-z0-9/_-]+", RegexOption.IGNORE_CASE).findAll(value)) {
+                AnizmSite.absolute(pageUrl, match.value)?.let { out.add(it) }
+            }
+        } else if (value.isNotEmpty()) {
+            for (part in value.split(',', ' ', '|', ';')) {
+                if (part.isBlank()) continue
+                val absolute = AnizmSite.absolute(pageUrl, part.trim())
+                if (absolute != null) out.add(absolute)
+            }
+        }
+        // Düğümde yalnızca çevirmen kimliği varsa adresi kendimiz kurarız.
+        if (out.isEmpty() && bolumId != null) {
+            val cid = el.attr("data-id").ifBlank { el.attr("data-cid") }
+                .ifBlank { el.attr("data-translator-id") }
+                .filter { it.isDigit() }
+            val candidates = if (cid.isNotEmpty()) listOf(cid) else listOf("1", "2", "3")
+            for (id in candidates) {
+                out.add(AnizmSite.absolute(pageUrl, "/bolum/$bolumId/cevirmen/$id") ?: continue)
+            }
+        }
+        return out.filter { it.startsWith("http") }
+    }
+
+    /**
+     * Son çare: bölüm sayfası çevirmen düğümlerini sunmadıysa `/bolum/{id}`
+     * dizini okunur; o da boşsa `/bolum/{id}/cevirmen/1..3` doğrudan denenir.
+     */
+    private suspend fun collectBolumFallback(
+        doc: org.jsoup.nodes.Document,
+        html: String,
+        pageUrl: String,
+        site: String
+    ): List<Source> {
+        val bolumId = Regex("/bolum/(\\d+)").find(html)?.groupValues?.getOrNull(1)
+            ?: Regex("""EpisodeId"?\s*[:=]\s*"?(\d{3,7})""").find(html)?.groupValues?.getOrNull(1)
+            ?: return emptyList()
+        Log.d(TAG, "bolum yedeği: id=$bolumId")
+
+        val directory = http.get("$site/bolum/$bolumId", "$site/")
+        if (!directory.isNullOrBlank()) {
+            val directoryDoc = runCatching { Jsoup.parse(directory, "$site/bolum/$bolumId") }.getOrNull()
+            if (directoryDoc != null) {
+                val translators = translatorButtons(directoryDoc, "$site/bolum/$bolumId")
+                if (translators.isNotEmpty()) {
+                    val out = Collections.synchronizedList(mutableListOf<Source>())
+                    coroutineScope {
+                        translators.values.map { translator ->
+                            async {
+                                try {
+                                    fetchV3Translator(translator.url, translator.name, pageUrl)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Throwable) {
+                                    emptyList()
+                                }
+                            }
+                        }.awaitAll().forEach { out.addAll(it) }
+                    }
+                    if (out.isNotEmpty()) return out.toList().distinctBy { it.url }
+                }
+            }
+        }
+
+        val out = Collections.synchronizedList(mutableListOf<Source>())
+        coroutineScope {
+            (1..3).map { index ->
+                async {
+                    val url = "$site/bolum/$bolumId/cevirmen/$index"
+                    try {
+                        out.addAll(fetchV3Translator(url, "Çevirmen $index", pageUrl))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        // çevirmen yok
+                    }
+                }
+            }.awaitAll()
+        }
+        return out.toList().distinctBy { it.url }
+    }
+
+    /** `{videos:[{id,name}]}` veya `{data:"<html>"}` → video/oynatıcı adresleri. */
+    private suspend fun fetchV3Translator(
+        sourcesUrl: String,
+        fansub: String,
+        pageUrl: String
+    ): List<Source> {
+        val body = http.getXhr(sourcesUrl, pageUrl) ?: return emptyList()
+        val out = mutableListOf<Source>()
+
+        // A) JSON: videos[] / data / items
+        val parsed = runCatching { JSONObject(body.trim()) }.getOrNull()
+        if (parsed != null) {
+            val videos = parsed.optJSONArray("videos")
+                ?: parsed.optJSONArray("items")
+                ?: parsed.optJSONArray("data")
+            if (videos != null) {
+                for (index in 0 until videos.length()) {
+                    val item = videos.optJSONObject(index) ?: continue
+                    val id = item.optString("id").ifBlank { item.optInt("id", 0).toString() }
+                    if (id.isBlank() || id == "0") continue
+                    val host = item.optString("name").ifBlank { item.optString("host") }
+                        .ifBlank { "Kaynak ${index + 1}" }
+                    val videoUrl = if (item.optString("url").startsWith("http")) {
+                        item.optString("url")
+                    } else {
+                        videoUrlFrom(sourcesUrl, id)
+                    }
+                    out.add(Source(fansub, host, videoUrl))
+                }
+            }
+            val html = parsed.optString("data").ifBlank { parsed.optString("html") }
+            if (html.contains('<')) out.addAll(parsePlayerTags(html, sourcesUrl, fansub))
+            if (out.isNotEmpty()) return out.distinctBy { it.url }
+        }
+
+        // B) HTML veya JSON içine gömülü HTML: a[video] / button[data-video]
+        if (body.contains('<')) {
+            out.addAll(parsePlayerTags(body, sourcesUrl, fansub))
+        }
+        return out.distinctBy { it.url }
+    }
+
+    private fun parsePlayerTags(html: String, baseUrl: String, fansub: String): List<Source> {
+        val doc = runCatching { Jsoup.parse(html, baseUrl) }.getOrNull() ?: return emptyList()
+        val out = mutableListOf<Source>()
+        for (el in doc.select("a[video], a[data-video], button[data-video], [data-url]")) {
+            val raw = el.attr("video").ifBlank { el.attr("data-video") }
+                .ifBlank { el.attr("data-url") }
+            val url = AnizmSite.absolute(baseUrl, raw) ?: continue
+            if (!url.startsWith("http")) continue
+            val host = el.attr("data-video-name").ifBlank { el.text() }.trim()
+                .replace(Regex("\\s+"), " ")
+            out.add(Source(fansub, host.ifBlank { "Oynatıcı" }, url))
+        }
+        return out.distinctBy { it.url }
+    }
+
+    /**
+     * `…/bolum/{ep}/cevirmen/{cid}` + video id → `…/video/{vid}`.
+     * (Canlı istemci kanıtı: Migurdex `AnizmProvider`; site kendi JS'inde de böyle.)
+     */
+    private fun videoUrlFrom(sourcesUrl: String, videoId: String): String {
+        val replaced = Regex("/cevirmen/\\d+/?$").replace(sourcesUrl, "/video/$videoId")
+        return if (replaced != sourcesUrl) replaced else sourcesUrl.trimEnd('/') + "/video/$videoId"
+    }
+
+    // ------------------------------------------------------------------
+    // 2) Eski kuşak: a[translator]
+    // ------------------------------------------------------------------
+
+    private suspend fun collectV2(doc: org.jsoup.nodes.Document, pageUrl: String): List<Source> {
+        val anchors = doc.select("div#fansec a[translator], a[translator]")
+        if (anchors.isEmpty()) return emptyList()
+        val out = mutableListOf<Source>()
+        for (anchor in anchors) {
+            val url = AnizmSite.absolute(pageUrl, anchor.attr("translator")) ?: continue
+            val fansub = anchor.text().trim().ifBlank { "Çevirmen" }
+            val body = http.getXhr(url, pageUrl) ?: continue
+            val html = runCatching { JSONObject(body).optString("data") }.getOrDefault("")
+                .ifBlank { body }
+            out.addAll(parsePlayerTags(html, url, fansub))
+        }
+        return out.distinctBy { it.url }
+    }
+
+    // ------------------------------------------------------------------
+    // 3) Sayfa düzeyi
+    // ------------------------------------------------------------------
+
     private fun pageLevelSources(
         doc: org.jsoup.nodes.Document,
         html: String,
-        pageUrl: String
+        pageUrl: String,
+        site: String
     ): List<Source> {
         val out = mutableListOf<Source>()
-        for (anchor in doc.select("a.videoPlayerButtons, a[video], a[data-video]")) {
-            val raw = anchor.attr("video").ifBlank { anchor.attr("data-video") }
-            val url = AnizmSite.absolute(pageUrl, raw) ?: continue
-            out.add(Source("Sayfa", anchor.text().trim().ifBlank { "Kaynak" }, url))
-        }
         for (frame in doc.select("iframe[src], iframe[data-src]")) {
             val url = AnizmSite.absolute(pageUrl, frame.attr("src").ifBlank { frame.attr("data-src") })
                 ?: continue
@@ -205,15 +399,21 @@ internal class AnizmStreams(
             out.add(Source("Sayfa", "Doğrudan", url))
         }
         if (out.isEmpty()) {
-            for (media in mediaFromHtml(html, pageUrl)) {
+            for (media in mediaFromHtml(html, pageUrl).take(3)) {
                 out.add(Source("Sayfa", "Doğrudan", media))
             }
         }
-        return out.distinctBy { it.playerUrl }
+        // anizmplayer hash'i doğrudan sayfada varsa
+        val hash = Regex("anizmplayer\\.com/(?:video|player|embed)/([A-Za-z0-9_-]{8,64})")
+            .find(html)?.groupValues?.getOrNull(1)
+            ?: Regex("""index\\.php\\?data=([a-f0-9]{32})""", RegexOption.IGNORE_CASE)
+                .find(html)?.groupValues?.getOrNull(1)
+        if (hash != null) out.add(Source("Sayfa", "AnizmPlayer", "$PLAYER_HOST/video/$hash"))
+        return out.distinctBy { it.url }
     }
 
     // ------------------------------------------------------------------
-    // 2) Kaynak → akış
+    // Aday → akış
     // ------------------------------------------------------------------
 
     private suspend fun resolveSource(
@@ -223,21 +423,50 @@ internal class AnizmStreams(
         callback: (ExtractorLink) -> Unit
     ) {
         val label = buildLabel(source)
-        var target: String? = null
+        val url = source.url
+        if (url.isBlank()) return
 
-        // /player/{id} → 302 Location = gerçek host adresi (sitelerin kendi yolu).
-        if (source.playerUrl.contains("/player/") || source.playerUrl.contains("/video/")) {
-            target = http.location(source.playerUrl, pageUrl)
-            if (target != null && isAdHost(target)) target = null
+        // /video/{id} → JSON {url, player} (XHR), sonra oynatıcı.
+        if (url.contains("/video/") && !url.contains(PLAYER_HOST)) {
+            val target = videoTargetFrom(url, pageUrl)
+            if (target != null && target != url) {
+                if (resolveTarget(target, pageUrl, label, subtitleCallback, callback, depth = 0)) return
+            }
         }
-        if (target == null) target = source.playerUrl
-
-        if (resolveTarget(target, pageUrl, label, subtitleCallback, callback, depth = 0)) return
-
-        // Yönlendirme hedefi işe yaramadıysa oynatıcı sayfasının kendisi denenir.
-        if (target != source.playerUrl) {
-            resolveTarget(source.playerUrl, pageUrl, label, subtitleCallback, callback, depth = 1)
+        if (resolveTarget(url, pageUrl, label, subtitleCallback, callback, depth = 0)) return
+        // /video/{id} oynatıcı sayfasına yönlenmiyorsa doğrudan /player/{id} denenir.
+        if (url.contains("/video/")) {
+            val player = url.replace("/video/", "/player/")
+            resolveTarget(player, pageUrl, label, subtitleCallback, callback, depth = 1)
         }
+    }
+
+    /** `/video/{id}` sayfasının JSON cevabından oynatıcı adresi. */
+    private suspend fun videoTargetFrom(videoUrl: String, pageUrl: String): String? {
+        val body = http.getXhr(videoUrl, pageUrl) ?: return null
+        val json = runCatching { JSONObject(body.trim()) }.getOrNull()
+        if (json != null) {
+            val playerHtml = json.optString("player")
+            if (playerHtml.contains('<')) {
+                val frame = Jsoup.parse(playerHtml, videoUrl).selectFirst("iframe[src], iframe[data-src]")
+                val src = frame?.let { it.attr("src").ifBlank { it.attr("data-src") } }
+                AnizmSite.absolute(videoUrl, src)?.let { return it }
+            }
+            for (key in listOf("url", "player", "src", "link")) {
+                val value = json.optString(key)
+                if (value.startsWith("http") || value.startsWith("//")) {
+                    return AnizmSite.absolute(videoUrl, value)
+                }
+            }
+        }
+        // JSON değilse gövdenin içindeki iframe/hash.
+        val doc = runCatching { Jsoup.parse(body, videoUrl) }.getOrNull()
+        val frame = doc?.selectFirst("iframe[src], iframe[data-src]")
+        val src = frame?.let { it.attr("src").ifBlank { it.attr("data-src") } }
+        if (!src.isNullOrBlank()) return AnizmSite.absolute(videoUrl, src)
+        val hash = Regex("anizmplayer\\.com/(?:video|player|embed)/([A-Za-z0-9_-]{8,64})")
+            .find(body)?.groupValues?.getOrNull(1)
+        return if (hash != null) "$PLAYER_HOST/video/$hash" else null
     }
 
     private suspend fun resolveTarget(
@@ -248,7 +477,7 @@ internal class AnizmStreams(
         callback: (ExtractorLink) -> Unit,
         depth: Int
     ): Boolean {
-        val url = normalize(rawUrl)
+        val url = normalize(AnizmSite.absolute(referer, rawUrl) ?: rawUrl)
         if (url.isEmpty()) return false
 
         if (isDirectMedia(url)) {
@@ -256,14 +485,20 @@ internal class AnizmStreams(
             return true
         }
 
-        // Anizm'in kendi oynatıcısı (Aincrad / FirePlayer).
         val hash = anizmPlayerHash(url)
         if (hash != null && resolveAnizmPlayer(hash, url, label, callback)) return true
 
-        // Google Drive → gdriveplayer köprüsü (site bu yolu kullanıyor).
+        // Site içi /player/{id} → 302 Location hedefi.
+        if (url.contains("/player/")) {
+            val location = http.location(url, referer)
+            if (location != null && location != url && !isAdHost(location)) {
+                if (resolveTarget(location, referer, label, subtitleCallback, callback, depth)) return true
+            }
+        }
+
         if (url.contains("drive.google") || url.contains("docs.google")) {
             val bridged = "https://gdriveplayer.to/embed2.php?link=" +
-                java.net.URLEncoder.encode(url, "UTF-8")
+                URLEncoder.encode(url, "UTF-8")
             if (tryExtractors(bridged, referer, label, subtitleCallback, callback)) return true
         }
 
@@ -279,6 +514,10 @@ internal class AnizmStreams(
             found = true
         }
         if (found) return true
+
+        val innerHash = Regex("anizmplayer\\.com/(?:video|player|embed)/([A-Za-z0-9_-]{8,64})")
+            .find(page)?.groupValues?.getOrNull(1)
+        if (innerHash != null && resolveAnizmPlayer(innerHash, url, label, callback)) return true
 
         val nested = Jsoup.parse(page, url)
             .select("iframe[src], iframe[data-src]")
@@ -305,7 +544,7 @@ internal class AnizmStreams(
     }
 
     // ------------------------------------------------------------------
-    // anizmplayer.com (Aincrad)
+    // anizmplayer.com (Aincrad / FirePlayer)
     // ------------------------------------------------------------------
 
     private fun anizmPlayerHash(url: String): String? {
@@ -315,7 +554,7 @@ internal class AnizmStreams(
 
     /**
      * `POST https://anizmplayer.com/player/index.php?data=<hash>&do=getVideo`
-     * (form: hash, r) → `securedLink` (HLS). Kaynak: Aniyomi `AincradExtractor`.
+     * (form: hash, r) → `securedLink`.
      */
     private suspend fun resolveAnizmPlayer(
         hash: String,
@@ -333,26 +572,32 @@ internal class AnizmStreams(
             return false
         }
         var found = false
-        try {
-            val json = JSONObject(body)
+        val json = runCatching { JSONObject(body) }.getOrNull()
+        if (json != null) {
             val secured = json.optString("securedLink").ifBlank { json.optString("videoSource") }
             if (secured.isNotBlank()) {
-                emitMedia(secured, label, playerUrl, callback)
+                emitMedia(secured, label, "$PLAYER_HOST/", callback)
                 found = true
             }
-            val sources = json.optJSONArray("videoSources")
-            if (sources != null) {
+            val array = json.optJSONArray("video")
+                ?: json.optJSONArray("videoSources")
+                ?: json.optJSONArray("sources")
+            array?.let { sources ->
                 for (index in 0 until sources.length()) {
                     val item = sources.optJSONObject(index) ?: continue
                     val file = item.optString("file").ifBlank { item.optString("src") }
+                        .ifBlank { item.optString("url") }
                     if (file.isBlank()) continue
                     val quality = item.optString("label").ifBlank { item.optString("quality") }
-                    emitMedia(file, if (quality.isBlank()) label else "$label $quality", playerUrl, callback)
+                    emitMedia(
+                        file,
+                        if (quality.isBlank()) label else "$label • $quality",
+                        "$PLAYER_HOST/",
+                        callback
+                    )
                     found = true
                 }
             }
-        } catch (_: Exception) {
-            // JSON değil: gövdenin içindeki m3u8/mp4 adresleri.
         }
         if (!found) {
             for (stream in mediaFromHtml(body, playerUrl).take(3)) {
@@ -360,7 +605,6 @@ internal class AnizmStreams(
                 found = true
             }
         }
-        if (!found) Log.d(TAG, "anizmplayer akış vermedi ($hash)")
         return found
     }
 
@@ -401,12 +645,12 @@ internal class AnizmStreams(
         val isHls = url.substringBefore('?').lowercase().let { it.endsWith(".m3u8") || it.contains(".m3u8") }
         if (isHls) {
             val variants = try {
-                withTimeoutOrNull(10_000) {
+                withTimeoutOrNull(8_000) {
                     M3u8Helper.generateM3u8(
                         pluginName,
                         url,
                         referer,
-                        headers = streamHeaders(referer, url)
+                        headers = streamHeaders(referer)
                     )
                 }
             } catch (e: CancellationException) {
@@ -454,7 +698,7 @@ internal class AnizmStreams(
         val url = normalize(rawUrl)
         if (url.isEmpty() || !emitted.add(url)) return
         val ref = referer.ifBlank { base() + "/" }
-        val headers = streamHeaders(ref, url) + (extraHeaders ?: emptyMap())
+        val headers = streamHeaders(ref) + (extraHeaders ?: emptyMap())
         val link = newExtractorLink(
             source = pluginName,
             name = label.ifBlank { pluginName },
@@ -471,11 +715,7 @@ internal class AnizmStreams(
         }
     }
 
-    /**
-     * Akış isteklerinde gönderilen başlıklar. `Origin` gönderilmiyor:
-     * bazı CDN'ler yabancı Origin'de 403 veriyor (referer yeterli).
-     */
-    private fun streamHeaders(referer: String, streamUrl: String): Map<String, String> = mapOf(
+    private fun streamHeaders(referer: String): Map<String, String> = mapOf(
         "Referer" to referer,
         "User-Agent" to UA
     )
@@ -493,9 +733,7 @@ internal class AnizmStreams(
             val kind = track.attr("kind").ifBlank { "subtitles" }
             if (!kind.equals("subtitles", true) && !kind.equals("captions", true)) continue
             val src = AnizmSite.absolute(base, track.attr("src")) ?: continue
-            val lang = track.attr("srclabel").ifBlank { track.attr("label") }
-                .ifBlank { track.attr("srclang") }
-                .ifBlank { "Altyazı" }
+            val lang = track.attr("label").ifBlank { track.attr("srclang") }.ifBlank { "Altyazı" }
             if (seenSubs.add(src)) subtitleCallback(newSubtitleFile(lang, src))
         }
     }
@@ -576,7 +814,7 @@ internal class AnizmStreams(
         private const val PLAYER_HOST = "https://anizmplayer.com"
         private const val UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
-        private const val TOTAL_BUDGET_MS = 35_000L
+        private const val TOTAL_BUDGET_MS = 30_000L
 
         /** Reklam/analitik host işaretleri — oynatıcı adayı olarak alınmaz. */
         private val AD_HOSTS = listOf(
@@ -596,6 +834,9 @@ internal interface AnizmHttp {
 
     /** Belge GET. */
     suspend fun get(url: String, referer: String? = null): String?
+
+    /** XHR GET (JSON uçları: `data-sources`, `/video/{id}`). */
+    suspend fun getXhr(url: String, referer: String? = null): String?
 
     /** Yönlendirme İZLENMEDEN GET → `Location` başlığı (302 hedefi). */
     suspend fun location(url: String, referer: String? = null): String?

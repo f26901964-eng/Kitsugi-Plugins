@@ -223,3 +223,77 @@ div#fansec > a[translator]
   (ASN ban) ile veri merkezi IP'lerini engelliyor; `anizm.net` TLS el sıkışması
   sandbox ağından geçmiyor. Zincir bu yüzden **üretimde çalışan istemci koduyla
   birebir** eşleştirildi (Aniyomi `src/tr/tranimeizle`, `src/tr/anizm`).
+
+---
+
+## 4. Anizm v6 + TrAnimeIzle v31 (2026-10-26) — v3 zinciri, kanıtla
+
+Upstream `yuzono/anime-extensions` portunun Anizm zinciri (`div#fansec > a[translator]`)
+**artık ölü**: anizm.net v3 temasına geçti. Yeni zincir, bakımı süren bağımsız istemci
+`roxyrekt/Migurdex` kaynağından ve canlı sayfa DOM'undan çıkarıldı.
+
+### 4.1 Anizm — v3 kaynak zinciri (kanıt: `Migurdex.Plugins.Anizm/AnizmProvider.cs`)
+
+```
+bölüm sayfası  /shingeki-no-kyojin-1-bolum-izle
+  → <meta name="csrf-token">                       (X-CSRF-TOKEN olarak gönderilir)
+  → button[data-v3-translator]  (+ [data-sources], title = fansub adı, aria-pressed = aktif)
+      data-sources = /bolum/{bolumId}/cevirmen/{cevirmenId}
+  → GET (AJAX: X-Requested-With, Accept: application/json, X-CSRF-TOKEN, Referer)
+      cevap A: {"videos":[{"id":"…","name":"…"}]}
+      cevap B: {"data":"<a video=\"…\">…", "player":"<iframe src=…>"}
+  → video adresi = sourcesUrl.replace(/cevirmen/\d+$/, "/video/" + vid)
+  → GET /video/{vid} (aynı başlıklar) → {"url":"…"}   (bazen {"player":"<iframe …>"})
+      url "/player/" içeriyorsa  → GET (yönlendirme kapalı) → Location = gerçek host
+      url "/video/"  içeriyorsa  → "/player/" ile değiştirilir
+  → anizmplayer.com/video/<32-hex>
+      POST /player/index.php?data=<hash>&do=getVideo   form: hash, r
+      → {"securedLink":"https://…/master.m3u8", "video":[{"file":"…","label":"1080p"}]}
+```
+
+Doğrulanan ayrıntılar:
+
+* `anizmplayer` anahtarı **32 hex**; `index.php?data=<hash>` biçimi de kabul edilir
+  (`Migurdex.Core/Extractors/AnizmPlayerExtractor.cs`).
+* `securedLink` HLS master → `M3u8Helper` ile varyantlara ayrılır; `video[]` içindeki
+  `file` + `label` çiftleri kalite etiketi olarak yayınlanır.
+* Sayfada `+18` onay kapısı var ("Seçim yalnızca bu tarayıcıda saklanır") — bu bir
+  **istemci tarafı** kolaylık katmanı; kaynak uçları XHR ile doğrudan okunabiliyor.
+* Canlı sayfada `button[data-sources]` değeri boş bırakılıp JS ile doldurulabiliyor;
+  bu yüzden eklenti sırasıyla `[data-sources] → [data-v3-translator] →
+  [data-translator] → a[translator]` düğümlerini tarar, değer boşsa düğümdeki
+  `data-id` + sayfadaki `/bolum/{id}` kimliğinden adresi **yeniden kurar**.
+
+### 4.2 Anizm — yedek merdiveni (kaynak asla atlanmaz)
+
+1. v3 çevirmen düğümleri → kaynak listeleri → video/oynatıcı adresleri.
+2. Eski kuşak `a[translator]` → `{"data":"<html>"}` → `a[video]`.
+3. Çevirmen düğümü yoksa `/bolum/{bolumId}` dizini (bolumId, `raporver`/`bolum`
+   bağlantılarından veya `EpisodeId` alanından) → düğümler → 1. adım.
+4. O da boşsa `/bolum/{bolumId}/cevirmen/1..3` uçları paralel denenir.
+5. Her durumda sayfa düzeyi `iframe[src]`, `video[src]` ve HTML içi `m3u8/mp4/mpd`
+   adresleri eklenir.
+
+### 4.3 TrAnimeIzle v31 — probe kapısı ve form yedeği
+
+* `fansubSources` gövdesi **JSON** (`{"EpisodeId","FansubId"}`); uç boş dönerse aynı
+  istek **form** gövdesiyle tekrarlanır (Aniyomi portu form kullanıyor).
+* Cevap `/api/CaptchaChallenge` içeriyorsa: `POST /api/Captcha/` (`cID=0,rT=1,tM=light`)
+  → görsellerin MD5'i → en farklı kimlik → `cID=0,rT=2,pC=<id>`; tek uçuş (`Mutex`).
+* Migurdex'in `TrAnimeProbeSolver`'ı **WebRTC/WebSocket RTT** ölçümü istiyor
+  (`#rtt-cfg`: `pt` JWT + `wsUrl` + `mintUrl` + `stun`). CloudStream'de WebRTC yok;
+  bu yüzden kapı **algılanır** (`rtt-cfg`, `just a moment`) ve kaynak listesi boş
+  sayılıp sayfa düzeyi/preVideoAd yollarına bırakılır — kapı HTML'i kaynak sanılmaz.
+* Bütçe: kaynak butonu başına 14 sn, toplam 26 sn (v30'da 20/35 sn idi).
+* Kaynak butonu `sourcePlayer` boş dönerse `/api/preVideoAd/{id}` denenir; yine boşsa
+  host sayfası bir katman daha açılır; `embed2/?id=` sarmalı çözülür.
+
+### 4.4 Neden önceki sürüm "hiç kaynak yok" diyordu
+
+| Belirti | Kök neden | v6/v31 çözümü |
+| --- | --- | --- |
+| Anizm: 0 kaynak | `div#fansec a[translator]` v3 DOM'unda yok | `[data-sources]`/`[data-v3-translator]` + `/bolum/{id}` yedeği |
+| Anizm: XHR 403/HTML kabuğu | CSRF belirteci ve AJAX başlıkları yok | `meta[csrf-token]` → `X-CSRF-TOKEN`, `X-Requested-With`, `Accept: application/json` |
+| Anizm: oynatıcı çözülmüyor | `anizmplayer` anahtarı yalnızca `video/<hash>` sanılıyordu | `index.php?data=<32hex>` + `securedLink` + `video[]` |
+| TrAnimeIzle: kaynak listesi boş | form gövdesi bekleyen uç sürümü | JSON → form yedeği |
+| TrAnimeIzle: saçma "kaynak" | anti-bot probe HTML'i kaynak sanılıyordu | `isProbeGate` ile ayıklanır |

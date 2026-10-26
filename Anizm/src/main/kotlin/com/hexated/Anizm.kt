@@ -84,6 +84,19 @@ class Anizm : MainAPI(), AnizmHttp {
         "$mainUrl/temalar/27?sayfa=" to "Oyun"
     )
 
+    /**
+     * Laravel CSRF belirteci (bölüm sayfasındaki `meta[name=csrf-token]`).
+     * v3 kaynak uçları `/bolum/{ep}/cevirmen/{id}` ve `/video/{id}` bu başlığı
+     * bekliyor; yoksa HTML kabuğu/403 dönebiliyor.
+     */
+    @Volatile
+    private var csrfToken: String? = null
+
+    private val csrfRegex = Regex(
+        """<meta[^>]+name=["']csrf-token["'][^>]+content=["']([^"']+)""",
+        RegexOption.IGNORE_CASE
+    )
+
     // ------------------------------------------------------------------
     // HTTP katmanı
     // ------------------------------------------------------------------
@@ -98,6 +111,7 @@ class Anizm : MainAPI(), AnizmHttp {
             put("sec-fetch-dest", "empty")
             put("sec-fetch-mode", "cors")
             put("sec-fetch-site", "same-origin")
+            csrfToken?.let { put("X-CSRF-TOKEN", it) }
         } else {
             put("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
             put("Upgrade-Insecure-Requests", "1")
@@ -117,7 +131,11 @@ class Anizm : MainAPI(), AnizmHttp {
                 Log.w(LOG_TAG, "GET ${response.code}: ${url.take(120)}")
                 null
             } else {
-                response.text
+                val text = response.text
+                if (csrfToken == null) {
+                    csrfRegex.find(text)?.groupValues?.getOrNull(1)?.let { csrfToken = it }
+                }
+                text
             }
         } catch (e: CancellationException) {
             throw e
@@ -710,6 +728,14 @@ class Anizm : MainAPI(), AnizmHttp {
 
     override suspend fun get(url: String, referer: String?): String? =
         getText(url, referer ?: mainUrl + "/", xhr = false, timeout = 12L)
+
+    /**
+     * v3 kaynak uçları (`/bolum/{ep}/cevirmen/{id}`, `/video/{vid}`) AJAX ile
+     * beslenir: `X-Requested-With` + `Accept: */*` + `Sec-Fetch-*: same-origin`.
+     * Düz belge isteği bu uçlardan HTML kabuğu döndürebiliyor.
+     */
+    override suspend fun getXhr(url: String, referer: String?): String? =
+        getText(url, referer ?: mainUrl + "/", xhr = true, timeout = 12L)
 
     override suspend fun location(url: String, referer: String?): String? =
         followLocation(url, referer ?: mainUrl + "/")
