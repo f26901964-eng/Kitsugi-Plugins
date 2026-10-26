@@ -220,6 +220,44 @@ class FullSourceAuditTest {
         }
     }
 
+    /**
+     * **SPA oynatıcıların API yolu** — Sistenn/BYSE/FlyF/StreamCash gibi React
+     * tabanlı oynatıcılarda akış, sayfanın kendi JS paketindeki bir uçtan gelir.
+     * Bu test paketi indirip içindeki `api/...` yollarını yazar.
+     */
+    @Test
+    fun dumpSpaApi() {
+        assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
+        val hosts = listOf(
+            "https://sistenn.uns.bio/#mp1owk",
+            "https://anizm.rpmvid.com/#8qtems",
+            "https://bysesayeveum.com/e/4257ixn8m6gk",
+            "https://flyf.lat/e/nP3lWDHayM2a0hA",
+            "https://streamcash.to/embed/0uXv_dii4k",
+            "https://firestream.to/e/C9H_60xO"
+        )
+        for (page in hosts) {
+            val root = page.substringBefore('#').substringBefore("/e/").let {
+                if (it.endsWith("/")) it else it + "/"
+            }
+            val html = raw(page, "https://anizm.com.tr/").body ?: continue
+            val js = Regex("""<script[^>]+src=["']([^"']+\.js[^"']*)""", RegexOption.IGNORE_CASE)
+                .findAll(html).map { it.groupValues[1] }
+                .firstOrNull { !it.contains("cloudflareinsights") && !it.contains("google") }
+                ?: continue
+            val jsUrl = if (js.startsWith("http")) js else root.trimEnd('/') + js
+            val bundle = raw(jsUrl, page).body ?: continue
+            val apis = Regex("""["'`](/?(?:api|v1|v2|source|sources|video|stream|player|file|download)/[A-Za-z0-9_./{}$:-]{2,60})["'`]""")
+                .findAll(bundle).map { it.groupValues[1] }.distinct().take(12).toList()
+            val fetches = Regex("""(?:fetch|axios\.(?:get|post))\(\s*["'`]([^"'`]{3,80})["'`]""")
+                .findAll(bundle).map { it.groupValues[1] }.distinct().take(8).toList()
+            p("SPA $page")
+            p("    paket: $jsUrl (${bundle.length}B)")
+            p("    api  : $apis")
+            p("    fetch: $fetches")
+        }
+    }
+
     @Test
     fun auditEverySource() {
         assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
