@@ -123,7 +123,7 @@ internal class AnizmStreams(
         Log.d(TAG, "v3 çevirmen: ${translators.size}")
 
         // Sayfada hazır video adresleri (aktif çevirmen için sunucu tarafı render).
-        val preResolved = doc.select("button[data-video][data-url], [data-video][data-url], a[video]")
+        val preResolved = doc.select("[data-video][data-url], [video], [data-video]")
             .mapNotNull { el ->
                 val raw = el.attr("data-url").ifBlank { el.attr("video") }
                 val url = AnizmSite.absolute(pageUrl, raw) ?: return@mapNotNull null
@@ -175,11 +175,12 @@ internal class AnizmStreams(
         pageUrl: String
     ): LinkedHashMap<String, Translator> {
         val out = LinkedHashMap<String, Translator>()
-        val bolumId = doc.select("a[href*=/bolum/], a[href*=/raporver/bolum/]")
-            .mapNotNull { Regex("/bolum/(\\d+)").find(it.attr("href"))?.groupValues?.getOrNull(1) }
+        val bolumId = doc.select("a[href*=/bolum/], a[href*=/episode/], a[href*=/raporver/]")
+            .mapNotNull { bolumIdOf(it.attr("href")) }
             .firstOrNull()
-            ?: Regex("/bolum/(\\d+)").find(pageUrl)?.groupValues?.getOrNull(1)
-        for (el in doc.select("[data-sources], [data-v3-translator], [data-translator], a[translator]")) {
+            ?: bolumIdOf(pageUrl)
+        // `[translator]` HER etikette olabilir (a/button/div) — tag'e bağlanma.
+        for (el in doc.select("[data-sources], [data-v3-translator], [data-translator], [translator]")) {
             val name = el.attr("title").ifBlank { el.attr("data-fansub-name") }
                 .ifBlank { el.attr("data-name") }
                 .ifBlank { el.text() }
@@ -195,6 +196,20 @@ internal class AnizmStreams(
             }
         }
         return out
+    }
+
+    /** Bölüm kimliği: `/bolum/{id}` (v3) veya `/episode/{id}` (eski kuşak). */
+    private fun bolumIdOf(text: String): String? =
+        Regex("/(?:bolum|episode)/(\\d+)").find(text)?.groupValues?.getOrNull(1)
+
+    /**
+     * Aynı çevirmenin iki olası rota biçimi (v3: `/bolum/…/cevirmen/…`,
+     * eski kuşak: `/episode/…/translator/…`). Tercih edilen rota önce gelir.
+     */
+    private fun translatorPaths(bolumId: String, cid: String, preferEpisode: Boolean = false): List<String> {
+        val bolum = "/bolum/$bolumId/cevirmen/$cid"
+        val episode = "/episode/$bolumId/translator/$cid"
+        return if (preferEpisode) listOf(episode, bolum) else listOf(bolum, episode)
     }
 
     /** Bir çevirmen düğümünün taşıyabileceği tüm adres biçimlerini çözer. */
@@ -227,8 +242,10 @@ internal class AnizmStreams(
                 .ifBlank { el.attr("data-translator-id") }
                 .filter { it.isDigit() }
             val candidates = if (cid.isNotEmpty()) listOf(cid) else listOf("1", "2", "3")
+            val preferEpisode = pageUrl.contains("/episode/")
             for (id in candidates) {
-                out.add(AnizmSite.absolute(pageUrl, "/bolum/$bolumId/cevirmen/$id") ?: continue)
+                val path = translatorPaths(bolumId, id, preferEpisode).first()
+                out.add(AnizmSite.absolute(pageUrl, path) ?: continue)
             }
         }
         return out.filter { it.startsWith("http") }
@@ -244,7 +261,7 @@ internal class AnizmStreams(
         pageUrl: String,
         site: String
     ): List<Source> {
-        val bolumId = Regex("/bolum/(\\d+)").find(html)?.groupValues?.getOrNull(1)
+        val bolumId = Regex("/(?:bolum|episode)/(\\d+)").find(html)?.groupValues?.getOrNull(1)
             ?: Regex("""EpisodeId"?\s*[:=]\s*"?(\d{3,7})""").find(html)?.groupValues?.getOrNull(1)
             ?: return emptyList()
         Log.d(TAG, "bolum yedeği: id=$bolumId")
@@ -275,16 +292,18 @@ internal class AnizmStreams(
         }
 
         val out = Collections.synchronizedList(mutableListOf<Source>())
+        val attempts = (1..3).flatMap { id ->
+            translatorPaths(bolumId, id.toString()).map { "$site$it" to id }
+        }
         coroutineScope {
-            (1..3).map { index ->
+            attempts.map { (url, index) ->
                 async {
-                    val url = "$site/bolum/$bolumId/cevirmen/$index"
                     try {
                         out.addAll(fetchV3Translator(url, "Çevirmen $index", pageUrl))
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Throwable) {
-                        // çevirmen yok
+                        // o çevirmen/rota yok
                     }
                 }
             }.awaitAll()
@@ -337,7 +356,7 @@ internal class AnizmStreams(
     private fun parsePlayerTags(html: String, baseUrl: String, fansub: String): List<Source> {
         val doc = runCatching { Jsoup.parse(html, baseUrl) }.getOrNull() ?: return emptyList()
         val out = mutableListOf<Source>()
-        for (el in doc.select("a[video], a[data-video], button[data-video], [data-url]")) {
+        for (el in doc.select("[video], [data-video], [data-url]")) {
             val raw = el.attr("video").ifBlank { el.attr("data-video") }
                 .ifBlank { el.attr("data-url") }
             val url = AnizmSite.absolute(baseUrl, raw) ?: continue
@@ -363,7 +382,7 @@ internal class AnizmStreams(
     // ------------------------------------------------------------------
 
     private suspend fun collectV2(doc: org.jsoup.nodes.Document, pageUrl: String): List<Source> {
-        val anchors = doc.select("div#fansec a[translator], a[translator]")
+        val anchors = doc.select("div#fansec [translator], [translator]")
         if (anchors.isEmpty()) return emptyList()
         val out = mutableListOf<Source>()
         for (anchor in anchors) {
