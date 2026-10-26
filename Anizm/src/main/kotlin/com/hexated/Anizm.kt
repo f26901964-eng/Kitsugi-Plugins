@@ -823,22 +823,38 @@ class Anizm : MainAPI(), AnizmHttp {
 
         /** Site içi oynatıcı yolu — 302 Location ile gerçek host'a gider. */
         private val IN_SITE_PLAYER = Regex("/player/\\d+|/video/\\d+", RegexOption.IGNORE_CASE)
-        private const val DEFAULT_BASE = "https://anizm.net"
+        /**
+         * Başlangıç alan adı. 26.10.2026 ölçümünde `anizm.net` Cloudflare
+         * duvarından 403 dönerken `anizm.com.tr` tam siteyi (arama, bölüm
+         * listesi, `/bolum/{id}/cevirmen/{id}` JSON'u, `/player/{id}` 302'si)
+         * eksiksiz verdi; bu yüzden canlı ayna ile başlanır. `anizm.net` yine
+         * adaydır — duvar kalkarsa `probe` oraya da geçebilir.
+         */
+        private const val DEFAULT_BASE = "https://anizm.com.tr"
         private const val SEARCH_PAGE_SIZE = 24
         private const val MAX_MAIN_PAGE = 60
         private const val BASE_TTL_MS = 10 * 60 * 1000L
         private const val CATALOGUE_TTL_MS = 6 * 60 * 60 * 1000L
 
-        /** Aynı sitenin paralel/eski adları — probe sırası öncelik sırasıdır. */
+        /**
+         * Aynı sitenin paralel adları — **sıra = öncelik**; prob canlıyı seçer.
+         *
+         * 26.10.2026 canlı ölçümü (GitHub runner, aynı ağ sınıfı):
+         *  - `anizm.net`      → **403** (Cloudflare "Just a moment…")
+         *  - `puffytr.com`    → **403** (aynı duvar)
+         *  - `anizm.com.tr`   → **200**, 144 KB, `v3-series-card` × 39
+         *
+         * Bu yüzden önce `anizm.com.tr` denenir. Aynamı aynı veritabanıdır:
+         * `one-piece-1-bolum-izle` sayfası `/bolum/18853/cevirmen/18853`
+         * üretiyor — bu kimlik, sitenin kendi arşivindeki One Piece 1. bölüm
+         * kimliğiyle birebir aynı.
+         */
         private val BASE_CANDIDATES = listOf(
-            // Sıra = öncelik. anizm.net, 25.10.2026 itibarıyla güncel istemcilerin
-            // (Aniyomi tr/anizm) kullandığı canlı domain; puffytr.com aynı CMS'in
-            // yeni markası, diğerleri eski/tkiz adresler. Prob canlıyı seçer.
+            "https://anizm.com.tr",
             "https://anizm.net",
             "https://puffytr.com",
             "https://www.puffytr.com",
             "https://puffytr.com.tr",
-            "https://anizm.com.tr",
             "https://anizle.org",
             "https://anizle.co"
         )
