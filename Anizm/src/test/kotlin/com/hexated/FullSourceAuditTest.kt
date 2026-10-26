@@ -50,7 +50,13 @@ class FullSourceAuditTest {
 
     private fun p(line: String) = println("[AUDIT] $line")
 
-    private class Res(val status: Int, val body: String?, val location: String?, val ctype: String?)
+    private class Res(
+        val status: Int,
+        val body: String?,
+        val location: String?,
+        val ctype: String?,
+        val bytes: Int = 0
+    )
 
     private fun raw(
         url: String,
@@ -113,7 +119,36 @@ class FullSourceAuditTest {
                     bytes.toString(Charsets.UTF_8)
                 }
             }
-            Res(status, body, conn.getHeaderField("Location"), conn.contentType)
+            Res(status, body, conn.getHeaderField("Location"), conn.contentType, body?.length ?: 0)
+        } catch (e: Throwable) {
+            Res(0, null, null, null)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** JSON gövdeli POST (FireStream `resolve` gibi uçlar için). */
+    private fun postRaw(url: String, referer: String, json: String): Res {
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                instanceFollowRedirects = true
+                connectTimeout = 20000
+                readTimeout = 20000
+                setRequestProperty("User-Agent", ua)
+                setRequestProperty("Accept", "application/json, text/plain, */*")
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("X-Requested-With", "XMLHttpRequest")
+                setRequestProperty("Origin", referer.trimEnd('/'))
+                setRequestProperty("Referer", referer)
+                doOutput = true
+            }
+            conn.outputStream.use { it.write(json.toByteArray()) }
+            val status = conn.responseCode
+            val stream = if (status in 200..299) conn.inputStream else conn.errorStream
+            val body = stream?.readBytes()?.toString(Charsets.UTF_8)
+            Res(status, body, conn.getHeaderField("Location"), conn.contentType, body?.length ?: 0)
         } catch (e: Throwable) {
             Res(0, null, null, null)
         } finally {
@@ -260,23 +295,60 @@ class FullSourceAuditTest {
         }
     }
 
+    /** Sistenn/BYSE/FlyF/StreamCash/FireStream uçlarını **doğrudan** dener. */
     @Test
-    fun dumpFireStream() {
+    fun probeEndpoints() {
         assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
-        for (page in listOf("https://firestream.to/e/C9H_60xO", "https://streamcash.to/embed/0uXv_dii4k")) {
-            val html = raw(page, "https://anizm.com.tr/").body ?: continue
-            p("FS $page (${html.length}B)")
-            for (k in listOf("signedVideoUrl", "encodedPath", "m3u8", "/api/", "videoUrl", "sources")) {
-                var i = html.indexOf(k)
-                var n = 0
-                while (i >= 0 && n < 2) {
-                    val a = (i - 120).coerceAtLeast(0)
-                    val b = (i + 200).coerceAtMost(html.length)
-                    p("    [$k] …" + html.substring(a, b).replace("\n", " "))
-                    i = html.indexOf(k, i + 1)
-                    n++
-                }
+        fun probe(url: String, ref: String, post: Boolean = false) {
+            val r = if (post) postRaw(url, ref, "{}") else raw(url, ref)
+            val body = (r.body ?: "").replace("\n", " ").take(320)
+            p("EP $url → ${r.code} (${r.bytes}B) $body")
+        }
+        // 1) Sistenn üçlüsü
+        for (page in listOf(
+            "https://sistenn.uns.bio/#mp1owk",
+            "https://anizm.rpmvid.com/#8qtems",
+            "https://anizm.strp2p.com/#kt3xp4"
+        )) {
+            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
+            val hash = page.substringAfter('#', "").ifEmpty {
+                page.trimEnd('/').substringAfterLast('/')
             }
+            p("SISTENN $origin hash=$hash")
+            for (ep in listOf(
+                "/api/v1/info?id=", "/api/v1/video?id=", "/api/v1/download?id=",
+                "/api/v1/folder?id=", "/api/v1/player?t="
+            )) probe(origin + ep + hash, page)
+        }
+        // 2) BYSE / FlyF — paketteki /api/ kullanımlarının bağlamı
+        for (page in listOf("https://bysesayeveum.com/e/4257ixn8m6gk", "https://flyf.lat/e/nP3lWDHayM2a0hA")) {
+            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
+            val code = page.substringAfterLast('/')
+            val html = raw(page, "$origin/").body ?: continue
+            val jsv = Regex("""<script[^>]+src=["']([^"']+\.js[^"']*)""", RegexOption.IGNORE_CASE)
+                .findAll(html).map { it.groupValues[1] }.firstOrNull { it.contains("/assets/") } ?: continue
+            val bundle = raw(origin + jsv, page).body ?: continue
+            p("API-CTX $origin")
+            var i = bundle.indexOf("/api/")
+            var n = 0
+            while (i >= 0 && n < 6) {
+                p("    …" + bundle.substring((i - 90).coerceAtLeast(0), (i + 130).coerceAtMost(bundle.length)).replace("\n", " "))
+                i = bundle.indexOf("/api/", i + 1)
+                n++
+            }
+            for (cand in listOf("/api/e/", "/api/video/", "/api/file/", "/api/watch/", "/api/d/", "/api/public/v/"))
+                probe(origin + cand + code, page)
+        }
+        // 3) FireStream + StreamCash
+        for (page in listOf("https://firestream.to/e/C9H_60xO", "https://streamcash.to/embed/0uXv_dii4k")) {
+            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
+            val html = raw(page, "$origin/").body ?: continue
+            val slug = page.substringAfterLast('/')
+            for (k in listOf("token-blob", "resolve", "signedVideoUrl")) {
+                val i = html.indexOf(k)
+                if (i >= 0) p("  [$k] …" + html.substring((i - 260).coerceAtLeast(0), (i + 260).coerceAtMost(html.length)).replace("\n", " "))
+            }
+            probe("$origin/api/videos/$slug/resolve", page, post = true)
         }
     }
 

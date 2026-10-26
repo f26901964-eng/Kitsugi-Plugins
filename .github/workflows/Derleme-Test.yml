@@ -182,7 +182,7 @@ jobs:
             echo "## Site oynatıcısı + SPA uçları"
             echo
             echo '```'
-            grep -a "SITE OYNAYICISI\|  \[m3u8\]\|  \[.mp4\]\|  \[sources\]\|  \[videoUrl\]\|  \[manifest\]\|  \[/api/\]\|  \[stream\]\|  \[playlist\]\|  API http\|SPA http\|    paket\|    api  \|    fetch" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' | head -c 16000 || true
+            grep -a "SITE OYNAYICISI\|EP http\|SISTENN\|API-CTX\|  \[token-blob\]\|  \[resolve\]\|  \[m3u8\]\|  \[.mp4\]\|  \[sources\]\|  \[videoUrl\]\|  \[manifest\]\|  \[/api/\]\|  \[stream\]\|  \[playlist\]\|  API http\|SPA http\|    paket\|    api  \|    fetch" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]//' | head -c 18000 || true
             echo
             echo '```'
             echo
