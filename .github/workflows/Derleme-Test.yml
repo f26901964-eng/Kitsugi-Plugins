@@ -39,6 +39,9 @@ jobs:
       - name: Python birim testleri
         run: python3 -m unittest discover -s tests -v
 
+      - name: Kotlin yorum denetimi (iç içe /* yakala)
+        run: python3 tools/check_kotlin_comments.py
+
       - name: Opsiyonel anime eklentisi canlı yapı probu
         id: anime_probe
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')

@@ -951,6 +951,25 @@ internal class AnizmStreams(
                 ?.groupValues?.getOrNull(1)
             ?: return false
 
+        // 0) Drive'ın KENDİ oynatma API'si (indirme kotasına girmez).
+        //    Kanıt: `preview` sayfasındaki `AIza…` anahtarı +
+        //    content-workspacevideo-pa.googleapis.com/v1/drive/media/<id>/playback
+        //    → mediaStreamingData.formatStreamingData.progressiveTranscodes[].url
+        val playback = drivePlaybackStreams(fileId)
+        if (playback.isNotEmpty()) {
+            Log.d(TAG, "gdrive: oynatma API'si ${playback.size} akış verdi ($fileId)")
+            for ((height, mediaUrl) in playback) {
+                emitMedia(
+                    mediaUrl,
+                    if (height > 0) "$label ${height}p" else label,
+                    "https://drive.google.com/",
+                    callback,
+                    trusted = true
+                )
+            }
+            return true
+        }
+
         // 1) Uyarı sayfasını çek ve gizli form alanlarından gerçek adresi kur.
         val warningPage = http.get(
             "https://drive.usercontent.google.com/download?id=$fileId&export=download",
@@ -975,6 +994,45 @@ internal class AnizmStreams(
     }
 
     /**
+     * Drive oynatma API'si — `progressiveTranscodes` (yükseklik + doğrudan MP4).
+     * Anahtar, `preview` sayfasındaki `AIza…` (35 karakter) değeridir; birden
+     * çok anahtar olabilir, ilk çalışan kullanılır.
+     */
+    private suspend fun drivePlaybackStreams(fileId: String): List<Pair<Int, String>> {
+        val preview = http.get(
+            "https://drive.google.com/file/d/$fileId/preview",
+            "https://drive.google.com/"
+        ) ?: return emptyList()
+        val keys = Regex("""AIza[0-9A-Za-z_\-]{35}""").findAll(preview)
+            .map { it.value }.distinct().take(4).toList()
+        if (keys.isEmpty()) return emptyList()
+        for (key in keys) {
+            val body = http.getWith(
+                "https://content-workspacevideo-pa.googleapis.com/v1/drive/media/$fileId/playback" +
+                    "?key=$key&auditContext=forDisplay",
+                mapOf(
+                    "Origin" to "https://drive.google.com",
+                    "Referer" to "https://drive.google.com/",
+                    "Accept" to "*/*"
+                )
+            ) ?: continue
+            val json = runCatching { JSONObject(body) }.getOrNull() ?: continue
+            val progressive = json.optJSONObject("mediaStreamingData")
+                ?.optJSONObject("formatStreamingData")
+                ?.optJSONArray("progressiveTranscodes") ?: continue
+            val out = ArrayList<Pair<Int, String>>()
+            for (index in 0 until progressive.length()) {
+                val item = progressive.optJSONObject(index) ?: continue
+                val mediaUrl = item.optString("url").takeIf { it.startsWith("http") } ?: continue
+                val height = item.optJSONObject("transcodeMetadata")?.optInt("height", 0) ?: 0
+                out += height to mediaUrl
+            }
+            if (out.isNotEmpty()) return out.distinctBy { it.first }.sortedByDescending { it.first }
+        }
+        return emptyList()
+    }
+
+    /**
      * Drive uyarı sayfasındaki `<form action=…>` + gizli `<input>` alanlarını
      * gerçek indirme adresine çevirir. Alternatif olarak sayfada hazır duran
      * `drive.usercontent.google.com/download?…` bağlantısı da kabul edilir.
@@ -994,7 +1052,7 @@ internal class AnizmStreams(
         val query = fields.entries.joinToString("&") {
             "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}"
         }
-        return "$action?$query"
+        return action + (if (action.contains('?')) "&" else "?") + query
     }
 
     private fun isSibnet(url: String): Boolean =
@@ -1527,7 +1585,7 @@ internal interface AnizmHttp {
     /** Yönlendirme İZLENMEDEN GET → `Location` başlığı (302 hedefi). */
     suspend fun location(url: String, referer: String? = null): String?
 
-    /** Başlık denetimli GET (Sistenn `/api/v1/*` uçları Origin/Sec-Fetch bekler). */
+    /** Başlık denetimli GET (Sistenn `/api/v1/...` uçları Origin/Sec-Fetch bekler). */
     suspend fun getWith(url: String, extra: Map<String, String>): String?
 
     /** JSON gövdeli POST (FireStream `resolve` gibi uçlar). */

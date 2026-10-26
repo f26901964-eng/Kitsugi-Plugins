@@ -1026,7 +1026,7 @@ internal interface TrStreamHttp {
     /** XHR GET. */
     suspend fun getXhr(url: String, referer: String? = null): String?
 
-    /** Başlık denetimli GET (Sistenn `/api/v1/*` uçları Origin/Sec-Fetch bekler). */
+    /** Başlık denetimli GET (Sistenn `/api/v1/...` uçları Origin/Sec-Fetch bekler). */
     suspend fun getWith(url: String, extra: Map<String, String>): String?
 
     /** JSON gövdeli POST (`Content-Type: application/json`). */
