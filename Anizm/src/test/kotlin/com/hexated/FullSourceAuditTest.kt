@@ -299,56 +299,71 @@ class FullSourceAuditTest {
     @Test
     fun probeEndpoints() {
         assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
-        fun probe(url: String, ref: String, post: Boolean = false) {
-            val r = if (post) postRaw(url, ref, "{}") else raw(url, ref)
-            val body = (r.body ?: "").replace("\n", " ").take(320)
-            p("EP $url → ${r.status} (${r.bytes}B) $body")
+
+        // ── 1) FireStream: gerçek token blob ile resolve ────────────────
+        val fsPage = "https://firestream.to/e/C9H_60xO"
+        val fsHtml = raw(fsPage, "https://anizm.com.tr/").body
+        val blob = fsHtml?.let {
+            Regex("""<script[^>]*id=["']token-blob["'][^>]*>([^<]{8,4000})</script>""")
+                .find(it)?.groupValues?.getOrNull(1)?.trim()
         }
-        // 1) Sistenn üçlüsü
-        for (page in listOf(
-            "https://sistenn.uns.bio/#mp1owk",
-            "https://anizm.rpmvid.com/#8qtems",
-            "https://anizm.strp2p.com/#kt3xp4"
+        p("FS blob=${blob?.length ?: -1}B ${blob?.take(40)}")
+        for (body in listOf(
+            "{\"blob\": " + org.json.JSONObject.quote(blob ?: "") + "}",
+            "{\"token\": " + org.json.JSONObject.quote(blob ?: "") + "}"
         )) {
-            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
-            val hash = page.substringAfter('#', "").ifEmpty {
-                page.trimEnd('/').substringAfterLast('/')
-            }
-            p("SISTENN $origin hash=$hash")
-            for (ep in listOf(
-                "/api/v1/info?id=", "/api/v1/video?id=", "/api/v1/download?id=",
-                "/api/v1/folder?id=", "/api/v1/player?t="
-            )) probe(origin + ep + hash, page)
+            val r = postRaw("https://firestream.to/api/videos/C9H_60xO/resolve", fsPage, body)
+            p("FS resolve ${body.take(12)} → ${r.status} ${(r.body ?: "").replace("\n", " ").take(400)}")
         }
-        // 2) BYSE / FlyF — paketteki /api/ kullanımlarının bağlamı
-        for (page in listOf("https://bysesayeveum.com/e/4257ixn8m6gk", "https://flyf.lat/e/nP3lWDHayM2a0hA")) {
-            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
-            val code = page.substringAfterLast('/')
-            val html = raw(page, "$origin/").body ?: continue
-            val jsv = Regex("""<script[^>]+src=["']([^"']+\.js[^"']*)""", RegexOption.IGNORE_CASE)
-                .findAll(html).map { it.groupValues[1] }.firstOrNull { it.contains("/assets/") } ?: continue
-            val bundle = raw(origin + jsv, page).body ?: continue
-            p("API-CTX $origin")
-            var i = bundle.indexOf("/api/")
+
+        // ── 2) StreamCash: embed-player.js ──────────────────────────────
+        val sc = raw("https://streamcash.to/js/embed-player.js", "https://streamcash.to/").body ?: ""
+        p("SC embed-player.js ${sc.length}B")
+        p("SC ön: " + sc.take(1400).replace("\n", " "))
+        for (k in listOf("sources", "file", "/api", "packed", "m3u8")) {
+            val i = sc.indexOf(k)
+            if (i >= 0) p("SC [$k] …" + sc.substring((i - 100).coerceAtLeast(0), (i + 260).coerceAtMost(sc.length)).replace("\n", " "))
+        }
+
+        // ── 3) Sistenn: klasör kimliğiyle video ucu + paket bağlamı ─────
+        val folderId = raw("https://sistenn.uns.bio/api/v1/folder?id=mp1owk", "https://sistenn.uns.bio/")
+            .body?.trim()
+        p("SISTENN folderId=$folderId")
+        if (folderId != null) {
+            for (ep in listOf("/api/v1/video?id=", "/api/v1/info?id=", "/api/v1/download?id=")) {
+                val r = raw("https://sistenn.uns.bio$ep$folderId", "https://sistenn.uns.bio/")
+                p("  $ep$folderId → ${r.status} ${(r.body ?: "").take(300)}")
+            }
+        }
+        val infoHex = raw("https://sistenn.uns.bio/api/v1/info?id=mp1owk", "https://sistenn.uns.bio/").body ?: ""
+        p("SISTENN info ${infoHex.length}B ön=${infoHex.take(24)} hex=${infoHex.all { it.isDigit() || it in 'a'..'f' }}")
+        val bundle = raw("https://sistenn.uns.bio/assets/index-Ke1_7gwr.js", "https://sistenn.uns.bio/").body ?: ""
+        for (k in listOf("api/v1/video", "api/v1/info", "decrypt", "AES", "atob", "fromCharCode")) {
+            var i = bundle.indexOf(k)
             var n = 0
-            while (i >= 0 && n < 6) {
-                p("    …" + bundle.substring((i - 90).coerceAtLeast(0), (i + 130).coerceAtMost(bundle.length)).replace("\n", " "))
-                i = bundle.indexOf("/api/", i + 1)
+            while (i >= 0 && n < 2) {
+                p("  SPA $k …" + bundle.substring((i - 90).coerceAtLeast(0), (i + 190).coerceAtMost(bundle.length)).replace("\n", " "))
+                i = bundle.indexOf(k, i + 1)
                 n++
             }
-            for (cand in listOf("/api/e/", "/api/video/", "/api/file/", "/api/watch/", "/api/d/", "/api/public/v/"))
-                probe(origin + cand + code, page)
         }
-        // 3) FireStream + StreamCash
-        for (page in listOf("https://firestream.to/e/C9H_60xO", "https://streamcash.to/embed/0uXv_dii4k")) {
-            val origin = Regex("""^(https?://[^/]+)""").find(page)!!.groupValues[1]
-            val html = raw(page, "$origin/").body ?: continue
-            val slug = page.substringAfterLast('/')
-            for (k in listOf("token-blob", "resolve", "signedVideoUrl")) {
-                val i = html.indexOf(k)
-                if (i >= 0) p("  [$k] …" + html.substring((i - 260).coerceAtLeast(0), (i + 260).coerceAtMost(html.length)).replace("\n", " "))
+
+        // ── 4) BYSE / FlyF: paketteki /api/ kullanım bağlamı ────────────
+        for ((page, jsHost) in listOf(
+            "https://bysesayeveum.com/e/4257ixn8m6gk" to "https://bysesayeveum.com/assets/index-DocunfmE.js",
+            "https://flyf.lat/e/nP3lWDHayM2a0hA" to "https://flyf.lat/assets/index-D71DZ4GA.js"
+        )) {
+            val b = raw(jsHost, page).body ?: continue
+            p("BUNDLE $page ${b.length}B")
+            for (k in listOf("/api/", "fetch(", "download/")) {
+                var i = b.indexOf(k)
+                var n = 0
+                while (i >= 0 && n < 3) {
+                    p("  [$k] …" + b.substring((i - 110).coerceAtLeast(0), (i + 200).coerceAtMost(b.length)).replace("\n", " "))
+                    i = b.indexOf(k, i + 1)
+                    n++
+                }
             }
-            probe("$origin/api/videos/$slug/resolve", page, post = true)
         }
     }
 

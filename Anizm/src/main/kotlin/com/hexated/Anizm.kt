@@ -797,6 +797,19 @@ class Anizm : MainAPI(), AnizmHttp {
     override suspend fun location(url: String, referer: String?): String? =
         followLocation(url, referer ?: mainUrl + "/")
 
+    override suspend fun postJson(url: String, json: String, referer: String?): String? =
+        postText(
+            url = url,
+            referer = referer ?: mainUrl + "/",
+            xhr = true,
+            json = json,
+            extraHeaders = mapOf(
+                "Accept" to "application/json, text/plain, */*",
+                "Content-Type" to "application/json"
+            ),
+            timeout = 12L
+        )
+
     override suspend fun postForm(
         url: String,
         form: Map<String, String>,

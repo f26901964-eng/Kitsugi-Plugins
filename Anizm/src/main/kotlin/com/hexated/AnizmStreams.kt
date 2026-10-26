@@ -579,6 +579,12 @@ internal class AnizmStreams(
         // Anizm'in KENDİ oynatıcısı (pl.puffytr.tr) — HLS master'ı doğrudan verir.
         if (resolveSitePlayer(url, label, callback)) return true
 
+        // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
+        if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
+
+        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): /api/v1/*?id=<kod>
+        if (resolveSistennPlayer(url, label, callback)) return true
+
         // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
         if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
@@ -666,6 +672,155 @@ internal class AnizmStreams(
         }
         if (!found) Log.d(TAG, "site oynatıcısı: akış bulunamadı ($slug)")
         return found
+    }
+
+    /**
+     * **FireStream ve klonları** — sayfa, akışı imzalı bir "blob" ile alır:
+     *
+     *     <script id="…-token-blob" type="application/json"> … </script>
+     *     fetch('/api/videos/' + slug + '/resolve', { method:'POST',
+     *            body: JSON.stringify({ blob: blob }) })
+     *
+     * Yanıt `video.signedVideoUrl` (HLS/MP4) içerir. Sayfa kendi JS'inde
+     * `video.signedVideoUrl` nesnesini de gömebilir; ikisi de denenir.
+     */
+    private suspend fun resolveTokenBlobPlayer(
+        url: String,
+        referer: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1) ?: return false
+        val page = http.get(url, referer) ?: return false
+        if (!page.contains("token-blob") && !page.contains("/api/videos/")) {
+            // Sayfa içinde hazır imzalı adres varsa onu kullan.
+            val inline = mediaFromJsonText(page)
+            for (media in inline.take(2)) emitMedia(media, label, url, callback)
+            return inline.isNotEmpty()
+        }
+        val slug = url.substringBefore('#').trimEnd('/').substringAfterLast('/')
+        val blob = Regex(
+            """<script[^>]*(?:token-blob|blob)[^>]*>([\s\S]{8,8000}?)</script>""",
+            RegexOption.IGNORE_CASE
+        ).find(page)?.groupValues?.getOrNull(1)?.trim()
+
+        val payloads = mutableListOf<String>()
+        if (!blob.isNullOrBlank()) {
+            payloads += JSONObject().put("blob", blob).toString()
+        }
+        payloads += "{}"
+        for (body in payloads) {
+            val json = http.postJson("$origin/api/videos/$slug/resolve", body, url) ?: continue
+            val media = mediaFromJsonText(json)
+            if (media.isEmpty()) continue
+            for (item in media.take(2)) emitMedia(item, label, url, callback)
+            return true
+        }
+        // Son çare: sayfadaki gömülü video nesnesi.
+        val inline = mediaFromJsonText(page)
+        for (item in inline.take(2)) emitMedia(item, label, url, callback)
+        return inline.isNotEmpty()
+    }
+
+    /**
+     * **Sistenn ailesi** — `uns.bio`, `rpmvid.com`, `strp2p.com` … (React SPA,
+     * `player-version="16.x"`). Akışı sayfanın JS paketi `/api/v1/*` uçlarından
+     * alır; kullanıcıya görünen tek şey `#<kısa kod>` parçasıdır:
+     *
+     *     /api/v1/info?id=<kod>      dosya bilgisi
+     *     /api/v1/video?id=<kod>     oynatma kaynağı
+     *     /api/v1/download?id=<kod>  indirme yönlendirmesi
+     *
+     * Hangisi medya dönerse o yayınlanır (sırayla, ilk isabet yeter).
+     */
+    private suspend fun resolveSistennPlayer(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1) ?: return false
+        val code = url.substringAfter('#', "").takeIf { it.length in 4..64 }
+            ?: url.substringBefore('?').trimEnd('/').substringAfterLast('/').takeIf { it.length in 4..64 }
+            ?: return false
+        var emitted = 0
+        for (endpoint in listOf("/api/v1/video?id=", "/api/v1/info?id=", "/api/v1/download?id=")) {
+            val target = origin + endpoint + code
+            val body = http.getXhr(target, url)
+            if (body.isNullOrBlank()) continue
+            val trimmed = body.trim()
+            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+                // JSON değil: yönlendirme ya da doğrudan medya gövdesi.
+                if (isDirectMedia(trimmed)) {
+                    emitMedia(trimmed, label, url, callback)
+                    emitted++
+                }
+                continue
+            }
+            val media = mediaFromJsonText(trimmed)
+            for (item in media.take(2)) {
+                emitMedia(item, label, url, callback)
+                emitted++
+            }
+            if (emitted > 0) return true
+        }
+        if (emitted == 0) {
+            val location = http.location(origin + "/api/v1/download?id=" + code, url)
+            if (location != null && isDirectMedia(location)) {
+                emitMedia(location, label, url, callback)
+                emitted++
+            }
+        }
+        if (emitted == 0) Log.d(TAG, "Sistenn: akış yok ($origin $code)")
+        return emitted > 0
+    }
+
+    /**
+     * Bir JSON/gövde metnindeki **oynatılabilir adresleri** toplar.
+     * `signedVideoUrl`, `encodedPath`, `file`, `src`, `url`, `m3u8`, `hls` …
+     * anahtarları önceliklidir; ardından gövdedeki medya uzantılı adresler.
+     */
+    private fun mediaFromJsonText(text: String): List<String> {
+        val found = LinkedHashSet<String>()
+        val json = runCatching {
+            val t = text.trim()
+            when {
+                t.startsWith("{") -> JSONObject(t)
+                t.startsWith("[") -> org.json.JSONArray(t)
+                else -> null
+            }
+        }.getOrNull()
+        if (json != null) collectMedia(json, found, 0)
+        if (found.isEmpty()) {
+            Regex("""https?://[^"'\s\\<>()]+""").findAll(text).forEach { m ->
+                val candidate = m.value.replace("\\/", "/").trimEnd('\'', '"', ',', ')', ']', '}')
+                if (isDirectMedia(candidate)) found += candidate
+            }
+        }
+        return found.toList()
+    }
+
+    private fun collectMedia(node: Any?, out: MutableSet<String>, depth: Int) {
+        if (depth > 6 || out.size >= 4) return
+        when (node) {
+            is JSONObject -> {
+                for (key in node.keys()) {
+                    val value = node.opt(key)
+                    val lower = key.lowercase()
+                    if (value is String) {
+                        val candidate = value.replace("\\/", "/")
+                        val looksMedia = lower in MEDIA_KEYS || isDirectMedia(candidate)
+                        if (looksMedia && (candidate.startsWith("http") || candidate.startsWith("//"))) {
+                            out += candidate
+                        }
+                    } else {
+                        collectMedia(value, out, depth + 1)
+                    }
+                }
+            }
+            is org.json.JSONArray -> {
+                for (i in 0 until node.length()) collectMedia(node.opt(i), out, depth + 1)
+            }
+        }
     }
 
     /**
@@ -1224,6 +1379,12 @@ internal class AnizmStreams(
             "abyssplayer", "playmogo", "sitemio"
         )
         private const val PLAYER_HOST = "https://anizmplayer.com"
+
+        /** JSON anahtarları: değeri doğrudan oynatılabilir adres olanlar. */
+        private val MEDIA_KEYS = setOf(
+            "signedvideourl", "encodedpath", "file", "src", "url", "link", "m3u8",
+            "hls", "hlsurl", "video", "videourl", "playlist", "master", "stream"
+        )
         private const val OKRU = "https://ok.ru"
         private const val SIBNET = "https://video.sibnet.ru"
         private const val UA =
@@ -1255,6 +1416,9 @@ internal interface AnizmHttp {
 
     /** Yönlendirme İZLENMEDEN GET → `Location` başlığı (302 hedefi). */
     suspend fun location(url: String, referer: String? = null): String?
+
+    /** JSON gövdeli POST (FireStream `resolve` gibi uçlar). */
+    suspend fun postJson(url: String, json: String, referer: String? = null): String?
 
     /** Form gövdeli POST (anizmplayer). */
     suspend fun postForm(
