@@ -308,6 +308,10 @@ internal class TrAnimeIzleStreams(
             return true
         }
 
+        // Host'a özel yerel çözücüler (extractor katmanı bu iki hostta kırılgan).
+        if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
+        if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
+
         // Google Drive → gdriveplayer köprüsü (tarayıcıda oynayan yol).
         if (url.contains("drive.google.com") || url.contains("docs.google.com")) {
             if (resolveGoogleDrive(url, referer, label, subtitleCallback, callback)) return true
@@ -342,6 +346,63 @@ internal class TrAnimeIzleStreams(
             if (resolveTarget(inner, url, label, subtitleCallback, callback, depth + 1)) found = true
         }
         return found
+    }
+
+    // ------------------------------------------------------------------
+    // Yerel host çözücüleri (ok.ru, sibnet)
+    // ------------------------------------------------------------------
+
+    private fun isOkRu(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
+        return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    }
+
+    private fun isSibnet(url: String): Boolean = url.contains("sibnet.ru", ignoreCase = true)
+
+    /** ok.ru: `videoPlayerMetadata` → `hlsManifestUrl` + `videos[]`. */
+    private suspend fun resolveOkRu(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val id = Regex("""(?:videoembed|video)/(\d{6,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        val body = http.get("https://ok.ru/dk?cmd=videoPlayerMetadata&mid=$id", "$OKRU/") ?: return false
+        val json = runCatching { org.json.JSONObject(body.trim()) }.getOrNull() ?: return false
+        var found = false
+        json.optString("hlsManifestUrl").takeIf { it.startsWith("http") }?.let { hls ->
+            emitMedia(hls, label, "$OKRU/", callback)
+            found = true
+        }
+        json.optJSONArray("videos")?.let { videos ->
+            for (index in 0 until videos.length()) {
+                val item = videos.optJSONObject(index) ?: continue
+                val file = item.optString("url")
+                if (!file.startsWith("http")) continue
+                val name = item.optString("name")
+                emitMedia(file, if (name.isBlank()) label else "$label • $name", "$OKRU/", callback)
+                found = true
+            }
+        }
+        return found
+    }
+
+    /** sibnet: `shell.php?videoid=<id>` → `player.src([{src:"/videos/…"}])`. */
+    private suspend fun resolveSibnet(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val id = Regex("""(?:videoid=|/video)(\d{3,})""").find(url)?.groupValues?.getOrNull(1)
+            ?: Regex("""/([A-Za-z0-9_-]{6,})/?$""").find(url)?.groupValues?.getOrNull(1)
+            ?: return false
+        val shell = if (url.contains("shell.php")) url else "$SIBNET/shell.php?videoid=$id"
+        val body = http.get(shell, "$SIBNET/") ?: return false
+        val path = Regex("""player\.src\(\[\{src:\s*["']([^"']+)["']""").find(body)?.groupValues?.getOrNull(1)
+            ?: Regex("""["'](/videos/[^"']+\.(?:mp4|m3u8)[^"']*)["']""").find(body)?.groupValues?.getOrNull(1)
+            ?: return false
+        emitMedia(TrAnimeIzleSite.absolute("$SIBNET/", path) ?: path, label, "$SIBNET/", callback)
+        return true
     }
 
     /** Kayıtlı extractor'ları dener; yayınlanan her linki kendi etiketimizle geçirir. */
@@ -560,6 +621,9 @@ internal class TrAnimeIzleStreams(
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
         private const val SOURCE_BUDGET_MS = 14_000L
+
+        private const val OKRU = "https://ok.ru"
+        private const val SIBNET = "https://video.sibnet.ru"
     }
 }
 
