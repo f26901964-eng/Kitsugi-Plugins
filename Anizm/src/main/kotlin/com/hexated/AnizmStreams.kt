@@ -136,8 +136,11 @@ internal class AnizmStreams(
         // Sunucu HTML'i çoğu zaman YALNIZCA aktif çevirmeni taşıyor (diğerleri JS ile
         // geliyor). Eksik kalan çevirmenleri bölüm dizininden tamamla — yoksa
         // "kaynaklar eksik geliyor" durumu oluşuyor.
-        val bolumId = bolumIdOf(pageUrl)
-            ?: doc.select("a[href*=/bolum/]").mapNotNull { bolumIdOf(it.attr("href")) }.firstOrNull()
+        val bolumId = episodeIdFrom(doc)
+            ?: bolumIdOf(pageUrl)
+            ?: doc.select("[data-progress*=/bolum/], [data-url*=/bolum/], a[href*=/bolum/]")
+                .mapNotNull { bolumIdOf(it.attr("data-url").ifBlank { it.attr("href") }) }
+                .firstOrNull()
         if (translators.size < 3 && bolumId != null) {
             for (cid in listOf("1", "2", "3")) {
                 val path = translatorPaths(bolumId, cid, pageUrl.contains("/episode/")).first()
@@ -190,9 +193,13 @@ internal class AnizmStreams(
         pageUrl: String
     ): LinkedHashMap<String, Translator> {
         val out = LinkedHashMap<String, Translator>()
-        val bolumId = doc.select("a[href*=/bolum/], a[href*=/episode/], a[href*=/raporver/]")
-            .mapNotNull { bolumIdOf(it.attr("href")) }
-            .firstOrNull()
+        // v3 bölüm sayfası URL'si slug tabanlıdır (`…-1-bolum-izle`); sayısal bölüm
+        // kimliği YALNIZCA özniteliklerde bulunur (fixture: Frieren 73483):
+        //   [data-progress*=/bolum/], [data-url*=/bolum/], [data-episode-id]
+        val bolumId = episodeIdFrom(doc)
+            ?: doc.select("a[href*=/bolum/], a[href*=/episode/], a[href*=/raporver/]")
+                .mapNotNull { bolumIdOf(it.attr("href")) }
+                .firstOrNull()
             ?: bolumIdOf(pageUrl)
         // `[translator]` HER etikette olabilir (a/button/div) — tag'e bağlanma.
         for (el in doc.select("[data-sources], [data-v3-translator], [data-translator], [translator]")) {
@@ -216,6 +223,20 @@ internal class AnizmStreams(
     /** Bölüm kimliği: `/bolum/{id}` (v3) veya `/episode/{id}` (eski kuşak). */
     private fun bolumIdOf(text: String): String? =
         Regex("/(?:bolum|episode)/(\\d+)").find(text)?.groupValues?.getOrNull(1)
+
+    /**
+     * v3 bölüm kimliği. Sıra (fixture ile doğrulandı): oynatıcı bloğunun kendi
+     * URL'leri → Watch Together widget'ı → sayfanın ham HTML'i.
+     */
+    private fun episodeIdFrom(doc: org.jsoup.nodes.Document): String? {
+        for (el in doc.select("[data-progress*=/bolum/], [data-url*=/bolum/]")) {
+            val raw = el.attr("data-progress").ifBlank { el.attr("data-url") }
+            bolumIdOf(raw)?.let { return it }
+        }
+        doc.selectFirst("[data-episode-id]")?.attr("data-episode-id")?.trim()
+            ?.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }?.let { return it }
+        return null
+    }
 
     /**
      * Aynı çevirmenin iki olası rota biçimi (v3: `/bolum/…/cevirmen/…`,
@@ -338,15 +359,20 @@ internal class AnizmStreams(
         // A) JSON: videos[] / data / items
         val parsed = runCatching { JSONObject(body.trim()) }.getOrNull()
         if (parsed != null) {
-            val videos = parsed.optJSONArray("videos")
+            // v3 (fixture): {"success":true,"videos":[{"id":1591727,"name":"Aincrad"}]}
+            // sarmalı varyantları: {"data":{"videos":[…]}} / {"data":[…]}
+            val videos = parsed.optJSONObject("data")?.optJSONArray("videos")
+                ?: parsed.optJSONArray("videos")
                 ?: parsed.optJSONArray("items")
                 ?: parsed.optJSONArray("data")
             if (videos != null) {
                 for (index in 0 until videos.length()) {
                     val item = videos.optJSONObject(index) ?: continue
-                    val id = item.optString("id").ifBlank { item.optInt("id", 0).toString() }
-                    if (id.isBlank() || id == "0") continue
-                    val host = item.optString("name").ifBlank { item.optString("host") }
+                    val id = item.optString("id").ifBlank { item.optString("video_id") }
+                        .ifBlank { item.optInt("id", 0).toString() }.trim()
+                    if (id.isBlank() || id == "0" || !id.all(Char::isDigit)) continue
+                    val host = item.optString("name").ifBlank { item.optString("source") }
+                        .ifBlank { item.optString("host") }
                         .ifBlank { "Kaynak ${index + 1}" }
                     val videoUrl = if (item.optString("url").startsWith("http")) {
                         item.optString("url")
@@ -388,6 +414,13 @@ internal class AnizmStreams(
      * (Canlı istemci kanıtı: Migurdex `AnizmProvider`; site kendi JS'inde de böyle.)
      */
     private fun videoUrlFrom(sourcesUrl: String, videoId: String): String {
+        // Kanonik biçim (fixture): /bolum/{epId}/video/{videoId} — çevirmen yolu
+        // içermez. Bölüm kimliği kaynak adresinden okunur.
+        val bolumId = bolumIdOf(sourcesUrl)
+        if (bolumId != null) {
+            val origin = Regex("^(https?://[^/]+)").find(sourcesUrl)?.groupValues?.getOrNull(1)
+            if (origin != null) return "$origin/bolum/$bolumId/video/$videoId"
+        }
         val replaced = Regex("/cevirmen/\\d+/?$").replace(sourcesUrl, "/video/$videoId")
         return if (replaced != sourcesUrl) replaced else sourcesUrl.trimEnd('/') + "/video/$videoId"
     }
@@ -480,16 +513,25 @@ internal class AnizmStreams(
         val body = http.getXhr(videoUrl, pageUrl) ?: return null
         val json = runCatching { JSONObject(body.trim()) }.getOrNull()
         if (json != null) {
+            // v3 sözleşmesi (fixture): {"success":true,"url":"…/player/<id>","playerOrigin":null}
+            // `url` göreli olabilir → `playerOrigin` (varsa) yoksa video adresine göre çözülür.
+            if (!json.optBoolean("success", true)) return null
+            val playerOrigin = json.optString("playerOrigin").takeIf { it.startsWith("http") }
             val playerHtml = json.optString("player")
             if (playerHtml.contains('<')) {
                 val frame = Jsoup.parse(playerHtml, videoUrl).selectFirst("iframe[src], iframe[data-src]")
                 val src = frame?.let { it.attr("src").ifBlank { it.attr("data-src") } }
-                AnizmSite.absolute(videoUrl, src)?.let { return it }
+                AnizmSite.absolute(playerOrigin ?: videoUrl, src)?.let { return it }
             }
             for (key in listOf("url", "player", "src", "link")) {
-                val value = json.optString(key)
+                val value = json.optString(key).trim()
+                if (value.isEmpty()) continue
                 if (value.startsWith("http") || value.startsWith("//")) {
-                    return AnizmSite.absolute(videoUrl, value)
+                    return AnizmSite.absolute(playerOrigin ?: videoUrl, value)
+                }
+                // göreli oynatıcı yolu (ör. "/oynat/5")
+                if (value.startsWith("/") && playerOrigin != null) {
+                    return AnizmSite.absolute(playerOrigin, value)
                 }
             }
         }

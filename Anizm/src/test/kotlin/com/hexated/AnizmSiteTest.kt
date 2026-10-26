@@ -217,6 +217,45 @@ class AnizmSiteTest {
         assertTrue(detail.episodes.isEmpty())
     }
 
+    // ------------------------------------------------------------------
+    // v3 (2026-10) sözleşmesi — fixture'lı referans istemciden doğrulandı
+    // ------------------------------------------------------------------
+
+    @Test
+    fun readsV3EpisodeSuffixes() {
+        // "bolum"dan önce tire olmayan 53 One Piece bölümü
+        assertEquals(41, AnizmSite.episodeNumberFromUrl("$base/one-piece-41bolum-izle"))
+        assertEquals("$base/one-piece", AnizmSite.toSeriesUrl("$base/one-piece-41bolum-izle"))
+        // final eki
+        assertEquals(28, AnizmSite.episodeNumberFromUrl("$base/sousou-no-frieren-28-bolum-final-izle"))
+        assertEquals("$base/sousou-no-frieren", AnizmSite.toSeriesUrl("$base/sousou-no-frieren-28-bolum-final-izle"))
+        // çift bölüm YALNIZCA etiketle ayrılır (yoksa "ghost-22-1-bolum" gibi
+        // seri adı sayıyla biten URL'ler yanlış bölünür)
+        assertEquals(
+            "$base/one-piece",
+            AnizmSite.toSeriesUrl("$base/one-piece-215-216-bolum-izle", "215-216. Bölüm")
+        )
+        assertEquals("$base/ghost-22", AnizmSite.toSeriesUrl("$base/ghost-22-1-bolum-izle", "1. Bölüm"))
+    }
+
+    @Test
+    fun upgradesCoverToLargeVersion() {
+        assertEquals("$base/storage/pcovers/123l.webp", AnizmSite.largeCover("$base/storage/pcovers/123.webp"))
+        assertEquals("$base/storage/pcovers/123l.webp", AnizmSite.largeCover("$base/storage/pcovers/123.webp?v=2"))
+        // kapak olmayan adresler dokunulmadan kalır
+        assertEquals("$base/upload/assets/x.webp", AnizmSite.largeCover("$base/upload/assets/x.webp"))
+    }
+
+    @Test
+    fun resolvesDeferredRelativePosterToAbsoluteLarge() {
+        // v3 ana sayfa: adres `data-v3-deferred-src` içinde ve GÖRELİ gelebilir
+        val img = Jsoup.parse(
+            """<a class="v3-catalog-poster" href="/sousou-no-frieren"><img data-v3-deferred-src="/storage/pcovers/4321.webp" alt="Sousou no Frieren posteri"></a>""",
+            "$base/"
+        ).selectFirst("img")
+        assertEquals("$base/storage/pcovers/4321l.webp", AnizmSite.imageUrl(img, base))
+    }
+
     @Test
     fun invalidTitlesAreRejected() {
         assertTrue(AnizmSite.isInvalidTitle(null))

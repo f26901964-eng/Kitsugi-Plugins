@@ -65,7 +65,30 @@ internal object AnizmSite {
     /** Bu eklentinin kabul ettiği host işaretleri (site domain değiştirdiğinde de çalışır). */
     private val SITE_HOST_MARKERS = listOf("puffytr", "anizm", "anizle")
 
-    private val EPISODE_PATH = Regex("^(.*?)-(\\d{1,4})-bolum(?:-[a-z0-9]+)*$", RegexOption.IGNORE_CASE)
+    /**
+     * Bölüm eki (2026-10 v3, fixture ile doğrulandı):
+     *   `-1-bolum-izle`, `-28-bolum-final-izle`, `-41bolum-izle`
+     *   (53 One Piece bölümünde "bolum"dan önce tire YOK).
+     * Grup 1 = seri slug'ı, grup 2 = bölüm numarası.
+     *
+     * DİKKAT — çift bölüm belirsizliği: `one-piece-215-216-bolum-izle` (215-216
+     * ÇİFT bölüm) ile `ghost-22-1-bolum-izle` (seri "ghost-22", bölüm 1) aynı
+     * biçimdedir. Varsayılan SON sayıdır (bölüm); çift bölüm yalnızca
+     * [DOUBLE_EPISODE_PATH] ile ve etiket "215-216. Bölüm" dediğinde ayrılır.
+     */
+    private val EPISODE_PATH = Regex(
+        "^(.*?)-(\\d{1,4})-?bolum(?:[-.][a-z0-9-]*)?$",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** Çift/birleşik bölüm eki: `one-piece-215-216-bolum-izle`. */
+    private val DOUBLE_EPISODE_PATH = Regex(
+        "^(.*?)-(\\d{1,4})-(\\d{1,4})-?bolum(?:[-.][a-z0-9-]*)?$",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** v3 sayısal bölüm yolu: `/bolum/73483`. */
+    private val BOLUM_ID_PATH = Regex("/bolum/(\\d+)")
 
     /**
      * Poster adresi taşıyabilen öznitelikler (lazy-load eklentileri farklı adlar
@@ -73,6 +96,8 @@ internal object AnizmSite {
      * bu yüzden sonda.
      */
     private val IMAGE_ATTRS = listOf(
+        // v3 ana sayfa görselleri `src` yerine burada taşınıyor; site JS'i sonra kopyalıyor.
+        "data-v3-deferred-src",
         "data-src",
         "data-original",
         "data-lazy-src",
@@ -83,6 +108,20 @@ internal object AnizmSite {
         "data-cover",
         "src"
     )
+
+    /** Sitenin yer tutucu kapağı — poster olarak kullanılamaz. */
+    private val DEFAULT_COVER = Regex("defaultcover", RegexOption.IGNORE_CASE)
+
+    /**
+     * Liste görselleri `/storage/pcovers/<id>.webp` (225x318) gelir; aynı görselin
+     * büyük hâli `<id>l.webp` (425x600) her zaman vardır (fixture: 16 kapak).
+     * Poster kalitesi için büyük sürüme yükseltilir.
+     */
+    fun largeCover(url: String?): String? =
+        url?.replace(
+            Regex("""(/storage/pcovers/\d+)\.(webp|jpe?g|png)(?=$|\?)""", RegexOption.IGNORE_CASE),
+            "$1l.$2"
+        )
 
     // ------------------------------------------------------------------
     // URL yardımcıları
@@ -134,10 +173,16 @@ internal object AnizmSite {
         return m.groupValues.getOrNull(2)?.toIntOrNull()
     }
 
-    /** Bölüm URL'sini seri (detay) URL'sine indirger. Bölüm değilse null. */
-    fun toSeriesUrl(url: String): String? {
+    /**
+     * Bölüm URL'sini seri (detay) URL'sine indirger. Bölüm değilse null.
+     * [label] verilirse çift bölüm ("215-216. Bölüm") doğru ayrıştırılır.
+     */
+    fun toSeriesUrl(url: String, label: String? = null): String? {
         val path = url.substringAfter("://", url).substringAfter("/", "").substringBefore("?")
-        val m = EPISODE_PATH.find(path) ?: return null
+        val isRange = label != null && RANGE_EPISODE.containsMatchIn(label)
+        val m = (if (isRange) DOUBLE_EPISODE_PATH.find(path) else null)
+            ?: EPISODE_PATH.find(path)
+            ?: return null
         val prefix = url.substringBefore("://") + "://" + url.substringAfter("://").substringBefore("/")
         // "-izle" ile biten detay adresleri (…/tsuki-ga-kirei-izle) korunur.
         val seriesPath = m.groupValues[1]
@@ -200,14 +245,15 @@ internal object AnizmSite {
             val value = img.attr(attr).trim()
             if (value.isEmpty() || value.startsWith("data:")) continue
             if (value.contains("placeholder") || value.endsWith(".svg")) continue
-            absoluteImage(docBase, value)?.let { return it }
+            if (DEFAULT_COVER.containsMatchIn(value)) continue
+            absoluteImage(docBase, value)?.let { return largeCover(it) }
         }
         // srcset / data-srcset: son giriş genelde en büyük görsel.
         val srcset = img.attr("srcset").ifBlank { img.attr("data-srcset") }.trim()
         if (srcset.isNotEmpty()) {
             val last = srcset.split(',').map { it.trim().substringBefore(' ') }
                 .lastOrNull { it.isNotEmpty() }
-            if (last != null) absoluteImage(docBase, last)?.let { return it }
+            if (last != null) absoluteImage(docBase, last)?.let { return largeCover(it) }
         }
         return null
     }
@@ -281,12 +327,27 @@ internal object AnizmSite {
     fun parseCards(doc: Document, base: String, limit: Int = 60): List<AnizmCard> {
         val out = LinkedHashMap<String, AnizmCard>()
 
-        fun take(anchor: Element?) {
-            if (anchor == null || out.size >= limit) return
-            val card = cardFromAnchor(anchor, base) ?: return
+        fun put(card: AnizmCard?) {
+            if (card == null || out.size >= limit) return
             if (!out.containsKey(card.url)) out[card.url] = card
         }
 
+        fun take(anchor: Element?) {
+            if (anchor == null || out.size >= limit) return
+            put(cardFromAnchor(anchor, base))
+        }
+
+        // 0) v3 kartları (2026-10, fixture ile doğrulandı): başlık ve kapak
+        //    <a>'nın İÇİNDE değil, kardeş öğelerde → kapsayıcıdan okunur.
+        //    Bölüm kartları bölüm URL'sine bağlanır; seri URL'si türetilir.
+        for (el in doc.select(
+            "article.v3-catalog-card, article.v3-series-card, article.v3-episode-card, " +
+                "section.v3-hero article, [data-v3-slide], " +
+                "#son-bolumler article, #populer article, #yeni-seriler article, " +
+                ".v3-catalog-grid article, .v3-card"
+        )) {
+            put(cardFromContainer(el, base))
+        }
         // 1) "Son eklenenler" listesi (div#episodesMiddle div.posterBlock > a)
         for (a in doc.select("div#episodesMiddle div.posterBlock > a, div.posterBlock > a")) take(a)
         // 2) Anasayfa carousel'i (a.slideAnimeLink)
@@ -304,6 +365,45 @@ internal object AnizmSite {
             }
         }
         return out.values.toList()
+    }
+
+    /**
+     * v3 kart kapsayıcısı → katalog kartı. Başlık sırası (fixture):
+     * `.v3-card-copy h3` / `.v3-catalog-card-copy h2` / `.v3-catalog-preview h3` /
+     * `h3` / `h2` → `img[alt]` → `a[aria-label]` (hero slaytları).
+     */
+    private fun cardFromContainer(el: Element, base: String): AnizmCard? {
+        val anchor = el.selectFirst("a.v3-catalog-poster[href], a[href]")
+            ?: if (el.tagName() == "a") el else return null
+        val href = absolute(base, anchor.attr("href")) ?: return null
+        if (!isSiteUrl(href)) return null
+        if (href.contains("/profil/") || href.contains("/fansub/") || href.contains("/bolum/")) return null
+        // Bölümler ve fragmanlar seri sayfasına indirgenir (v3'te kart bölüme gider).
+        val cardLabel = el.selectFirst(".v3-card-copy span, .v3-card-tag, .v3-catalog-preview-meta span")?.text()
+        val seriesUrl = toSeriesUrl(href, cardLabel) ?: href
+        if (href.contains("fragman") || href.contains("-pv-")) return null
+
+        val rawTitle = listOfNotNull(
+            el.selectFirst(".v3-card-copy h3, .v3-catalog-card-copy h2, .v3-catalog-preview h3")?.text(),
+            el.selectFirst("h3, h2, h4")?.text(),
+            el.selectFirst("img")?.attr("alt")?.replace(Regex("""\s+(?:anime\s+)?posteri$""", RegexOption.IGNORE_CASE), ""),
+            anchor.attr("aria-label").replace(Regex("""\s+anime\s+detay\s+sayfas[ıi]$""", RegexOption.IGNORE_CASE), "")
+        ).firstOrNull { it.isNotBlank() }
+        val name = AnizmMatch.cleanTitle(rawTitle) ?: AnizmMatch.cleanTitle(titleFromSlug(seriesUrl)) ?: return null
+        if (isInvalidTitle(name)) return null
+
+        val score = el.selectFirst(".v3-catalog-score, .score, rating")?.text()
+            ?.let { Regex("\\d{1,2}(?:\\.\\d)?").find(it)?.value?.toDoubleOrNull() }
+            ?.takeIf { it > 0.0 && it <= 10.0 }
+        return AnizmCard(
+            name = name,
+            url = seriesUrl,
+            poster = bestImage(el),
+            score = score,
+            episodeHint = AnizmMatch.episodeOf(anchor.text())
+                ?: AnizmMatch.episodeOf(el.selectFirst(".v3-card-copy span, .v3-card-tag")?.text())
+                ?: episodeNumberFromUrl(href)
+        )
     }
 
     /** Arama sonuç sayfasındaki JSON'u (searchAnime / getAnimeListForSearch) karta çevirir. */
@@ -334,7 +434,7 @@ internal object AnizmSite {
                     raw.contains('/') -> "$base/${raw.removePrefix("/")}"
                     else -> "$base/storage/pcovers/$raw"
                 }
-            }
+            }?.let(::largeCover)
         return AnizmCard(
             name = name,
             url = url,
@@ -373,6 +473,9 @@ internal object AnizmSite {
     fun parseDetail(doc: Document, base: String, pageUrl: String): AnizmDetail {
         val rawTitle = firstText(
             doc,
+            // v3: h1 "Sousou no Frieren izle" yazıyor; bölüm bölümünün başlığı çıplak ad.
+            "#bolumler .v3-section-kicker",
+            "header.v3-anime-detail-header h1",
             "h1.anizm_pageTitle",
             "h2.anizm_pageTitle",
             "h1.animeName",
@@ -388,7 +491,7 @@ internal object AnizmSite {
             ?: "Anizm"
 
         val poster = imageUrl(
-            doc.selectFirst("div.infoPosterImg > img, div.infoPosterImg img, img.animePoster, .anizm_poster img")
+            doc.selectFirst(".v3-anime-detail-cover img, div.infoPosterImg > img, div.infoPosterImg img, img.animePoster, .anizm_poster img")
                 ?: doc.selectFirst("div.poster img, .poster-image img, img.img-fluid, article img"),
             base = pageUrl
         ) ?: meta(doc, "meta[itemprop=image]", "meta[property=og:image]", "meta[property=og:image:secure_url]")
@@ -396,6 +499,8 @@ internal object AnizmSite {
 
         val plot = firstText(
             doc,
+            "p#v3-anime-summary-content",
+            "#v3-anime-summary-content",
             "div.infoDesc",
             "div.anizm_conText",
             "div.animeDescription",
@@ -406,7 +511,8 @@ internal object AnizmSite {
 
         val tags = LinkedHashSet<String>()
         doc.select(
-            "span.dataValue span.ui.label, span.dataValue span.tag span.label, " +
+            ".v3-anime-detail-tags a, " +
+                "span.dataValue span.ui.label, span.dataValue span.tag span.label, " +
                 "a.ui.label[href*=/kategoriler/], a[href*=/temalar/], a.genre, div.tags a"
         ).forEach { element ->
             val text = element.text().trim()
@@ -414,7 +520,11 @@ internal object AnizmSite {
         }
 
         val infoText = doc.body()?.text() ?: ""
-        val year = yearFrom(firstText(doc, "span.dataTitle:contains(Yapım Yılı) + span"))
+        val year = doc.select(".v3-anime-detail-meta span, .v3-anime-detail-meta li")
+            .map { it.text().trim() }
+            .firstOrNull { it.matches(Regex("^\\d{4}$")) && it.toInt() in 1950..2100 }
+            ?.toIntOrNull()
+            ?: yearFrom(firstText(doc, "span.dataTitle:contains(Yapım Yılı) + span"))
             ?: yearFrom(Regex("(?i)yap[ıi]m\\s*y[ıi]l[ıi]\\s*[:\\-]?\\s*(\\d{4})").find(infoText)?.value)
             ?: yearFrom(meta(doc, "meta[property=og:title]"))
 
@@ -453,20 +563,42 @@ internal object AnizmSite {
         val targetSeries = seriesPathOf(pageUrl)
         val strict = LinkedHashMap<String, AnizmEpisode>()
         val loose = LinkedHashMap<String, AnizmEpisode>()
+        // Numara etiketten/URL'den okunamazsa sıra numarası verilir (yalnızca düzenli
+        // bölümler sayılır; ön gösterim/çift bölüm sayacı kaydırmaz).
+        var counter = 0
 
         fun consider(anchor: Element, forceNumber: Int? = null) {
             val url = absolute(base, anchor.attr("href")) ?: return
             if (!isSiteUrl(url)) return
             if (strict.containsKey(url) || loose.containsKey(url)) return
 
-            val label = anchor.text().trim()
-            // v3 şablonu numarayı öznitelikte taşır: data-episode-number="12"
-            val number = forceNumber
-                ?: anchor.attr("data-episode-number").trim().toIntOrNull()
-                ?: AnizmMatch.episodeOf(label)
-                ?: episodeNumberFromUrl(url)
-                ?: return
-            if (number <= 0) return
+            // v3 bölüm kartı: `<a data-episode-title="1. Bölüm">…<strong>…</strong>`.
+            // Uzun bağlantı metni ("1 1. Bölüm Sousou … · Türkçe altyazılı izle")
+            // yalnızca son çaredir.
+            val label = anchor.attr("data-episode-title").trim()
+                .ifBlank { anchor.selectFirst("strong")?.text()?.trim().orEmpty() }
+                .ifBlank { anchor.text().trim() }
+            val lower = label.lowercase()
+            if (url.contains("fragman") || lower.contains("fragman")) return
+            if (url.contains("-pv-") || lower == "pv" || lower.endsWith(" pv")) return
+
+            // "215-216. Bölüm", "1-2. Bölüm (Ön Gösterim)": tek numara vermek
+            // gerçek bölümleri kaydırır → 0 (yine oynatılabilir).
+            val special = RANGE_EPISODE.containsMatchIn(label) ||
+                lower.contains("önizleme") || lower.contains("ön gösterim") ||
+                url.contains("onizleme") || url.contains("on-gosterim")
+
+            val number: Int = forceNumber ?: if (special) {
+                0
+            } else {
+                counter += 1
+                // SIRA ÖNEMLİ (fixture: One Piece 1180): `data-episode-number`
+                // sitenin İÇ sırasıdır ve kayar → en sona bırakıldı.
+                AnizmMatch.episodeOf(label)
+                    ?: episodeNumberFromUrl(url)
+                    ?: anchor.attr("data-episode-number").trim().toIntOrNull()
+                    ?: counter
+            }
 
             val date = anchor.selectFirst("small, .date, .episode-date, time")?.text()?.trim()
             val episode = AnizmEpisode(
@@ -474,10 +606,8 @@ internal object AnizmSite {
                 number = number,
                 // "2. Bölüm" gibi bilgi taşımayan etiketler temizlenince boşalır;
                 // o durumda ham etiket korunur (oynatıcıda "2. Bölüm" görünür).
-                name = AnizmMatch.cleanTitle(
-                    anchor.attr("data-episode-title").ifBlank { label }
-                ) ?: anchor.attr("data-episode-title").takeIf { it.isNotBlank() }
-                    ?: label.takeIf { it.isNotBlank() } ?: "$number. Bölüm",
+                name = AnizmMatch.cleanTitle(label) ?: label.takeIf { it.isNotBlank() }
+                    ?: "$number. Bölüm",
                 date = date,
                 // Bölüm küçük görseli; yoksa detay sayfasının posteri kullanılır
                 // (Anizm.kt `posterUrl = episode.poster ?: detail.poster`).
@@ -488,18 +618,32 @@ internal object AnizmSite {
             if (targetSeries == null || series == null || series == targetSeries) strict[url] = episode
         }
 
-        // 1) Sitenin BİLİNEN bölüm kapsayıcıları. Buradaki bağlantılar `/bolum/{id}`
-        //    gibi numarasız adresler taşıyabilir; numara etiketten okunur.
-        //    (Aniyomi: "div.episodeListTabContent div > a"; v2: "div.animeDetail-items li a")
-        for (anchor in doc.select(
-            "div.episodeListTabContent div > a, div.episodeListTabContent a[href], " +
-                "div.episodeListTabContent li a, div.animeDetail-items li a, " +
-                "div.animeDetail-items ol a, div.animeDetail-playlist li a, li:has(.episode-li) a"
-        )) {
-            consider(anchor)
+        // 1) v3: tüm bölümler tek ızgarada (12'lik gruplar istemci tarafında).
+        for (anchor in doc.select("[data-anime-episode-grid] > a[href]")) consider(anchor)
+        // 2) v3 ikinci yol: #bolumler içindeki bölüm bağlantıları
+        //    (`-N-bolum` VE tiresiz `-41bolum` biçimleri).
+        if (strict.isEmpty()) {
+            for (anchor in doc.select("#bolumler a[href]")) {
+                if (containsEpisodeSuffix(anchor.attr("href"))) consider(anchor)
+            }
         }
-
-        // 2) Genel tarama: yolundan bölüm numarası çıkan her bağlantı.
+        // 3) Eski kuşak kapsayıcılar (Aniyomi: "div.episodeListTabContent div > a").
+        if (strict.isEmpty()) {
+            for (anchor in doc.select(
+                "div.episodeListTabContent div > a, div.episodeListTabContent a[href], " +
+                    "div.episodeListTabContent li a, div.animeDetail-items li a, " +
+                    "div.animeDetail-items ol a, div.animeDetail-playlist li a, li:has(.episode-li) a"
+            )) {
+                consider(anchor)
+            }
+        }
+        // 4) Sayfa URL'sinden türetilen dar tarama, sonra genel tarama.
+        if (strict.isEmpty()) {
+            val root = pageUrl.trimEnd('/').substringBefore('?')
+            for (anchor in doc.select("a[href]")) {
+                if (absolute(base, anchor.attr("href"))?.startsWith("$root-") == true) consider(anchor)
+            }
+        }
         if (strict.isEmpty()) {
             for (anchor in doc.select("a[href]")) consider(anchor)
         }
@@ -509,4 +653,13 @@ internal object AnizmSite {
             .distinctBy { it.url }
             .sortedWith(compareBy({ it.number ?: Int.MAX_VALUE }, { it.url }))
     }
+
+    /** Bağlantı yolunda bölüm eki var mı? (`-12-bolum-izle`, `-41bolum-izle`) */
+    private fun containsEpisodeSuffix(href: String): Boolean =
+        EPISODE_PATH.containsMatchIn(href.substringBefore('?').trimEnd('/').substringAfterLast('/'))
+
+    /** "215-216. Bölüm" / "1-2. Bölüm" gibi birleşik bölüm etiketi. */
+    private val RANGE_EPISODE = Regex(
+        "\\d{1,4}\\s*[-–]\\s*\\d{1,4}\\.?\\s*[Bb][oöô]l[uüû]m"
+    )
 }

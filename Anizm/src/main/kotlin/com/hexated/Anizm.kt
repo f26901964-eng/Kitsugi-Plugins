@@ -66,7 +66,10 @@ class Anizm : MainAPI(), AnizmHttp {
     private val mainPageBase: String = mainUrl
 
     override val mainPage = mainPageOf(
-        "$mainUrl/anime-izle?sayfa={page}" to "Son Eklenenler",
+        // v3 (fixture: yeniler_sayfa_1/2.html): sayfalama `?sayfa=N`, kartlar
+        // `article.v3-*`. Eski `/anime-izle?sayfa=` yolu getMainPage'in
+        // yedeğinde korunuyor.
+        "$mainUrl/yeniler?sayfa={page}" to "Son Eklenenler",
         "$mainUrl/kategoriler/2?sayfa=" to "Aksiyon",
         "$mainUrl/kategoriler/1?sayfa=" to "Macera",
         "$mainUrl/kategoriler/3?sayfa=" to "Komedi",
@@ -304,6 +307,16 @@ class Anizm : MainAPI(), AnizmHttp {
             if (collected.size >= 6) break
         }
 
+        // 1.5) `/arama-onerileri` — sitenin kendi canlı öneri ucu (2026-10 fixture:
+        //      {"results":[{"title","year","url"}]}). Poster döndürmez ama TAM
+        //      slug verir → yanlış eşleşme riski yok.
+        if (collected.size < 6) {
+            for (variant in variants.take(2)) {
+                searchSuggestions(variant).forEach(::merge)
+                if (collected.size >= 6) break
+            }
+        }
+
         // 2) HTML arama sayfası — canlı sitede doğrulandı (25.10.2026):
         //    `/arama?q=one+piece` gerçek sonuç kartları döndürüyor (küçük, hızlı).
         if (collected.size < 8) {
@@ -415,6 +428,29 @@ class Anizm : MainAPI(), AnizmHttp {
             "&orderBy=info_id&orderDirection=DESC"
         val body = getText(url, mainUrl + "/", xhr = true) ?: return emptyList()
         return parseSearchJson(body)
+    }
+
+    /** `GET /arama-onerileri?q=…` → `{"results":[{"title","year","url"}]}` (postersiz). */
+    private suspend fun searchSuggestions(query: String): List<AnizmCard> {
+        val encoded = URLEncoder.encode(query, "UTF-8")
+        val body = getText("$mainUrl/arama-onerileri?q=$encoded", mainUrl + "/", xhr = true)
+            ?: return emptyList()
+        val results = runCatching { JSONObject(body.trim()).optJSONArray("results") }.getOrNull()
+            ?: return emptyList()
+        val out = mutableListOf<AnizmCard>()
+        for (index in 0 until results.length()) {
+            val item = results.optJSONObject(index) ?: continue
+            AnizmSite.cardFromJsonFields(
+                base = mainUrl,
+                title = item.optString("title"),
+                slug = item.optString("url"),
+                poster = null,
+                year = item.optString("year").toIntOrNull(),
+                score = null,
+                altNames = emptyList()
+            )?.let(out::add)
+        }
+        return out
     }
 
     /** `/searchAnime` ve `/getAnimeListForSearch` aynı alan adlarını kullanır. */
