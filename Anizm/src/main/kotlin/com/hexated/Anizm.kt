@@ -492,13 +492,19 @@ class Anizm : MainAPI(), AnizmHttp {
             ?: obj.optDouble("malpoint", 0.0).takeIf { it > 0.0 }
         val altNames = mutableListOf<String>()
         fun addAlt(raw: String?) {
-            raw?.split(',', '/', '|')
-                ?.map { it.trim() }
-                ?.filter { it.length in 2..120 }
-                ?.let(altNames::addAll)
+            // Tam adı da koru ("Fate/stay night" bölünmemeli), sonra parçaları ekle.
+            val text = raw?.trim().orEmpty()
+            if (text.length in 2..120) altNames.add(text)
+            text.split(',', '/', '|')
+                .map { it.trim() }
+                .filter { it.length in 2..120 && it != text }
+                .let(altNames::addAll)
         }
         addAlt(obj.optString("info_othernames"))
         addAlt(obj.optString("info_japanese"))
+        // v6: "Attack on Titan" gibi İngilizce/romaji aramaların anahtarı.
+        addAlt(obj.optString("info_titleenglish"))
+        addAlt(obj.optString("info_titleoriginal"))
         obj.optJSONArray("names")?.let { names ->
             for (i in 0 until names.length()) {
                 names.optString(i).takeIf { it.isNotBlank() }?.let(altNames::add)
@@ -734,7 +740,7 @@ class Anizm : MainAPI(), AnizmHttp {
 
     /**
      * v3 kaynak uçları (`/bolum/{ep}/cevirmen/{id}`, `/video/{vid}`) AJAX ile
-     * beslenir: `X-Requested-With` + `Accept: */*` + `Sec-Fetch-*: same-origin`.
+     * beslenir: `X-Requested-With` + `Accept: application/json` + `Sec-Fetch-*: same-origin`.
      * Düz belge isteği bu uçlardan HTML kabuğu döndürebiliyor.
      */
     override suspend fun getXhr(url: String, referer: String?): String? =
