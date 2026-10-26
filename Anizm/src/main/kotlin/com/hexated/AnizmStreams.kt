@@ -600,6 +600,12 @@ internal class AnizmStreams(
         emitSubtitles(page, url, subtitleCallback)
 
         var found = false
+        // StreamCash ve benzerleri: oynatıcı yapılandırması gövdede base64
+        // (`window.__PCr = "…"`) durur; çözüldüğünde akış adresi çıkar.
+        for (stream in inlineConfigMedia(page).take(3)) {
+            emitMedia(stream, label, url, callback, trusted = true)
+            found = true
+        }
         for (stream in mediaFromHtml(page, url).take(4)) {
             emitMedia(stream, label, url, callback)
             found = true
@@ -878,6 +884,20 @@ internal class AnizmStreams(
             Log.d(TAG, "Sistenn: AES hatası (${e.javaClass.simpleName})")
             null
         }
+    }
+
+    /**
+     * Gövdedeki base64 oynatıcı yapılandırmasını çözer:
+     * `window.__PCr = "<base64>"` → JSON (`src`, `file`, `source`, …).
+     */
+    private fun inlineConfigMedia(html: String): List<String> {
+        if (!html.contains("__PCr")) return emptyList()
+        val b64 = Regex("""__PCr\s*=\s*["']([A-Za-z0-9+/=]{24,})["']""")
+            .find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
+        val decoded = runCatching {
+            String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull() ?: return emptyList()
+        return mediaFromJsonText(decoded)
     }
 
     /**

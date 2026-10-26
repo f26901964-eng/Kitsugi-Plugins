@@ -354,6 +354,11 @@ internal class TrAnimeIzleStreams(
 
         val media = TrAnimeIzleSite.directMediaFrom(page, url)
         var found = false
+        // StreamCash benzeri oynatıcılar: base64 yapılandırma (`window.__PCr`).
+        for (stream in inlineConfigMedia(page).take(3)) {
+            emitMedia(stream, label, url, callback, trusted = true)
+            found = true
+        }
         for (stream in media.take(4)) {
             emitMedia(stream, label, url, callback)
             found = true
@@ -774,6 +779,17 @@ internal class TrAnimeIzleStreams(
         } catch (e: Exception) {
             null
         }
+    }
+
+    /** Gövdedeki base64 oynatıcı yapılandırması (`window.__PCr`) → medya adresleri. */
+    private fun inlineConfigMedia(html: String): List<String> {
+        if (!html.contains("__PCr")) return emptyList()
+        val b64 = Regex("""__PCr\s*=\s*["']([A-Za-z0-9+/=]{24,})["']""")
+            .find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
+        val decoded = runCatching {
+            String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull() ?: return emptyList()
+        return mediaFromJsonText(decoded)
     }
 
     /** JSON/gövde metnindeki oynatılabilir adresler (`signedVideoUrl`, `url`, …). */
