@@ -216,8 +216,24 @@ class HDFilmIzle : MainAPI() {
             Log.d("HDF", "çerçeve » ${frame.playerName.ifBlank { frame.url }} (${frame.lang})")
             val langTag = HDFilmIzlePlayerParser.languageLabel(frame.lang)
             val wrapped: (ExtractorLink) -> Unit = { link ->
-                val base = link.name.ifBlank { frame.playerName.ifBlank { link.source } }
-                callback(if (langTag.isNotBlank()) link.copy(name = "$base • $langTag") else link)
+                if (langTag.isBlank()) {
+                    callback(link)
+                } else {
+                    val base = link.name.ifBlank { frame.playerName.ifBlank { link.source } }
+                    // ExtractorLink bu sürümde data class değil; etiketi açık kurucuyla ekle.
+                    callback(
+                        ExtractorLink(
+                            source = link.source,
+                            name = "$base • $langTag",
+                            url = link.url,
+                            referer = link.referer,
+                            quality = link.quality,
+                            headers = link.headers,
+                            extractorData = link.extractorData,
+                            type = link.type,
+                        ),
+                    )
+                }
             }
 
             val handled = runCatching {
