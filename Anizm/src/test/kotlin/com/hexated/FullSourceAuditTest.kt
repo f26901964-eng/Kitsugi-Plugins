@@ -169,8 +169,10 @@ class FullSourceAuditTest {
         val iframes = Regex("""<iframe[^>]+src=["']([^"']+)""", RegexOption.IGNORE_CASE)
             .findAll(body).map { it.groupValues[1] }.distinct().take(3).toList()
         if (iframes.isNotEmpty()) p("      │ iframe: $iframes")
-        p("      │ anahtar: " + Regex("\"([A-Za-z_][A-Za-z0-9_]*)\"\s*:").findAll(body)
-            .map { it.groupValues[1] }.distinct().take(12).joinToString(","))
+        p(
+            "      │ anahtar: " + Regex("""["]([A-Za-z_][A-Za-z0-9_]*)["]\s*:""").findAll(body)
+                .map { it.groupValues[1] }.distinct().take(12).joinToString(",")
+        )
         p("      └ gövde: " + body.replace(Regex("\\s+"), " ").take(500))
     }
 
@@ -318,71 +320,6 @@ class FullSourceAuditTest {
         if (broken.isNotEmpty()) {
             p("SORUNLU kaynaklar  : ${broken.size}")
             broken.take(20).forEach { p("  ✗ $it") }
-        }
-    }
-
-    /**
-     * **Yeni/ tanınmayan oynatıcı dökümü** — kapsanmayan host'ların sayfası
-     * gerçekte neyi servis ediyor? (m3u8/mp4/iframe/JSON anahtarları)
-     *
-     * Çıktı, o host için yerel çözücü yazmak üzere ham kanıt sağlar.
-     */
-    @Test
-    fun dumpUnknownPlayers() {
-        assumeTrue("LIVE_PROBE=1 değil", System.getenv("LIVE_PROBE") == "1")
-
-        var base = ""
-        for (dom in candidates) {
-            val r = raw("$dom/")
-            if (r.status in 200..299 && (r.body?.length ?: 0) > 20000) { base = dom; break }
-        }
-        if (base.isEmpty()) return
-
-        val targets = mutableListOf<Pair<String, String>>() // (ad, url)
-        for (epUrl in listOf("$base/one-piece-1-bolum-izle", "$base/naruto-1-bolum-izle")) {
-            val page = raw(epUrl, "$base/").body ?: continue
-            val doc = Jsoup.parse(page, epUrl)
-            for (el in doc.select("[data-sources]")) {
-                val tUrl = base + el.attr("data-sources").trim()
-                val body = raw(tUrl, epUrl, xhr = true).body ?: continue
-                val bolumId = Regex("/bolum/(\\d+)").find(tUrl)?.groupValues?.get(1) ?: continue
-                Regex("\"id\"\\s*:\\s*\"?(\\d+)\"?[^}]*?\"name\"\\s*:\\s*\"([^\"]*)\"")
-                    .findAll(body).forEach { m ->
-                        targets.add(m.groupValues[2] to "$base/bolum/$bolumId/video/${m.groupValues[1]}")
-                    }
-            }
-            if (targets.size > 40) break
-        }
-
-        val seenHosts = LinkedHashSet<String>()
-        for ((name, videoUrl) in targets) {
-            val vJson = raw(videoUrl, base + "/", xhr = true).body ?: continue
-            val playerRef = Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(vJson)
-                ?.groupValues?.get(1)?.replace("\\/", "/") ?: continue
-            val pid = Regex("/player/(\\d+)").find(playerRef)?.groupValues?.get(1) ?: continue
-            val loc = raw("$base/player/$pid", base + "/", follow = false).location ?: continue
-            val host = hostOf(loc)
-            if (coverage(host) != "KAPSANMIYOR") continue
-            if (!seenHosts.add(host)) continue
-
-            val r = raw(loc, base + "/")
-            val body = r.body ?: ""
-            p("")
-            p("═══ KAPSANMAYAN HOST: $host  (kaynak: $name)")
-            p("  istek : $loc")
-            p("  sonuç : HTTP ${r.status} ctype=${r.ctype} bytes=${body.length}")
-            p("  başlık: " + (Regex("<title[^>]*>([^<]*)", RegexOption.IGNORE_CASE)
-                .find(body)?.groupValues?.get(1)?.trim()?.take(90) ?: "-"))
-            val media = Regex("""(?:https?:)?//[^"'\\s<>]+?\.(?:m3u8|mp4|mpd)[^"'\\s<>]*""")
-                .findAll(body.replace("\\/", "/")).map { it.value }.distinct().take(4).toList()
-            if (media.isNotEmpty()) p("  medya : $media")
-            val iframes = Regex("""<iframe[^>]+src=["']([^"']+)""", RegexOption.IGNORE_CASE)
-                .findAll(body).map { it.groupValues[1] }.distinct().take(4).toList()
-            if (iframes.isNotEmpty()) p("  iframe: $iframes")
-            val keys = Regex("\"([A-Za-z_][A-Za-z0-9_]*)\"\\s*:").findAll(body)
-                .map { it.groupValues[1] }.distinct().take(14).joinToString(",")
-            p("  anahtar: $keys")
-            p("  gövde : " + body.replace(Regex("\\s+"), " ").take(420))
         }
     }
 }

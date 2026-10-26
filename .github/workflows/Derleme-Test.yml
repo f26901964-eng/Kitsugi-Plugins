@@ -160,9 +160,6 @@ jobs:
           ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*FullSourceAuditTest*" \
               > /tmp/audit-anizm.log 2>&1
           echo "audit çıkış=$?"
-          ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*FullSourceAuditTest.dumpUnknownPlayers*" \
-              > /tmp/dump-hosts.log 2>&1
-          echo "dump çıkış=$?"
           ./gradlew --no-daemon :TrAnimeIzle:testDebugUnitTest --tests "*LiveChainProbeTest*" \
               > /tmp/live-tizle.log 2>&1
           echo "tranimeizle çıkış=$?"
@@ -179,13 +176,6 @@ jobs:
             echo
             echo '```'
             grep -a "\[AUDIT\]" /tmp/audit-anizm.log | sed 's/^.*\[AUDIT\]/[AUDIT]/' | head -c 20000 || true
-            echo
-            echo '```'
-            echo
-            echo "## Kapsanmayan oynatıcıların ham dökümü"
-            echo
-            echo '```'
-            grep -a -A1 "KAPSANMAYAN HOST\|istek\|sonuç\|başlık\|medya\|iframe\|anahtar\|gövde" /tmp/dump-hosts.log | sed 's/^.*\[AUDIT\]/[AUDIT]/' | head -c 26000 || true
             echo
             echo '```'
             echo
