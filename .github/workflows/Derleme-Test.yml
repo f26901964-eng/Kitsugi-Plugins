@@ -160,6 +160,12 @@ jobs:
           ./gradlew --no-daemon :TrAnimeIzle:testDebugUnitTest --tests "*LiveChainProbeTest*" \
               > /tmp/live-tizle.log 2>&1
           echo "tranimeizle çıkış=$?"
+          ./gradlew --no-daemon :HDFilmIzle:testDebugUnitTest --tests "*LiveChainProbeTest*" \
+              > /tmp/live-hdfilmizle.log 2>&1
+          echo "hdfilmizle çıkış=$?"
+          ./gradlew --no-daemon :DiziBox:testDebugUnitTest --tests "*LiveChainProbeTest*" \
+              > /tmp/live-dizibox.log 2>&1
+          echo "dizibox çıkış=$?"
           set -e
           {
             echo "# Canlı zincir probu (Kotlin)"
@@ -171,6 +177,16 @@ jobs:
             echo
             echo '```'
             grep -a "\[LIVE\]" /tmp/live-tizle.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 22000 || true
+            echo
+            echo '```'
+            echo
+            echo '```'
+            grep -a "\[LIVE\]" /tmp/live-hdfilmizle.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 16000 || true
+            echo
+            echo '```'
+            echo
+            echo '```'
+            grep -a "\[LIVE\]" /tmp/live-dizibox.log | sed 's/^.*\[LIVE\]/[LIVE]/' | head -c 12000 || true
             echo
             echo '```'
             if ! grep -qa "\[LIVE\]" /tmp/live-anizm.log; then
@@ -188,6 +204,24 @@ jobs:
               echo
               echo '```'
               tail -n 60 /tmp/live-tizle.log
+              echo '```'
+              echo "</details>"
+            fi
+            if ! grep -qa "\[LIVE\]" /tmp/live-hdfilmizle.log; then
+              echo
+              echo "<details><summary>HDFilmIzle derleme/koşum hatası</summary>"
+              echo
+              echo '```'
+              tail -n 60 /tmp/live-hdfilmizle.log
+              echo '```'
+              echo "</details>"
+            fi
+            if ! grep -qa "\[LIVE\]" /tmp/live-dizibox.log; then
+              echo
+              echo "<details><summary>DiziBox derleme/koşum hatası</summary>"
+              echo
+              echo '```'
+              tail -n 60 /tmp/live-dizibox.log
               echo '```'
               echo "</details>"
             fi
