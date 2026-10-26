@@ -78,5 +78,82 @@ class LivePlayerProbeTests(unittest.TestCase):
         self.assertEqual("https", urlsplit(frames[0]).scheme)
 
 
+    def test_vidrame_xor_matches_independent_vectors(self):
+        # plaintext: https://cdn.example/stream/master.m3u8, key: secret
+        data = [
+            22, 15, 56, 66, 71, 44, 47, 206, 149, 176, 188, 146, 207, 247, 249, 19,
+            8, 54, 41, 26, 113, 116, 148, 133, 183, 190, 139, 199, 237, 253, 12, 28,
+            60, 98, 71, 39, 119, 223,
+        ]
+        self.assertEqual(
+            "https://cdn.example/stream/master.m3u8",
+            live_player_probe.decode_vidrame_xor(data, "secret"),
+        )
+
+    def test_spg_decode_splits_pipe_suffix(self):
+        n = "A0QEAgZJWkRWEQEBAxkKSV4fGh5aHFEEER1cFAlTQUBGDxwMXh8AEBc="
+        o = "azBwcnVzdQ=="
+        self.assertEqual(
+            "https://fastplay.mom/watch/abc123",
+            live_player_probe.decode_spg(n, o),
+        )
+
+    def test_fnv1a_and_x_sp_signature(self):
+        self.assertEqual("811c9dc5", live_player_probe.fnv1a_hex(""))
+        self.assertEqual("e40c292c", live_player_probe.fnv1a_hex("a"))
+        token = live_player_probe.build_x_sp("sp", 1700000000, "ab12")
+        self.assertEqual(
+            f"1700000000.ab12.{live_player_probe.fnv1a_hex('sp|1700000000|ab12')}",
+            token,
+        )
+
+    def test_hls_variants_resolve_every_resolution(self):
+        playlist = """#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360
+360p/index.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480
+/hls/480p/index.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2500000
+https://cdn.example/hls/auto/index.m3u8
+"""
+        variants = live_player_probe.hls_variants(
+            playlist, "https://dbx.molystream.org/embed/sheila/abc"
+        )
+        self.assertEqual(
+            [
+                ("https://dbx.molystream.org/embed/sheila/360p/index.m3u8", 360),
+                ("https://dbx.molystream.org/hls/480p/index.m3u8", 480),
+                ("https://cdn.example/hls/auto/index.m3u8", 0),
+            ],
+            [(v["url"], v["height"]) for v in variants],
+        )
+
+    def test_dwls_results_and_wmode_and_parts(self):
+        payload = (
+            '{"results":[{"post_title":"Örnek","permalink":"https:\\/\\/x\\/dizi\\/",'
+            '"attachment_thumbnail":"https:\\/\\/x\\/50x50\\/k.jpg"},{"post_title":""}]}'
+        )
+        rows = live_player_probe.dwls_results(payload)
+        self.assertEqual(1, len(rows))
+        self.assertEqual("https://x/dizi/", rows[0]["url"])
+
+        self.assertTrue(
+            live_player_probe.with_wmode(
+                "https://x/player/king/king.php?v=1"
+            ).endswith("&wmode=opaque")
+        )
+        already = "https://x/player/moly/moly.php?wmode=opaque&h=z"
+        self.assertEqual(already, live_player_probe.with_wmode(already))
+
+        page = (
+            r'<script>let parts = [{"name":"Vidrame","lang":"dual",'
+            r'"data":"<iframe src=\"https:\/\/vidrame.pro\/vr\/abc\">"}];</script>'
+        )
+        frames = live_player_probe.parts_frames(page)
+        self.assertEqual(1, len(frames))
+        self.assertEqual("https://vidrame.pro/vr/abc", frames[0]["url"])
+        self.assertEqual("dual", frames[0]["lang"])
+
+
 if __name__ == "__main__":
     unittest.main()

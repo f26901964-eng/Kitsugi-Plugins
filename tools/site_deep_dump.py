@@ -523,6 +523,124 @@ def dump_tizle_episode(ep_url: str, base: str) -> None:
             log(f"    · {path} → {sr.status} iframe={(iframe.group(1)[:120] if iframe else '-')}")
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# DIZIBOX & HDFILMIZLE — oynatıcı zinciri ham HTML dökümü
+# ══════════════════════════════════════════════════════════════════════════
+DIZIBOX_BASE = "https://www.dizibox.live"
+HDFILM_BASE = "https://www.hdfilmizle.to"
+DIZIBOX_COOKIE_HEADER = {"Cookie": "LockUser=true; isTrustedUser=true; dbxu=1743289650198"}
+_IFRAME_RE = re.compile(r"(?i)<iframe[^>]+(?:src|data-src)\s*=\s*[\"']([^\"']+)[\"']")
+_OPTION_RE = re.compile(r"(?i)<option[^>]+value\s*=\s*[\"']([^\"']+)[\"']")
+_PLAYER_HINT = re.compile(r"(?i)vidrame|vidmoxy|vidmoly|setplay|fastplay|stfplay|molystream|king\.php|moly\.php|haydi\.php")
+
+
+def _first_anchor(html: str, pattern: str, base: str) -> str | None:
+    for href in re.findall(pattern, html or "", re.I):
+        absolute = urllib.parse.urljoin(base, html_mod.unescape(href))
+        if absolute.startswith("http"):
+            return absolute
+    return None
+
+
+def _dump_player_hop(label: str, url: str, referer: str, extra: dict | None, depth: int = 0) -> None:
+    r = fetch_any([url], referer=referer, extra=extra)
+    save_resp(f"{label}.html", r)
+    body = r.text or ""
+    player_iframe = body.count('id="Player"') + body.count("id='Player'")
+    log(
+        f"    · {label} → {r.status} bytes={len(body)} "
+        f"EE.dd={body.count('EE.dd') + body.count('ee(')} SPG={body.count('SPG.cerceve')} "
+        f"CryptoJS={body.count('CryptoJS')} unescape={body.lower().count('unescape(')} "
+        f"PlayerIframe={player_iframe} "
+        f"STREAM-INF={body.count('#EXT-X-STREAM-INF')} manifest={body.count('/manifests/')}"
+    )
+    if depth >= 1:
+        return
+    nested = _IFRAME_RE.findall(body)
+    for j, frame in enumerate(nested[:2]):
+        absolute = urllib.parse.urljoin(r.final_url or url, html_mod.unescape(frame).replace(r"\/", "/"))
+        if absolute.startswith("http") and absolute != url:
+            _dump_player_hop(f"{label}_nested{j}", absolute, url, extra, depth + 1)
+
+
+def dump_dizibox() -> None:
+    log("══ DiziBox oynatıcı zinciri ══")
+    episode = os.environ.get("DIZIBOX_EPISODE", "").strip()
+    if not episode:
+        listing = fetch_any([f"{DIZIBOX_BASE}/tum-bolumler/page/1/"], referer=DIZIBOX_BASE + "/",
+                            extra=DIZIBOX_COOKIE_HEADER)
+        episode = _first_anchor(listing.text, r"href=[\"']([^\"']*-sezon-\d+-bolum[^\"']*)", DIZIBOX_BASE) or ""
+    if not episode:
+        log("  !! bölüme ait çapa bulunamadı")
+        return
+    log(f"  · bölüm: {episode}")
+    page = fetch_any([episode], referer=DIZIBOX_BASE + "/", extra=DIZIBOX_COOKIE_HEADER)
+    save_resp("dizibox__episode.html", page)
+    html = page.text or ""
+    if not page.ok or looks_blocked(html):
+        log(f"  !! bölüm sayfası alınamadı: {page.status}")
+        return
+    video_area = html.count('id="video-area"')
+    log(f"  · video-area iframe={video_area} toolbar-option={len(_OPTION_RE.findall(html))} "
+        f"archive-box={html.count('archive-box')}")
+
+    frames = [m.group(1) for m in _IFRAME_RE.finditer(html) if _PLAYER_HINT.search(m.group(1))]
+    alternates = [v for v in _OPTION_RE.findall(html) if v.startswith("http") or v.startswith("/")]
+    save("dizibox__toolbar_options.txt", "\n".join(uniq(alternates)))
+    for i, alt in enumerate(uniq(alternates)[:3]):
+        alt_url = urllib.parse.urljoin(episode, html_mod.unescape(alt))
+        alt_page = fetch_any([alt_url], referer=episode, extra=DIZIBOX_COOKIE_HEADER)
+        save_resp(f"dizibox__altpage_{i}.html", alt_page)
+        frames += [m.group(1) for m in _IFRAME_RE.finditer(alt_page.text or "") if _PLAYER_HINT.search(m.group(1))]
+
+    seen: set[str] = set()
+    for i, raw in enumerate(uniq(frames)[:5]):
+        frame = urllib.parse.urljoin(episode, html_mod.unescape(raw).replace(r"\/", "/"))
+        if frame in seen:
+            continue
+        seen.add(frame)
+        log(f"  · oynatıcı[{i}]: {frame}")
+        _dump_player_hop(f"dizibox__player_{i}", frame, episode, DIZIBOX_COOKIE_HEADER)
+        if "molystream" in frame.lower() and "/embed/sheila/" not in frame:
+            sheila = re.sub(r"/embed/", "/embed/sheila/", frame)
+            _dump_player_hop(f"dizibox__player_{i}_sheila", sheila, frame, DIZIBOX_COOKIE_HEADER)
+
+
+def dump_hdfilmizle() -> None:
+    log("══ HDFilmİzle oynatıcı zinciri ══")
+    episode = os.environ.get("HDFILM_EPISODE", "").strip()
+    if not episode:
+        home = fetch_any([HDFILM_BASE + "/"], referer=HDFILM_BASE + "/")
+        episode = _first_anchor(home.text, r"href=[\"']([^\"']*(?:/dizi/|/film/)[^\"']*)", HDFILM_BASE) or ""
+    if not episode:
+        log("  !! içerik çapası bulunamadı")
+        return
+    log(f"  · içerik: {episode}")
+    page = fetch_any([episode], referer=HDFILM_BASE + "/")
+    save_resp("hdfilmizle__episode.html", page)
+    html = page.text or ""
+    if not page.ok or looks_blocked(html):
+        log(f"  !! içerik sayfası alınamadı: {page.status}")
+        return
+
+    parts_blocks = re.findall(r"(?:let|var|const)\s+parts\s*=\s*(\[[\s\S]*?\]);", html)
+    save("hdfilmizle__parts.json", "\n\n".join(parts_blocks))
+    log(f"  · parts bloğu={len(parts_blocks)} iframe={len(_IFRAME_RE.findall(html))} "
+        f"admin-ajax={html.count('admin-ajax')} data-nonce={html.count('data-nonce')}")
+
+    frames = [m.group(1) for m in _IFRAME_RE.finditer(html)]
+    for block in parts_blocks:
+        frames += _IFRAME_RE.findall(block.replace(r"\/", "/").replace(r"\"", '"'))
+    seen: set[str] = set()
+    for i, raw in enumerate(uniq(frames)[:5]):
+        frame = urllib.parse.urljoin(episode, html_mod.unescape(raw).replace(r"\/", "/"))
+        if not frame.startswith("http") or frame in seen:
+            continue
+        seen.add(frame)
+        log(f"  · oynatıcı[{i}]: {frame}")
+        _dump_player_hop(f"hdfilmizle__player_{i}", frame, episode, None)
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     which = args[0].lower() if args else "all"
@@ -537,6 +655,16 @@ def main() -> int:
             dump_tranimeizle()
         except Exception as exc:  # noqa: BLE001
             log(f"- !! TrAnimeIzle dökümü çöktü: {exc!r}")
+    if which in ("all", "dizibox"):
+        try:
+            dump_dizibox()
+        except Exception as exc:  # noqa: BLE001
+            log(f"- !! DiziBox dökümü çöktü: {exc!r}")
+    if which in ("all", "hdfilmizle", "hdfilm"):
+        try:
+            dump_hdfilmizle()
+        except Exception as exc:  # noqa: BLE001
+            log(f"- !! HDFilmİzle dökümü çöktü: {exc!r}")
     save("SUMMARY.md", "\n".join(LOG) + "\n")
     return 0
 
