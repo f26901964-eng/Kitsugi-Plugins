@@ -582,8 +582,8 @@ internal class AnizmStreams(
         // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
         if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
 
-        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): /api/v1/…?id=<kod>
-        if (resolveSistennPlayer(url, label, callback)) return true
+        // Sistenn ailesi (uns.bio / rpmvid / strp2p …): AES'li /api/v1/video?…
+        if (resolveSistennPlayer(url, referer, label, callback)) return true
 
         // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
         if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
@@ -723,55 +723,155 @@ internal class AnizmStreams(
     }
 
     /**
-     * **Sistenn ailesi** — `uns.bio`, `rpmvid.com`, `strp2p.com` … (React SPA,
-     * `player-version="16.x"`). Akışı sayfanın JS paketi `/api/v1/...` uçlarından
-     * alır; kullanıcıya görünen tek şey `#<kısa kod>` parçasıdır:
+     * **Sistenn ailesi** — `sistenn.uns.bio`, `anizm.rpmvid.com`, `anizm.strp2p.com`
+     * (Vue/React SPA, `player-version="16.x"`, sayfa adresi `https://host/#<kod>`).
      *
-     *     /api/v1/info?id=<kod>      dosya bilgisi
-     *     /api/v1/video?id=<kod>     oynatma kaynağı
-     *     /api/v1/download?id=<kod>  indirme yönlendirmesi
+     * Protokol (oynatıcının kendi paketinden çözüldü; 2026-09-26 tarihli
+     * bağımsız doğrulama ve 26.10.2026 canlı ölçümüyle teyitli):
      *
-     * Hangisi medya dönerse o yayınlanır (sırayla, ilk isabet yeter).
+     *   GET /api/v1/video?id=<kod>&w=<g>&h=<y>&r=<anizm-host>
+     *       → **hex** gövde = AES-128-CBC(JSON)
+     *         anahtar "kiemtienmua911ca", IV "1234567890oiuytr" (sabit)
+     *   JSON: { cfNative, cf, source, hlsVideoTiktok, hlsVideoGoogle,
+     *           streamingConfig:{order:[…], adjust:{<tür>:{domain, params, disabled}}},
+     *           pk:{k, kx}, delivery:{inHouse, capacityToken, retryAfter} }
+     *
+     * `cfNative` kendi token'ını taşıyan HLS master'ıdır; `/v4/` yayınlarına
+     * `pk` alanından gelen `k`/`kx` eklenir. Tiktok/Google (`hlsVideo*`)
+     * segmentleri resim gibi gizlenmiştir — yine de M3U8 olarak verilir.
      */
     private suspend fun resolveSistennPlayer(
         url: String,
+        referer: String,
         label: String,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1) ?: return false
-        val code = url.substringAfter('#', "").takeIf { it.length in 4..64 }
-            ?: url.substringBefore('?').trimEnd('/').substringAfterLast('/').takeIf { it.length in 4..64 }
+        val match = Regex("""^https?://([^/#?]+)/?#([A-Za-z0-9_-]{4,32})(?:[?&].*)?$""").find(url.trim())
             ?: return false
-        var emitted = 0
-        for (endpoint in listOf("/api/v1/video?id=", "/api/v1/info?id=", "/api/v1/download?id=")) {
-            val target = origin + endpoint + code
-            val body = http.getXhr(target, url)
-            if (body.isNullOrBlank()) continue
-            val trimmed = body.trim()
-            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-                // JSON değil: yönlendirme ya da doğrudan medya gövdesi.
-                if (isDirectMedia(trimmed)) {
-                    emitMedia(trimmed, label, url, callback)
-                    emitted++
+        val host = match.groupValues[1]
+        val code = match.groupValues[2]
+        val origin = "https://$host"
+        val siteHost = runCatching { java.net.URI(base()).host.orEmpty() }.getOrDefault("")
+        val apiHeaders = streamHeaders("$origin/") + mapOf("Origin" to origin, "Accept" to "*/*")
+
+        // Sayfa önce /info'yu çağırır; kimlik geçersizse hemen söyler.
+        runCatching { http.get("$origin/api/v1/info?id=$code", "$origin/") }
+
+        var capacity: Pair<String, String>? = null
+        var video: JSONObject? = null
+        var tried = 0
+        while (tried < 2 && video == null) {
+            val capQuery = capacity?.let {
+                "&capacityToken=" + URLEncoder.encode(it.first, "UTF-8") +
+                    "&capacityTokenExpire=" + URLEncoder.encode(it.second, "UTF-8")
+            }.orEmpty()
+            val target = "$origin/api/v1/video?id=$code&w=1920&h=1080&r=$siteHost$capQuery"
+            val body = http.get(target, "$origin/")
+            if (body.isNullOrBlank()) return false
+            val plain = sistennDecrypt(body.trim()) ?: run {
+                Log.d(TAG, "Sistenn: yanıt çözülemedi (${body.take(24)})")
+                return false
+            }
+            val json = runCatching { JSONObject(plain) }.getOrNull() ?: return false
+            val sources = sistennSources(json, origin)
+            if (sources.isNotEmpty()) {
+                video = json
+                val pk = json.optJSONObject("pk")
+                val pkQuery = pk?.optString("k")?.takeIf { it.isNotEmpty() }
+                    ?.let { "k=$it&kx=${pk.optLong("kx")}" }.orEmpty()
+                var found = 0
+                for (source in sources) {
+                    var media = source.url
+                    if (pkQuery.isNotEmpty() && media.contains("/v4/")) {
+                        media += (if (media.contains('?')) "&" else "?") + pkQuery
+                    }
+                    emitMedia(media, "$label ${source.kind}".trim(), "$origin/", callback, trusted = true)
+                    found++
                 }
+                Log.d(TAG, "Sistenn: $code → ${sources.joinToString { it.kind }}")
+                return found > 0
+            }
+            val delivery = json.optJSONObject("delivery")
+            val capToken = delivery?.optString("capacityToken").orEmpty()
+            val saturated = delivery?.optString("inHouse") == "saturated"
+            if (saturated && capToken.isNotEmpty() && tried == 0) {
+                capacity = capToken to delivery?.optString("capacityTokenExpire").orEmpty()
+                tried++
                 continue
             }
-            val media = mediaFromJsonText(trimmed)
-            for (item in media.take(2)) {
-                emitMedia(item, label, url, callback)
-                emitted++
-            }
-            if (emitted > 0) return true
+            Log.d(TAG, "Sistenn: $code akış yok (anahtarlar ${json.keys().asSequence().take(8).joinToString()})")
+            return false
         }
-        if (emitted == 0) {
-            val location = http.location(origin + "/api/v1/download?id=" + code, url)
-            if (location != null && isDirectMedia(location)) {
-                emitMedia(location, label, url, callback)
-                emitted++
-            }
+        return video != null
+    }
+
+    /** Sistenn yanıtındaki yayın türleri — site kendi sırasını `streamingConfig` ile verir. */
+    private data class SistennSource(val kind: String, val url: String)
+
+    private fun sistennSources(json: JSONObject, origin: String): List<SistennSource> {
+        fun abs(value: String): String? {
+            val v = value.trim()
+            if (v.isEmpty()) return null
+            if (v.startsWith("//")) return "https:$v"
+            if (v.startsWith("http")) return v
+            return runCatching { java.net.URI("$origin/").resolve(v).toString() }.getOrNull()
         }
-        if (emitted == 0) Log.d(TAG, "Sistenn: akış yok ($origin $code)")
-        return emitted > 0
+        val config = runCatching { JSONObject(json.optString("streamingConfig", "")) }.getOrNull()
+        val order = config?.optJSONArray("order")?.let { array ->
+            (0 until array.length()).map { array.optString(it) }
+        } ?: listOf("Tiktok", "Google", "Cloudflare", "In-House")
+        val adjust = config?.optJSONObject("adjust")
+        val native = abs(json.optString("cfNative"))
+        val raw = mapOf(
+            "Cloudflare" to json.optString("cf"),
+            "Tiktok" to json.optString("hlsVideoTiktok"),
+            "Google" to json.optString("hlsVideoGoogle"),
+            "In-House" to json.optString("source")
+        )
+        val out = ArrayList<SistennSource>()
+        var nativeAdded = false
+        for (kind in order) {
+            if (kind == "Cloudflare" && native != null) {
+                out += SistennSource("cfNative", native)
+                nativeAdded = true
+            }
+            var media = abs(raw[kind].orEmpty()) ?: continue
+            val adjustment = adjust?.optJSONObject(kind)
+            if (adjustment?.optBoolean("disabled") == true) continue
+            adjustment?.optJSONObject("params")?.let { params ->
+                val extra = params.keys().asSequence().joinToString("&") {
+                    "$it=" + URLEncoder.encode(params.optString(it), "UTF-8")
+                }
+                if (extra.isNotEmpty()) media += (if (media.contains('?')) "&" else "?") + extra
+            }
+            val domain = adjustment?.optString("domain").orEmpty()
+            if (domain.isNotEmpty() && media.contains("/hls/")) {
+                media = media.replaceFirst("/hls/", "/hlsmod/$domain/")
+            }
+            out += SistennSource(kind, media)
+        }
+        if (native != null && !nativeAdded) out += SistennSource("cfNative", native)
+        return out
+    }
+
+    /** Sistenn AES-128-CBC (sabit anahtar/IV) — hex gövdeyi JSON metnine çevirir. */
+    private fun sistennDecrypt(hex: String): String? {
+        val h = hex.trim()
+        if (h.length < 32 || h.length % 2 != 0) return null
+        if (!h.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }) return null
+        return try {
+            val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(
+                javax.crypto.Cipher.DECRYPT_MODE,
+                javax.crypto.spec.SecretKeySpec(SISTENN_KEY, "AES"),
+                javax.crypto.spec.IvParameterSpec(SISTENN_IV)
+            )
+            val bytes = ByteArray(h.length / 2) { h.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            String(cipher.doFinal(bytes), Charsets.UTF_8)
+        } catch (e: Exception) {
+            Log.d(TAG, "Sistenn: AES hatası (${e.javaClass.simpleName})")
+            null
+        }
     }
 
     /**
@@ -1379,6 +1479,10 @@ internal class AnizmStreams(
             "abyssplayer", "playmogo", "sitemio"
         )
         private const val PLAYER_HOST = "https://anizmplayer.com"
+
+        /** Sistenn AES-128-CBC anahtarı/IV'si (oynatıcı paketinden; sabit). */
+        private val SISTENN_KEY = "kiemtienmua911ca".toByteArray(Charsets.UTF_8)
+        private val SISTENN_IV = "1234567890oiuytr".toByteArray(Charsets.UTF_8)
 
         /** JSON anahtarları: değeri doğrudan oynatılabilir adres olanlar. */
         private val MEDIA_KEYS = setOf(

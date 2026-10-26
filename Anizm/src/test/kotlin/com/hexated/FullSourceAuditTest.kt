@@ -36,7 +36,8 @@ class FullSourceAuditTest {
     /** Eklentinin AnizmStreams içinde yerel çözücüsü olan host'lar. */
     private val localResolvers = listOf(
         "anizmplayer.com", "drive.google", "docs.google", "ok.ru", "odnoklassniki",
-        "sibnet"
+        "sibnet", "puffytr", "uns.bio", "rpmvid", "strp2p", "firestream", "streamcash",
+        "bysesayeveum", "flyf"
     )
 
     /** Uygulamanın kayıtlı extractor'larıyla çözülen bilinen video host'ları. */
@@ -188,6 +189,94 @@ class FullSourceAuditTest {
             okStatus -> "HTTP ${r.status} ctype=${r.ctype}"
             else -> "HATA ${r.status}"
         }
+    }
+
+
+    // ── Eklentideki yerel çözücülerin birebir kopyası (referans ölçüm) ─────
+
+    private val sisKey = "kiemtienmua911ca".toByteArray(Charsets.UTF_8)
+    private val sisIv = "1234567890oiuytr".toByteArray(Charsets.UTF_8)
+
+    private fun sisDecrypt(hex: String): String? = try {
+        val h = hex.trim()
+        if (h.length < 32 || h.length % 2 != 0) null
+        else {
+            val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(
+                javax.crypto.Cipher.DECRYPT_MODE,
+                javax.crypto.spec.SecretKeySpec(sisKey, "AES"),
+                javax.crypto.spec.IvParameterSpec(sisIv)
+            )
+            val bytes = ByteArray(h.length / 2) { h.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+            String(cipher.doFinal(bytes), Charsets.UTF_8)
+        }
+    } catch (e: Throwable) {
+        null
+    }
+
+    /** Beta Player (pl.puffytr.tr): `/stream/<hash>/native.m3u8` (ve `master.txt`). */
+    private fun betaProbe(loc: String, host: String): String {
+        val slug = Regex("""/(?:watch|embed|v)/([A-Za-z0-9_-]{8,})""").find(loc)
+            ?.groupValues?.get(1) ?: return "slug yok"
+        var last = "?"
+        for (path in listOf("native.m3u8", "master.txt")) {
+            val target = "https://$host/stream/$slug/$path"
+            val r = raw(target, "https://$host/", range = "bytes=0-2047")
+            val body = r.body ?: ""
+            if (r.status in 200..299 && body.contains("#EXTM3U")) {
+                return "OYNAR (HLS ${r.status} $path, ${body.lines().size} satır)"
+            }
+            last = "HATA ${r.status} $path"
+        }
+        return last
+    }
+
+    /** FireStream / StreamCash: token-blob → POST /api/videos/<slug>/resolve. */
+    private fun fireProbe(loc: String, host: String): String {
+        val origin = "https://$host"
+        val page = raw(loc, origin + "/")
+        if (page.status !in 200..299) return "HATA ${page.status} (sayfa)"
+        val html = page.body ?: return "HATA (gövde yok)"
+        val slug = loc.substringBefore('?').trimEnd('/').substringAfterLast('/')
+        val blob = Regex("""<script[^>]*token-blob[^>]*>([^<]{4,4000})</script>""")
+            .find(html)?.groupValues?.getOrNull(1)?.trim()
+        val bodies = mutableListOf<String>()
+        if (!blob.isNullOrBlank()) bodies += "{\"blob\":" + org.json.JSONObject.quote(blob) + "}"
+        bodies += "{}"
+        var detail = "token-blob yok"
+        for (body in bodies) {
+            val r = postRaw("$origin/api/videos/$slug/resolve", loc, body)
+            val text = r.body ?: ""
+            val media = Regex(""""(?:signedVideoUrl|encodedPath|url|file)"\s*:\s*"([^"]+)"""")
+                .find(text)?.groupValues?.get(1)?.replace("\\/", "/")
+            if (media != null) {
+                return "OYNAR (resolve ${r.status}) " + probePlayable(media, "$origin/")
+            }
+            detail = "resolve ${r.status} ${text.take(60)}"
+        }
+        return "HATA $detail"
+    }
+
+    /** Sistenn ailesi: AES'li /api/v1/video → cfNative / cf / source / hlsVideo*. */
+    private fun sistennProbe(loc: String, host: String): String {
+        val origin = "https://$host"
+        val code = loc.substringAfter('#', "").takeIf { it.length in 4..32 } ?: return "kod yok"
+        raw("$origin/api/v1/info?id=$code", "$origin/")
+        val r = raw("$origin/api/v1/video?id=$code&w=1920&h=1080&r=anizm.com.tr", "$origin/")
+        if (r.status !in 200..299) return "HATA ${r.status} (video)"
+        val plain = sisDecrypt(r.body ?: "") ?: return "HATA (AES çözülemedi, ${r.bytes}B)"
+        val json = runCatching { org.json.JSONObject(plain) }.getOrNull() ?: return "HATA (JSON değil)"
+        val candidates = listOf("cfNative", "hlsVideoTiktok", "cf", "hlsVideoGoogle", "source")
+            .mapNotNull { k -> json.optString(k).takeIf { it.isNotBlank() } }
+        if (candidates.isEmpty()) {
+            return "HATA akış yok (${json.keys().asSequence().take(8).joinToString()})"
+        }
+        val head = candidates.first()
+        val url = if (head.startsWith("//")) "https:$head" else head
+        return "OYNAR? (${candidates.size} tür: " +
+            listOf("cfNative", "hlsVideoTiktok", "cf", "hlsVideoGoogle", "source")
+                .filter { json.optString(it).isNotBlank() }.joinToString() +
+            ") → " + probePlayable(url, "$origin/")
     }
 
     /** Kapsanmayan oynatıcının gerçekte ne servis ettiğini yazar (çözücü yazmak için kanıt). */
@@ -485,6 +574,10 @@ class FullSourceAuditTest {
                                 probePlayable(target, "https://drive.google.com/")
                             }
                         }
+                        host.contains("puffytr") -> betaProbe(loc, host)
+                        host.contains("uns.bio") || host.contains("rpmvid") || host.contains("strp2p") ->
+                            sistennProbe(loc, host)
+                        host.contains("firestream") || host.contains("streamcash") -> fireProbe(loc, host)
                         else -> probePlayable(loc, epUrl)
                     }
                     if (verdict.startsWith("OYNAR")) playableSources++
