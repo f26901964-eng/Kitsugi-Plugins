@@ -117,11 +117,18 @@ internal object AnizmSite {
      * büyük hâli `<id>l.webp` (425x600) her zaman vardır (fixture: 16 kapak).
      * Poster kalitesi için büyük sürüme yükseltilir.
      */
-    fun largeCover(url: String?): String? =
-        url?.replace(
-            Regex("""(/storage/pcovers/\d+)\.(webp|jpe?g|png)(?=$|\?)""", RegexOption.IGNORE_CASE),
-            "$1l.$2"
-        )
+    fun largeCover(url: String?): String? {
+        if (url.isNullOrBlank()) return url
+        val match = COVER_SMALL.find(url) ?: return url
+        val big = match.groupValues[1] + "l." + match.groupValues[2]
+        return url.replaceRange(match.range, big)
+    }
+
+    /** `/storage/pcovers/<id>.<ext>` — küçük (liste) kapak. */
+    private val COVER_SMALL = Regex(
+        """(/storage/pcovers/\d+)\.(webp|jpe?g|png)""",
+        RegexOption.IGNORE_CASE
+    )
 
     // ------------------------------------------------------------------
     // URL yardımcıları
