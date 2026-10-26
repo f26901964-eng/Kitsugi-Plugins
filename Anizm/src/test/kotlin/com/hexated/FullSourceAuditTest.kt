@@ -173,6 +173,16 @@ class FullSourceAuditTest {
             "      │ anahtar: " + Regex("""["]([A-Za-z_][A-Za-z0-9_]*)["]\s*:""").findAll(body)
                 .map { it.groupValues[1] }.distinct().take(12).joinToString(",")
         )
+        // Oynatıcı SPA ise API uçlarını ve script dosyalarını göster.
+        val scripts = Regex("""<script[^>]+src=["']([^"']+)""", RegexOption.IGNORE_CASE)
+            .findAll(body).map { it.groupValues[1] }.distinct().take(4).toList()
+        if (scripts.isNotEmpty()) p("      │ script: $scripts")
+        val apiHits = Regex("""["'](/?api/[A-Za-z0-9_./?=&-]{3,80})["']""")
+            .findAll(body).map { it.groupValues[1] }.distinct().take(6).toList()
+        if (apiHits.isNotEmpty()) p("      │ api: $apiHits")
+        val srcHits = Regex("""(?:sources|file|src|hls|m3u8|playlist)["']?\s*[:=]\s*["']([^"']{8,120})["']""", RegexOption.IGNORE_CASE)
+            .findAll(body).map { it.groupValues[1] }.distinct().take(5).toList()
+        if (srcHits.isNotEmpty()) p("      │ kaynak: $srcHits")
         p("      └ gövde: " + body.replace(Regex("\\s+"), " ").take(500))
     }
 
