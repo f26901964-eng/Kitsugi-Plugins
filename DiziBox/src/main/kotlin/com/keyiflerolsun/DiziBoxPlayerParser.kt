@@ -1,5 +1,6 @@
 package com.keyiflerolsun
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
@@ -23,6 +24,11 @@ internal object DiziBoxPlayerParser {
         val kind: String = "",
         val language: String = "",
     )
+    data class HlsVariant(val url: String, val height: Int)
+    data class DwlsResult(val title: String, val url: String, val thumbnail: String)
+    data class EpisodeAnchor(val url: String, val season: Int, val episode: Int)
+
+    private val mapper = ObjectMapper()
 
     private val aesDecryptCall = Regex(
         """CryptoJS\s*\.\s*AES\s*\.\s*decrypt\s*\(\s*(?:"([^"]+)"|'([^']+)')\s*,\s*(?:"([^"]*)"|'([^']*)')\s*\)""",
@@ -116,6 +122,11 @@ internal object DiziBoxPlayerParser {
             }
         }
 
+        // JWPlayer yapısı hiç çözülemezse düz medya/sheila/master.txt izlerini topla.
+        if (sources.isEmpty()) {
+            fallbackMediaUrls(html).forEach { sources += MediaSource(it) }
+        }
+
         return sources
             .filterNot { source ->
                 source.kind.equals("captions", ignoreCase = true) ||
@@ -179,6 +190,109 @@ internal object DiziBoxPlayerParser {
         val host = normalizedHost(url) ?: return false
         return Regex("""(?:^|\.)molystream\.(?:org|net)$""", RegexOption.IGNORE_CASE)
             .containsMatchIn(host)
+    }
+
+    // ────────── 2026 canlı zincirinden doğrulanmış ek ayrıştırıcılar ──────────
+
+    /**
+     * dbx.molystream `sheila` uç noktası HLS master listesini düz metin olarak
+     * döndürür. Listedeki HER `#EXT-X-STREAM-INF` varyantı gerçek çözünürlüğüyle
+     * (RESOLUTION=WxH) ayrı bir kaynak olarak üretilir; çözünürlük yoksa 0 döner.
+     */
+    fun hlsVariants(body: String, baseUrl: String): List<HlsVariant> {
+        if (!isHlsManifest(body)) return emptyList()
+        val ordered = LinkedHashMap<String, Int>()
+        var pendingHeight = 0
+        body.replace("\uFEFF", "").lines().forEach { rawLine ->
+            val line = rawLine.trim()
+            when {
+                line.startsWith("#EXT-X-STREAM-INF", ignoreCase = true) ->
+                    pendingHeight = Regex("""RESOLUTION\s*=\s*\d+x(\d+)""", RegexOption.IGNORE_CASE)
+                        .find(line)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                line.startsWith("#") || line.isBlank() -> Unit
+                else -> {
+                    resolveUrl(line, baseUrl)?.let { ordered.putIfAbsent(it, pendingHeight) }
+                    pendingHeight = 0
+                }
+            }
+        }
+        return ordered.map { HlsVariant(it.key, it.value) }
+    }
+
+    /** Eski URL'ler `/eser/...` veya arşiv kutusuna taşındıysa hedef sayfayı verir. */
+    fun archiveBoxLink(document: Document, pageUrl: String): String? =
+        document.selectFirst("div#archive-box a.archive-title")
+            ?.attr("href")
+            ?.let { resolveUrl(it, pageUrl) }
+
+    /**
+     * Canlı tema aramayı `admin-ajax.php?action=dwls_search` XHR JSON'u ile yapar:
+     * `{ results: [ { post_title, permalink, attachment_thumbnail } ] }`.
+     */
+    fun dwlsSearchResults(json: String): List<DwlsResult> {
+        val root = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyList()
+        val results = root.path("results")
+        if (!results.isArray) return emptyList()
+        return results.mapNotNull { node ->
+            val title = node.path("post_title").asText("").trim()
+            val permalink = node.path("permalink").asText("").trim()
+            if (title.isBlank() || permalink.isBlank()) return@mapNotNull null
+            DwlsResult(
+                title = title,
+                url = permalink.replace("\\/", "/"),
+                thumbnail = node.path("attachment_thumbnail").asText("").replace("\\/", "/"),
+            )
+        }
+    }
+
+    /** dwls arama küçük resimleri 50x50 gelir; kartlarda kullanılan 200x290 sürümüne çevirir. */
+    fun upscaleThumbnail(url: String): String {
+        if (url.isBlank()) return url
+        return Regex("""(?i)/\d{2,4}x\d{2,4}/""").replace(url) { match ->
+            if (match.value.contains("200x290", ignoreCase = true)) match.value else "/200x290/"
+        }
+    }
+
+    /**
+     * Bölüm listesi `article.grid-box` dışındaki temalarda da çalışsın diye
+     * `-sezon-N-bolum-M(-izle)` kalıbına uyan tüm çapaları toplar.
+     */
+    fun episodeAnchors(document: Document): List<EpisodeAnchor> {
+        val slug = Regex("""-sezon-(\d+)-bolum-(\d+)(?:-izle)?/?""", RegexOption.IGNORE_CASE)
+        val seen = LinkedHashMap<String, EpisodeAnchor>()
+        document.select("a[href]").forEach { anchor ->
+            val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
+            val match = slug.find(href) ?: return@forEach
+            val season = match.groupValues[1].toIntOrNull() ?: return@forEach
+            val episode = match.groupValues[2].toIntOrNull() ?: return@forEach
+            seen.putIfAbsent(href, EpisodeAnchor(href, season, episode))
+        }
+        return seen.values.toList()
+    }
+
+    /**
+     * king/moly/haydi sarmalayıcıları `wmode=opaque` olmadan boş/karartılmış sayfa
+     * döndürebiliyor. Parametre yoksa ekler, varsa URL'ye dokunmaz.
+     */
+    fun withWOpaque(url: String): String {
+        if (!Regex("""(?:king|moly|haydi)\.php""", RegexOption.IGNORE_CASE).containsMatchIn(url)) return url
+        if (url.contains("wmode=", ignoreCase = true)) return url
+        val separator = if (url.contains("?")) "&" else "?"
+        return url + separator + "wmode=opaque"
+    }
+
+    /** JWPlayer yapılandırması çözülemediğinde açık medya/sheila URL'lerini tarar. */
+    fun fallbackMediaUrls(html: String): List<String> {
+        val out = LinkedHashSet<String>()
+        Regex(
+            """["']?(https?:\\?/\\?/[^"'\s<>]+?\.(?:m3u8|mp4)(?:\?[^"'\s<>]*)?)["']?""",
+            RegexOption.IGNORE_CASE,
+        ).findAll(html).forEach { out.add(it.groupValues[1].replace("\\/", "/")) }
+        Regex(
+            """["']?(https?:\\?/\\?/[^"'\s<>]*(?:master\.txt|/embed/sheila/)[^"'\s<>]*)["']?""",
+            RegexOption.IGNORE_CASE,
+        ).findAll(html).forEach { out.add(it.groupValues[1].replace("\\/", "/")) }
+        return out.toList()
     }
 
     fun isSupportedPlayerUrl(url: String, siteUrl: String): Boolean {
@@ -245,7 +359,7 @@ internal object DiziBoxPlayerParser {
         elements.mapNotNull { iframe ->
             val candidates = listOf(iframe.attr("src"), iframe.attr("data-src"))
             candidates.firstNotNullOfOrNull { candidate -> resolveUrl(candidate, pageUrl) }
-        }.distinct()
+        }.filterNot { it.contains("\${") || it.contains("{{") }.distinct()
 
     private fun mediaSourceFromObject(sourceObject: String): MediaSource? {
         val fileMatch = fileProperty.find(sourceObject) ?: return null

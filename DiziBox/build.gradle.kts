@@ -1,4 +1,4 @@
-version = 27
+version = 28
 
 cloudstream {
     authors     = listOf("keyiflerolsun")
@@ -19,4 +19,13 @@ cloudstream {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+}
+
+// Canlı prob (LiveChainProbeTest) çıktısı CI günlüğünde/PR yorumunda görünsün.
+tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach {
+    testLogging {
+        showStandardStreams = true
+        events("passed", "failed", "skipped")
+    }
+    outputs.upToDateWhen { false }
 }

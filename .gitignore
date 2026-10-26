@@ -37,3 +37,6 @@ google-services.json
 __pycache__/
 *.pyc
 site-dump/
+
+# Google Drive uzerinden indirilen yerel referans arsivleri (depoya dahil degil)
+google_drive/

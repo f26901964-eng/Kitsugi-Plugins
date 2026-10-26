@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import http.cookiejar
+import json
 import re
 import subprocess
 import urllib.error
@@ -220,6 +221,141 @@ def decode_vidrame_file(value: str) -> str | None:
     return rot13[::-1]
 
 
+def decode_vidrame_xor(data: list[int], key: str) -> str:
+    """Vidrame XOR formu: d[i] ^ key[i % len] ^ ((i*17 + 13) & 255)."""
+    if not data or not key:
+        return ""
+    return "".join(
+        chr((value ^ ord(key[index % len(key)]) ^ ((index * 17 + 13) & 0xFF)) & 0xFF)
+        for index, value in enumerate(data)
+    )
+
+
+def decode_spg(n: str, o: str) -> str | None:
+    """SetPlay SPG.cerceve XOR: base64(n) XOR base64(o), '|' öncesi parça."""
+    try:
+        a = base64.b64decode(n.replace(r"\/", "/").replace("\\", ""))
+        b = base64.b64decode(o.replace(r"\/", "/").replace("\\", ""))
+        if not a or not b:
+            return None
+        out = bytes(a[i] ^ b[i % len(b)] for i in range(len(a)))
+        return out.decode("utf-8", errors="strict").split("|", 1)[0] or None
+    except Exception:
+        return None
+
+
+def fnv1a_hex(text: str) -> str:
+    h = 2166136261
+    for ch in text.encode():
+        h ^= ch
+        h = (h * 16777619) & 0xFFFFFFFF
+    return f"{h:x}"
+
+
+def build_x_sp(sp: str, epoch_seconds: int, random_base36: str) -> str:
+    return f"{epoch_seconds}.{random_base36}.{fnv1a_hex(f'{sp}|{epoch_seconds}|{random_base36}')}"
+
+
+def hls_variants(text: str, base_url: str) -> list[dict[str, object]]:
+    """Master listesindeki #EXT-X-STREAM-INF varyantlarını çözer."""
+    if not hls_manifest(text):
+        return []
+    variants: list[dict[str, object]] = []
+    pending = 0
+    for raw in text.replace("\ufeff", "").splitlines():  # ﻿ BOM temizliği
+        line = raw.strip()
+        if line.startswith("#EXT-X-STREAM-INF"):
+            match = re.search(r"RESOLUTION\s*=\s*\d+x(\d+)", line, re.I)
+            pending = int(match.group(1)) if match else 0
+        elif line and not line.startswith("#"):
+            variants.append({"url": urllib.parse.urljoin(base_url, line), "height": pending})
+            pending = 0
+    return variants
+
+
+def dwls_results(payload: str) -> list[dict[str, str]]:
+    """DiziBox dwls_search XHR JSON yanıtı: {results: [{post_title, permalink, ...}]}."""
+    try:
+        root = json.loads(payload)
+    except Exception:
+        return []
+    rows = root.get("results") if isinstance(root, dict) else None
+    if not isinstance(rows, list):
+        return []
+    out: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        title = str(row.get("post_title", "")).strip()
+        permalink = str(row.get("permalink", "")).replace(r"\/", "/").strip()
+        if not title or not permalink:
+            continue
+        out.append({
+            "title": title,
+            "url": permalink,
+            "thumbnail": str(row.get("attachment_thumbnail", "")).replace(r"\/", "/"),
+        })
+    return out
+
+
+def with_wmode(url: str) -> str:
+    """king/moly/haydi sarmalayıcılarına wmode=opaque ekler (zaten varsa dokunmaz)."""
+    if not re.search(r"(?:king|moly|haydi)\.php", url, re.I) or "wmode=" in url.lower():
+        return url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}wmode=opaque"
+
+
+def parts_frames(html: str) -> list[dict[str, str]]:
+    """HDFilmİzle `let parts = [{name, lang, data:'<iframe>'}]` bloklarını ayrıştırır."""
+    frames: list[dict[str, str]] = []
+    for marker in re.finditer(r"(?:let|var|const)\s+parts\s*=\s*\[", html):
+        start = html.find("[", marker.start())
+        block = _balanced_slice(html, start)
+        if not block:
+            continue
+        try:
+            for part in json.loads(block):
+                data = str(part.get("data", ""))
+                match = re.search(r"(?i)(?:src|data-src)\s*=\\?[\"']([^\"']+?)\\?[\"']", data)
+                if match:
+                    frames.append({
+                        "url": match.group(1).replace(r"\/", "/"),
+                        "lang": str(part.get("lang", "")),
+                        "name": str(part.get("name", "")),
+                    })
+        except Exception:
+            continue
+    return frames
+
+
+def _balanced_slice(text: str, start: int, open_ch: str = "[", close_ch: str = "]") -> str | None:
+    if start < 0 or start >= len(text) or text[start] != open_ch:
+        return None
+    depth = 0
+    quote = ""
+    escaped = False
+    for index in range(start, len(text)):
+        ch = text[index]
+        if quote:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = ""
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch == open_ch:
+            depth += 1
+        elif ch == close_ch:
+            depth -= 1
+            if depth == 0:
+                return text[start:index + 1]
+    return None
+
+
 def js_value(value: str) -> str:
     return (value.replace(r"\/", "/").replace(r"\u0026", "&")
             .replace(r"\x26", "&").replace("&amp;", "&"))
@@ -377,7 +513,9 @@ def parse_and_probe_player(url: str, referer: str, *, site: str,
         lines.append("  - Cloudflare WAF response: no player configuration was available to parse.")
         return False
     if hls_manifest(response.text):
-        lines.append(f"  - **Playable HLS manifest verified** (#EXTM3U; Referer is the parent page).")
+        variants = hls_variants(response.text, response.url)
+        detail = f" {len(variants)} çözünürlük varyantı." if variants else ""
+        lines.append(f"  - **Playable HLS manifest verified** (#EXTM3U; Referer is the parent page).{detail}")
         return True
 
     direct_target = plain_https_target(response.text)
@@ -397,6 +535,38 @@ def parse_and_probe_player(url: str, referer: str, *, site: str,
 
     markup = parse_markup(html)
     sources = source_objects("\n".join(markup.scripts) + "\n" + html)
+
+    if site == "HDFilmIzle":
+        # Vidrame XOR: (function(a,b){...})([sayılar], "anahtar") ve var d/k formu.
+        xor_targets: list[str] = []
+        for nums, key in re.findall(r"\(\s*\[((?:-?\d+\s*,?\s*)+)\]\s*,\s*['\"]([^'\"]+)['\"]\s*\)", html):
+            decoded = decode_vidrame_xor([int(x) for x in nums.split(",") if x.strip()], key)
+            if decoded.startswith("http"):
+                xor_targets.append(decoded)
+        for nums, key in re.findall(r"var\s+d\s*=\s*\[([\d,\s-]+)\][\s\S]*?var\s+k\s*=\s*['\"]([^'\"]+)['\"]", html):
+            decoded = decode_vidrame_xor([int(x) for x in nums.split(",") if x.strip()], key)
+            if decoded.startswith("http"):
+                xor_targets.append(decoded)
+        for target in dict.fromkeys(xor_targets):
+            media_url = urllib.parse.urljoin(response.url, target)
+            lines.append(f"  - XOR çözülen kaynak: `{safe_url(media_url)}`.")
+            ok, status = fetch_stream(media_url, response.url)
+            lines.append(f"  - Playlist check: {status}.")
+            if ok:
+                return True
+
+        # SetPlay SPG.cerceve köprüsü → FastPlay hedefi.
+        for n, o in re.findall(
+            r"SPG\.cerceve\(\s*(?:['\"][^'\"]*['\"]\s*,\s*)?['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)",
+            html,
+        ):
+            target = decode_spg(n, o)
+            if target and target.startswith("http"):
+                lines.append(f"  - SPG köprüsü `{safe_url(target)}` izleniyor.")
+                if parse_and_probe_player(target, response.url, site=site, lines=lines,
+                                          visited=visited, depth=depth + 1):
+                    return True
+
     if sources:
         lines.append(f"  - Parsed video source entries: {len(sources)}.")
         for source in sources[:4]:
@@ -418,7 +588,10 @@ def parse_and_probe_player(url: str, referer: str, *, site: str,
         html, response.url,
         prefer_data_src=(site == "HDFilmIzle"),
         domains=("dizibox.live", "molystream.org", "molystream.net") if site == "DiziBox"
-                else ("hdfilmizle.to", "vidrame.pro"),
+                else (
+                    "hdfilmizle.to", "vidrame.pro", "vidmoxy.net", "vidmoly.me",
+                    "setplay.shop", "fastplay.mom", "stfplay",
+                ),
     )
     for frame in frames:
         if parse_and_probe_player(frame, response.url, site=site, lines=lines,
@@ -443,9 +616,23 @@ def probe_site(name: str, page_url: str) -> str:
     if not result.ok:
         lines.append("- Player chain not followed because the episode page was not accessible from this runner.")
         return "\n".join(lines)
-    allowed = ("dizibox.live", "molystream.org", "molystream.net") if name == "DiziBox" \
-        else ("hdfilmizle.to", "vidrame.pro")
+    allowed = (
+        ("dizibox.live", "molystream.org", "molystream.net")
+        if name == "DiziBox"
+        else (
+            "hdfilmizle.to", "vidrame.pro", "vidmoxy.net", "vidmoly.me",
+            "setplay.shop", "fastplay.mom", "stfplay",
+        )
+    )
     frames = iframe_urls(result.text, result.url, prefer_data_src=(name == "HDFilmIzle"), domains=allowed)
+    if name == "HDFilmIzle":
+        # `let parts = [...]` bloklarındaki oynatıcı çerçevelerini de kat.
+        for part in parts_frames(result.text):
+            absolute = urllib.parse.urljoin(result.url, part["url"])
+            if absolute.startswith("http") and absolute not in frames and \
+                    any(domain in absolute for domain in allowed):
+                frames.append(absolute)
+        lines.append(f"- parts blokları: {len(parts_frames(result.text))}.")
     lines.append(f"- Supported player iframes found: {len(frames)}.")
     if not frames:
         markup = parse_markup(result.text)

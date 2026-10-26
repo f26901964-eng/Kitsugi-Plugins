@@ -202,25 +202,112 @@ class HDFilmIzle : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        Log.d("HDF", "data » $data")
-        val document = app.get(data).document
-        val iframes = HDFilmIzlePlayerParser.iframeUrls(document, data)
-        if (iframes.isEmpty()) {
-            Log.d("HDF", "No player iframe found on $data")
-            return false
-        }
+        Log.d("HDF", "loadLinks » $data")
+        val document = app.get(data, referer = "$mainUrl/").document
+        val html = document.outerHtml()
 
-        var emittedLinks = 0
-        iframes.forEach { iframe ->
-            Log.d("HDF", "iframe » $iframe")
-            loadExtractor(iframe, data, subtitleCallback) { link ->
-                emittedLinks += 1
-                callback(link)
+        // parts blokları + statik iframe'ler + script içi oynatıcı URL'leri.
+        // Sitede sunulan HER oynatıcı ve HER ses sürümü ayrı bir çerçevedir.
+        val frames = HDFilmIzlePlayerParser.pageFrames(html, data)
+        Log.d("HDF", "oynatıcı çerçeveleri » ${frames.size}")
+
+        var delivered = false
+        frames.forEach { frame ->
+            Log.d("HDF", "çerçeve » ${frame.playerName.ifBlank { frame.url }} (${frame.lang})")
+            val langTag = HDFilmIzlePlayerParser.languageLabel(frame.lang)
+            val wrapped: (ExtractorLink) -> Unit = { link ->
+                if (langTag.isBlank()) {
+                    callback(link)
+                } else {
+                    val base = link.name.ifBlank { frame.playerName.ifBlank { link.source } }
+                    // ExtractorLink bu sürümde data class değil; etiketi açık kurucuyla ekle.
+                    callback(
+                        ExtractorLink(
+                            source = link.source,
+                            name = "$base • $langTag",
+                            url = link.url,
+                            referer = link.referer,
+                            quality = link.quality,
+                            headers = link.headers,
+                            extractorData = link.extractorData,
+                            type = link.type,
+                        ),
+                    )
+                }
+            }
+
+            val handled = runCatching {
+                HDFilmIzlePlayerResolver.resolve(frame, data, subtitleCallback, wrapped)
+            }.getOrDefault(false)
+
+            if (handled) {
+                delivered = true
+            } else {
+                // Vidmoly ve uygulamanın bildiği diğer gömülü oynatıcılar.
+                if (runCatching { loadExtractor(frame.url, data, subtitleCallback, wrapped) }.getOrDefault(false)) {
+                    delivered = true
+                }
             }
         }
 
-        Log.d("HDF", "Extracted links: $emittedLinks")
-        return emittedLinks > 0
+        // Yedek: bazı temalar oynatıcıları admin-ajax get_video_url üzerinden verir.
+        if (!delivered) delivered = resolveViaAdminAjax(html, data, subtitleCallback, callback)
+
+        Log.d("HDF", "kaynak teslim edildi » $delivered")
+        return delivered
+    }
+
+    /**
+     * WordPress teması admin-ajax `get_video_url` uç noktasını kullanıyorsa
+     * sayfadaki nonce/post/oynatıcı izleriyle oynatıcı URL'lerini elde eder.
+     */
+    private suspend fun resolveViaAdminAjax(
+        html: String,
+        pageUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ): Boolean {
+        val config = HDFilmIzlePlayerParser.ajaxPlayerConfig(html)
+        if (config.postIds.isEmpty() || config.nonces.isEmpty()) return false
+        val players = config.playerNames.ifEmpty { listOf("") }
+
+        for (postId in config.postIds) {
+            for (player in players) {
+                for (nonce in config.nonces) {
+                    val payload = mapOf(
+                        "action" to "get_video_url",
+                        "nonce" to nonce,
+                        "post_id" to postId,
+                        "player_name" to player,
+                        "part_key" to "",
+                    )
+                    val response = runCatching {
+                        app.post(
+                            "$mainUrl/wp-admin/admin-ajax.php",
+                            headers = mapOf(
+                                "X-Requested-With" to "XMLHttpRequest",
+                                "Accept" to "application/json, text/javascript, */*; q=0.01",
+                            ),
+                            referer = pageUrl,
+                            data = payload,
+                        )
+                    }.getOrNull() ?: continue
+
+                    val tree = runCatching { ObjectMapper().readTree(response.text) }.getOrNull() ?: continue
+                    if (!tree.path("success").asBoolean(false)) continue
+                    val url = tree.path("data").path("url").asText("").replace("\\/", "/")
+                    if (url.isBlank()) continue
+
+                    val frame = HDFilmIzlePlayerParser.PageFrame(url)
+                    if (HDFilmIzlePlayerResolver.resolve(frame, pageUrl, subtitleCallback, callback)) return true
+                    if (runCatching {
+                            loadExtractor(url, pageUrl, subtitleCallback, callback)
+                        }.getOrDefault(false)
+                    ) return true
+                }
+            }
+        }
+        return false
     }
 
     data class Results(

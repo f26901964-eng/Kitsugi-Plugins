@@ -48,6 +48,7 @@ class DiziBox : MainAPI() {
     }
 
     override val mainPage = mainPageOf(
+        "${mainUrl}/tum-bolumler/page/SAYFA/"  to "Tüm Bölümler",
         "${mainUrl}/ulke/turkiye"              to "Yerli",
         "${mainUrl}/dizi-arsivi/page/SAYFA/"   to "Dizi Arşivi",
         "${mainUrl}/tur/aile/page/SAYFA/"      to "Aile",
@@ -87,14 +88,32 @@ class DiziBox : MainAPI() {
             ),
             interceptor = interceptor, cacheTime = 60
         ).document
-        if (request.name == "Dizi Arşivi") {
-            val home = document.select("article.detailed-article").mapNotNull { it.toMainPageResult() }
-            return newHomePageResponse(request.name, home)
+        val home = when (request.name) {
+            "Dizi Arşivi" ->
+                document.select("article.detailed-article").mapNotNull { it.toMainPageResult() }
+            "Tüm Bölümler" ->
+                document.select("article.article-episode-card a.figure-link, article.grid-box a.figure-link")
+                    .mapNotNull { it.toEpisodeCardResult() }
+            else ->
+                document.select("article.article-series-poster, article.detailed-article")
+                    .mapNotNull { it.toMainPageResult() }
         }
-        val home = document.select("article.article-series-poster").mapNotNull {
-        it.toMainPageResult()
-    }
         return newHomePageResponse(request.name, home)
+    }
+
+    /** /tum-bolumler kartları doğrudan bölüm çapasıdır (<a class="figure-link">). */
+    private fun Element.toEpisodeCardResult(): SearchResponse? {
+        val href = fixUrlNull(this.attr("href")) ?: return null
+        val title = this.attr("title").trim().takeIf { it.isNotBlank() }
+            ?: this.selectFirst("img")?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
+            ?: this.text().trim().takeIf { it.isNotBlank() }
+            ?: return null
+        val posterUrl = fixUrlNull(
+            this.selectFirst("img")?.let { img ->
+                img.attr("data-src").takeIf { it.isNotBlank() } ?: img.attr("src")
+            },
+        )
+        return newTvSeriesSearchResponse(title, href, TvType.TvSeries) { this.posterUrl = posterUrl }
     }
 
 private fun Element.toMainPageResult(): SearchResponse? {
@@ -110,31 +129,57 @@ private fun Element.toMainPageResult(): SearchResponse? {
 }
 
     override suspend fun search(query: String): List<SearchResponse> {
+        // 2026 canlı tema: arama admin-ajax dwls_search XHR JSON'u ile yapılıyor.
+        ajaxSearch(query)?.let { if (it.isNotEmpty()) return it }
+
+        // Hata/boş yanıt durumunda klasik HTML aramasına düş.
         val document = app.get(
-            "${mainUrl}/?s=${query}",
-            cookies     = mapOf(
-                "LockUser"      to "true",
-                "isTrustedUser" to "true",
-                "dbxu"          to "1743289650198"
-            ),
+            "${mainUrl}/?s=${java.net.URLEncoder.encode(query, "UTF-8")}",
+            cookies     = playerCookies,
             interceptor = interceptor
         ).document
 
         return document.select("article.detailed-article").mapNotNull { it.toMainPageResult() }
     }
 
+    private suspend fun ajaxSearch(query: String): List<SearchResponse>? = runCatching {
+        val ajaxUrl = "${mainUrl}/wp-admin/admin-ajax.php?action=dwls_search" +
+            "&s=${java.net.URLEncoder.encode(query, "UTF-8")}"
+        val body = app.get(
+            ajaxUrl,
+            headers = mapOf(
+                "User-Agent" to playerUserAgent,
+                "X-Requested-With" to "XMLHttpRequest",
+                "Accept" to "application/json, text/javascript, */*; q=0.01",
+            ),
+            cookies = playerCookies,
+            referer = "$mainUrl/",
+            interceptor = interceptor,
+        ).text
+
+        DiziBoxPlayerParser.dwlsSearchResults(body).map { result ->
+            newTvSeriesSearchResponse(result.title, result.url, TvType.TvSeries) {
+                this.posterUrl = fixUrlNull(DiziBoxPlayerParser.upscaleThumbnail(result.thumbnail))
+            }
+        }
+    }.getOrNull()
+
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val document = app.get(
+        val initial = app.get(
             url,
-            cookies     = mapOf(
-                "LockUser"      to "true",
-                "isTrustedUser" to "true",
-                "dbxu"          to "1743289650198"
-            ),
+            cookies     = playerCookies,
             interceptor = interceptor
         ).document
+
+        // Eski bölüm/eser bağlantıları arşiv kutusuna taşınmış olabiliyor.
+        val relocated = DiziBoxPlayerParser.archiveBoxLink(initial, url)
+        val document = if (relocated != null && relocated != url) {
+            app.get(relocated, cookies = playerCookies, interceptor = interceptor).document
+        } else {
+            initial
+        }
 
         val title       = document.selectFirst("div.tv-overview h1 a")?.text()?.trim() ?: return null
         val poster      = fixUrlNull(document.selectFirst("div.tv-overview figure img")?.attr("src"))
@@ -167,6 +212,17 @@ private fun Element.toMainPageResult(): SearchResponse? {
                     this.name = epTitle
                     this.season = epSeason
                     this.episode = epEpisode
+                })
+            }
+        }
+
+        // Tema değiştiyse ve grid-box yoksa slug kalıbından bölümleri topla.
+        if (episodeList.isEmpty()) {
+            DiziBoxPlayerParser.episodeAnchors(document).forEach { anchor ->
+                episodeList.add(newEpisode(anchor.url) {
+                    this.name = "${anchor.season}. Sezon ${anchor.episode}. Bölüm"
+                    this.season = anchor.season
+                    this.episode = anchor.episode
                 })
             }
         }
@@ -233,6 +289,13 @@ private fun Element.toMainPageResult(): SearchResponse? {
         }.getOrDefault(html)
     }
 
+    /**
+     * M3U8 linkini oynatıcıya verir. db5.*.xyz gibi uçlardaki bölümler ".png"
+     * uzantısıyla maskelenmiş TS segmentleri içerebilir; ExoPlayer/HLS segmenti
+     * playlist'teki URI'den uzantıya bakmadan çeker ve aşağıdaki başlıkları tüm
+     * isteklere uygular. İmzalı segment URI'larını eklenti tarafında yeniden
+     * yazmak imzayı bozabileceği için bilerek dokunmuyoruz.
+     */
     private suspend fun emitHlsLink(
         url: String,
         referer: String,
@@ -258,12 +321,14 @@ private fun Element.toMainPageResult(): SearchResponse? {
     }
 
     /**
-     * MolyStream's `/embed/sheila/{id}` endpoint is not always an embed page:
-     * independent resolver fixtures cover both an HLS response and a plain
-     * HTTPS URL response. Only expose it as a source after checking the
-     * response body; when it returns another URL, verify that URL as HLS too.
+     * MolyStream'in `/embed/sheila/{id}` uç noktası her zaman embed sayfası
+     * döndürmüyor: bağımsız çözücü fikstürleri hem HLS master listesi hem de düz
+     * HTTPS URL yanıtını kapsıyor. Yanıt gövdesini kontrol etmeden kaynak
+     * yayınlanmaz; düz URL gelirse hedef de aynı Referer ile HLS diye doğrulanır.
      */
-    private suspend fun verifiedMolyStreamUrl(url: String, referer: String): String? {
+    private data class VerifiedPlaylist(val url: String, val body: String)
+
+    private suspend fun verifyMolyStream(url: String, referer: String): VerifiedPlaylist? {
         return try {
             val response = app.get(
                 url,
@@ -271,7 +336,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
                 referer = referer,
             ).text
             when {
-                DiziBoxPlayerParser.isHlsManifest(response) -> url
+                DiziBoxPlayerParser.isHlsManifest(response) -> VerifiedPlaylist(url, response)
                 else -> {
                     val target = DiziBoxPlayerParser.plainHttpsTarget(response) ?: return null
                     val targetResponse = app.get(
@@ -279,12 +344,40 @@ private fun Element.toMainPageResult(): SearchResponse? {
                         headers = playerRequestHeaders(referer),
                         referer = referer,
                     ).text
-                    target.takeIf { DiziBoxPlayerParser.isHlsManifest(targetResponse) }
+                    targetResponse
+                        .takeIf { DiziBoxPlayerParser.isHlsManifest(it) }
+                        ?.let { VerifiedPlaylist(target, it) }
                 }
             }
         } catch (exception: Exception) {
             Log.d("DZBX", "MolyStream source verification failed: ${exception.message}")
             null
+        }
+    }
+
+    /**
+     * Master listesindeki HER varyantı gerçek çözünürlüğüyle ayrı link olarak
+     * üretir; varyant yoksa tek M3U8 linkiyle devam eder (kaynak kaybolmaz).
+     */
+    private suspend fun emitPlaylist(
+        body: String,
+        playlistUrl: String,
+        referer: String,
+        callback: (ExtractorLink) -> Unit,
+    ) {
+        val variants = DiziBoxPlayerParser.hlsVariants(body, playlistUrl)
+        if (variants.isEmpty()) {
+            emitHlsLink(playlistUrl, referer, callback = callback)
+            return
+        }
+        variants.forEach { variant ->
+            emitHlsLink(
+                url = variant.url,
+                referer = playlistUrl,
+                linkName = variant.height.takeIf { it > 0 }?.let { "$name - ${it}p" } ?: name,
+                quality = variant.height.takeIf { it > 0 } ?: Qualities.Unknown.value,
+                callback = callback,
+            )
         }
     }
 
@@ -310,15 +403,8 @@ private fun Element.toMainPageResult(): SearchResponse? {
         for ((candidateIndex, candidateUrl) in playerCandidates.withIndex()) {
             if (candidateIndex > 0 && !visited.add(candidateUrl)) continue
 
-            var playerUrl = candidateUrl
-            when {
-                playerUrl.contains("/player/king/king.php") ->
-                    playerUrl = playerUrl.replace("king.php?v=", "king.php?wmode=opaque&v=")
-                playerUrl.contains("/player/moly/moly.php") ->
-                    playerUrl = playerUrl.replace("moly.php?h=", "moly.php?wmode=opaque&h=")
-                playerUrl.contains("/player/haydi.php") ->
-                    playerUrl = playerUrl.replace("haydi.php?v=", "haydi.php?wmode=opaque&v=")
-            }
+            // king/moly/haydi sarmalayıcıları wmode=opaque enjeksiyonu bekliyor.
+            val playerUrl = DiziBoxPlayerParser.withWOpaque(candidateUrl)
 
             val playerHtml = try {
                 if (isDiziBoxHost(playerUrl)) {
@@ -344,19 +430,20 @@ private fun Element.toMainPageResult(): SearchResponse? {
                 break
             }
 
-            // A direct `/embed/sheila/{id}` iframe can already be an HLS endpoint.
+            // Doğrudan `/embed/sheila/{id}` iframe'i HLS master listesi döndürebiliyor;
+            // listedeki tüm çözünürlük varyantları ayrı kaynak olarak üretilir.
             if (DiziBoxPlayerParser.isHlsManifest(playerHtml)) {
-                emitHlsLink(playerUrl, referer, callback = callback)
+                emitPlaylist(playerHtml, playerUrl, playerUrl, callback)
                 return true
             }
 
-            // Some observed MolyStream responses are a plain HTTPS URL instead
-            // of a playlist body. Verify the target with the same parent Referer.
+            // Bazı MolyStream yanıtları playlist yerine düz HTTPS URL verir; hedefi
+            // aynı üst Referer ile HLS diye doğrula ve varyantlarını yay.
             val directTarget = DiziBoxPlayerParser.plainHttpsTarget(playerHtml)
             if (DiziBoxPlayerParser.isMolyStreamHost(playerUrl) && directTarget != null) {
-                val playlistUrl = verifiedMolyStreamUrl(directTarget, referer)
-                if (playlistUrl != null) {
-                    emitHlsLink(playlistUrl, referer, callback = callback)
+                val playlist = verifyMolyStream(directTarget, referer)
+                if (playlist != null) {
+                    emitPlaylist(playlist.body, playlist.url, referer, callback)
                     return true
                 }
             }
@@ -377,18 +464,22 @@ private fun Element.toMainPageResult(): SearchResponse? {
             DiziBoxPlayerParser.mediaSources(decodedPlayerHtml).forEach { source ->
                 val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
                 val sourceReferer = playerUrl
-                val playableUrl = if (DiziBoxPlayerParser.isMolyStreamStreamUrl(mediaUrl)) {
-                    verifiedMolyStreamUrl(mediaUrl, sourceReferer) ?: return@forEach
-                } else {
-                    mediaUrl
+
+                // sheila akışı doğrulanır ve master varyantlarının tamamı yayılır.
+                if (DiziBoxPlayerParser.isMolyStreamStreamUrl(mediaUrl)) {
+                    val playlist = verifyMolyStream(mediaUrl, sourceReferer) ?: return@forEach
+                    emitPlaylist(playlist.body, playlist.url, sourceReferer, callback)
+                    extracted = true
+                    return@forEach
                 }
+
                 val linkName = source.label.takeIf { it.isNotBlank() }?.let { "$name - $it" } ?: name
                 val linkQuality = source.label.takeIf { it.isNotBlank() }
                     ?.let { getQualityFromName(it) } ?: Qualities.Unknown.value
 
                 when {
                     DiziBoxPlayerParser.isHls(source) -> {
-                        emitHlsLink(playableUrl, sourceReferer, linkName, linkQuality, callback)
+                        emitHlsLink(mediaUrl, sourceReferer, linkName, linkQuality, callback)
                         extracted = true
                     }
                     DiziBoxPlayerParser.isMp4(source) -> {
@@ -396,7 +487,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
                             newExtractorLink(
                                 source = name,
                                 name = linkName,
-                                url = playableUrl,
+                                url = mediaUrl,
                                 type = ExtractorLinkType.VIDEO,
                             ) {
                                 headers = mapOf(
@@ -409,7 +500,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
                         extracted = true
                     }
                     else -> {
-                        extracted = loadExtractor(playableUrl, playerUrl, subtitleCallback, callback) || extracted
+                        extracted = loadExtractor(mediaUrl, playerUrl, subtitleCallback, callback) || extracted
                     }
                 }
             }
@@ -443,7 +534,10 @@ private fun Element.toMainPageResult(): SearchResponse? {
             interceptor = interceptor,
         ).document
 
-        val pageUrls = (listOf(data) + DiziBoxPlayerParser.alternatePlayerPages(document, data)).distinct()
+        // Ana sayfa + araç çubuğundaki alternatif oynatıcı sayfaları (sınırlı tut).
+        val pageUrls = (listOf(data) + DiziBoxPlayerParser.alternatePlayerPages(document, data))
+            .distinct()
+            .take(9)
         val visitedPages = mutableSetOf<String>()
         val visitedFrames = mutableSetOf<String>()
         var emittedLinks = 0
