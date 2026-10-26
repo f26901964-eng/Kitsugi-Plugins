@@ -93,6 +93,36 @@ jobs:
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/anime-chain-comment.md || true
           fi
 
+      - name: Site HTML / kaynak zinciri tam dökümü
+        id: site_dump
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'player-source-probe')
+        continue-on-error: true
+        env:
+          SITE_DUMP_DIR: site-dump
+        run: |
+          python3 tools/site_deep_dump.py > /tmp/site-dump.md || true
+          cat /tmp/site-dump.md
+          ls -la site-dump | head -40
+
+      - name: Site dökümünü PR'a yaz
+        if: always() && steps.site_dump.outcome != 'skipped' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s /tmp/site-dump.md ]; then
+            { echo "## Site HTML dökümü (ham)"; echo; echo '```'; head -c 55000 /tmp/site-dump.md; echo '```'; } > /tmp/site-dump-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/site-dump-comment.md || true
+          fi
+
+      - name: Site dökümü artifact
+        if: always() && steps.site_dump.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-dump-${{ github.run_id }}
+          path: site-dump/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: JDK 17 Ayarla
         uses: actions/setup-java@v4.6.0
         with:
