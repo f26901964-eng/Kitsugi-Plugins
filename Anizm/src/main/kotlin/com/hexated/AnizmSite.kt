@@ -623,7 +623,14 @@ internal object AnizmSite {
             )
             loose[url] = episode
             val series = seriesPathOf(url)
-            if (targetSeries == null || series == null || series == targetSeries) strict[url] = episode
+            // Birleşik bölümler ("215-216. Bölüm") tekli desende "one-piece-215"
+            // gibi görünür; etiketle DOUBLE_EPISODE_PATH üzerinden gerçek seriye
+            // indirgenir (canlı fixture: One Piece'teki 5 birleşik bölüm aksi
+            // halde listeden tamamen düşüyordu — 1175 yerine 1170 kayıt).
+            val labelAwareSeries = toSeriesUrl(url, label)?.let { seriesPathOf(it) }
+            val belongsToTarget = targetSeries == null || series == null ||
+                series == targetSeries || labelAwareSeries == targetSeries
+            if (belongsToTarget) strict[url] = episode
         }
 
         // 1) v3: tüm bölümler tek ızgarada (12'lik gruplar istemci tarafında).
