@@ -95,10 +95,6 @@ internal object AnizmPacker {
             .find(unpacked)?.groupValues?.getOrNull(1)
     }
 
-    /** Sayfanın kendisinde açık duran oynatıcı anahtarı (packed açmadan son çare). */
-    fun firePlayerKeyFromHtml(html: String?): String? =
-        html?.let { firePlayerKey(unpack(it)) }
-
     /**
      * `value` sayısını packer'ın taban gösterimine çevirir (radix 10..62;
      * alfasayısal takım: 0-9a-z ardından büyük harfler).
