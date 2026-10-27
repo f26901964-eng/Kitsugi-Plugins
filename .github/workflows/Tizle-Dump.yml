@@ -68,7 +68,7 @@ jobs:
     name: Arşiv kazısı (Wayback)
     needs: Reach
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 28
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: actions/download-artifact@v4
@@ -80,8 +80,9 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
-          python3 tools/tizle_archive.py --out site-dump/arsiv --sleep 3 \
-            --query "${{ inputs.query || 'naruto' }}" | tee site-dump/arsiv-log.txt || true
+          python3 tools/tizle_archive.py --out site-dump/arsiv --sleep 2 --attempts 2 \
+            --max-episodes 5 --query "${{ inputs.query || 'naruto' }}" \
+            | tee site-dump/arsiv-log.txt || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

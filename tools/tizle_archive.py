@@ -47,6 +47,8 @@ SSL_CTX = ssl.create_default_context()
 SSL_CTX.check_hostname = False
 SSL_CTX.verify_mode = ssl.CERT_NONE
 MAX_BYTES = 16 * 1024 * 1024
+#: Tekrar sayısı (CI'da süre aşımına düşmemek için --attempts ile kısılabilir).
+ATTEMPTS = 3
 SITE_MARKERS = ("flx-block", "data-href", "fansubSelector", "animeDetail-items", "playlist-title")
 BLOCK_MARKERS = ("you have been blocked", "error 1005", "attention required", "just a moment")
 
@@ -89,7 +91,8 @@ def _get(url: str, timeout: int = 45) -> tuple[int, str]:
         return 0, ""
 
 
-def _get_with_backoff(url: str, attempts: int = 3, base_delay: int = 20) -> tuple[int, str]:
+def _get_with_backoff(url: str, attempts: int | None = None, base_delay: int = 15) -> tuple[int, str]:
+    attempts = ATTEMPTS if attempts is None else attempts
     delay = base_delay
     status, body = 0, ""
     for attempt in range(attempts):
@@ -116,7 +119,7 @@ def cdx_snapshots(url: str, limit: int = 6, from_year: str = "2025") -> list[str
         "https://web.archive.org/cdx/search/cdx?output=json&filter=statuscode:200"
         f"&limit=-{limit}&from={from_year}&url=" + urllib.parse.quote(url, safe="")
     )
-    status, body = _get_with_backoff(query, attempts=3, base_delay=15)
+    status, body = _get_with_backoff(query)
     if status != 200 or not body.strip().startswith("["):
         return []
     try:
@@ -154,6 +157,27 @@ def fetch_snapshot(url: str, outdir: str, name: str, sleep: float) -> tuple[str,
     return "", ""
 
 
+def cdx_prefix(domain: str, regex: str, limit: int = 12, from_year: str = "2025") -> list[str]:
+    """Alan adı altında regex'e uyan en yeni URL'ler (en yeniden eskiye)."""
+    query = (
+        "https://web.archive.org/cdx/search/cdx?output=json&filter=statuscode:200"
+        f"&filter=original:{regex}&limit=-{limit}&from={from_year}&matchType=prefix&url="
+        + urllib.parse.quote(domain + "/", safe="")
+    )
+    status, body = _get_with_backoff(query)
+    if status != 200 or not body.strip().startswith("["):
+        return []
+    try:
+        rows = json.loads(body)
+    except Exception:
+        return []
+    urls = []
+    for row in rows[1:]:
+        if len(row) >= 3 and row[2] and row[2] not in urls:
+            urls.append(row[2])
+    return list(reversed(urls))
+
+
 def episode_and_fansub_ids(html: str) -> tuple[int | None, list[int]]:
     episode_id = None
     for pattern in (
@@ -189,7 +213,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--url", default="", help="bölüm sayfası (boşsa keşifle bulunur)")
     parser.add_argument("--sleep", type=float, default=4.0, help="arşiv istekleri arası bekleme")
     parser.add_argument("--query", default="naruto")
+    parser.add_argument("--attempts", type=int, default=3, help="arşiv isteği tekrar sayısı")
+    parser.add_argument("--max-episodes", type=int, default=4, help="denenecek bölüm adresi sayısı")
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    global ATTEMPTS
+    ATTEMPTS = max(1, args.attempts)
 
     import os
     os.makedirs(args.out, exist_ok=True)
@@ -198,69 +227,104 @@ def main(argv: Iterable[str] | None = None) -> int:
         d for d in DOMAINS if d != (args.domain or "").rstrip("/")
     ]
 
-    log("── 1) Ana sayfa + liste + arama")
-    home_html, home_domain = "", ""
+    log("── 1) Sitenin kendi JS paketi (/js/site.js) — oynatıcı zinciri burada")
+    base = args.domain.rstrip("/") if args.domain else DOMAINS[0]
+    site_js = ""
+    _, site_js = fetch_snapshot(base + "/js/site.js", args.out, "sitejs", args.sleep)
+    if not site_js:
+        candidates = cdx_prefix(base, ".*/js/site\\.js.*", limit=5)
+        log(f"  · prefix aramasında {len(candidates)} site.js adayı")
+        for cand in candidates[:2]:
+            _, site_js = fetch_snapshot(cand, args.out, "sitejs", args.sleep)
+            if site_js:
+                base = "/".join(cand.split("/")[:3])
+                break
+    if site_js:
+        keys = {
+            "fansubSources": site_js.count("fansubSources"),
+            "sourcePlayer": site_js.count("sourcePlayer"),
+            "preVideoAd": site_js.count("preVideoAd"),
+            "embed2": site_js.count("embed2"),
+            "optraco": site_js.lower().count("optraco"),
+            "downloadru": site_js.lower().count("downloadru"),
+            "captcha": site_js.lower().count("captcha"),
+            "iframe": site_js.lower().count("iframe"),
+        }
+        log(f"  ✔ site.js {len(site_js)}B — anahtarlar: {keys}")
+    else:
+        log("  !! site.js snapshot'ı alınamadı")
+
+    log("── 2) Ana sayfa")
+    home_html = ""
     for domain in domains:
         stamp, html = fetch_snapshot(domain + "/", args.out, "home", args.sleep)
         if html and has_content(html):
-            home_html, home_domain = html, domain
+            home_html, base = html, domain
             log(f"  ✔ ana sayfa kaynağı: {domain} @{stamp}")
             break
     if not home_html:
-        log("  !! hiçbir domain'in arşiv kopyası yok")
+        log("  !! hiçbir domain'in ana sayfa arşivi yok")
 
     cards = []
     for match in re.finditer(r'data-href="([^"]+)"', home_html):
         href = match.group(1)
         if href.startswith("/"):
-            href = home_domain + href
+            href = base + href
         if href.startswith("http") and href not in cards:
             cards.append(href)
     log(f"  · ana sayfada {len(cards)} kart bağlantısı")
 
-    if home_domain:
-        for path in ("/arama/" + urllib.parse.quote(args.query), "/listeler/populer/sayfa-1"):
-            fetch_snapshot(home_domain + path, args.out, "liste" + ("_arama" if "arama" in path else "_populer"), args.sleep)
-
-    log("── 2) Bölüm sayfası")
-    episode_url = args.url
-    if not episode_url and cards:
-        # Bölüm sayfası olma olasılığı yüksek ilk kart
-        episode_url = next((c for c in cards if "bolum" in c), cards[0])
-        log(f"  · aday bölüm: {episode_url}")
+    log("── 3) Bölüm sayfası (EpisodeId + fansub seçicileri)")
+    episode_urls: list[str] = []
+    if args.url:
+        episode_urls.append(args.url)
+    discovered = cdx_prefix(base, ".*bolum-izle.*", limit=max(4, args.max_episodes))
+    if discovered:
+        log(f"  · CDX'te {len(discovered)} bölüm adresi bulundu (en yeni: {discovered[-1]})")
+        episode_urls += list(reversed(discovered))
+    episode_urls += [c for c in cards if "bolum" in c]
+    seen_ep: set[str] = set()
     episode_html = ""
-    if episode_url:
-        _, episode_html = fetch_snapshot(episode_url, args.out, "bolum", args.sleep)
-
+    episode_url = ""
+    for cand in episode_urls[: args.max_episodes + 2]:
+        if cand in seen_ep:
+            continue
+        seen_ep.add(cand)
+        _, html = fetch_snapshot(cand, args.out, "bolum", args.sleep)
+        if html and ("EpisodeId" in html or "fansubSelector" in html):
+            episode_html, episode_url = html, cand
+            log(f"  ✔ bölüm sayfası: {cand}")
+            break
     if episode_html:
         episode_id, fansubs = episode_and_fansub_ids(episode_html)
         log(f"  · EpisodeId={episode_id}, fansub={fansubs}")
+        # bölüm sayfasının kendi JS'inde de oynatıcı çağrıları olabilir
+        inline = "\n".join(re.findall(r"<script(?![^>]*src=)[^>]*>(.*?)</script>", episode_html, re.S))
+        if inline:
+            with open(f"{args.out}/bolum_inline_scripts.js", "w", encoding="utf-8") as handle:
+                handle.write(inline)
+            log(f"  · inline script {len(inline)}B kaydedildi")
     else:
         log("  !! bölüm sayfası snapshot'ı alınamadı")
 
-    log("── 3) Sayfanın JS paketleri (sitenin kendi sözleşmesi)")
-    base = home_domain or DOMAINS[0]
+    log("── 4) Oynatıcı CSS'i")
+    fetch_snapshot(base + "/css/videoSource.css", args.out, "videoSource_css", args.sleep)
+
+    log("── 5) Diğer JS paketleri (site.js dışındakiler)")
     scripts: list[str] = []
     for html in (home_html, episode_html):
         for url in script_urls(html, base):
-            if url not in scripts:
+            if url not in scripts and not url.endswith("/js/site.js"):
                 scripts.append(url)
-    log(f"  · {len(scripts)} script")
-    for index, url in enumerate(scripts[:8]):
+    priority = [u for u in scripts if any(k in u for k in ("mm7", "spo", "icon-captcha", "custom"))]
+    others = [u for u in scripts if u not in priority]
+    for index, url in enumerate((priority + others)[:6]):
         _, body = fetch_snapshot(url, args.out, f"js{index}", args.sleep)
         if body:
-            keys = {
-                "/api/fansubSources": body.count("fansubSources"),
-                "/api/sourcePlayer": body.count("sourcePlayer"),
-                "/api/preVideoAd": body.count("preVideoAd"),
-                "embed2": body.count("embed2"),
-                "optraco": body.lower().count("optraco"),
-                "downloadru": body.lower().count("downloadru"),
-            }
-            log(f"    · {url.split('/')[-1][:52]:<52} {keys}")
+            log(f"    · {url.split('/')[-1][:48]:<48} {len(body)}B")
 
-    log("── 4) Özet")
-    log(f"  · ana sayfa: {len(home_html)}B · bölüm: {len(episode_html)}B")
+    log("── 6) Özet")
+    log(f"  · ana sayfa: {len(home_html)}B · bölüm: {len(episode_html)}B · site.js: {len(site_js)}B")
     log(f"  · dosyalar: {args.out}")
     return 0
 
