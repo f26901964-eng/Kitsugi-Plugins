@@ -310,7 +310,7 @@ internal object AnizmSite {
         val name = titleOf(anchor) ?: AnizmMatch.cleanTitle(titleFromSlug(seriesUrl)) ?: return null
         if (isInvalidTitle(name)) return null
 
-        val scoreText = anchor.selectFirst(".v3-catalog-score, .score, .rating, rating")?.text()
+        val scoreText = anchor.selectFirst(".v3-catalog-score, .v3-card-rating, .score, .rating, rating")?.text()
             ?: anchor.attr("data-score")
         val score = scoreText?.replace(',', '.')?.let { text ->
             Regex("\\d{1,2}(?:\\.\\d)?").find(text)?.value?.toDoubleOrNull()
@@ -399,7 +399,7 @@ internal object AnizmSite {
         val name = AnizmMatch.cleanTitle(rawTitle) ?: AnizmMatch.cleanTitle(titleFromSlug(seriesUrl)) ?: return null
         if (isInvalidTitle(name)) return null
 
-        val score = el.selectFirst(".v3-catalog-score, .score, rating")?.text()
+        val score = el.selectFirst(".v3-catalog-score, .v3-card-rating, .score, rating")?.text()
             ?.let { Regex("\\d{1,2}(?:\\.\\d)?").find(it)?.value?.toDoubleOrNull() }
             ?.takeIf { it > 0.0 && it <= 10.0 }
         return AnizmCard(
