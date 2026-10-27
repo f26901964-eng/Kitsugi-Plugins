@@ -52,6 +52,9 @@ BASE_HEADERS = {
 }
 MAX_BYTES = 8 * 1024 * 1024
 TIMEOUT = 30
+#: Arşiv uçları için tekrar ayarları (`--fast` bunları küçültür).
+RETRY_ATTEMPTS = 4
+RETRY_FIRST_DELAY = 8
 
 SSL_CTX = ssl.create_default_context()
 SSL_CTX.check_hostname = False
@@ -188,10 +191,12 @@ def fetch_corssh(url: str, method: str = "GET", headers: dict | None = None,
     return _proxy("https://proxy.cors.sh/", "corssh", url, method, merged, data)
 
 
-def _retry(url: str, attempts: int = 4, first_delay: int = 8,
+def _retry(url: str, attempts: int | None = None, first_delay: int | None = None,
            timeout: int = 45) -> tuple[int, str, str]:
     """429/5xx'te artan bekleme ile tekrar dener (arşiv uçları çok sık 429 verir)."""
     import time as _time
+    attempts = RETRY_ATTEMPTS if attempts is None else attempts
+    first_delay = RETRY_FIRST_DELAY if first_delay is None else first_delay
     delay = first_delay
     status, body, final = 0, "", url
     for attempt in range(attempts):
@@ -209,7 +214,7 @@ def wayback_snapshot(url: str) -> str | None:
     availability = (
         "https://archive.org/wayback/available?url=" + urllib.parse.quote(url, safe="")
     )
-    status, body, _ = _retry(availability, attempts=3, first_delay=5, timeout=30)
+    status, body, _ = _retry(availability, timeout=30)
     if status == 200 and body.strip().startswith("{"):
         try:
             snap = json.loads(body).get("archived_snapshots", {}).get("closest", {})
@@ -222,7 +227,7 @@ def wayback_snapshot(url: str) -> str | None:
         "https://web.archive.org/cdx/search/cdx?output=json&filter=statuscode:200"
         "&collapse=digest&limit=-3&url=" + urllib.parse.quote(url, safe="")
     )
-    status, body, _ = _retry(query, attempts=3, first_delay=5, timeout=30)
+    status, body, _ = _retry(query, timeout=30)
     if status != 200 or not body.strip().startswith("["):
         return None
     try:
@@ -245,7 +250,7 @@ def fetch_wayback(url: str, method: str = "GET", headers: dict | None = None,
     if not stamp:
         return Result(url=url, via="wayback", note="snapshot yok")
     target = f"https://web.archive.org/web/{stamp}id_/{url}"
-    status, body, final = _retry(target, attempts=4, first_delay=10)
+    status, body, final = _retry(target, timeout=40)
     return Result(url=url, status=status, text=body, via="wayback", final_url=final,
                   note=f"snapshot {stamp}")
 
@@ -319,10 +324,16 @@ def reachability_matrix(url: str) -> list[Result]:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
+    global RETRY_ATTEMPTS, RETRY_FIRST_DELAY
     parser = argparse.ArgumentParser(description="TrAnimeIzle erişim yolu matrisi")
     parser.add_argument("--url", default="https://www.tranimeizle.io/")
     parser.add_argument("--json", action="store_true", help="JSON çıktı")
+    parser.add_argument("--fast", action="store_true", help="tek tekrar, kısa bekleme (CI için)")
+    parser.add_argument("--winner-out", default="", help="çalışan katmanın adını bu dosyaya yaz")
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.fast:
+        RETRY_ATTEMPTS = 2
+        RETRY_FIRST_DELAY = 3
 
     rows = []
     for result in reachability_matrix(args.url):
@@ -336,11 +347,16 @@ def main(argv: Iterable[str] | None = None) -> int:
         })
         print(f"- {result.via:<11} {result.summary()}", flush=True)
 
+    working = [row["via"] for row in rows if row["status"] == 200 and row["site_content"]]
+
     if args.json:
         print(json.dumps(rows, ensure_ascii=False, indent=2))
-    else:
-        working = [row["via"] for row in rows if row["status"] == 200 and row["site_content"]]
-        print("\nÇalışan katman(lar): " + (", ".join(working) if working else "YOK"), file=sys.stderr)
+    print("\nÇalışan katman(lar): " + (", ".join(working) if working else "YOK"), file=sys.stderr)
+    if args.winner_out:
+        winner = working[0] if working else ""
+        with open(args.winner_out, "w", encoding="utf-8") as handle:
+            handle.write(winner)
+        print(f"WINNER={winner or 'yok'} → {args.winner_out}", file=sys.stderr)
     return 0
 
 

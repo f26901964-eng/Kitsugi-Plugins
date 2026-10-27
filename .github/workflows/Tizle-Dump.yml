@@ -1,29 +1,28 @@
-# TrAnimeIzle canlı HTML dökümü — GitHub runner'ından (internet erişimi tam).
+# TrAnimeIzle canlı HTML dökümü — GitHub runner'ından (tam internet erişimi).
 #
-# Neden burada?  Sandbox/CI'nin kendi ağı yalnızca birkaç alan adına çıkıyor;
-# GitHub runner'ı her yere çıkabiliyor. Site veri merkezi ASN'lerine Cloudflare
-# Error 1005 döndürdüğü için `tools/tizle_reach.py` katman matrisi (jina /
-# cors proxy / wayback) denenir ve **hangi katman gerçek HTML getirdiyse** o
-# katmanla tam zincir dökümü alınır:
+# Site veri merkezi ASN'lerine Cloudflare **Error 1005** döndürüyor. Bu iş akışı
+# sırayla erişim katmanlarını ölçer (direct / translate / jina / cors proxy /
+# wayback), **çalışan katmanı** seçer ve o katmanla tam zincir dökümü alır:
 #
 #   ana sayfa → listeler → arama → detay → bölüm →
 #   her fansub için /api/fansubSources →
 #   her kaynak için /api/sourcePlayer + /api/preVideoAd →
 #   her oynatıcı sayfası ve iç iframe'i
 #
-# Çıktı `site-dump-data` dalına itilir (sandbox artifact indiremiyor).
+# Neden 3 iş?  Job süre aşımına düşse bile **matris çıktısı** ve **kısmi döküm**
+# kaybolmasın: her iş kendi artifact'ını yükler, son iş hepsini tek seferde
+# `site-dump-data` dalına iter (sandbox artifact indiremiyor, dal okuyabiliyor).
 name: TrAnimeIzle Döküm
 
 on:
-  # Not: `workflow_dispatch` GitHub'da yalnızca varsayılan dalda kayıtlıysa
-  # tetiklenebiliyor; o yüzden bu dalda `push` ile de çalışır.
+  # `workflow_dispatch` GitHub'da yalnızca varsayılan dalda kayıtlıysa tetiklenir;
+  # o yüzden bu dalda `push` ile de çalışır.
   push:
     branches:
       - arena/8602198f-kitsugi-plugins
     paths:
       - "tools/tizle_*.py"
       - ".github/workflows/Tizle-Dump.yml"
-      - "TrAnimeIzle/**"
   workflow_dispatch:
     inputs:
       query:
@@ -34,92 +33,103 @@ on:
         description: "Bölüm sayfası (boşsa arama → ilk kart)"
         required: false
         default: ""
-      via:
-        description: "Erişim katmanı (auto = önce doğrudan, sonra matris)"
-        required: false
-        default: "auto"
-      probe:
-        description: "Bulunan akışları da test et (1/0)"
-        required: false
-        default: "1"
 
 permissions:
   contents: write
 
 jobs:
-  Dump:
+  Reach:
+    name: Erişim matrisi
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
-      - name: Depo Kontrolu
-        uses: actions/checkout@v4.2.2
-
-      - name: Python sürümü
-        run: python3 --version
-
-      - name: Erişim yolu matrisi
-        id: reach
+      - uses: actions/checkout@v4.2.2
+      - name: Matris (hızlı mod)
+        id: matrix
         continue-on-error: true
         run: |
           mkdir -p site-dump
-          {
-            echo "# Erişim matrisi — $(date -u +%FT%TZ)"
-            for d in https://www.tranimeizle.io/ https://www.tranimeizle.live/ https://www.tranimeizle.top/; do
-              echo "## $d"
-              python3 tools/tizle_reach.py --url "$d" || true
-              echo
-            done
-          } | tee site-dump/reach-matrix.txt
+          : > site-dump/reach-matrix.txt
+          for d in https://www.tranimeizle.io/ https://www.tranimeizle.live/ https://www.tranimeizle.top/; do
+            echo "## $d" >> site-dump/reach-matrix.txt
+            python3 tools/tizle_reach.py --fast --url "$d" \
+              --winner-out "site-dump/winner-$(echo "$d" | cut -d/ -f3 | tr . _).txt" \
+              >> site-dump/reach-matrix.txt 2>&1 || true
+            echo >> site-dump/reach-matrix.txt
+          done
+          cat site-dump/reach-matrix.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reach
+          path: site-dump/
 
-      - name: Tam zincir dökümü
-        id: dump
+  Dump:
+    name: Tam zincir dökümü
+    needs: Reach
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/download-artifact@v4
+        with:
+          name: reach
+          path: site-dump
+      - name: Seçilen katman
+        id: pick
+        run: |
+          shopt -s nullglob
+          WINNER=""
+          for f in site-dump/winner-*.txt; do
+            value="$(cat "$f" 2>/dev/null || true)"
+            if [ -n "$value" ]; then WINNER="$value"; break; fi
+          done
+          echo "winner=${WINNER:-direct}" >> "$GITHUB_OUTPUT"
+          echo "Seçilen katman: ${WINNER:-direct}"
+      - name: Döküm (seçilen katman)
         continue-on-error: true
         env:
           PYTHONPATH: .
         run: |
-          PROBE="--probe"
-          if [ "${{ inputs.probe }}" = "0" ]; then PROBE=""; fi
           python3 tools/tizle_dump.py \
             --out site-dump/tranime \
             --query "${{ inputs.query || 'one piece' }}" \
             --url "${{ inputs.url }}" \
-            --via "${{ inputs.via || 'auto' }}" \
-            $PROBE | tee site-dump/dump-log.txt
-
-      - name: Wayback katmanıyla döküm (arşiv kanıtı)
-        id: dump_wayback
-        continue-on-error: true
-        env:
-          PYTHONPATH: .
-        run: |
-          python3 tools/tizle_dump.py             --out site-dump/tranime-wayback             --query "${{ inputs.query || 'one piece' }}"             --via wayback | tee site-dump/dump-log-wayback.txt
-
-      - name: Özeti adım sayfasına yaz
+            --via "${{ steps.pick.outputs.winner }}" \
+            --probe | tee site-dump/dump-log.txt || true
+      - name: Özet
         if: always()
         run: |
           {
             echo "## TrAnimeIzle dökümü"
-            echo
-            echo '### Erişim matrisi'
             echo '```'
-            head -c 8000 site-dump/reach-matrix.txt 2>/dev/null || echo "(yok)"
+            head -c 9000 site-dump/reach-matrix.txt 2>/dev/null || echo "(matris yok)"
             echo '```'
-            echo '### Döküm günlüğü (auto)'
-            echo '```'
-            head -c 12000 site-dump/dump-log.txt 2>/dev/null || echo "(yok)"
-            echo '```'
-            echo '### Döküm günlüğü (wayback)'
-            echo '```'
-            head -c 12000 site-dump/dump-log-wayback.txt 2>/dev/null || echo "(yok)"
-            echo '```'
+            head -c 14000 site-dump/dump-log.txt 2>/dev/null || true
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Dökümü `site-dump-data` dalına it
+      - uses: actions/upload-artifact@v4
         if: always()
-        continue-on-error: true
+        with:
+          name: dump
+          path: site-dump/
+
+  Publish:
+    name: Dal'a it
+    needs: [Reach, Dump]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          path: site-dump
+          merge-multiple: true
+      - name: site-dump-data dalına zorla it
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ls -R site-dump | head -60 || true
           if [ ! -d site-dump ]; then echo "site-dump yok"; exit 0; fi
           rm -rf /tmp/dumppush && mkdir -p /tmp/dumppush
           cp -r site-dump/. /tmp/dumppush/
@@ -129,14 +139,6 @@ jobs:
           git config user.name "GitHub Actions"
           git checkout -q -b site-dump-data
           git add -A
-          git commit -qm "tranime dump ${GITHUB_RUN_ID}"
+          git commit -qm "tranime dump ${GITHUB_RUN_ID}" || echo "değişiklik yok"
           git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:site-dump-data \
             && echo "döküm site-dump-data dalına itildi"
-
-      - name: Dökümü artifact olarak ekle
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tranime-dump-${{ github.run_id }}
-          path: site-dump/
-          retention-days: 14
