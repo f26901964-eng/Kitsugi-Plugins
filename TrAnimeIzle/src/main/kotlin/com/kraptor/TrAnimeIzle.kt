@@ -213,6 +213,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - Oynatıcı hedefleri tek yerde toplandı ([TrAnimeIzleSite.playerTargets]);
  *    `embed2/?id=` ve `downloadru2.php?url=<base64>` sarmalları açılıyor.
  *  - Yeni yerel çözücüler: OpTraco/AitrVip, Vidmoly, SendVid.
+ *
+ * v40 (sahadan gelen eksik-kaynak şikâyeti sonrası):
+ *  - **Captcha artık YANIT ADRESİNDEN de yakalanıyor** (`/api/CaptchaChallenge`).
+ *    Kanıt: Aniyomi `ShittyCaptchaInterceptor` korumalı isteği URL'den tanıyor;
+ *    gövde bazen boş/kısa JSON oluyor. Eskiden yalnızca gövdeye bakıldığı için
+ *    kapı kaçıyor, uç boş dönüyor ve kaynak listesi sessizce eksiliyordu.
+ *  - **Gövde tek okunuyor**: `resp.text` iki kez okunuyordu; nicehttp gövdesi
+ *    tüketilebilir olduğundan ikinci okuma `null` dönüp sayfayı boşaltabiliyordu.
+ *    Tüm HTTP yüzeyi (GET/XHR/POST-JSON/POST/POST-FORM) tek okumaya çevrildi.
+ *  - `postForm` da captcha tekrarına dâhil edildi (form gövdeli uçlar da kapıya
+ *    düşebiliyor; eskiden yalnızca JSON/form çağrısının ilk yolu korunuyordu).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -700,8 +711,8 @@ class TrAnimeIzle(
      * ve aynı isteği BİR kez tekrarlar. Çözülemezse çağıran katman kendi
      * yedeğine (oturum yenileme / diğer yol) devam eder.
      */
-    private suspend fun captchaRetry(body: String?): Boolean =
-        isCaptchaPage(body) && ensureCaptchaSolved()
+    private suspend fun captchaRetry(body: String?, url: String? = null): Boolean =
+        (isCaptchaUrl(url) || isCaptchaPage(body)) && ensureCaptchaSolved()
 
     override suspend fun get(url: String, referer: String?): String? =
         guarded("GET ${url.take(110)}") {
@@ -711,7 +722,10 @@ class TrAnimeIzle(
                 timeout = 12
             )
             mergeCookies(resp.cookies)
-            if (captchaRetry(resp.text)) {
+            // v40: gövde TEK kez okunur (nicehttp gövdesi tüketilebilir; ikinci
+            // okuma null dönüp sayfayı sessizce boşaltıyordu).
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
                 Log.d(LOG_TAG, "captcha çözüldü → GET tekrar: ${url.take(90)}")
                 resp = app.get(
                     url,
@@ -719,8 +733,9 @@ class TrAnimeIzle(
                     timeout = 12
                 )
                 mergeCookies(resp.cookies)
+                text = resp.text
             }
-            if (!resp.isSuccessful) null else resp.text
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun getXhr(url: String, referer: String?): String? =
@@ -731,15 +746,17 @@ class TrAnimeIzle(
                 timeout = 12
             )
             mergeCookies(resp.cookies)
-            if (captchaRetry(resp.text)) {
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
                 resp = app.get(
                     url,
                     headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                     timeout = 12
                 )
                 mergeCookies(resp.cookies)
+                text = resp.text
             }
-            if (!resp.isSuccessful) null else resp.text
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun getWith(url: String, extra: Map<String, String>): String? =
@@ -765,7 +782,8 @@ class TrAnimeIzle(
                 timeout = 15
             )
             mergeCookies(resp.cookies)
-            if (captchaRetry(resp.text)) {
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
                 Log.d(LOG_TAG, "captcha çözüldü → POST-JSON tekrar: ${url.take(90)}")
                 resp = app.post(
                     url,
@@ -774,8 +792,9 @@ class TrAnimeIzle(
                     timeout = 15
                 )
                 mergeCookies(resp.cookies)
+                text = resp.text
             }
-            if (!resp.isSuccessful) null else resp.text
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun postEmpty(url: String, referer: String?): String? =
@@ -786,7 +805,8 @@ class TrAnimeIzle(
                 timeout = 15
             )
             mergeCookies(resp.cookies)
-            if (captchaRetry(resp.text)) {
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
                 Log.d(LOG_TAG, "captcha çözüldü → POST tekrar: ${url.take(90)}")
                 resp = app.post(
                     url,
@@ -794,8 +814,9 @@ class TrAnimeIzle(
                     timeout = 15
                 )
                 mergeCookies(resp.cookies)
+                text = resp.text
             }
-            if (!resp.isSuccessful) null else resp.text
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun postForm(
@@ -803,14 +824,25 @@ class TrAnimeIzle(
         form: Map<String, String>,
         referer: String?
     ): String? = guarded("POST-FORM ${url.take(110)}") {
-        val resp = app.post(
+        var resp = app.post(
             url,
             headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
             data = form,
             timeout = 12
         )
         mergeCookies(resp.cookies)
-        if (!resp.isSuccessful) null else resp.text
+        var text = resp.text
+        if (captchaRetry(text, resp.url.toString())) {
+            resp = app.post(
+                url,
+                headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                data = form,
+                timeout = 12
+            )
+            mergeCookies(resp.cookies)
+            text = resp.text
+        }
+        if (!resp.isSuccessful) null else text
     }
 
     override suspend fun bytes(url: String, referer: String?): ByteArray? =
@@ -1110,6 +1142,17 @@ class TrAnimeIzle(
             body.contains("iconCaptcha", ignoreCase = true) ||
             body.contains("CaptchaChallenge", ignoreCase = true)
     }
+
+    /**
+     * v40: captcha kapısı **yanıt adresinden** de anlaşılır.
+     *
+     * Kanıt (Aniyomi, `ShittyCaptchaInterceptor.kt`): sunucu korumalı isteği
+     * `…/api/CaptchaChallenge` adresine yönlendiriyor; gövde bazen boş/kısa JSON
+     * oluyor (`{"status":false}`), bu yüzden yalnızca gövdeye bakan kontrol
+     * kapıyı **kaçırıyor** ve boş içerik sessizce yutuluyordu.
+     */
+    private fun isCaptchaUrl(url: String?): Boolean =
+        url != null && url.contains("/api/CaptchaChallenge", ignoreCase = true)
 
     /**
      * İçerik bot/captcha/Cloudflare challenge sayfası mı?

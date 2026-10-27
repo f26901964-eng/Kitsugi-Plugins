@@ -13,13 +13,13 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Anime | **Anizium** | 25 |
 | Anime | **Anizm** | 5 |
 | Anime | **AnimeciX** | 24 |
-| Anime | **TrAnimeIzle** | 39 |
+| Anime | **TrAnimeIzle** | 40 |
 | Film / Dizi | **FilmMakinesi** | 72 |
 | Film / Dizi | **HDFilmCehennemi** | 63 |
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
-> **Anizm (v5)** ve **TrAnimeIzle (v39)** video kaynak zinciri bu sürümde tamamen yenilendi:
+> **Anizm (v5)** ve **TrAnimeIzle (v40)** video kaynak zinciri bu sürümde tamamen yenilendi:
 > kaynaklar artık **paralel** çözülüyor (30+ saniyelik beklemeler bitti), sitenin kendi
 > oynatıcı uçları birebir kullanılıyor ve **HLS master listeleri kalite varyantlarına**
 > ayrılıyor. Ayrıntı: [`research/anime-plugin-rewrite-2026-10-25.md`](research/anime-plugin-rewrite-2026-10-25.md).
@@ -30,6 +30,11 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 > `downloadru2.php?url=<base64>` sarmalları açılıyor; OpTraco/AitrVip, Vidmoly ve
 > SendVid için yerel çözücüler eklendi. Sayfa/uç/oynatıcı tablosu:
 > [`research/tranimeizle-html-haritasi-2026-10-28.md`](research/tranimeizle-html-haritasi-2026-10-28.md).
+>
+> **TrAnimeIzle v40**: captcha kapısı artık **yanıt adresinden** de tanınıyor
+> (`/api/CaptchaChallenge`); HTTP gövdesi tek kez okunuyor (çift okuma sayfayı
+> boşaltabiliyordu) ve `postForm` yolu da captcha tekrarına dâhil. Sahadaki
+> "kaynak eksik/boş" şikâyetinin iki sessiz nedeni bu iki hataydı.
 
 > **FilmEkseni** ve **HDFilmDelisi** devre dışı bırakılmış, yerlerine **DiziBox** ve **HDFilmİzle** etkinleştirilmiştir. Eski kaynak klasörleri silinmemiştir. Eklentilerin uygulamada görünmesi için bu depoyu ekleyip uygulama içinden depoyu yenilemeniz gerekir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
 

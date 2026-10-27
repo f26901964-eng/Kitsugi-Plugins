@@ -10,7 +10,7 @@ HTML/API sözleşmesini tek bir tabloda toplar. Her satır bir kanıta bağlanm�
 
 | Kanıt | Ne diyor |
 | --- | --- |
-| Depo `site-dump-data` dalı → `tizle__home_direct__*.html` | `www.tranimeizle.live` / `.io` / `.top` → **HTTP 403**, gövde: *"Sorry, you have been blocked"* (**Cloudflare Error 1005** — ASN/veri merkezi IP engeli) |
+| Depo `site-dump-data` / `tranime-dump-data` dalları → `tizle__home_direct__*.html` | `www.tranimeizle.live` / `.io` / `.top` → **HTTP 403**, gövde: *"Sorry, you have been blocked"* (**Cloudflare Error 1005** — ASN/veri merkezi IP engeli) |
 | Aynı dal → `tizle__home_jina__*.html` | Okuyucu köprüsü (`r.jina.ai`) üzerinden de **Error 1005** — site datacenter IP'sini her kanaldan reddediyor |
 | `tizle__search_*` dosyaları | `/arama/…`, `?q=`, `/search?` üçü de aynı engel sayfası → **arama ucu da okunamadı** |
 | Depo `js/site.js` arşivi (22.09.2026) | Sitenin kendi istemci kodu: `fansubSources` → `sourcePlayer` → `preVideoAd` zinciri |
@@ -59,6 +59,54 @@ HTML/API sözleşmesini tek bir tabloda toplar. Her satır bir kanıta bağlanm�
 /anime + <kart yolu>  →  "-bolum" öncesini al  →  son "-" sonrasını at  →  + "-izle"
 Örnek: /naruto-1120-bolum-izle  →  /anime/naruto-izle
 ```
+
+---
+
+## 1.5 Birebir ölçülen HTML — ana sayfa (Wayback, 31.08.2026)
+
+Elimizdeki **tek gerçek site HTML'i**. Kaynak: **`tranime-dump-data`** dalı →
+`arsiv/home__20260831013714.html` (68.806 B), `tools/tizle_archive.py` ile
+Wayback CDX'ten alındı (döküm artık ayrı dala itiliyor: aynı repoda çalışan
+başka bir oturum `site-dump-data` dalını eziyordu). Bu bölümdeki her satır **ölçüm**, tahmin değil.
+
+```html
+<div class="flx-block" data-href="/detective-conan-1080-bolum-izle">
+    <a class="news-image" href="/detective-conan-1080-bolum-izle">
+        <img alt="" class="img-responsive" src="https://static.tranimeizle.top/animes/506/medium.jpeg" />
+    </a>
+    <div class="reatting">
+        <i class="fa fa-star"></i> ×5
+    </div>
+    <div class="shadow-overlay"></div>
+    <div class="bar">
+        <h4>Detective Conan 1080. Bölüm İzle</h4>
+        <span class="info-chip pull-right">
+            <a class="text-white-imp" href="/detective-conan-1080-bolum-izle">Anime İzle</a>
+        </span>
+        <span class="info-chip">BÖL 1080 / 0</span>
+    </div>
+</div>
+```
+
+| Ölçüm | Değer | Not |
+| --- | --- | --- |
+| `div.flx-block` sayısı | **16** | ana sayfa = son eklenen bölümler |
+| `data-href` sayısı | **16** | kartın **gerçek** adresi `<a href>` değil, `data-href` |
+| `div.bar > h4` | 16 | başlık: `"<Seri> <N>. Bölüm İzle"` |
+| `span.info-chip` | 16 çift | `BÖL 1080 / 0` = (bölüm / sezon?) — **bölüm numarası buradan da okunabilir** |
+| Poster alanı | `static.tranimeizle.top/animes/<id>/medium.jpeg` | görseller ayrı alan adında |
+| `canonical` | `https://www.tranimeizle.io/` | 31.08.2026 itibarıyla kanonik alan adı `.io` |
+| `<title>` | `Anime izle \| Türk anime tv \| Türkçe anime izle` | |
+| Arama URL'i | `/arama/{encodeURIComponent(q)}` | sayfadaki inline JS'ten birebir |
+| Arama kutusu | `input#searchBar` | JS `window.location.href = searchUrl` |
+| Tür sayfaları | `/animeizle/<tür>-anime-izle-1` | 19 tür: aksiyon, arabalar, askeri, bilim-kurgu, buyu, cocuk, dogaustu-gucler, donghua, dovus, dram, ecchi, fantastik, gerilim, gizem, harem, isekai, josei, kisilik-bolunmesi, komedi, korku… |
+| Yüklenen JS | `/js/site.js`, `/js/mm7.js?=v5`, `/js/spo.js?=v8`, `/js/siyahmod.js?=v49`, `/js/icon-captcha.min.js` | oynatıcı zinciri **`site.js`** içinde |
+| Reklam/3. taraf | `wargamings.net/…class=video-card`, `googletagmanager` | kart sınıfıyla çakışabilir → seçici `div.flx-block` ile sınırlı |
+
+> **Ölçümün doğrudan sonucu:** ana sayfa/liste/arama kartları **bölüm** sayfasına
+> gider (`…-bolum-izle`), **seri** sayfasına değil. Bu yüzden eklenti her kartı
+> `TrAnimeIzleMatch.toSeriesUrl()` ile `/anime/<slug>-izle` biçimine çevirip
+> seri bazında tekilleştiriyor (aynı serinin 10 bölümü 10 kart olmasın).
 
 ---
 
@@ -159,10 +207,13 @@ Akış (Aniyomi `ShittyCaptchaInterceptor` birebir):
 | §3 downloadru2 köprüsü | `downloadBridgeUrl()` + saf Kotlin `base64Decode()` | `TrAnimeIzleSite.kt` |
 | §3 OpTraco oynatıcısı | `optracoMediaUrl()` + `resolveOptraco()` | `TrAnimeIzleSite.kt`, `TrAnimeIzleStreams.kt` |
 | §4 SendVid / Vidmoly | `resolveSendvid()`, `resolveVidmoly()` | `TrAnimeIzleStreams.kt` |
-| §2 captcha | `isCaptchaPage()` + `captchaRetry()` → `solveCaptcha()` (WebView'siz) | `TrAnimeIzle.kt` |
+| §2 captcha | `isCaptchaPage()` + `isCaptchaUrl()` + `captchaRetry()` → `solveCaptcha()` (WebView'siz) | `TrAnimeIzle.kt` |
 | §2 yanlış "bot" tespiti | `isBotBody()` artık genel `/api/Captcha` metnine bakmıyor | `TrAnimeIzle.kt` |
 
-**Sürüm:** `TrAnimeIzle` **39**.
+| §2 captcha kapısının **adresten** tanınması (v40) | `isCaptchaUrl()` — `/api/CaptchaChallenge` yönlendirmesi gövde boş olsa da yakalanır | `TrAnimeIzle.kt` |
+| §2 gövdenin **tek okunması** (v40) | `get`/`getXhr`/`postJson`/`postEmpty`/`postForm` → `var text = resp.text` bir kez | `TrAnimeIzle.kt` |
+
+**Sürüm:** `TrAnimeIzle` **40**.
 
 ---
 

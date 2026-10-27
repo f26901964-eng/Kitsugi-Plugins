@@ -11,7 +11,7 @@
 #
 # Neden 3 iş?  Job süre aşımına düşse bile **matris çıktısı** ve **kısmi döküm**
 # kaybolmasın: her iş kendi artifact'ını yükler, son iş hepsini tek seferde
-# `site-dump-data` dalına iter (sandbox artifact indiremiyor, dal okuyabiliyor).
+# `tranime-dump-data` dalına iter (sandbox artifact indiremiyor, dal okuyabiliyor).
 name: TrAnimeIzle Döküm
 
 on:
@@ -159,7 +159,7 @@ jobs:
           pattern: "*"
           path: site-dump
           merge-multiple: true
-      - name: site-dump-data dalına zorla it
+      - name: tranime-dump-data dalına zorla it
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -171,8 +171,8 @@ jobs:
           git init -q
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          git checkout -q -b site-dump-data
+          git checkout -q -b tranime-dump-data
           git add -A
           git commit -qm "tranime dump ${GITHUB_RUN_ID}" || echo "değişiklik yok"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:site-dump-data \
-            && echo "döküm site-dump-data dalına itildi"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:tranime-dump-data \
+            && echo "döküm tranime-dump-data dalına itildi"
