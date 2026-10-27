@@ -194,6 +194,23 @@ import java.util.concurrent.atomic.AtomicBoolean
  *      helper'i (source = saglayici adi, name = eklenti adi) + referer + UA
  *      + kalite; 3 kopya blok tek kaynaga indirildi.
  *   6. DEPRECATION: SubtitleFile(...) -> newSubtitleFile(...).
+ *
+ * v39 (sitenin HTML sözleşmesi bağımsız istemcilerle karşılaştırıldı):
+ *  - Kanıt kaynakları: Aniyomi `yuzono/anime-extensions` (tr/tranimeizle,
+ *    `ShittyCaptchaInterceptor` dâhil) ve CloudStream `UmayTrade/MyTV`
+ *    (TrAnimeIzle v4, IconCaptcha + optraco + downloadru2 + embed2 çözümü).
+ *    Ayrıntılı tablo: `research/tranimeizle-html-haritasi-2026-10-28.md`.
+ *  - **Captcha yanlış pozitifi giderildi**: gövdede geçen herhangi bir
+ *    `/api/Captcha` metni "bot" sayılıyordu; sitenin kendi JS'i bu uçtan söz
+ *    ettiği için NORMAL sayfalar bot sanılıp boş dönüyordu. Artık yalnızca
+ *    gerçek kapı işaretleri (`captcha-holder`, `iconCaptcha`,
+ *    `CaptchaChallenge`) aranıyor.
+ *  - **Captcha artık HTTP ile çözülüyor**: kapıya düşen istek, WebView
+ *    diyaloğu AÇILMADAN 5 görselin MD5'i üzerinden çözülüp BİR kez tekrar
+ *    ediliyor (Aniyomi'nin `cID=0/rT=1/tM=light` akışı birebir).
+ *  - Oynatıcı hedefleri tek yerde toplandı ([TrAnimeIzleSite.playerTargets]);
+ *    `embed2/?id=` ve `downloadru2.php?url=<base64>` sarmalları açılıyor.
+ *  - Yeni yerel çözücüler: OpTraco/AitrVip, Vidmoly, SendVid.
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -654,25 +671,50 @@ class TrAnimeIzle(
         lastCookie = jar.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
+    /**
+     * v39: ikon-captcha kapısına düşen isteği **HTTP ile** (WebView'siz) çözer
+     * ve aynı isteği BİR kez tekrarlar. Çözülemezse çağıran katman kendi
+     * yedeğine (oturum yenileme / diğer yol) devam eder.
+     */
+    private suspend fun captchaRetry(body: String?): Boolean =
+        isCaptchaPage(body) && solveCaptcha()
+
     override suspend fun get(url: String, referer: String?): String? =
         guarded("GET ${url.take(110)}") {
-            val resp = app.get(
+            var resp = app.get(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"),
                 timeout = 12
             )
             mergeCookies(resp.cookies)
+            if (captchaRetry(resp.text)) {
+                Log.d(LOG_TAG, "captcha çözüldü → GET tekrar: ${url.take(90)}")
+                resp = app.get(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"),
+                    timeout = 12
+                )
+                mergeCookies(resp.cookies)
+            }
             if (!resp.isSuccessful) null else resp.text
         }
 
     override suspend fun getXhr(url: String, referer: String?): String? =
         guarded("XHR ${url.take(110)}") {
-            val resp = app.get(
+            var resp = app.get(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 timeout = 12
             )
             mergeCookies(resp.cookies)
+            if (captchaRetry(resp.text)) {
+                resp = app.get(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                    timeout = 12
+                )
+                mergeCookies(resp.cookies)
+            }
             if (!resp.isSuccessful) null else resp.text
         }
 
@@ -692,24 +734,43 @@ class TrAnimeIzle(
         guarded("POST-JSON ${url.take(110)}") {
             // site.js (axios) birebir JSON gövdesi gönderir; form gövde kaynak
             // listesini boş döndürüyordu (v23'te kanıtlandı).
-            val resp = app.post(
+            var resp = app.post(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 json = JsonAsString(json),
                 timeout = 15
             )
             mergeCookies(resp.cookies)
+            if (captchaRetry(resp.text)) {
+                Log.d(LOG_TAG, "captcha çözüldü → POST-JSON tekrar: ${url.take(90)}")
+                resp = app.post(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                    json = JsonAsString(json),
+                    timeout = 15
+                )
+                mergeCookies(resp.cookies)
+            }
             if (!resp.isSuccessful) null else resp.text
         }
 
     override suspend fun postEmpty(url: String, referer: String?): String? =
         guarded("POST ${url.take(110)}") {
-            val resp = app.post(
+            var resp = app.post(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 timeout = 15
             )
             mergeCookies(resp.cookies)
+            if (captchaRetry(resp.text)) {
+                Log.d(LOG_TAG, "captcha çözüldü → POST tekrar: ${url.take(90)}")
+                resp = app.post(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                    timeout = 15
+                )
+                mergeCookies(resp.cookies)
+            }
             if (!resp.isSuccessful) null else resp.text
         }
 
@@ -1006,16 +1067,39 @@ class TrAnimeIzle(
 
 
     /**
+     * Yanıt, sitenin **ikon-captcha** kapısına mı düştü? (v39)
+     *
+     * Site istemciyi `/api/CaptchaChallenge` sayfasına yönlendiriyor; bu sayfada
+     * `div.captcha-holder` ve `iconCaptcha` betiği bulunur (MyTV ve Aniyomi
+     * istemcilerinin tespit ölçütüyle birebir aynı).
+     *
+     * Eski sürüm gövdede geçen **herhangi bir** `/api/Captcha` metnini "bot"
+     * sayıyordu. Sitenin kendi JS paketi bu uçtan söz ettiği için NORMAL
+     * sayfalar da bot sanılıp gereksiz WebView diyaloğu açılıyor, bazı
+     * durumlarda içerik hiç gelmiyordu. Artık yalnızca gerçek kapı işaretleri
+     * aranıyor ve kapı HTTP ile sessizce çözülüyor.
+     */
+    private fun isCaptchaPage(text: String?): Boolean {
+        val body = text ?: return false
+        if (body.isEmpty() || body.length > 400_000) return false
+        return body.contains("captcha-holder", ignoreCase = true) ||
+            body.contains("iconCaptcha", ignoreCase = true) ||
+            body.contains("CaptchaChallenge", ignoreCase = true)
+    }
+
+    /**
      * İçerik bot/captcha/Cloudflare challenge sayfası mı?
      * v18: site Cloudflare arkasında (Error 1005 ASN ban kanıtlı) → CF
      * managed challenge başlıkları da bot cevabı sayılır. (Sadece TITLE
      * bazlı kontrol — gövdedeki cf- işaretleri her CF korumalı sayfada
      * normalde de bulunur, yanlış pozitif vermemek için.)
+     * v39: captcha kapısı artık GENEL metinle değil, [isCaptchaPage] ile
+     * tespit edilir (yanlış pozitif giderildi).
      */
     private fun isBotBody(text: String?): Boolean {
         val t = text ?: ""
         if (t.isEmpty()) return true
-        if (t.contains("/api/Captcha", ignoreCase = true)) return true
+        if (isCaptchaPage(t)) return true
         val title = try {
             Jsoup.parse(t).selectFirst("title")?.text() ?: ""
         } catch (_: Exception) {
@@ -1076,6 +1160,22 @@ class TrAnimeIzle(
                 throw e
             }
         }
+        // v39: sitenin ikon-captcha kapısı artık WebView diyaloğu AÇMADAN,
+        // HTTP ile (5 görselin MD5'i → en farklı olan) çözülür ve sayfa BİR kez
+        // tekrar istenir. Çözülemezse aşağıdaki bot/oturum yoluna düşer.
+        if (isCaptchaPage(resp.text) && solveCaptcha()) {
+            Log.d(LOG_TAG, "captcha çözüldü → sayfa tekrar: $url")
+            resp = try {
+                app.get(url, headers = browserHeaders(lastCookie, referer), timeout = 15)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "captcha sonrası GET hatası: ${e.message}")
+                resp
+            }
+            mergeCookies(resp.cookies)
+        }
+
         if (!resp.isSuccessful || isBotBody(resp.text)) {
             // v26: 403/bot sayfası da ölü domain belirtisi olabilir → önce
             // domain rotasyonu, sonra oturum yenileme.

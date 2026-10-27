@@ -53,6 +53,16 @@ import java.util.Collections
  *  - **Captcha**: site ara sıra `/api/Captcha` doğrulaması ister (Aniyomi
  *    istemcisi `ShittyCaptchaInterceptor` ile çözüyor). Burada da aynı yöntem
  *    (en farklı görselin hash'i) uygulanır; yalnızca gerektiğinde çalışır.
+ *
+ * v39 (oynatıcı sarmalları + eksik hostlar):
+ *  - Hedef listesi tek yerde: [TrAnimeIzleSite.playerTargets]. Sıra:
+ *    iframe → `…/embed2/?id=<gerçek adres>` (ham VE URL-çözülmüş),
+ *    `downloadru2.php?url=<base64>` (Aitr indirme köprüsü) → doğrudan
+ *    m3u8/mp4/mpd → gövdedeki tanınan host adresleri.
+ *  - Yeni yerel çözücüler: **AitrVip/OpTraco** (`file: "…"`), **Vidmoly**
+ *    (`sources:[{file:…}]`), **SendVid** (`video_source`). Bunlar uygulamanın
+ *    extractor katmanı tanımadığında da akışı üretir.
+ *  - Sarmal çözümü özyinelemeli; derinlik 3 ile sınırlı (sonsuz döngü yok).
  */
 internal class TrAnimeIzleStreams(
     private val pluginName: String,
@@ -275,18 +285,10 @@ internal class TrAnimeIzleStreams(
         val html = TrAnimeIzleSite.unwrapJsonHtml(body).ifBlank { body }
         emitSubtitles(html, pageUrl, subtitleCallback)
 
-        val targets = LinkedHashSet<String>()
-        for (frame in TrAnimeIzleSite.iframesFrom(html, pageUrl)) {
-            for (candidate in TrAnimeIzleSite.embedCandidates(frame)) {
-                val url = decode(candidate)
-                // `id` parametresi çoğu zaman GERÇEK host adresidir; bazı
-                // durumlarda yalnızca bir kimlik olur → o zaman iframe'in
-                // kendisi hedef olur (katman sayfası açılıp içine bakılır).
-                if (url.startsWith("http") || url.startsWith("//")) targets.add(url)
-            }
-            targets.add(frame)
-        }
-        targets.addAll(TrAnimeIzleSite.directMediaFrom(html, pageUrl))
+        // v39: hedefler artık TEK yerde üretiliyor ([TrAnimeIzleSite.playerTargets]):
+        // iframe → `embed2/?id=` iç adresi (ham + URL-çözülmüş), `downloadru2.php`
+        // base64 köprüsü, doğrudan m3u8/mp4 ve gövdedeki tanınan host adresleri.
+        val targets = TrAnimeIzleSite.playerTargets(html, pageUrl)
 
         if (targets.isEmpty()) return false
 
@@ -316,6 +318,9 @@ internal class TrAnimeIzleStreams(
     ): Boolean {
         val url = normalize(rawUrl)
         if (url.isEmpty()) return false
+        // Sarmal katmanları saymamak için sert bir derinlik sınırı: site bir
+        // oynatıcıyı başka bir sarmalın içine koyduğunda sonsuz döngü olmaz.
+        if (depth > 3) return false
 
         // Doğrudan medya (m3u8/mp4/mpd).
         if (isDirectMedia(url)) {
@@ -323,8 +328,28 @@ internal class TrAnimeIzleStreams(
             return true
         }
 
+        // Sarmal katmanlar (v39): `downloadru2.php?url=<base64>` (Aitr köprüsü) ve
+        // `…/embed2/?id=<gerçek adres>` (luffytra2). İç adres önce çözülür.
+        TrAnimeIzleSite.downloadBridgeUrl(url)?.let { inner ->
+            if (inner != url &&
+                resolveTarget(inner, referer, label, subtitleCallback, callback, depth + 1)
+            ) return true
+        }
+        TrAnimeIzleSite.embedInnerUrl(url)?.let { inner ->
+            if (inner != url &&
+                resolveTarget(inner, referer, label, subtitleCallback, callback, depth + 1)
+            ) return true
+        }
+
         // Site içi oynatıcılar (Beta Player / puffytr) — HLS master'ı doğrudan verir.
         if (resolveSitePlayer(url, label, callback)) return true
+
+        // v39 yerel host çözücüleri: AitrVip/OpTraco, Vidmoly, SendVid.
+        // (Uygulamanın extractor katmanı bu hostlarda sürüm sürüm kırılıyor;
+        // sayfa biçimi sabit olduğu için yerel çözüm daha güvenilir.)
+        if (resolveOptraco(url, label, callback)) return true
+        if (resolveVidmoly(url, label, callback)) return true
+        if (resolveSendvid(url, label, callback)) return true
 
         // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
         if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
@@ -466,6 +491,72 @@ internal class TrAnimeIzleStreams(
             callback,
             trusted = true
         )
+        return true
+    }
+
+    /**
+     * **AitrVip / OpTraco** (`optraco.top/explorer/<id>`) — sitenin kendi
+     * oynatıcısı. Sayfa medya adresini `file: "…"` olarak gömer (çoğu zaman
+     * göreli `/hls/…m3u8`). Eklentinin kendi `OptracoExtractor`'ı da vardır;
+     * burası extractor katmanı tanımazsa (yeni alan adı vb.) devreye giren
+     * ikinci, bağımsız yoldur.
+     */
+    private suspend fun resolveOptraco(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("optraco.", ignoreCase = true)) return false
+        val origin = Regex("""^(https?://[^/]+)""").find(url)?.groupValues?.getOrNull(1)
+            ?: "https://optraco.top"
+        val page = http.get(url, "$origin/") ?: return false
+        val media = TrAnimeIzleSite.optracoMediaUrl(page, url) ?: return false
+        emitMedia(media, label, "$origin/", callback, trusted = true)
+        return true
+    }
+
+    /** **Vidmoly** (`vidmoly.to|me|biz` `/watch|embed/<id>`) — `sources:[{file:"…"}]`. */
+    private suspend fun resolveVidmoly(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("vidmoly.", ignoreCase = true)) return false
+        val page = http.get(url, "https://vidmoly.to/") ?: return false
+        val raw = Regex(
+            """sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']""",
+            RegexOption.IGNORE_CASE
+        ).find(page)?.groupValues?.getOrNull(1)
+            ?: Regex(
+                """file\s*:\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']""",
+                RegexOption.IGNORE_CASE
+            ).find(page)?.groupValues?.getOrNull(1)
+        val media = raw?.let { TrAnimeIzleSite.absolute(url, it) } ?: return false
+        emitMedia(media, label, url, callback, trusted = true)
+        return true
+    }
+
+    /** **SendVid** (`sendvid.com/<id>` veya `/embed/<id>`) — `video_source = "…mp4"`. */
+    private suspend fun resolveSendvid(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("sendvid.com", ignoreCase = true)) return false
+        val embed = if (url.contains("/embed/")) {
+            url
+        } else {
+            val id = url.substringBefore('?').trimEnd('/').substringAfterLast('/')
+            if (id.isEmpty()) return false
+            "https://sendvid.com/embed/$id"
+        }
+        val page = http.get(embed, "https://sendvid.com/") ?: return false
+        val raw = Regex("""video_source\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+            .find(page)?.groupValues?.getOrNull(1)
+            ?: Regex("""["'](https?://[^"']+\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE)
+                .find(page)?.groupValues?.getOrNull(1)
+        val media = raw?.let { TrAnimeIzleSite.absolute(embed, it) } ?: return false
+        emitMedia(media, label, embed, callback, trusted = true)
         return true
     }
 

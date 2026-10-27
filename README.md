@@ -13,16 +13,23 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Anime | **Anizium** | 25 |
 | Anime | **Anizm** | 5 |
 | Anime | **AnimeciX** | 24 |
-| Anime | **TrAnimeIzle** | 30 |
+| Anime | **TrAnimeIzle** | 39 |
 | Film / Dizi | **FilmMakinesi** | 72 |
 | Film / Dizi | **HDFilmCehennemi** | 63 |
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
-> **Anizm (v5)** ve **TrAnimeIzle (v30)** video kaynak zinciri bu sürümde tamamen yenilendi:
+> **Anizm (v5)** ve **TrAnimeIzle (v39)** video kaynak zinciri bu sürümde tamamen yenilendi:
 > kaynaklar artık **paralel** çözülüyor (30+ saniyelik beklemeler bitti), sitenin kendi
 > oynatıcı uçları birebir kullanılıyor ve **HLS master listeleri kalite varyantlarına**
 > ayrılıyor. Ayrıntı: [`research/anime-plugin-rewrite-2026-10-25.md`](research/anime-plugin-rewrite-2026-10-25.md).
+>
+> **TrAnimeIzle v39**: sitenin HTML/API sözleşmesi bağımsız istemcilerle (Aniyomi
+> `yuzono/anime-extensions`, CloudStream `UmayTrade/MyTV`) çapraz doğrulandı. Captcha
+> artık WebView diyaloğu açmadan HTTP ile çözülüyor; `embed2/?id=` ve
+> `downloadru2.php?url=<base64>` sarmalları açılıyor; OpTraco/AitrVip, Vidmoly ve
+> SendVid için yerel çözücüler eklendi. Sayfa/uç/oynatıcı tablosu:
+> [`research/tranimeizle-html-haritasi-2026-10-28.md`](research/tranimeizle-html-haritasi-2026-10-28.md).
 
 > **FilmEkseni** ve **HDFilmDelisi** devre dışı bırakılmış, yerlerine **DiziBox** ve **HDFilmİzle** etkinleştirilmiştir. Eski kaynak klasörleri silinmemiştir. Eklentilerin uygulamada görünmesi için bu depoyu ekleyip uygulama içinden depoyu yenilemeniz gerekir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
 
