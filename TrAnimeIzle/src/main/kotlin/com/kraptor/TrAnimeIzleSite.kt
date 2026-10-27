@@ -568,7 +568,11 @@ internal object TrAnimeIzleSite {
         }
         for (candidate in listOf(tail, decoded)) {
             val value = if (candidate.startsWith("//")) "https:$candidate" else candidate
-            if (value.startsWith("http", ignoreCase = true)) return value
+            // DİKKAT: yalnızca "http" ile başlamak YETMEZ — URL-encoded değer
+            // ("https%3A%2F%2F…") de "https" ile başlar; şema ayırıcısı şart.
+            if (value.startsWith("http://", ignoreCase = true) ||
+                value.startsWith("https://", ignoreCase = true)
+            ) return value
         }
         return null
     }
@@ -586,7 +590,9 @@ internal object TrAnimeIzleSite {
         val raw = Regex("""[?&]url=([^&"'\s<>]+)""", RegexOption.IGNORE_CASE)
             .find(url)?.groupValues?.getOrNull(1) ?: return null
         val decoded = base64Decode(raw)?.trim() ?: return null
-        if (!decoded.startsWith("http", ignoreCase = true)) return null
+        if (!decoded.startsWith("http://", ignoreCase = true) &&
+            !decoded.startsWith("https://", ignoreCase = true)
+        ) return null
         if (isAdUrl(decoded)) return null
         return decoded
     }
