@@ -40,13 +40,19 @@ class FullSourceAuditTest {
         "bysesayeveum", "flyf"
     )
 
-    /** Uygulamanın kayıtlı extractor'larıyla çözülen bilinen video host'ları. */
+    /** Uygulamanın kayıtlı extractor'larıyla çözülen bilinen video host'ları.
+     *  AnizmStreams.EMBED_HOSTS ile eşitlenir (canlı çevirmen JSON'larındaki aileler). */
     private val extractorHosts = listOf(
         "filemoon", "mixdrop", "mp4upload", "sendvid", "streamlare", "streamtape",
         "voe.", "vudeo", "upstream", "hdvid", "hexload", "optraco", "luffytra",
         "yourupload", "uqload", "dood", "vidmoly", "luluvdo", "mega.nz", "mega.co",
         "mail.ru", "yandex", "bylt", "gofile", "abyssplayer", "playmogo", "sitemio",
-        "dailymotion", "youtube", "vidcache", "ok.ru"
+        "dailymotion", "youtube", "vidcache", "ok.ru",
+        // 26-27.10.2026 canlı çevirmen JSON'larında görülen gerçek aileler:
+        "vidbm", "vidbam", "vidbom", "vidbem", "vedbam", "vadbam",
+        "streamsb", "sbface", "streamssb", "sbspeed", "sblongvu", "lvturbo", "embturbo",
+        "sblona", "upbolt", "vids.st",
+        "myvi", "liiivideo", "liii.video", "supervideo", "gdriveplayer"
     )
 
     private fun p(line: String) = println("[AUDIT] $line")

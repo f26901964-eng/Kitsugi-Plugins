@@ -158,12 +158,49 @@ istekleri zaman aşımıyla düşer, diğer 30+ kaynak akmaya devam eder. Bir ho
 5. **Ana sayfa puan seçicisi:** `.v3-card-rating` eklendi.
 6. **Gerçek-fixture testleri (`AnizmRealFixtureTest`):** 33 kaynağın tamamının
    toplandığını, uydurma istek atılmadığını, 1175 bölümün (tiresiz URL'ler dahil)
-   eksiksiz ayrıştığını, 51 ana sayfa/11 arama kartını ve 4 packed sayfanın
-   doğru FirePlayer anahtarını açtığını ağ olmadan kilitleyen 10 test.
+   eksiksiz ayrıştığını, ana sayfa/arama kartlarını ve 4 packed sayfanın
+   doğru FirePlayer anahtarını açtığını ağ olmadan kilitleyen 12 test.
+7. **Birleşik bölüm düzeltmesi:** `215-216. Bölüm` gibi 5 kayıt tekli desende
+   farklı seri sanılıp listeden düşüyordu (1170 → 1175). Etiket farkındalığıyla
+   (DOUBLE_EPISODE_PATH) hedef seriye dahil ediliyor; numara 0 (birleşik) kalıyor.
+8. **Saf ayrıştırma:** `fetchV3Translator` HTTP sarmalı + saf
+   `parseTranslatorResponse` olarak ikiye bölündü; ağsız testler doğrudan
+   gerçek çevirmen JSON'larını işliyor.
 
 ## 7. Doğrulama
 
+### 7.1 Ağsız birim testleri (CI, her PR)
+
+`AnizmRealFixtureTest` 12 testle gerçek dökümleri kilitler: 3 çevirmen düğümü,
+33 video adayının tamamı (24+6+3), uydurma kimlik yasağı, 1175 bölüm (5 birleşik
+dahil), 51-65 ana sayfa kartı, 11 arama kartı, 4 packed sayfanın FirePlayer
+hash'i. Packed açma algoritması ayrıca Python portuyla 4 gerçek anizmplayer
+sayfasına karşı kanıtlandı.
+
+### 7.2 Canlı CI probu (27.10.2026, PR #55, `player-source-probe`)
+
+Gerçek eklenti kodu canlı anizm.com.tr'ye karşı koştu:
+
+- Tüm arama yolları 200: `/arama?q=` (11 kart), `/arama?arama=` (24 kart),
+  `/searchAnime` (19 KB `{data:[…]}`), `/getAnimeListForSearch` (8,9 MB katalog).
+- Detay: `parseDetail` → başlık One Piece, yıl 1999, **parseEpisodes → 1175**
+  (düzeltme öncesi 1170'ti; 5 birleşik bölüm artık düşmüyor).
+- Bölüm: 3 çevirmen düğümü birebir doğru; çevirmen XHR 200 → 24 video kimliği;
+  `/bolum/18853/video/{id}` → `{success,url:"/player/{id}"}`; `/player/{id}` →
+  302 Location (anizmplayer.com/video/<hash> ve drive.google.com/file/d/…).
+- Verdict dökümünde datacenter ağından OYNAR çıkanlar: GDrive (yerel, video/mp4 206),
+  Beta Player pl.puffytr.tr (HLS native.m3u8), MP4Upload/UQload (206),
+  Abyss/YourUpload/SendVid/Odnoklassniki (200).
+
+### 7.3 Çevresel sınır (eklenti kusuru değil)
+
+anizmplayer.com `getVideo` POST'u ve Sibnet/Dood/Voe/Vidmoly gibi host'lar GitHub
+datacenter IP'lerine Cloudflare 403/404 dönüyor (`Just a moment...`). Aynı
+istekler mobil/konut IP'li cihazlarda çalışır (dört referans istemcinin de
+birincil yolu budur). MyviRU/MyViid/StreamLare/SuperVideo/LiiiVideo/VidBM'nin
+eski alan adları parkta/DNS'siz; site liste verdiği için bilinçli olarak
+zincirde tutulurlar, istekleri zaman aşımıyla düşer ve diğer kaynaklar akar.
+
 - Yerel ortamda JDK yok; sözdizimi tree-sitter-kotlin ile doğrulandı (tüm dosyalar TEMIZ).
-- Packed açma algoritması Python portuyla 4 gerçek anizmplayer sayfasına karşı kanıtlandı.
 - Tam ağ doğrulaması CI'da `LIVE_PROBE=1` ile (PR `player-source-probe` etiketi)
   `LiveChainProbeTest`/`FullSourceAuditTest` üzerinden yapılır.
