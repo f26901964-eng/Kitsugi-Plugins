@@ -15,6 +15,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -671,13 +673,35 @@ class TrAnimeIzle(
         lastCookie = jar.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
+    /** Captcha çözümü sıraya alınır: 10 paralel kaynak isteği aynı anda
+     *  çözmeye kalkarsa siteye 10 ayrı doğrulama isteği gider (hem yavaş
+     *  hem de WAF'ı kızdırır). */
+    private val captchaSolveLock = Mutex()
+
+    @Volatile
+    private var captchaSolvedAt: Long = 0L
+
+    /**
+     * v39: sitenin ikon-captcha kapısını **HTTP ile** (WebView'siz) çözer.
+     * Aynı oturumda TTL boyunca bir kez çözülür; eşzamanlı çağrılar kilitlenir.
+     */
+    private suspend fun ensureCaptchaSolved(): Boolean {
+        if (System.currentTimeMillis() - captchaSolvedAt < CAPTCHA_TTL_MS) return true
+        return captchaSolveLock.withLock {
+            if (System.currentTimeMillis() - captchaSolvedAt < CAPTCHA_TTL_MS) return@withLock true
+            val solved = solveCaptcha()
+            if (solved) captchaSolvedAt = System.currentTimeMillis()
+            solved
+        }
+    }
+
     /**
      * v39: ikon-captcha kapısına düşen isteği **HTTP ile** (WebView'siz) çözer
      * ve aynı isteği BİR kez tekrarlar. Çözülemezse çağıran katman kendi
      * yedeğine (oturum yenileme / diğer yol) devam eder.
      */
     private suspend fun captchaRetry(body: String?): Boolean =
-        isCaptchaPage(body) && solveCaptcha()
+        isCaptchaPage(body) && ensureCaptchaSolved()
 
     override suspend fun get(url: String, referer: String?): String? =
         guarded("GET ${url.take(110)}") {
@@ -1163,7 +1187,7 @@ class TrAnimeIzle(
         // v39: sitenin ikon-captcha kapısı artık WebView diyaloğu AÇMADAN,
         // HTTP ile (5 görselin MD5'i → en farklı olan) çözülür ve sayfa BİR kez
         // tekrar istenir. Çözülemezse aşağıdaki bot/oturum yoluna düşer.
-        if (isCaptchaPage(resp.text) && solveCaptcha()) {
+        if (isCaptchaPage(resp.text) && ensureCaptchaSolved()) {
             Log.d(LOG_TAG, "captcha çözüldü → sayfa tekrar: $url")
             resp = try {
                 app.get(url, headers = browserHeaders(lastCookie, referer), timeout = 15)
@@ -1637,6 +1661,9 @@ class TrAnimeIzle(
 
         private const val ACTIVE_DOMAIN_KEY = "kraptor_active_domain"
         private const val DOMAIN_CHECK_TTL_MS = 10 * 60 * 1000L
+
+        /** Çözülen captcha oturumu ne kadar geçerli sayılır (ms). */
+        private const val CAPTCHA_TTL_MS = 10 * 60 * 1000L
 
         /**
          * Domain çözümleme (v17, DEX Companion.getDomain'in sadeleştirilmiş hali):
