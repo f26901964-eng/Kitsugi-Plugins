@@ -332,6 +332,20 @@ internal class AnizmStreams(
         pageUrl: String
     ): List<Source> {
         val body = http.getXhr(sourcesUrl, pageUrl) ?: return emptyList()
+        return parseTranslatorResponse(sourcesUrl, fansub, body)
+    }
+
+    /**
+     * Çevirmen XHR gövdesini (ağ YOK) video adaylarına çevirir. Saf fonksiyon:
+     * birim testleri gerçek fixture JSON'larıyla doğrudan çağırabilir.
+     * Sözleşme: `{success,videos:[{id,name,watchTogether}]}` / `{data:{videos}}` /
+     * `{data:"<html>"}` / düz HTML (`a[video]`).
+     */
+    internal fun parseTranslatorResponse(
+        sourcesUrl: String,
+        fansub: String,
+        body: String
+    ): List<Source> {
         val out = mutableListOf<Source>()
 
         // A) JSON: videos[] / data / items

@@ -18,9 +18,6 @@ cloudstream {
 }
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    // Ana kaynak coroutines-android kullanıyor; JVM birim testlerinde runBlocking
-    // için çekirdek JVM sınıfları test çalışma zamanına ayrıca eklenir.
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
 }
 
 // Canlı prob (LiveChainProbeTest) çıktısı CI günlüğünde/PR yorumunda görünsün.
