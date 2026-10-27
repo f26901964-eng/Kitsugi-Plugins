@@ -64,28 +64,60 @@ jobs:
           name: reach
           path: site-dump/
 
-  Dump:
-    name: Tam zincir dökümü
+  Arsiv:
+    name: Arşiv kazısı (Wayback)
     needs: Reach
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4.2.2
       - uses: actions/download-artifact@v4
         with:
           name: reach
           path: site-dump
-      - name: Seçilen katman
+      - name: Wayback'ten gerçek HTML
+        continue-on-error: true
+        env:
+          PYTHONPATH: .
+        run: |
+          python3 tools/tizle_archive.py --out site-dump/arsiv --sleep 3 \
+            --query "${{ inputs.query || 'naruto' }}" | tee site-dump/arsiv-log.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: arsiv
+          path: site-dump/
+
+  Dump:
+    name: Tam zincir dökümü
+    needs: Reach
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/download-artifact@v4
+        with:
+          name: reach
+          path: site-dump
+      - name: Seçilen katman + domain
         id: pick
         run: |
           shopt -s nullglob
           WINNER=""
+          DOMAIN=""
           for f in site-dump/winner-*.txt; do
             value="$(cat "$f" 2>/dev/null || true)"
-            if [ -n "$value" ]; then WINNER="$value"; break; fi
+            if [ -n "$value" ]; then
+              WINNER="$value"
+              host="$(basename "$f" .txt)"
+              host="${host#winner-}"
+              DOMAIN="https://${host//_/.}"
+              break
+            fi
           done
           echo "winner=${WINNER:-direct}" >> "$GITHUB_OUTPUT"
-          echo "Seçilen katman: ${WINNER:-direct}"
+          echo "domain=${DOMAIN}" >> "$GITHUB_OUTPUT"
+          echo "Seçilen katman: ${WINNER:-direct} · domain: ${DOMAIN:-otomatik}"
       - name: Döküm (seçilen katman)
         continue-on-error: true
         env:
@@ -95,6 +127,7 @@ jobs:
             --out site-dump/tranime \
             --query "${{ inputs.query || 'one piece' }}" \
             --url "${{ inputs.url }}" \
+            --domain "${{ steps.pick.outputs.domain }}" \
             --via "${{ steps.pick.outputs.winner }}" \
             --probe | tee site-dump/dump-log.txt || true
       - name: Özet
@@ -115,7 +148,7 @@ jobs:
 
   Publish:
     name: Dal'a it
-    needs: [Reach, Dump]
+    needs: [Reach, Arsiv, Dump]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
