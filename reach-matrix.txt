@@ -1,0 +1,39 @@
+## https://www.tranimeizle.io/
+- direct      direct: HTTP 403, 1927B
+- translate   translate: HTTP 403, 3264B
+- jina        jina: HTTP 200, 6247B, ENGELLİ
+- codetabs    codetabs: HTTP 522, 7246B, ENGELLİ
+- corsproxy   corsproxy: HTTP 403, 224B
+- allorigins  allorigins: HTTP 200, 4916B, ENGELLİ
+- corssh      corssh: HTTP 0, 0B
+- wayback     wayback: HTTP 200, 68806B, SITE-ICERIK — snapshot 20260831013714
+
+Çalışan katman(lar): wayback
+WINNER=wayback → site-dump/winner-www_tranimeizle_io.txt
+
+## https://www.tranimeizle.live/
+- direct      direct: HTTP 403, 1912B
+- translate   translate: HTTP 403, 3254B
+- jina        jina: HTTP 200, 6254B, ENGELLİ
+- codetabs    codetabs: HTTP 522, 7246B, ENGELLİ
+- corsproxy   corsproxy: HTTP 403, 224B
+- allorigins  allorigins: HTTP 408, 24B
+- corssh      corssh: HTTP 0, 0B
+- wayback     wayback: HTTP 0, 0B — snapshot 20260922172118
+
+Çalışan katman(lar): YOK
+WINNER=yok → site-dump/winner-www_tranimeizle_live.txt
+
+## https://www.tranimeizle.top/
+- direct      direct: HTTP 403, 1908B
+- translate   translate: HTTP 403, 3238B
+- jina        jina: HTTP 200, 7189B, ENGELLİ
+- codetabs    codetabs: HTTP 522, 7246B, ENGELLİ
+- corsproxy   corsproxy: HTTP 403, 224B
+- allorigins  allorigins: HTTP 0, 0B
+- corssh      corssh: HTTP 0, 0B
+- wayback     wayback: HTTP 429, 620B — snapshot 20250214214253
+
+Çalışan katman(lar): YOK
+WINNER=yok → site-dump/winner-www_tranimeizle_top.txt
+

@@ -1,0 +1,13 @@
+# TrAnimeIzle dökümü
+
+```
+TrAnimeIzle dökümü — 2026-10-27 23:16:33
+- site: https://www.tranimeizle.io
+- ana sayfa → 0, 0B, 0 kart
+- /listeler/populer/sayfa-1 → 0, 0B, 0 kart
+- /listeler/yenibolum/sayfa-1 → 0, 0B, 0 kart
+- /listeler/eklenen/sayfa-1 → 0, 0B, 0 kart
+- arama 'one piece' → 0, 0B, 0 kart
+- bölüm → 0, 0B, EpisodeId=None, fansub=0
+  !! EpisodeId bulunamadı — döküm burada biter
+```

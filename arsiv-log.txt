@@ -1,0 +1,27 @@
+── 1) Sitenin kendi JS paketi (/js/site.js) — oynatıcı zinciri burada
+    · sitejs @20260831013730 → HTTP 200, 8550B ✔ site içeriği
+  ✔ site.js 8550B — anahtarlar: {'fansubSources': 1, 'sourcePlayer': 1, 'preVideoAd': 1, 'embed2': 0, 'optraco': 0, 'downloadru': 0, 'captcha': 0, 'iframe': 0}
+── 2) Ana sayfa
+      … HTTP 0, 15s bekleyip tekrar
+    · home @20260831013714 → HTTP 0
+      … HTTP 0, 15s bekleyip tekrar
+    · home @20260720161118 → HTTP 429
+      … HTTP 429, 15s bekleyip tekrar
+    · home @20260922172118 → HTTP 0
+      … HTTP 0, 15s bekleyip tekrar
+    · snapshot yok: https://www.tranimeizle.top/
+  !! hiçbir domain'in ana sayfa arşivi yok
+  · ana sayfada 0 kart bağlantısı
+── 3) Bölüm sayfası (EpisodeId + fansub seçicileri)
+      … HTTP 503, 15s bekleyip tekrar
+  !! bölüm sayfası snapshot'ı alınamadı
+── 4) Oynatıcı CSS'i
+      … HTTP 0, 15s bekleyip tekrar
+      … HTTP 429, 15s bekleyip tekrar
+    · videoSource_css @20260831013740 → HTTP 0
+      … HTTP 0, 15s bekleyip tekrar
+    · videoSource_css @20260720161125 → HTTP 0
+── 5) Diğer JS paketleri (site.js dışındakiler)
+── 6) Özet
+  · ana sayfa: 0B · bölüm: 0B · site.js: 8550B
+  · dosyalar: site-dump/arsiv
