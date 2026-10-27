@@ -420,6 +420,16 @@ def pick_domain(fetcher: Fetcher) -> str:
        jina → cors proxy → wayback. Bulunan katman `fetcher.via` olarak sabitlenir.
     """
     blocked_note = ""
+    if fetcher.via != "direct":
+        # Katman elle seçildi (ör. --via wayback): doğrudan yolu denemeye gerek yok.
+        for domain in DOMAINS:
+            result = tizle_reach.fetch(domain + "/", via=fetcher.via)
+            log(f"- {domain} → {result.summary()} ({fetcher.via})")
+            if result.status == 200 and result.has_site_content and not result.blocked:
+                return domain
+        log(f"  !! {fetcher.via} katmanı içerik getirmedi")
+        return DOMAINS[0]
+
     for domain in DOMAINS:
         status, body, final = fetcher.request(domain, referer=domain + "/", xhr=False)
         cards = cards_from(body)

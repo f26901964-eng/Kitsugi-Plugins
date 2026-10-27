@@ -188,13 +188,41 @@ def fetch_corssh(url: str, method: str = "GET", headers: dict | None = None,
     return _proxy("https://proxy.cors.sh/", "corssh", url, method, merged, data)
 
 
+def _retry(url: str, attempts: int = 4, first_delay: int = 8,
+           timeout: int = 45) -> tuple[int, str, str]:
+    """429/5xx'te artan bekleme ile tekrar dener (arşiv uçları çok sık 429 verir)."""
+    import time as _time
+    delay = first_delay
+    status, body, final = 0, "", url
+    for attempt in range(attempts):
+        status, body, final = _raw_request(url, timeout=timeout)
+        if status in (200, 404):
+            return status, body, final
+        if attempt < attempts - 1:
+            _time.sleep(delay)
+            delay = min(delay * 2, 60)
+    return status, body, final
+
+
 def wayback_snapshot(url: str) -> str | None:
-    """CDX'ten en yeni 200 snapshot'ın zaman damgasını döndürür."""
+    """En yeni 200 snapshot'ın zaman damgası (önce availability API, sonra CDX)."""
+    availability = (
+        "https://archive.org/wayback/available?url=" + urllib.parse.quote(url, safe="")
+    )
+    status, body, _ = _retry(availability, attempts=3, first_delay=5, timeout=30)
+    if status == 200 and body.strip().startswith("{"):
+        try:
+            snap = json.loads(body).get("archived_snapshots", {}).get("closest", {})
+            stamp = str(snap.get("timestamp") or "")
+            if snap.get("available") and len(stamp) >= 8:
+                return stamp
+        except Exception:
+            pass
     query = (
         "https://web.archive.org/cdx/search/cdx?output=json&filter=statuscode:200"
         "&collapse=digest&limit=-3&url=" + urllib.parse.quote(url, safe="")
     )
-    status, body, _ = _raw_request(query)
+    status, body, _ = _retry(query, attempts=3, first_delay=5, timeout=30)
     if status != 200 or not body.strip().startswith("["):
         return None
     try:
@@ -217,13 +245,32 @@ def fetch_wayback(url: str, method: str = "GET", headers: dict | None = None,
     if not stamp:
         return Result(url=url, via="wayback", note="snapshot yok")
     target = f"https://web.archive.org/web/{stamp}id_/{url}"
-    status, body, final = _raw_request(target)
+    status, body, final = _retry(target, attempts=4, first_delay=10)
     return Result(url=url, status=status, text=body, via="wayback", final_url=final,
                   note=f"snapshot {stamp}")
 
 
+def fetch_translate(url: str, method: str = "GET", headers: dict | None = None,
+                    data: bytes | None = None) -> Result:
+    """Google Translate vekili (`<host>.translate.goog`) — Google'ın kendi
+    çıkış IP'siyle getirir; sitedeki ASN engeli bu IP'yi kapsamayabilir."""
+    if method.upper() != "GET":
+        return Result(url=url, via="translate", note="POST desteklenmiyor")
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname or ""
+    if "." not in host:
+        return Result(url=url, via="translate", note="geçersiz host")
+    proxy_host = "https://" + host.replace(".", "-") + ".translate.goog"
+    query = dict(urllib.parse.parse_qsl(parts.query, keep_blank_values=True))
+    query.update({"_x_tr_sl": "auto", "_x_tr_tl": "en", "_x_tr_hl": "en"})
+    target = proxy_host + (parts.path or "/") + "?" + urllib.parse.urlencode(query)
+    status, body, final = _raw_request(target, timeout=45)
+    return Result(url=url, status=status, text=body, via="translate", final_url=final)
+
+
 TECHNIQUES: dict[str, callable] = {
     "direct": fetch_direct,
+    "translate": fetch_translate,
     "jina": fetch_jina,
     "allorigins": fetch_allorigins,
     "corsproxy": fetch_corsproxy,
@@ -233,7 +280,9 @@ TECHNIQUES: dict[str, callable] = {
 }
 
 #: Otomatik sıralama: en güvenilirden en yedekle.
-AUTO_ORDER = ("direct", "jina", "codetabs", "corsproxy", "allorigins", "corssh", "wayback")
+AUTO_ORDER = (
+    "direct", "translate", "jina", "codetabs", "corsproxy", "allorigins", "corssh", "wayback",
+)
 
 
 def fetch(

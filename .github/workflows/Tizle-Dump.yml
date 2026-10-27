@@ -86,6 +86,14 @@ jobs:
             --via "${{ inputs.via || 'auto' }}" \
             $PROBE | tee site-dump/dump-log.txt
 
+      - name: Wayback katmanıyla döküm (arşiv kanıtı)
+        id: dump_wayback
+        continue-on-error: true
+        env:
+          PYTHONPATH: .
+        run: |
+          python3 tools/tizle_dump.py             --out site-dump/tranime-wayback             --query "${{ inputs.query || 'one piece' }}"             --via wayback | tee site-dump/dump-log-wayback.txt
+
       - name: Özeti adım sayfasına yaz
         if: always()
         run: |
@@ -96,9 +104,13 @@ jobs:
             echo '```'
             head -c 8000 site-dump/reach-matrix.txt 2>/dev/null || echo "(yok)"
             echo '```'
-            echo '### Döküm günlüğü'
+            echo '### Döküm günlüğü (auto)'
             echo '```'
-            head -c 20000 site-dump/dump-log.txt 2>/dev/null || echo "(yok)"
+            head -c 12000 site-dump/dump-log.txt 2>/dev/null || echo "(yok)"
+            echo '```'
+            echo '### Döküm günlüğü (wayback)'
+            echo '```'
+            head -c 12000 site-dump/dump-log-wayback.txt 2>/dev/null || echo "(yok)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
