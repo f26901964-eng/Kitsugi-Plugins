@@ -110,6 +110,98 @@ başka bir oturum `site-dump-data` dalını eziyordu). Bu bölümdeki her satır
 
 ---
 
+## 1.6 Sitenin KENDİ kodu — `/js/site.js` (arşiv 31.08.2026, 8.550 B)
+
+Bu, sitenin **kendi istemci kodu**; aşağıdaki alıntılar birebir (yalnızca
+boşluklar kısaltıldı). Kaynak: `tranime-dump-data` → `arsiv/sitejs__20260831013730.html`.
+
+### 1.6.1 Kaynak butonu → oynatıcı (en kritik blok)
+
+```js
+$(".sourceBtn").click(function () {
+    var e = $(this);
+    var pve = localStorage.getItem("preVideo_" + e.data("eid"));
+    if (pve != null && dateDiffInDays(pve, new Date().toISOString()) == 0) {
+        axios.post("/api/sourcePlayer/" + e.data("id"))
+            .then(function (response) {
+                if (response.status == 200) {
+                    $("#videoPlayer").html(response.data.source);
+                    $("#contributerNotes").html(response.data.contributerNotes);
+                }
+            });
+    } else {
+        axios.post("/api/preVideoAd/" + e.data("id"))
+            .then(function (response) {
+                $("#videoPlayer").html(response.data);
+                localStorage.setItem("preVideo_" + e.data("eid"), new Date().toISOString());
+            });
+    }
+});
+```
+
+**Ölçülen sözleşme:**
+
+| Uç | Gövde | Yanıt biçimi | Nerede kullanılıyor |
+| --- | --- | --- | --- |
+| `POST /api/sourcePlayer/{id}` | **boş** | **JSON**: `.source` (iframe HTML'i) + `.contributerNotes` | gün içinde 2. ve sonraki tıklamalar |
+| `POST /api/preVideoAd/{id}` | **boş** | **düz HTML** (`response.data` doğrudan `.html()`'e veriliyor) | günün **ilk** tıklaması |
+
+> Yani iki uç **aynı işi yapar**, yalnızca sarmal biçimi farklıdır. Eklenti
+> `sourcePlayer`'ı dener, medya çıkmazsa `preVideoAd`'a düşer — sıra doğru.
+
+### 1.6.2 Fansub → kaynak listesi
+
+```js
+function load() {
+    axios.post("/api/fansubSources", { EpisodeId: episodeId, FansubId: fansubId })
+        .then(function (response) { $("#sourceList").html(response.data); });
+}
+```
+
+* Gövde **JSON** (`{EpisodeId, FansubId}`) — form gövdesi değil. ✔ eklentiyle aynı.
+* Yanıt **HTML**; `#sourceList` içine basılıyor → kaynak butonları `li.sourceBtn`.
+
+### 1.6.3 Fansub seçici ve bölüm kartları
+
+```js
+$('.fansubSelector').click(function () {
+    fansubId   = $(this).data('fid');
+    fansubName = $(this).data('fad');
+    fansubUrl  = $(this).data('furl');
+    ...
+});
+$(".episodeBtn").click(function () {
+    window.location.href = "/" + $(this).data("slug");   // <a href> DEĞİL
+});
+```
+
+| Öğe | Öznitelik | Anlamı |
+| --- | --- | --- |
+| `.fansubSelector` | `data-fid` / `data-fad` / `data-furl` | kimlik / **ad** / fansub sitesi |
+| `.episodeBtn` | `data-slug` | bölüm yolu: `"/" + slug` → `…-bolum-izle` |
+
+### 1.6.4 Arama
+
+```js
+searchBar.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { window.location.href = "/arama/" + searchBar.value; }
+});
+```
+
+> **v40 düzeltmesi:** site ham metni **yol parçasına** koyuyor; tarayıcı boşluğu
+> `%20` yapar. Eklenti `URLEncoder` kullanıyordu → boşluk `+` oluyordu ve
+> sunucu `one+piece` aradığı için **0 sonuç** dönüyordu. Artık `%20`.
+
+### 1.6.5 Kart tıklaması
+
+```js
+$(".flx-block").click(function () { window.location.href = $(this).data("href"); });
+```
+
+> `data-href` doğrulandı; `<a href>` yalnızca dekoratif/SEO amaçlı.
+
+---
+
 ## 2. Video kaynak zinciri (sitenin kendi 4 adımı)
 
 ```
@@ -212,6 +304,8 @@ Akış (Aniyomi `ShittyCaptchaInterceptor` birebir):
 
 | §2 captcha kapısının **adresten** tanınması (v40) | `isCaptchaUrl()` — `/api/CaptchaChallenge` yönlendirmesi gövde boş olsa da yakalanır | `TrAnimeIzle.kt` |
 | §2 gövdenin **tek okunması** (v40) | `get`/`getXhr`/`postJson`/`postEmpty`/`postForm` → `var text = resp.text` bir kez | `TrAnimeIzle.kt` |
+| §1.6.4 arama yolu (v40) | `encodeSearchPath()` — `URLEncoder` sonrası `+` → `%20` | `TrAnimeIzle.kt` |
+| §1.6.3 bölüm kartları (v40) | `parseEpisodes()` → `.episodeBtn[data-slug]` desteği | `TrAnimeIzleSite.kt` |
 
 **Sürüm:** `TrAnimeIzle` **40**.
 
