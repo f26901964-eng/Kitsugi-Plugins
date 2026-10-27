@@ -49,6 +49,11 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import Iterable
 
+try:  # paket içinden (tools.tizle_dump) ve doğrudan (python3 tools/tizle_dump.py) çalışsın
+    from tools import tizle_reach
+except ImportError:  # pragma: no cover
+    import tizle_reach  # type: ignore[no-redef]
+
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) "
     "Gecko/20100101 Firefox/133.0"
@@ -300,8 +305,10 @@ def cards_from(html: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 class Fetcher:
-    def __init__(self, outdir: str) -> None:
+    def __init__(self, outdir: str, via: str = "direct") -> None:
         self.outdir = outdir
+        #: "direct" = kendi çerez kavanozumuz; diğerleri = tizle_reach katmanı
+        self.via = via
         self.jar = http.cookiejar.CookieJar()
         context = ssl.create_default_context()
         context.check_hostname = False
@@ -339,6 +346,15 @@ class Fetcher:
         request = urllib.request.Request(url, data=data, headers=headers)
         if post or data is not None:
             request.get_method = lambda: "POST"  # type: ignore[assignment]
+
+        if self.via != "direct":
+            # Cloudflare/IP engeli: okuma katmanı (jina / cors proxy / wayback).
+            method = "POST" if (post or data is not None) else "GET"
+            result = tizle_reach.fetch(
+                url, method=method, headers=headers, data=data, via=self.via
+            )
+            return result.status, result.text, result.final_url or url
+
         try:
             with self.opener.open(request, timeout=TIMEOUT) as response:
                 raw = response.read(MAX_BYTES)
@@ -397,14 +413,35 @@ class Fetcher:
 # ---------------------------------------------------------------------------
 
 def pick_domain(fetcher: Fetcher) -> str:
+    """Canlı domain + erişim katmanı seçer.
+
+    1. Doğrudan bağlantı (kendi çerez kavanozu) — cihaz/ev bağlantısında bu yol.
+    2. Doğrudan yol engelliyse (Cloudflare 1005) okuma katmanları denenir:
+       jina → cors proxy → wayback. Bulunan katman `fetcher.via` olarak sabitlenir.
+    """
+    blocked_note = ""
     for domain in DOMAINS:
         status, body, final = fetcher.request(domain, referer=domain + "/", xhr=False)
         cards = cards_from(body)
-        log(f"- {domain} → HTTP {status}, {len(body)}B, {len(cards)} kart")
+        log(f"- {domain} → HTTP {status}, {len(body)}B, {len(cards)} kart (direct)")
         if status == 200 and len(cards) >= 3:
             return domain
         if "1005" in body or "you have been blocked" in body.lower():
-            log("  !! Cloudflare/IP engeli — ev bağlantısı gerekli")
+            blocked_note = "Cloudflare/IP engeli (direct)"
+            log(f"  !! {blocked_note}")
+
+    log(f"- doğrudan erişim yok ({blocked_note or 'cevap yok'}) → okuma katmanları matrisi")
+    for domain in DOMAINS:
+        for via in tizle_reach.AUTO_ORDER:
+            if via == "direct":
+                continue
+            result = tizle_reach.fetch(domain + "/", via=via)
+            log(f"  · {domain.split('//')[-1]:<26} {result.summary()}")
+            if result.status == 200 and result.has_site_content and not result.blocked:
+                fetcher.via = via
+                log(f"  ✔ erişim katmanı: {via} (domain: {domain})")
+                return domain
+    log("  !! hiçbir okuma katmanı içeriği getiremedi")
     return DOMAINS[0]
 
 
@@ -523,10 +560,15 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("--query", default="naruto", help="arama sorgusu")
     parser.add_argument("--probe", action="store_true", help="bulunan akışları test et")
     parser.add_argument("--domain", default="", help="site kökü (boşsa otomatik)")
+    parser.add_argument(
+        "--via",
+        default="auto",
+        help="erişim katmanı: auto (önce doğrudan) | direct | jina | codetabs | corsproxy | allorigins | corssh | wayback",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     os.makedirs(args.out, exist_ok=True)
-    fetcher = Fetcher(args.out)
+    fetcher = Fetcher(args.out, via="direct" if args.via in ("auto", "direct") else args.via)
     started = time.strftime("%Y-%m-%d %H:%M:%S")
     log(f"TrAnimeIzle dökümü — {started}")
 

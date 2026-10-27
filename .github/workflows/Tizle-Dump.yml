@@ -1,0 +1,121 @@
+# TrAnimeIzle canlı HTML dökümü — GitHub runner'ından (internet erişimi tam).
+#
+# Neden burada?  Sandbox/CI'nin kendi ağı yalnızca birkaç alan adına çıkıyor;
+# GitHub runner'ı her yere çıkabiliyor. Site veri merkezi ASN'lerine Cloudflare
+# Error 1005 döndürdüğü için `tools/tizle_reach.py` katman matrisi (jina /
+# cors proxy / wayback) denenir ve **hangi katman gerçek HTML getirdiyse** o
+# katmanla tam zincir dökümü alınır:
+#
+#   ana sayfa → listeler → arama → detay → bölüm →
+#   her fansub için /api/fansubSources →
+#   her kaynak için /api/sourcePlayer + /api/preVideoAd →
+#   her oynatıcı sayfası ve iç iframe'i
+#
+# Çıktı `site-dump-data` dalına itilir (sandbox artifact indiremiyor).
+name: TrAnimeIzle Döküm
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "Arama sorgusu"
+        required: false
+        default: "one piece"
+      url:
+        description: "Bölüm sayfası (boşsa arama → ilk kart)"
+        required: false
+        default: ""
+      via:
+        description: "Erişim katmanı (auto = önce doğrudan, sonra matris)"
+        required: false
+        default: "auto"
+      probe:
+        description: "Bulunan akışları da test et (1/0)"
+        required: false
+        default: "1"
+
+permissions:
+  contents: write
+
+jobs:
+  Dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Depo Kontrolu
+        uses: actions/checkout@v4.2.2
+
+      - name: Python sürümü
+        run: python3 --version
+
+      - name: Erişim yolu matrisi
+        id: reach
+        continue-on-error: true
+        run: |
+          mkdir -p site-dump
+          {
+            echo "# Erişim matrisi — $(date -u +%FT%TZ)"
+            for d in https://www.tranimeizle.io/ https://www.tranimeizle.live/ https://www.tranimeizle.top/; do
+              echo "## $d"
+              python3 tools/tizle_reach.py --url "$d" || true
+              echo
+            done
+          } | tee site-dump/reach-matrix.txt
+
+      - name: Tam zincir dökümü
+        id: dump
+        continue-on-error: true
+        env:
+          PYTHONPATH: .
+        run: |
+          PROBE=""
+          if [ "${{ inputs.probe }}" = "1" ]; then PROBE="--probe"; fi
+          python3 tools/tizle_dump.py \
+            --out site-dump/tranime \
+            --query "${{ inputs.query }}" \
+            --url "${{ inputs.url }}" \
+            --via "${{ inputs.via }}" \
+            $PROBE | tee site-dump/dump-log.txt
+
+      - name: Özeti adım sayfasına yaz
+        if: always()
+        run: |
+          {
+            echo "## TrAnimeIzle dökümü"
+            echo
+            echo '### Erişim matrisi'
+            echo '```'
+            head -c 8000 site-dump/reach-matrix.txt 2>/dev/null || echo "(yok)"
+            echo '```'
+            echo '### Döküm günlüğü'
+            echo '```'
+            head -c 20000 site-dump/dump-log.txt 2>/dev/null || echo "(yok)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dökümü `site-dump-data` dalına it
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -d site-dump ]; then echo "site-dump yok"; exit 0; fi
+          rm -rf /tmp/dumppush && mkdir -p /tmp/dumppush
+          cp -r site-dump/. /tmp/dumppush/
+          cd /tmp/dumppush
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git checkout -q -b site-dump-data
+          git add -A
+          git commit -qm "tranime dump ${GITHUB_RUN_ID}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:site-dump-data \
+            && echo "döküm site-dump-data dalına itildi"
+
+      - name: Dökümü artifact olarak ekle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tranime-dump-${{ github.run_id }}
+          path: site-dump/
+          retention-days: 14
