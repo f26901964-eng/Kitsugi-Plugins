@@ -15,6 +15,15 @@
 name: TrAnimeIzle Döküm
 
 on:
+  # Not: `workflow_dispatch` GitHub'da yalnızca varsayılan dalda kayıtlıysa
+  # tetiklenebiliyor; o yüzden bu dalda `push` ile de çalışır.
+  push:
+    branches:
+      - arena/8602198f-kitsugi-plugins
+    paths:
+      - "tools/tizle_*.py"
+      - ".github/workflows/Tizle-Dump.yml"
+      - "TrAnimeIzle/**"
   workflow_dispatch:
     inputs:
       query:
@@ -68,13 +77,13 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
-          PROBE=""
-          if [ "${{ inputs.probe }}" = "1" ]; then PROBE="--probe"; fi
+          PROBE="--probe"
+          if [ "${{ inputs.probe }}" = "0" ]; then PROBE=""; fi
           python3 tools/tizle_dump.py \
             --out site-dump/tranime \
-            --query "${{ inputs.query }}" \
+            --query "${{ inputs.query || 'one piece' }}" \
             --url "${{ inputs.url }}" \
-            --via "${{ inputs.via }}" \
+            --via "${{ inputs.via || 'auto' }}" \
             $PROBE | tee site-dump/dump-log.txt
 
       - name: Özeti adım sayfasına yaz
