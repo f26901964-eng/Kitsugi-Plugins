@@ -223,6 +223,27 @@ class TrAnimeIzleSiteTest {
      * hiçbir kaynak oynatılamaz (v17–v29 arasındaki "kaynak yok" şikâyeti).
      */
     @Test
+    fun episodesFromDataSlugButtons() {
+        // ÖLÇÜM (js/site.js, arşiv 31.08.2026):
+        //   $(".episodeBtn").click → window.location.href = "/" + $(this).data("slug")
+        // Bölüm kartı <a href> değil, data-slug taşıyan öğe olabilir.
+        val pageUrl = "$base/naruto-izle"
+        val html = """
+            <html><body>
+              <div class="animeDetail-items"><ol>
+                <li class="episodeBtn" data-slug="naruto-1-bolum-izle"><span>1. Bölüm</span></li>
+                <li class="episodeBtn" data-slug="naruto-2-bolum-izle"><span>2. Bölüm</span></li>
+              </ol></div>
+            </body></html>
+        """.trimIndent()
+
+        val episodes = TrAnimeIzleSite.parseEpisodes(Jsoup.parse(html, pageUrl), base, pageUrl, "Naruto")
+
+        assertEquals(listOf(1, 2), episodes.map { it.number })
+        assertEquals("$base/naruto-1-bolum-izle", episodes.first().url)
+    }
+
+    @Test
     fun sourcePlayerIframeCarriesRealHostUrlInsideEmbed2() {
         val body = """{"source":"<iframe src=\"https://luffytra2.top/embed2/?id=https://filemoon.sx/e/abc123\" allowfullscreen></iframe>","contributerNotes":""}"""
         val html = TrAnimeIzleSite.unwrapJsonHtml(body)

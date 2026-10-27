@@ -341,8 +341,8 @@ internal object TrAnimeIzleSite {
         val found = LinkedHashMap<Int, TrEpisode>()
         var running = 1
 
-        fun consider(anchor: Element, forcedNumber: Int? = null) {
-            val url = absolute(base, anchor.attr("href")) ?: return
+        fun consider(anchor: Element, forcedNumber: Int? = null, explicitUrl: String? = null) {
+            val url = explicitUrl ?: absolute(base, anchor.attr("href")) ?: return
             if (!url.startsWith("http")) return
             val rawName = firstNonNull(
                 anchor.selectFirst("div.etitle span")?.text(),
@@ -383,6 +383,19 @@ internal object TrAnimeIzleSite {
                 "div.episode-list li a, li:has(div.episode-li) a"
         )
         for (anchor in containers) consider(anchor)
+
+        // v40 — ÖLÇÜM: sitenin kendi istemci kodu (`/js/site.js`, arşiv
+        // 31.08.2026) bölüm kartlarını şöyle açıyor:
+        //     $(".episodeBtn").click(function(){ window.location.href =
+        //         "/" + $(this).data("slug"); });
+        // Yani kart bir `<a href>` DEĞİL, `data-slug` taşıyan bir öğe olabilir.
+        // Eskiden bu kartlar hiç görülmüyordu → bölüm listesi eksik geliyordu.
+        for (el in doc.select(".episodeBtn[data-slug]")) {
+            val slug = el.attr("data-slug").trim()
+            if (slug.isEmpty()) continue
+            val url = absolute(base, "/" + slug.trimStart('/')) ?: continue
+            consider(el, explicitUrl = url)
+        }
 
         if (found.isEmpty()) {
             // Tema değişmiş olabilir: bölüm URL desenine göre genel tarama.

@@ -285,6 +285,22 @@ class TrAnimeIzle(
     // Arama + ana sayfa
     // ------------------------------------------------------------------
 
+    /**
+     * v40: **arama yolu** kodlaması.
+     *
+     * Kanıt — sitenin kendi istemci kodu (`/js/site.js`, arşiv 31.08.2026):
+     * ```
+     * window.location.href = "/arama/" + searchBar.value
+     * ```
+     * Tarayıcı bu ham metni **yol parçası** olarak kodlar → boşluk `%20` olur.
+     * `URLEncoder` ise boşluğu `+` yapar; yol parçasında `+` düz artı
+     * karakteridir → sunucu "one+piece" diye arar ve **0 sonuç** döner.
+     * Bu düzeltme, boşluklu aramaların (hemen her anime adı) sessizce boş
+     * dönmesini engeller.
+     */
+    private fun encodeSearchPath(raw: String): String =
+        URLEncoder.encode(raw, "UTF-8").replace("+", "%20")
+
     override suspend fun search(query: String, page: Int): SearchResponseList {
         if (!TrAnimeIzleHelper.isAllowedVersion) {
             return newSearchResponseList(emptyList(), false)
@@ -342,7 +358,7 @@ class TrAnimeIzle(
         for (variant in variants) {
             if (page > 1) break
             if (collected.size >= 8) break
-            val enc = URLEncoder.encode(variant, "UTF-8")
+            val enc = encodeSearchPath(variant)
             val url = mainUrl + "/arama/" + enc
             val html = try {
                 fetchHtml(url, mainUrl + "/", ensureSession = false, webViewFallback = true)
@@ -359,7 +375,7 @@ class TrAnimeIzle(
         }
         if (page > 1) {
             // Sayfa > 1: tek istek (ham sorgu) — sonsuz liste için hasNext korunur.
-            val enc = URLEncoder.encode(query, "UTF-8")
+            val enc = encodeSearchPath(query)
             val html = try {
                 fetchHtml(mainUrl + "/arama/" + enc + "?page=" + page, mainUrl + "/", true, true)
             } catch (e: CancellationException) {
@@ -380,7 +396,7 @@ class TrAnimeIzle(
                 if (variants.any { it.equals(alt, ignoreCase = true) }) continue
                 val html = try {
                     fetchHtml(
-                        mainUrl + "/arama/" + URLEncoder.encode(alt, "UTF-8"),
+                        mainUrl + "/arama/" + encodeSearchPath(alt),
                         mainUrl + "/",
                         ensureSession = false,
                         webViewFallback = false
