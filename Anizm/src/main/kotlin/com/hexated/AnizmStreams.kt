@@ -1590,6 +1590,7 @@ internal class AnizmStreams(
             // StreamSB aynaları, MyVi/LiiiVideo/SuperVideo ve GDrivePlayer köprüsü.
             "vidbm", "vidbam", "vidbom", "vidbem", "vedbam", "vadbam",
             "streamsb", "sbface", "streamssb", "sbspeed", "sblongvu", "lvturbo", "embturbo",
+            "sblona", "upbolt", "vids.st",
             "myvi", "liiivideo", "liii.video", "supervideo", "gdriveplayer"
         )
         private const val PLAYER_HOST = "https://anizmplayer.com"
