@@ -1,0 +1,119 @@
+# GEÇİCİ paket yayın iş akışı — PR #55 merge olmadan Anizm v18'in .cs3 paketini
+# üretip `builds` dalına basmak için. Normal yayın Derleyici.yml'dir (main'e push).
+# PR merge edilince bu dosya silinebilir.
+name: Anizm Paket Yayini (gecici)
+
+concurrency:
+  group: anizm-paket-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - arena/f84b5c56-kitsugi-plugins
+    paths:
+      - "Anizm/**"
+      - ".github/workflows/Anizm-Paket.yml"
+  workflow_dispatch:
+
+jobs:
+  Paketle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "'src' Depo Kontrolu"
+        uses: actions/checkout@v4.2.2
+        with:
+          path: "src"
+
+      - name: "'builds' Depo Kontrolu"
+        uses: actions/checkout@v4.2.2
+        with:
+          ref: "builds"
+          path: "builds"
+
+      - name: "JDK 17 Ayarla"
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: "Android SDK Lisansları"
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: "Anizm v18 derle ve test et"
+        run: |
+          set -e
+          cd $GITHUB_WORKSPACE/src
+          chmod +x gradlew
+
+          # Mevcut prebuilt paketleri builds alanına taşı (sürüm karşılaştırmalı)
+          python3 tools/stage_prebuilt.py prebuilt "$GITHUB_WORKSPACE/builds"
+
+          # Sadece Anizm'i paketle + manifest üret
+          ./gradlew --no-daemon :Anizm:make makePluginsJson
+
+          # Regresyon kapısı: birim testleri (ağsız fixture testleri dahil)
+          ./gradlew --no-daemon :Anizm:test
+
+          # Paket içi manifest kanıtı
+          python3 - <<'PY'
+          import json, zipfile
+          cs3 = "Anizm/build/Anizm.cs3"
+          with zipfile.ZipFile(cs3) as z:
+              manifest = json.loads(z.read("manifest.json"))
+          print("URETILEN PAKET MANIFESTI:", json.dumps(manifest, ensure_ascii=False))
+          assert manifest["name"] == "Anizm"
+          assert manifest["version"] == 18, f"beklenen 18, gelen {manifest['version']}"
+          PY
+
+      - name: "Paketi ve manifesti builds alanına kopyala"
+        run: |
+          set -e
+          cd $GITHUB_WORKSPACE/src
+          cp Anizm/build/Anizm.cs3 "$GITHUB_WORKSPACE/builds/"
+          python3 merge_plugins.py
+          cp build/plugins.json "$GITHUB_WORKSPACE/builds/"
+          cp build/repo.json "$GITHUB_WORKSPACE/builds/"
+
+          # Manifestteki Anizm kaydını kanıtla
+          python3 - <<'PY'
+          import json, os
+          yol = os.path.join(os.environ["GITHUB_WORKSPACE"], "builds", "plugins.json")
+          with open(yol) as f:
+              kayitlar = json.load(f)
+          anizm = next(k for k in kayitlar if k.get("internalName") == "Anizm")
+          print("BUILDS plugins.json Anizm:", json.dumps(anizm, ensure_ascii=False))
+          assert anizm["version"] == 18
+          PY
+
+      - name: "Paketi artifact olarak yükle (tarayıcıdan indirilebilir)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Anizm-v18-cs3
+          path: src/Anizm/build/Anizm.cs3
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: "builds dalına bas (amend + force-push)"
+        run: |
+          cd $GITHUB_WORKSPACE/builds
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
+          if git diff --staged --quiet; then
+            echo "Degisiklik yok, push atlanıyor."
+          else
+            git commit --amend -m "Anizm v18 paket yayını ($GITHUB_SHA)"
+            git push --force
+            echo "builds dalı güncellendi."
+          fi
+
+      - name: "CDN onbellek temizligi (jsDelivr)"
+        continue-on-error: true
+        run: |
+          cd $GITHUB_WORKSPACE/src
+          python3 tools/purge_cdn.py || true
