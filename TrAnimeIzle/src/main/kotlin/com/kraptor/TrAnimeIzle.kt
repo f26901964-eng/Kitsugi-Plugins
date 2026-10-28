@@ -1,7 +1,6 @@
 package com.kraptor
 
 import android.util.Log
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
@@ -1685,9 +1684,10 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
     // Kaynak yükleme (loadLinks)
     // ------------------------------------------------------------------
 
-    data class VideoApi(
-        @JsonProperty("source") val source: String
-    )
+    // v42: `VideoApi` (Jackson `@JsonProperty` taşıyan veri sınıfı) KALDIRILDI.
+    // Kullanılmıyordu ve `com.fasterxml.jackson.annotation.JsonProperty`
+    // referansı eklentiyi Jackson sürümüne bağlıyordu (uygulama 2.18.3 gömüyor,
+    // depo 2.13/2.16 ile derliyor). JSON alanları artık `org.json` ile okunuyor.
 
     override suspend fun loadLinks(
         data: String,
