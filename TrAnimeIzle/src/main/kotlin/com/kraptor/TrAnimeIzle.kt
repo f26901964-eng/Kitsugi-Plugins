@@ -238,6 +238,28 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - Neden kayıp yok: WebView yalnızca **veri merkezi IP engeli** (Cloudflare
  *    Error 1005) içindi; kullanıcı telefondan bağlanıyor, engel yok. Captcha
  *    zaten v39'da HTTP ile çözülüyor.
+ *
+ * v42 — **KTS-CSP-9110 HÂLÂ DEVAM ETTİ: asıl neden sürüm uyumsuz API'ler**
+ *  - Ölçüm yöntemi: yayındaki dex'in `method_ids` tablosu, depodaki 8 çalışan
+ *    eklentinin dex'leriyle karşılaştırıldı. "Yalnızca TrAnimeIzle'de geçen"
+ *    21 metot referansı çıktı; içlerinde **sürüme duyarlı** olanlar:
+ *
+ *    | Metot | Kaynak | Kitsugi'de |
+ *    | --- | --- | --- |
+ *    | `LoadResponse#getSyncData` | CloudStream'e sonradan eklendi | riskli |
+ *    | `NiceResponse#getCookies` | NiceHttp 0.4.13 (uygulama 0.4.4 gömüyor) | riskli |
+ *    | `NiceResponse#getBody` | NiceHttp 0.4.13 | riskli |
+ *    | `MainAPIKt#addDate` | sürüme duyarlı | riskli |
+ *
+ *    Kitsugi uygulaması `com.lagradost.api:library-android:1.0.2-local` +
+ *    `NiceHttp 0.4.4` gömüyor; bu depo `cloudstream3:pre-release` +
+ *    `NiceHttp 0.4.13` ile derliyor. Yeni API'ler istemcide yoksa
+ *    `NoSuchMethodError` → **KTS-CSP-9110**.
+ *  - Düzeltme: `syncData`, `addDate`, `resp.cookies`, `resp.body` tamamen
+ *    kaldırıldı; ham bayt indirme saf `HttpURLConnection`'a çevrildi.
+ *  - Ayrıca `ExtractorApi` mirası (Optraco/Hdvid/Hexload sınıfları) kaldırıldı:
+ *    soyut metot imzaları sürüme duyarlı; uyuşmazlıkta **yükleme anında**
+ *    `AbstractMethodError` üretiyordu. Üç host artık düz fonksiyon.
  */
 class TrAnimeIzle : MainAPI(), TrStreamHttp {
 
@@ -698,17 +720,10 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
     }
 
     /** Yanıt çerezlerini (ör. Cloudflare/oturum) jar'a ekler. */
-    private fun mergeCookies(fresh: Map<String, String>) {
-        if (fresh.isEmpty()) return
-        val jar = LinkedHashMap<String, String>()
-        lastCookie.split(';').forEach { part ->
-            val item = part.trim()
-            val idx = item.indexOf('=')
-            if (idx > 0) jar[item.substring(0, idx)] = item.substring(idx + 1)
-        }
-        jar.putAll(fresh)
-        lastCookie = jar.entries.joinToString("; ") { "${it.key}=${it.value}" }
-    }
+    // v42: `mergeCookies(resp.cookies)` KALDIRILDI — `NiceResponse.cookies`
+    // NiceHttp sürümüne bağlı bir API; uygulamadaki 0.4.4'te yoksa
+    // `NoSuchMethodError` üretiyordu. Oturum çerezlerini NiceHttp'in kendi
+    // `app` istemcisi (cookie jar) yönetiyor; bizim ek bir şey yapmamız gerekmiyor.
 
     /** Captcha çözümü sıraya alınır: 10 paralel kaynak isteği aynı anda
      *  çözmeye kalkarsa siteye 10 ayrı doğrulama isteği gider (hem yavaş
@@ -747,7 +762,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"),
                 timeout = 12
             )
-            mergeCookies(resp.cookies)
             // v40: gövde TEK kez okunur (nicehttp gövdesi tüketilebilir; ikinci
             // okuma null dönüp sayfayı sessizce boşaltıyordu).
             var text = resp.text
@@ -758,7 +772,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                     headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"),
                     timeout = 12
                 )
-                mergeCookies(resp.cookies)
                 text = resp.text
             }
             if (!resp.isSuccessful) null else text
@@ -771,7 +784,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 timeout = 12
             )
-            mergeCookies(resp.cookies)
             var text = resp.text
             if (captchaRetry(text, resp.url.toString())) {
                 resp = app.get(
@@ -779,7 +791,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                     headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                     timeout = 12
                 )
-                mergeCookies(resp.cookies)
                 text = resp.text
             }
             if (!resp.isSuccessful) null else text
@@ -793,7 +804,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 headers = browserHeaders(lastCookie, "$base/") + extra,
                 timeout = 12
             )
-            mergeCookies(resp.cookies)
             if (!resp.isSuccessful) null else resp.text
         }
 
@@ -807,7 +817,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 json = JsonAsString(json),
                 timeout = 15
             )
-            mergeCookies(resp.cookies)
             var text = resp.text
             if (captchaRetry(text, resp.url.toString())) {
                 Log.d(LOG_TAG, "captcha çözüldü → POST-JSON tekrar: ${url.take(90)}")
@@ -817,7 +826,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                     json = JsonAsString(json),
                     timeout = 15
                 )
-                mergeCookies(resp.cookies)
                 text = resp.text
             }
             if (!resp.isSuccessful) null else text
@@ -830,7 +838,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 timeout = 15
             )
-            mergeCookies(resp.cookies)
             var text = resp.text
             if (captchaRetry(text, resp.url.toString())) {
                 Log.d(LOG_TAG, "captcha çözüldü → POST tekrar: ${url.take(90)}")
@@ -839,7 +846,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                     headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                     timeout = 15
                 )
-                mergeCookies(resp.cookies)
                 text = resp.text
             }
             if (!resp.isSuccessful) null else text
@@ -856,7 +862,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
             data = form,
             timeout = 12
         )
-        mergeCookies(resp.cookies)
         var text = resp.text
         if (captchaRetry(text, resp.url.toString())) {
             resp = app.post(
@@ -865,24 +870,39 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 data = form,
                 timeout = 12
             )
-            mergeCookies(resp.cookies)
             text = resp.text
         }
         if (!resp.isSuccessful) null else text
     }
 
+    /**
+     * Ham bayt indirme (captcha PNG'leri için).
+     *
+     * v42: `NiceResponse.body` KALDIRILDI — bu alan NiceHttp'de sürüme duyarlıdır
+     * (uygulama 0.4.4 gömüyor, depo 0.4.13 ile derliyor) ve eksik olduğunda
+     * `NoSuchMethodError` → KTS-CSP-9110 üretiyordu. Artık **saf Java**
+     * `HttpURLConnection` kullanılıyor: hiçbir kütüphane sürümüne bağlı değil.
+     */
     override suspend fun bytes(url: String, referer: String?): ByteArray? =
         guarded("BYTES ${url.take(110)}") {
-            withContext(Dispatchers.IO) {
-                val resp = app.get(
-                    url,
-                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
-                    timeout = 12
-                )
-                mergeCookies(resp.cookies)
-                resp.body?.bytes()
-            }
+            withContext(Dispatchers.IO) { javaBytes(url, referer) }
         }
+
+    /** `HttpURLConnection` ile ham bayt (kütüphane sürümünden bağımsız). */
+    private fun javaBytes(url: String, referer: String?): ByteArray? = try {
+        val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 12_000
+            readTimeout = 12_000
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", BotKontrolKt.UA_FIREFOX)
+            setRequestProperty("Referer", referer ?: (mainUrl + "/"))
+            if (lastCookie.isNotBlank()) setRequestProperty("Cookie", lastCookie)
+        }
+        connection.inputStream.use { it.readBytes() }
+    } catch (e: Exception) {
+        Log.d(LOG_TAG, "javaBytes hatası (${url.take(80)}): ${e.message}")
+        null
+    }
 
     /**
      * `/api/Captcha` doğrulaması: sunucu bir grup görsel kimliği verir; aralarından
@@ -1117,7 +1137,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 headers = browserHeaders("", mainUrl + "/"),
                 timeout = 12
             )
-            mergeCookies(retry.cookies)
             retry.text ?: ""
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Taze oturum isteği hatası: ${e.message}")
@@ -1263,7 +1282,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 Log.e(LOG_TAG, "captcha sonrası GET hatası: ${e.message}")
                 resp
             }
-            mergeCookies(resp.cookies)
         }
 
         if (!resp.isSuccessful || isBotBody(resp.text)) {
@@ -1326,7 +1344,6 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 app.get(url, headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"), timeout = 12)
             }
             if (retry != null && retry.isSuccessful) {
-                mergeCookies(retry.cookies)
                 val retryText = retry.text ?: ""
                 if (retryText.length > (text?.length ?: 0)) {
                     Log.d(LOG_TAG, "Tek tekrar ${retryText.length} karakter döndürdü")
@@ -1445,7 +1462,8 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                     // v28: sezon HER ZAMAN dolu (site "3. Sezon" yazmıyorsa 1).
                     this.season = ep.season
                     this.episode = ep.number
-                    normaliseDate(ep.date)?.let { addDate(it) }
+                    // v42: `addDate` KALDIRILDI (MainAPIKt#addDate, sürüme duyarlı API).
+                    // Tarih, bölüm adının yanında zaten gösteriliyor.
                 }
             )
         }
@@ -1477,7 +1495,11 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 addActors(actors.map { Actor(it, null) })
                 val finalTrailer = meta?.trailerUrl ?: trailer
                 if (finalTrailer != null) addTrailer(finalTrailer)
-                meta?.kitsuId?.let { syncData["kitsu"] = it }
+                // v42: `syncData` KALDIRILDI — CloudStream'e SONRADAN eklenen alan;
+                // Kitsugi'nin gömülü `library-android:1.0.2` sürümünde yoksa
+                // `NoSuchMethodError: LoadResponse.getSyncData` → KTS-CSP-9110.
+                // Kitsu kimliği artık yalnızca log'a yazılıyor.
+                meta?.kitsuId?.let { Log.d(LOG_TAG, "kitsuId=$it ($url)") }
                 meta?.banner?.ifBlank { null }?.let { this.backgroundPosterUrl = it }
             }
         } else {
@@ -1507,7 +1529,11 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 addActors(actors.map { Actor(it, null) })
                 val finalTrailer = meta?.trailerUrl ?: trailer
                 if (finalTrailer != null) addTrailer(finalTrailer)
-                meta?.kitsuId?.let { syncData["kitsu"] = it }
+                // v42: `syncData` KALDIRILDI — CloudStream'e SONRADAN eklenen alan;
+                // Kitsugi'nin gömülü `library-android:1.0.2` sürümünde yoksa
+                // `NoSuchMethodError: LoadResponse.getSyncData` → KTS-CSP-9110.
+                // Kitsu kimliği artık yalnızca log'a yazılıyor.
+                meta?.kitsuId?.let { Log.d(LOG_TAG, "kitsuId=$it ($url)") }
                 meta?.banner?.ifBlank { null }?.let { this.backgroundPosterUrl = it }
             }
         }

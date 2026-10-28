@@ -351,6 +351,10 @@ internal class TrAnimeIzleStreams(
         if (resolveOptraco(url, label, callback)) return true
         if (resolveVidmoly(url, label, callback)) return true
         if (resolveSendvid(url, label, callback)) return true
+        // v42: Hdvid/Hexload extractor SINIFLARI kaldırıldı; mantık buraya taşındı
+        // (ExtractorApi'yi miras almak yükleme anında AbstractMethodError üretiyordu).
+        if (resolveHdvid(url, label, callback)) return true
+        if (resolveHexload(url, label, callback)) return true
 
         // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
         if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
@@ -498,9 +502,8 @@ internal class TrAnimeIzleStreams(
     /**
      * **AitrVip / OpTraco** (`optraco.top/explorer/<id>`) — sitenin kendi
      * oynatıcısı. Sayfa medya adresini `file: "…"` olarak gömer (çoğu zaman
-     * göreli `/hls/…m3u8`). Eklentinin kendi `OptracoExtractor`'ı da vardır;
-     * burası extractor katmanı tanımazsa (yeni alan adı vb.) devreye giren
-     * ikinci, bağımsız yoldur.
+     * göreli `/hls/…m3u8`). v42: tek yol budur — ayrı bir extractor sınıfı
+     * (ExtractorApi mirası) yükleme anında LinkageError üretebiliyordu.
      */
     private suspend fun resolveOptraco(
         url: String,
@@ -558,6 +561,81 @@ internal class TrAnimeIzleStreams(
                 .find(page)?.groupValues?.getOrNull(1)
         val media = raw?.let { TrAnimeIzleSite.absolute(embed, it) } ?: return false
         emitMedia(media, label, embed, callback, trusted = true)
+        return true
+    }
+
+    /**
+     * **Hdvid** (`hdvid.tv/...`) — sayfada `sources: [{file:"…"}]`.
+     *
+     * v42: Eskiden `HdvidExtractor : ExtractorApi()` sınıfıydı. `ExtractorApi`
+     * soyut metot imzaları sürüme duyarlı olduğundan sınıf yüklenirken
+     * `AbstractMethodError`/`NoSuchMethodError` üretebiliyor ve eklenti hiç
+     * açılmıyordu (KTS-CSP-9110). Artık düz bir fonksiyon.
+     */
+    private suspend fun resolveHdvid(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("hdvid.", ignoreCase = true)) return false
+        val page = http.get(url, url) ?: return false
+        val raw = Regex(
+            """sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']""",
+            RegexOption.IGNORE_CASE
+        ).find(page)?.groupValues?.getOrNull(1) ?: return false
+        val media = TrAnimeIzleSite.absolute(url, raw.replace("http://", "https://")) ?: return false
+        emitMedia(media, label, url, callback, trusted = true)
+        return true
+    }
+
+    /**
+     * **Hexload** (`hexload.com/<id>`) — `POST /download` (`op=download3`) →
+     * JSON `result.url`.
+     *
+     * v42: Eskiden `Hexload : ExtractorApi()` sınıfıydı ve Jackson
+     * (`@JsonProperty` + `ResponseParser.parseSafe`) kullanıyordu — hem soyut
+     * sınıf hem NiceHttp sürümü riski. Artık `org.json` ile düz HTTP.
+     */
+    private suspend fun resolveHexload(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (!url.contains("hexload.", ignoreCase = true)) return false
+        val origin = "https://hexload.com"
+        val id = if (url.contains("id=")) {
+            url.substringAfterLast("id=").substringBefore("&").substringBefore("/")
+        } else {
+            url.substringBefore('?').trimEnd('/').substringAfterLast('/')
+        }
+        if (id.isBlank()) return false
+        val body = try {
+            val connection = (java.net.URL("$origin/download")
+                .openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 12_000
+                readTimeout = 12_000
+                doOutput = true
+                setRequestProperty("User-Agent", UA)
+                setRequestProperty("Referer", url)
+                setRequestProperty("Origin", origin)
+                setRequestProperty("X-Requested-With", "XMLHttpRequest")
+                setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            }
+            val payload = "op=download3&id=" + java.net.URLEncoder.encode(id, "UTF-8") +
+                "&ajax=1&method_free=1&dataType=json"
+            connection.outputStream.use { it.write(payload.toByteArray()) }
+            connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (e: Exception) {
+            Log.d(TAG, "hexload isteği başarısız: ${e.message}")
+            return false
+        }
+        val media = try {
+            org.json.JSONObject(body).optJSONObject("result")?.optString("url")
+        } catch (e: Exception) {
+            null
+        }?.takeIf { it.startsWith("http") } ?: return false
+        emitMedia(media, label, url, callback, trusted = true)
         return true
     }
 
