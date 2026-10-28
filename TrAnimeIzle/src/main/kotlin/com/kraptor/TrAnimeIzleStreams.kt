@@ -81,7 +81,7 @@ internal class TrAnimeIzleStreams(
     private var emittedCount: Int = 0
 
     /** Captcha çözümü tek seferlik ve eşzamanlı çağrılarda yarışsız. */
-    private val captchaLock = Any()
+    private val captchaLock = Mutex()
 
     @Volatile
     private var captchaSolved = false
@@ -205,7 +205,9 @@ internal class TrAnimeIzleStreams(
         }
         if (looksLikeCaptcha(body)) {
             Log.w(TAG, "fansubSources captcha istedi (fid=${fansub.id})")
-            synchronized(captchaLock) {
+            // NOT: `synchronized` kullanılamaz — içinde suspend çağrı var.
+            // Mutex, kotlinx-coroutines-core'dadır ve Anizm eklentisi de kullanıyor.
+            captchaLock.withLock {
                 if (!captchaSolved) captchaSolved = http.solveCaptcha()
             }
             body = http.postJson(url, json, pageUrl) ?: http.postForm(url, form, pageUrl)
@@ -1081,9 +1083,9 @@ internal class TrAnimeIzleStreams(
         private var available = permits.coerceAtLeast(1)
         private val waiting = ArrayDeque<CompletableDeferred<Unit>>()
 
-        suspend fun withPermit(block: suspend () -> Unit) {
+        suspend fun <T> withPermit(block: suspend () -> T): T {
             acquire()
-            try {
+            return try {
                 block()
             } finally {
                 release()
