@@ -53,10 +53,10 @@ internal class AnizmStreams(
 ) {
 
     /** Çözülecek oynatıcı adayı. */
-    private data class Source(val fansub: String, val host: String, val url: String)
+    internal data class Source(val fansub: String, val host: String, val url: String)
 
     /** Bir çevirmen (fansub) düğümü. */
-    private data class Translator(val url: String, val name: String, val active: Boolean)
+    internal data class Translator(val url: String, val name: String, val active: Boolean)
 
     private val emitted: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
     private val seenSubs: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
@@ -114,7 +114,7 @@ internal class AnizmStreams(
     // 1) v3: data-v3-translator / data-sources
     // ------------------------------------------------------------------
 
-    private suspend fun collectV3(
+    internal suspend fun collectV3(
         doc: org.jsoup.nodes.Document,
         pageUrl: String,
         site: String
@@ -133,24 +133,11 @@ internal class AnizmStreams(
             }
             .distinctBy { it.url }
 
-        // Sunucu HTML'i çoğu zaman YALNIZCA aktif çevirmeni taşıyor (diğerleri JS ile
-        // geliyor). Eksik kalan çevirmenleri bölüm dizininden tamamla — yoksa
-        // "kaynaklar eksik geliyor" durumu oluşuyor.
-        val bolumId = episodeIdFrom(doc)
-            ?: bolumIdOf(pageUrl)
-            ?: doc.select("[data-progress*=/bolum/], [data-url*=/bolum/], a[href*=/bolum/]")
-                .mapNotNull { bolumIdOf(it.attr("data-url").ifBlank { it.attr("href") }) }
-                .firstOrNull()
-        if (translators.size < 3 && bolumId != null) {
-            for (cid in listOf("1", "2", "3")) {
-                val path = translatorPaths(bolumId, cid, pageUrl.contains("/episode/")).first()
-                if (translators.keys.none { it.contains("/cevirmen/$cid") || it.contains("/translator/$cid") }) {
-                    translators[AnizmSite.absolute(pageUrl, path) ?: continue] =
-                        Translator(site + path, "Çevirmen $cid", false)
-                }
-            }
-        }
-
+        // NOT (26.10.2026 canlı fixture, One Piece 1. bölüm): gerçek çevirmen
+        // kimlikleri küçük sayılar DEĞİLDİR — /bolum/18853/cevirmen/{18853,83191,109648}.
+        // Burada 1..3 uydurmak yalnızca 404 üretiyordu; gerçek kimlikler düğmelerdeki
+        // `data-translator-id` özniteliğinden (translatorButtons/sourceUrlsOf) ve
+        // hiç düğme yoksa collectBolumFallback'in bölüm dizininden gelir.
         val out = Collections.synchronizedList(mutableListOf<Source>())
         if (translators.isNotEmpty()) {
             val gate = Semaphore(4)
@@ -188,7 +175,7 @@ internal class AnizmStreams(
      * (çevirmen kimliği) ve sayfadaki bölüm kimliğinden adres yeniden kurulur:
      * `/bolum/{bolumId}/cevirmen/{cevirmenId}`.
      */
-    private fun translatorButtons(
+    internal fun translatorButtons(
         doc: org.jsoup.nodes.Document,
         pageUrl: String
     ): LinkedHashMap<String, Translator> {
@@ -273,15 +260,16 @@ internal class AnizmStreams(
             }
         }
         // Düğümde yalnızca çevirmen kimliği varsa adresi kendimiz kurarız.
+        // KİMLİK YOKSA TAHMİN YAPMAYIZ: canlı fixture'da kimlikler 18853/83191/109648
+        // gibi 5-6 haneli değerler; 1..3 denemesi kanıt gereği daima 404'tür.
         if (out.isEmpty() && bolumId != null) {
-            val cid = el.attr("data-id").ifBlank { el.attr("data-cid") }
-                .ifBlank { el.attr("data-translator-id") }
+            val cid = el.attr("data-translator-id").ifBlank { el.attr("data-id") }
+                .ifBlank { el.attr("data-cid") }
                 .filter { it.isDigit() }
-            val candidates = if (cid.isNotEmpty()) listOf(cid) else listOf("1", "2", "3")
-            val preferEpisode = pageUrl.contains("/episode/")
-            for (id in candidates) {
-                val path = translatorPaths(bolumId, id, preferEpisode).first()
-                out.add(AnizmSite.absolute(pageUrl, path) ?: continue)
+            if (cid.isNotEmpty()) {
+                val preferEpisode = pageUrl.contains("/episode/")
+                val path = translatorPaths(bolumId, cid, preferEpisode).first()
+                AnizmSite.absolute(pageUrl, path)?.let { out.add(it) }
             }
         }
         return out.filter { it.startsWith("http") }
@@ -289,7 +277,9 @@ internal class AnizmStreams(
 
     /**
      * Son çare: bölüm sayfası çevirmen düğümlerini sunmadıysa `/bolum/{id}`
-     * dizini okunur; o da boşsa `/bolum/{id}/cevirmen/1..3` doğrudan denenir.
+     * dizini okunup oradaki GERÇEK düğümler işlenir. Dizin de boşsa boş liste
+     * döner; kimlikler büyük sayı olduğundan (18853/83191/109648) kör 1..3
+     * taraması yapılmaz (kanıt: canlı fixture, 26.10.2026).
      */
     private suspend fun collectBolumFallback(
         doc: org.jsoup.nodes.Document,
@@ -327,33 +317,35 @@ internal class AnizmStreams(
             }
         }
 
-        val out = Collections.synchronizedList(mutableListOf<Source>())
-        val attempts = (1..3).flatMap { id ->
-            translatorPaths(bolumId, id.toString()).map { "$site$it" to id }
-        }
-        coroutineScope {
-            attempts.map { (url, index) ->
-                async {
-                    try {
-                        out.addAll(fetchV3Translator(url, "Çevirmen $index", pageUrl))
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Throwable) {
-                        // o çevirmen/rota yok
-                    }
-                }
-            }.awaitAll()
-        }
-        return out.toList().distinctBy { it.url }
+        // Dizin sayfası da çevirmen düğümü vermediyse kör kimlik denemesi YAPMAYIZ:
+        // canlı kimlikler 18853/83191/109648 gibi büyük sayılar olduğundan 1..3
+        // taraması yalnızca 404 üretir. Sayfa düzeyi iframe/medya taraması
+        // (pageLevelSources) zaten çağrı tarafında ayrıca çalışır.
+        Log.d(TAG, "bolum yedeği: çevirmen dizini boş döndü (id=$bolumId)")
+        return emptyList()
     }
 
     /** `{videos:[{id,name}]}` veya `{data:"<html>"}` → video/oynatıcı adresleri. */
-    private suspend fun fetchV3Translator(
+    internal suspend fun fetchV3Translator(
         sourcesUrl: String,
         fansub: String,
         pageUrl: String
     ): List<Source> {
         val body = http.getXhr(sourcesUrl, pageUrl) ?: return emptyList()
+        return parseTranslatorResponse(sourcesUrl, fansub, body)
+    }
+
+    /**
+     * Çevirmen XHR gövdesini (ağ YOK) video adaylarına çevirir. Saf fonksiyon:
+     * birim testleri gerçek fixture JSON'larıyla doğrudan çağırabilir.
+     * Sözleşme: `{success,videos:[{id,name,watchTogether}]}` / `{data:{videos}}` /
+     * `{data:"<html>"}` / düz HTML (`a[video]`).
+     */
+    internal fun parseTranslatorResponse(
+        sourcesUrl: String,
+        fansub: String,
+        body: String
+    ): List<Source> {
         val out = mutableListOf<Source>()
 
         // A) JSON: videos[] / data / items
@@ -590,7 +582,7 @@ internal class AnizmStreams(
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
 
         if (url.contains("drive.google") || url.contains("docs.google")) {
-            if (resolveGoogleDrive(url, label, referer, callback)) return true
+            if (resolveGoogleDrive(url, label, referer, subtitleCallback, callback)) return true
         }
 
         if (tryExtractors(url, referer, label, subtitleCallback, callback)) return true
@@ -963,6 +955,7 @@ internal class AnizmStreams(
         url: String,
         label: String,
         referer: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
@@ -1002,7 +995,16 @@ internal class AnizmStreams(
             return true
         }
 
-        // 2) Uyarı sayfası yoksa dosya doğrudan iniyordur.
+        // 2) GDrivePlayer köprüsü (yuzono Aniyomi referansı): Drive dosyasını
+        //    saran harici oynatıcı. Uygulamanın kayıtlı extractor'ı çözer;
+        //    çözemezse sahte link yayımlamaz, son çareye geçilir.
+        val bridge = "https://gdriveplayer.to/embed2.php?link=" +
+            URLEncoder.encode("https://drive.google.com/file/d/$fileId/preview", "UTF-8")
+        if (resolveTarget(bridge, "https://drive.google.com/", label, subtitleCallback, callback, 1)) {
+            return true
+        }
+
+        // 3) Uyarı sayfası yoksa dosya doğrudan iniyordur.
         emitMedia(
             "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
             label,
@@ -1178,13 +1180,77 @@ internal class AnizmStreams(
         label: String,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // 1) Birincil yol: URL hash'i ile doğrudan getVideo POST'u
+        //    (Aniyomi AincradExtractor + Migurdex AnizmPlayerExtractor ile aynı).
+        if (postGetVideo(hash, playerUrl, label, callback)) return true
+
+        // 2) getVideo ucu engellendiyse (Cloudflare/403) oynatıcı SAYFASI okunur.
+        //    Sayfadaki packed `eval(function(p,a,c,k,e,d)…)` [AnizmPacker] ile
+        //    açılıp FirePlayer anahtarı çıkar; anahtar yoldan farklıysa onunla
+        //    POST tekrarlanır. Açık medya adresleri ve satır içi securedLink de taranır.
+        var found = false
+        for (pageUrl in arrayOf(
+            "$PLAYER_HOST/video/$hash",
+            "$PLAYER_HOST/embed/$hash",
+            "$PLAYER_HOST/player/$hash"
+        )) {
+            val page = http.get(pageUrl, "$PLAYER_HOST/") ?: continue
+            val unpacked = AnizmPacker.unpack(page)
+            val packedKey = AnizmPacker.firePlayerKey(unpacked)
+            if (packedKey != null && packedKey != hash &&
+                postGetVideo(packedKey, pageUrl, label, callback)
+            ) {
+                found = true
+            }
+            for (stream in mediaFromHtml(page, pageUrl).take(3)) {
+                emitMedia(stream, label, pageUrl, callback)
+                found = true
+            }
+            if (unpacked != null) {
+                for (stream in mediaFromHtml(unpacked, pageUrl).take(3)) {
+                    emitMedia(stream, label, pageUrl, callback, trusted = true)
+                    found = true
+                }
+            }
+            if (!found) {
+                val secured = Regex(
+                    """securedLink"\s*:\s*"([^"]+)""""
+                ).find(page)?.groupValues?.getOrNull(1)
+                    ?: unpacked?.let {
+                        Regex("""securedLink"\s*:\s*"([^"]+)"""").find(it)?.groupValues?.getOrNull(1)
+                    }
+                val url = resolvePlayerUrl(secured)
+                if (url != null) {
+                    emitMedia(url, label, "$PLAYER_HOST/", callback, trusted = true)
+                    found = true
+                }
+            }
+            if (found) break
+        }
+        if (!found) Log.d(TAG, "anizmplayer: getVideo ve sayfa fallback sonuçsuz ($hash)")
+        return found
+    }
+
+    /**
+     * `POST /player/index.php?data=<hash>&do=getVideo` → `videoSource` /
+     * `securedLink` / `video[]`. Yanıttan en az bir akış yayınlandıysa `true`.
+     *
+     * Üç bağımsız istemcinin (Aniyomi, Migurdex, Anthology) ortak sözleşmesi;
+     * `r` alanına site kök adresi, Origin/Referer olarak oynatıcı host'u gider.
+     */
+    private suspend fun postGetVideo(
+        hash: String,
+        playerUrl: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
         val body = http.postForm(
             "$PLAYER_HOST/player/index.php?data=$hash&do=getVideo",
             mapOf("hash" to hash, "r" to (base().trimEnd('/') + "/")),
             playerUrl
         )
         if (body.isNullOrBlank()) {
-            Log.d(TAG, "anizmplayer yanıt yok: $hash")
+            Log.d(TAG, "anizmplayer getVideo yanıt yok: $hash")
             return false
         }
         var found = false
@@ -1221,38 +1287,10 @@ internal class AnizmStreams(
             }
         }
         if (!found) {
-            for (stream in mediaFromHtml(body, playerUrl).take(3)) {
-                emitMedia(stream, label, playerUrl, callback)
+            for (stream in mediaFromHtml(body, "$PLAYER_HOST/video/$hash").take(3)) {
+                emitMedia(stream, label, "$PLAYER_HOST/", callback)
                 found = true
             }
-        }
-        if (!found) {
-            // getVideo ucu engellendiğinde (Cloudflare, 403) oynatıcı SAYFASI
-            // okunur: sayfa JWPlayer kurulumunu ve `securedLink` alanını satır
-            // içi taşıyabiliyor. Böylece API kapalıyken de kaynak düşmez.
-            for (pageUrl in arrayOf(
-                "$PLAYER_HOST/video/$hash",
-                "$PLAYER_HOST/embed/$hash",
-                "$PLAYER_HOST/player/$hash"
-            )) {
-                val page = http.get(pageUrl, "$PLAYER_HOST/") ?: continue
-                for (stream in mediaFromHtml(page, pageUrl).take(3)) {
-                    emitMedia(stream, label, pageUrl, callback)
-                    found = true
-                }
-                if (!found) {
-                    val secured = Regex(
-                        """"securedLink"\s*:\s*"([^"]+)""""
-                    ).find(page)?.groupValues?.getOrNull(1)
-                    val url = resolvePlayerUrl(secured)
-                    if (url != null) {
-                        emitMedia(url, label, "$PLAYER_HOST/", callback, trusted = true)
-                        found = true
-                    }
-                }
-                if (found) break
-            }
-            if (!found) Log.d(TAG, "anizmplayer: getVideo ve sayfa fallback sonuçsuz ($hash)")
         }
         return found
     }
@@ -1560,7 +1598,14 @@ internal class AnizmStreams(
             "luffytra", "mega.nz", "mega.co", "mail.ru", "yandex", "drive.google",
             "docs.google", "vidcache", "yourupload", "streamlare", "dood", "vidmoly",
             "luluvdo", "uqload", "gofile", "bylt", "streamtape", "dailymotion", "youtube",
-            "abyssplayer", "playmogo", "sitemio"
+            "abyssplayer", "playmogo", "sitemio",
+            // 26-27.10.2026 canlı çevirmen JSON'larında görülen gerçek aileler:
+            // VidBM (XFileSharingPro; jdownloader VidbmCom domain envanteri),
+            // StreamSB aynaları, MyVi/LiiiVideo/SuperVideo ve GDrivePlayer köprüsü.
+            "vidbm", "vidbam", "vidbom", "vidbem", "vedbam", "vadbam",
+            "streamsb", "sbface", "streamssb", "sbspeed", "sblongvu", "lvturbo", "embturbo",
+            "sblona", "upbolt", "vids.st",
+            "myvi", "liiivideo", "liii.video", "supervideo", "gdriveplayer"
         )
         private const val PLAYER_HOST = "https://anizmplayer.com"
 

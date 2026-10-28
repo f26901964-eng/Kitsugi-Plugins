@@ -310,7 +310,7 @@ internal object AnizmSite {
         val name = titleOf(anchor) ?: AnizmMatch.cleanTitle(titleFromSlug(seriesUrl)) ?: return null
         if (isInvalidTitle(name)) return null
 
-        val scoreText = anchor.selectFirst(".v3-catalog-score, .score, .rating, rating")?.text()
+        val scoreText = anchor.selectFirst(".v3-catalog-score, .v3-card-rating, .score, .rating, rating")?.text()
             ?: anchor.attr("data-score")
         val score = scoreText?.replace(',', '.')?.let { text ->
             Regex("\\d{1,2}(?:\\.\\d)?").find(text)?.value?.toDoubleOrNull()
@@ -399,7 +399,7 @@ internal object AnizmSite {
         val name = AnizmMatch.cleanTitle(rawTitle) ?: AnizmMatch.cleanTitle(titleFromSlug(seriesUrl)) ?: return null
         if (isInvalidTitle(name)) return null
 
-        val score = el.selectFirst(".v3-catalog-score, .score, rating")?.text()
+        val score = el.selectFirst(".v3-catalog-score, .v3-card-rating, .score, rating")?.text()
             ?.let { Regex("\\d{1,2}(?:\\.\\d)?").find(it)?.value?.toDoubleOrNull() }
             ?.takeIf { it > 0.0 && it <= 10.0 }
         return AnizmCard(
@@ -623,7 +623,14 @@ internal object AnizmSite {
             )
             loose[url] = episode
             val series = seriesPathOf(url)
-            if (targetSeries == null || series == null || series == targetSeries) strict[url] = episode
+            // Birleşik bölümler ("215-216. Bölüm") tekli desende "one-piece-215"
+            // gibi görünür; etiketle DOUBLE_EPISODE_PATH üzerinden gerçek seriye
+            // indirgenir (canlı fixture: One Piece'teki 5 birleşik bölüm aksi
+            // halde listeden tamamen düşüyordu — 1175 yerine 1170 kayıt).
+            val labelAwareSeries = toSeriesUrl(url, label)?.let { seriesPathOf(it) }
+            val belongsToTarget = targetSeries == null || series == null ||
+                series == targetSeries || labelAwareSeries == targetSeries
+            if (belongsToTarget) strict[url] = episode
         }
 
         // 1) v3: tüm bölümler tek ızgarada (12'lik gruplar istemci tarafında).
