@@ -13,13 +13,13 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Anime | **Anizium** | 25 |
 | Anime | **Anizm** | 5 |
 | Anime | **AnimeciX** | 24 |
-| Anime | **TrAnimeIzle** | 40 |
+| Anime | **TrAnimeIzle** | 41 |
 | Film / Dizi | **FilmMakinesi** | 72 |
 | Film / Dizi | **HDFilmCehennemi** | 63 |
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
-> **Anizm (v5)** ve **TrAnimeIzle (v40)** video kaynak zinciri bu sürümde tamamen yenilendi:
+> **Anizm (v5)** ve **TrAnimeIzle (v41)** video kaynak zinciri bu sürümde tamamen yenilendi:
 > kaynaklar artık **paralel** çözülüyor (30+ saniyelik beklemeler bitti), sitenin kendi
 > oynatıcı uçları birebir kullanılıyor ve **HLS master listeleri kalite varyantlarına**
 > ayrılıyor. Ayrıntı: [`research/anime-plugin-rewrite-2026-10-25.md`](research/anime-plugin-rewrite-2026-10-25.md).
@@ -35,6 +35,17 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 > (`/api/CaptchaChallenge`); HTTP gövdesi tek kez okunuyor (çift okuma sayfayı
 > boşaltabiliyordu) ve `postForm` yolu da captcha tekrarına dâhil. Sahadaki
 > "kaynak eksik/boş" şikâyetinin iki sessiz nedeni bu iki hataydı.
+>
+> **TrAnimeIzle v41 — "eklenti çalışma zamanı uyumsuzluğu" düzeltmesi:** eklenti
+> v17'den beri taşınan **WebView + AlertDialog "bot kontrolü" diyaloğunu**
+> (`BotKontrol.kt`, 948 satır) yüklüyordu. Bu, eklentiyi `android.webkit`,
+> `android.app/view/widget` ve `SharedPreferences` sınıflarına bağlıyordu —
+> **çalışan hiçbir eklentide bu bağımlılıklar yok**. Uygulamanın eklenti sınıf
+> yükleyicisi bu sınıfları çözemediğinde *LinkageError (KTS-CSP-9110)* verip
+> eklentiyi hiç açmıyordu; kullanıcı bunu "eklenti çalışma zamanı uyumsuzluğu"
+> olarak görüyordu. Katman tamamen kaldırıldı: BotKontrol artık saf Kotlin,
+> `SharedPreferences` okuması yok, `android.util.Base64` yerine saf çözücü.
+> Paket 163,8 KB → 140,8 KB; dex metot sayısı 1319 → 1102.
 
 > **FilmEkseni** ve **HDFilmDelisi** devre dışı bırakılmış, yerlerine **DiziBox** ve **HDFilmİzle** etkinleştirilmiştir. Eski kaynak klasörleri silinmemiştir. Eklentilerin uygulamada görünmesi için bu depoyu ekleyip uygulama içinden depoyu yenilemeniz gerekir. Kaynak atıfları için [`THIRD_PARTY_SOURCES.md`](THIRD_PARTY_SOURCES.md) dosyasına bakın.
 
