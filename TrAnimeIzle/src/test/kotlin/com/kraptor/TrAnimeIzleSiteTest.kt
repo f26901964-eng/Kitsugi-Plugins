@@ -223,6 +223,27 @@ class TrAnimeIzleSiteTest {
      * hiçbir kaynak oynatılamaz (v17–v29 arasındaki "kaynak yok" şikâyeti).
      */
     @Test
+    fun episodesFromDataSlugButtons() {
+        // ÖLÇÜM (js/site.js, arşiv 31.08.2026):
+        //   $(".episodeBtn").click → window.location.href = "/" + $(this).data("slug")
+        // Bölüm kartı <a href> değil, data-slug taşıyan öğe olabilir.
+        val pageUrl = "$base/naruto-izle"
+        val html = """
+            <html><body>
+              <div class="animeDetail-items"><ol>
+                <li class="episodeBtn" data-slug="naruto-1-bolum-izle"><span>1. Bölüm</span></li>
+                <li class="episodeBtn" data-slug="naruto-2-bolum-izle"><span>2. Bölüm</span></li>
+              </ol></div>
+            </body></html>
+        """.trimIndent()
+
+        val episodes = TrAnimeIzleSite.parseEpisodes(Jsoup.parse(html, pageUrl), base, pageUrl, "Naruto")
+
+        assertEquals(listOf(1, 2), episodes.map { it.number })
+        assertEquals("$base/naruto-1-bolum-izle", episodes.first().url)
+    }
+
+    @Test
     fun sourcePlayerIframeCarriesRealHostUrlInsideEmbed2() {
         val body = """{"source":"<iframe src=\"https://luffytra2.top/embed2/?id=https://filemoon.sx/e/abc123\" allowfullscreen></iframe>","contributerNotes":""}"""
         val html = TrAnimeIzleSite.unwrapJsonHtml(body)
@@ -334,5 +355,87 @@ class TrAnimeIzleSiteTest {
         assertNull(TrAnimeIzleSite.absolute(base, "  "))
         assertNotNull(TrAnimeIzleSite.absolute(base, "$base/one-piece-izle"))
         assertEquals("tranimeizle.io", TrAnimeIzleSite.hostOf("$base/x"))
+    }
+
+    // ------------------------------------------------------------------
+    // v39: oynatıcı sarmalları (embed2 / downloadru2) ve yeni hedef listesi
+    // ------------------------------------------------------------------
+
+    @Test
+    fun embedInnerUrlKeepsInnerQueryString() {
+        assertEquals(
+            "https://voe.sx/e/abc?x=1&y=2",
+            TrAnimeIzleSite.embedInnerUrl("https://luffytra2.top/embed2/?id=https://voe.sx/e/abc?x=1&y=2")
+        )
+        // Protokolsüz (//) iç adres https'e yükseltilir.
+        assertEquals(
+            "https://ok.ru/videoembed/1",
+            TrAnimeIzleSite.embedInnerUrl("https://x.top/embed2/?id=//ok.ru/videoembed/1")
+        )
+    }
+
+    @Test
+    fun embedInnerUrlDecodesUrlEncodedValueAndRejectsBareIds() {
+        assertEquals(
+            "https://voe.sx/e/abc?x=1&y=2",
+            TrAnimeIzleSite.embedInnerUrl(
+                "https://luffytra2.top/embed2/?id=https%3A%2F%2Fvoe.sx%2Fe%2Fabc%3Fx%3D1%26y%3D2"
+            )
+        )
+        // Yalnızca kimlik taşıyan sarmal → null (çağıran iframe'in kendisini dener).
+        assertNull(TrAnimeIzleSite.embedInnerUrl("https://luffytra2.top/embed2/?id=12345"))
+        assertNull(TrAnimeIzleSite.embedInnerUrl("https://voe.sx/e/abc"))
+    }
+
+    @Test
+    fun downloadBridgeUrlDecodesBase64Target() {
+        assertEquals(
+            "https://ok.ru/videoembed/123",
+            TrAnimeIzleSite.downloadBridgeUrl(
+                "https://www.tranimeizle.io/downloadru2.php?url=aHR0cHM6Ly9vay5ydS92aWRlb2VtYmVkLzEyMw=="
+            )
+        )
+        assertNull(TrAnimeIzleSite.downloadBridgeUrl("https://ok.ru/videoembed/1"))
+    }
+
+    @Test
+    fun base64DecodeHandlesPaddingAndUrlSafe() {
+        assertEquals("https://voe.sx/e/AbC123", TrAnimeIzleSite.base64Decode("aHR0cHM6Ly92b2Uuc3gvZS9BYkMxMjM="))
+        assertEquals("https://voe.sx/e/AbC123", TrAnimeIzleSite.base64Decode("aHR0cHM6Ly92b2Uuc3gvZS9BYkMxMjM"))
+        assertNull(TrAnimeIzleSite.base64Decode("!!!not-base64!!!"))
+        assertNull(TrAnimeIzleSite.base64Decode(""))
+    }
+
+    @Test
+    fun optracoMediaUrlResolvesRelativeHlsAndSkipsAds() {
+        val page = """
+            <script>
+              var player = new Player({ file: "/hls/a1b2/master.m3u8", type: "hls" });
+              var reklam = "https://adsterra.com/x.mp4";
+            </script>
+        """.trimIndent()
+        assertEquals(
+            "https://optraco.top/hls/a1b2/master.m3u8",
+            TrAnimeIzleSite.optracoMediaUrl(page, "https://optraco.top/explorer/abc")
+        )
+        assertNull(TrAnimeIzleSite.optracoMediaUrl("<html>oynatıcı yok</html>", base))
+    }
+
+    @Test
+    fun playerTargetsUnwrapsEmbedAndReturnsDirectMedia() {
+        val html = """
+            <div id="videoPlayer">
+              <iframe src="https://luffytra2.top/embed2/?id=https://voe.sx/e/abc"></iframe>
+              <iframe src="https://luffytra2.top/embed2/?id=aHR0cHM6Ly9vay5ydS92aWRlb2VtYmVkLzEyMw=="></iframe>
+              <source src="https://cdn.example.com/master.m3u8">
+            </div>
+        """.trimIndent()
+
+        val targets = TrAnimeIzleSite.playerTargets(html, base)
+
+        assertTrue(targets.contains("https://voe.sx/e/abc"))
+        assertTrue(targets.contains("https://cdn.example.com/master.m3u8"))
+        // Sarmalın kendisi de hedef olarak korunur (iç adres kimlikse).
+        assertTrue(targets.any { it.contains("luffytra2.top/embed2/") })
     }
 }

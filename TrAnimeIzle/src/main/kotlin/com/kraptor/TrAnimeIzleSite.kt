@@ -3,6 +3,7 @@ package com.kraptor
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
+import java.net.URLDecoder
 
 /** Liste/arama kartı. */
 internal data class TrCard(
@@ -340,8 +341,8 @@ internal object TrAnimeIzleSite {
         val found = LinkedHashMap<Int, TrEpisode>()
         var running = 1
 
-        fun consider(anchor: Element, forcedNumber: Int? = null) {
-            val url = absolute(base, anchor.attr("href")) ?: return
+        fun consider(anchor: Element, forcedNumber: Int? = null, explicitUrl: String? = null) {
+            val url = explicitUrl ?: absolute(base, anchor.attr("href")) ?: return
             if (!url.startsWith("http")) return
             val rawName = firstNonNull(
                 anchor.selectFirst("div.etitle span")?.text(),
@@ -382,6 +383,19 @@ internal object TrAnimeIzleSite {
                 "div.episode-list li a, li:has(div.episode-li) a"
         )
         for (anchor in containers) consider(anchor)
+
+        // v40 — ÖLÇÜM: sitenin kendi istemci kodu (`/js/site.js`, arşiv
+        // 31.08.2026) bölüm kartlarını şöyle açıyor:
+        //     $(".episodeBtn").click(function(){ window.location.href =
+        //         "/" + $(this).data("slug"); });
+        // Yani kart bir `<a href>` DEĞİL, `data-slug` taşıyan bir öğe olabilir.
+        // Eskiden bu kartlar hiç görülmüyordu → bölüm listesi eksik geliyordu.
+        for (el in doc.select(".episodeBtn[data-slug]")) {
+            val slug = el.attr("data-slug").trim()
+            if (slug.isEmpty()) continue
+            val url = absolute(base, "/" + slug.trimStart('/')) ?: continue
+            consider(el, explicitUrl = url)
+        }
 
         if (found.isEmpty()) {
             // Tema değişmiş olabilir: bölüm URL desenine göre genel tarama.
@@ -535,6 +549,143 @@ internal object TrAnimeIzleSite {
     fun embedCandidates(iframeUrl: String): List<String> {
         val id = iframeUrl.substringAfter(LUFFY_MARKER, "")
         return if (id.isBlank()) listOf(iframeUrl) else listOf(id, iframeUrl)
+    }
+
+    /**
+     * `…/embed2/?id=<gerçek adres>` sarmalını açar (luffytra2 / "luffy" katmanı).
+     *
+     * Sitedeki `sourcePlayer` cevabı HER ZAMAN bu sarmalı taşır; `id` parametresi
+     * çoğu zaman gerçek video hostu adresidir (ok.ru, sibnet, voe, sendvid…),
+     * bazen de yalnızca bir kimlik olur. Kimlik ise `null` döner ve çağıran
+     * iframe'in kendisini dener.
+     *
+     * Kural: `&` ile kesilmez — gerçek adresin kendi sorgu parametreleri
+     * (`?x=1&y=2`) korunmalı. Hem ham hem URL-çözülmüş biçim denenir.
+     */
+    fun embedInnerUrl(url: String): String? {
+        if (url.isBlank()) return null
+        val index = url.indexOf(LUFFY_MARKER, ignoreCase = true)
+        if (index < 0) return null
+        val tail = url.substring(index + LUFFY_MARKER.length)
+            .substringBefore('"')
+            .substringBefore('\'')
+            .substringBefore('<')
+            .replace("\\/", "/")
+            .replace("&amp;", "&")
+            .trim()
+        if (tail.isEmpty()) return null
+        val decoded = try {
+            URLDecoder.decode(tail.replace("+", "%2B"), "UTF-8")
+        } catch (_: Exception) {
+            tail
+        }
+        for (candidate in listOf(tail, decoded)) {
+            val value = if (candidate.startsWith("//")) "https:$candidate" else candidate
+            // DİKKAT: yalnızca "http" ile başlamak YETMEZ — URL-encoded değer
+            // ("https%3A%2F%2F…") de "https" ile başlar; şema ayırıcısı şart.
+            if (value.startsWith("http://", ignoreCase = true) ||
+                value.startsWith("https://", ignoreCase = true)
+            ) return value
+        }
+        return null
+    }
+
+    /**
+     * `downloadru2.php?url=<base64>` köprüsü — Aitr'nin indirme yönlendiricisi.
+     * Base64 çözülünce gerçek host adresi çıkar (ör. `https://voe.sx/e/…`).
+     *
+     * `android.util.Base64` KULLANILMAZ: bu nesne birim testlerinde (saf JVM)
+     * ve API 26 altı cihazlarda da çalışmak zorunda.
+     */
+    fun downloadBridgeUrl(url: String): String? {
+        if (url.isBlank()) return null
+        if (!url.contains("downloadru", ignoreCase = true)) return null
+        val raw = Regex("""[?&]url=([^&"'\s<>]+)""", RegexOption.IGNORE_CASE)
+            .find(url)?.groupValues?.getOrNull(1) ?: return null
+        val decoded = base64Decode(raw)?.trim() ?: return null
+        if (!decoded.startsWith("http://", ignoreCase = true) &&
+            !decoded.startsWith("https://", ignoreCase = true)
+        ) return null
+        if (isAdUrl(decoded)) return null
+        return decoded
+    }
+
+    /** Standart + URL-güvenli base64 çözücü (padding toleranslı, saf Kotlin). */
+    fun base64Decode(raw: String): String? {
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        var buffer = 0
+        var bits = 0
+        val out = StringBuilder()
+        for (ch in raw.trim()) {
+            if (ch == '=') break
+            if (ch == '\n' || ch == '\r' || ch == ' ' || ch == '\t') continue
+            val normalized = when (ch) {
+                '-' -> '+'
+                '_' -> '/'
+                else -> ch
+            }
+            val value = alphabet.indexOf(normalized)
+            if (value < 0) return null
+            buffer = (buffer shl 6) or value
+            bits += 6
+            if (bits >= 8) {
+                bits -= 8
+                out.append(((buffer shr bits) and 0xFF).toChar())
+            }
+        }
+        return if (out.isEmpty()) null else out.toString()
+    }
+
+    /**
+     * AitrVip / OpTraco oynatıcı sayfasındaki medya adresi.
+     * Sayfa her zaman `file: "…"` yazar; göreli değer (`/hls/…m3u8`) base'e göre çözülür.
+     */
+    fun optracoMediaUrl(page: String, base: String): String? {
+        if (page.isBlank()) return null
+        val text = page.replace("\\/", "/").replace("&amp;", "&")
+        val patterns = listOf(
+            Regex("""file\s*:\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["']([^"']*\.m3u8[^"']*)["']""", RegexOption.IGNORE_CASE),
+            Regex("""["']([^"']*\.mp4[^"']*)["']""", RegexOption.IGNORE_CASE)
+        )
+        for (pattern in patterns) {
+            for (match in pattern.findAll(text)) {
+                val raw = match.groupValues.getOrNull(1)?.trim().orEmpty()
+                if (raw.isEmpty() || raw.startsWith("data:") || raw.startsWith("blob:")) continue
+                val resolved = absolute(base, raw) ?: continue
+                if (!resolved.startsWith("http")) continue
+                if (isAdUrl(resolved)) continue
+                return resolved
+            }
+        }
+        return null
+    }
+
+    /**
+     * Oynatıcı gövdesinden çıkan **tüm** hedef adresler — sarmallar AÇILMIŞ hâlde.
+     *
+     * Sıra: iframe'ler (ve varsa `id=` iç adresi) → doğrudan medya → gövdedeki
+     * tanınan host adresleri. `downloadru2` ve `embed2` sarmalları burada
+     * çözülür; böylece akış katmanı tek bir liste üzerinden çalışır.
+     */
+    fun playerTargets(html: String, base: String, limit: Int = 12): List<String> {
+        if (html.isBlank()) return emptyList()
+        val out = LinkedHashSet<String>()
+        for (frame in iframesFrom(html, base)) {
+            embedInnerUrl(frame)?.let { out.add(it) }
+            downloadBridgeUrl(frame)?.let { out.add(it) }
+            out.add(frame)
+        }
+        for (media in directMediaFrom(html, base)) out.add(media)
+        val unescaped = html.replace("\\/", "/")
+        for (match in Regex("""https?://[^"'\s<>\\]+""").findAll(unescaped)) {
+            if (out.size >= limit * 3) break
+            val url = match.value.trimEnd('"', '\'', ')', ',', ';')
+            if (isAdUrl(url)) continue
+            embedInnerUrl(url)?.let { out.add(it) }
+            downloadBridgeUrl(url)?.let { out.add(it) }
+        }
+        return out.take(limit)
     }
 
     /** Üzerinde `data-fid` bulunan, sayfadaki ilk fansub (WebView DOM'u için). */

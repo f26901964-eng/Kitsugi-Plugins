@@ -15,6 +15,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -194,6 +196,34 @@ import java.util.concurrent.atomic.AtomicBoolean
  *      helper'i (source = saglayici adi, name = eklenti adi) + referer + UA
  *      + kalite; 3 kopya blok tek kaynaga indirildi.
  *   6. DEPRECATION: SubtitleFile(...) -> newSubtitleFile(...).
+ *
+ * v39 (sitenin HTML sözleşmesi bağımsız istemcilerle karşılaştırıldı):
+ *  - Kanıt kaynakları: Aniyomi `yuzono/anime-extensions` (tr/tranimeizle,
+ *    `ShittyCaptchaInterceptor` dâhil) ve CloudStream `UmayTrade/MyTV`
+ *    (TrAnimeIzle v4, IconCaptcha + optraco + downloadru2 + embed2 çözümü).
+ *    Ayrıntılı tablo: `research/tranimeizle-html-haritasi-2026-10-28.md`.
+ *  - **Captcha yanlış pozitifi giderildi**: gövdede geçen herhangi bir
+ *    `/api/Captcha` metni "bot" sayılıyordu; sitenin kendi JS'i bu uçtan söz
+ *    ettiği için NORMAL sayfalar bot sanılıp boş dönüyordu. Artık yalnızca
+ *    gerçek kapı işaretleri (`captcha-holder`, `iconCaptcha`,
+ *    `CaptchaChallenge`) aranıyor.
+ *  - **Captcha artık HTTP ile çözülüyor**: kapıya düşen istek, WebView
+ *    diyaloğu AÇILMADAN 5 görselin MD5'i üzerinden çözülüp BİR kez tekrar
+ *    ediliyor (Aniyomi'nin `cID=0/rT=1/tM=light` akışı birebir).
+ *  - Oynatıcı hedefleri tek yerde toplandı ([TrAnimeIzleSite.playerTargets]);
+ *    `embed2/?id=` ve `downloadru2.php?url=<base64>` sarmalları açılıyor.
+ *  - Yeni yerel çözücüler: OpTraco/AitrVip, Vidmoly, SendVid.
+ *
+ * v40 (sahadan gelen eksik-kaynak şikâyeti sonrası):
+ *  - **Captcha artık YANIT ADRESİNDEN de yakalanıyor** (`/api/CaptchaChallenge`).
+ *    Kanıt: Aniyomi `ShittyCaptchaInterceptor` korumalı isteği URL'den tanıyor;
+ *    gövde bazen boş/kısa JSON oluyor. Eskiden yalnızca gövdeye bakıldığı için
+ *    kapı kaçıyor, uç boş dönüyor ve kaynak listesi sessizce eksiliyordu.
+ *  - **Gövde tek okunuyor**: `resp.text` iki kez okunuyordu; nicehttp gövdesi
+ *    tüketilebilir olduğundan ikinci okuma `null` dönüp sayfayı boşaltabiliyordu.
+ *    Tüm HTTP yüzeyi (GET/XHR/POST-JSON/POST/POST-FORM) tek okumaya çevrildi.
+ *  - `postForm` da captcha tekrarına dâhil edildi (form gövdeli uçlar da kapıya
+ *    düşebiliyor; eskiden yalnızca JSON/form çağrısının ilk yolu korunuyordu).
  */
 class TrAnimeIzle(
     private val context: Context,
@@ -255,6 +285,22 @@ class TrAnimeIzle(
     // Arama + ana sayfa
     // ------------------------------------------------------------------
 
+    /**
+     * v40: **arama yolu** kodlaması.
+     *
+     * Kanıt — sitenin kendi istemci kodu (`/js/site.js`, arşiv 31.08.2026):
+     * ```
+     * window.location.href = "/arama/" + searchBar.value
+     * ```
+     * Tarayıcı bu ham metni **yol parçası** olarak kodlar → boşluk `%20` olur.
+     * `URLEncoder` ise boşluğu `+` yapar; yol parçasında `+` düz artı
+     * karakteridir → sunucu "one+piece" diye arar ve **0 sonuç** döner.
+     * Bu düzeltme, boşluklu aramaların (hemen her anime adı) sessizce boş
+     * dönmesini engeller.
+     */
+    private fun encodeSearchPath(raw: String): String =
+        URLEncoder.encode(raw, "UTF-8").replace("+", "%20")
+
     override suspend fun search(query: String, page: Int): SearchResponseList {
         if (!TrAnimeIzleHelper.isAllowedVersion) {
             return newSearchResponseList(emptyList(), false)
@@ -312,7 +358,7 @@ class TrAnimeIzle(
         for (variant in variants) {
             if (page > 1) break
             if (collected.size >= 8) break
-            val enc = URLEncoder.encode(variant, "UTF-8")
+            val enc = encodeSearchPath(variant)
             val url = mainUrl + "/arama/" + enc
             val html = try {
                 fetchHtml(url, mainUrl + "/", ensureSession = false, webViewFallback = true)
@@ -329,7 +375,7 @@ class TrAnimeIzle(
         }
         if (page > 1) {
             // Sayfa > 1: tek istek (ham sorgu) — sonsuz liste için hasNext korunur.
-            val enc = URLEncoder.encode(query, "UTF-8")
+            val enc = encodeSearchPath(query)
             val html = try {
                 fetchHtml(mainUrl + "/arama/" + enc + "?page=" + page, mainUrl + "/", true, true)
             } catch (e: CancellationException) {
@@ -350,7 +396,7 @@ class TrAnimeIzle(
                 if (variants.any { it.equals(alt, ignoreCase = true) }) continue
                 val html = try {
                     fetchHtml(
-                        mainUrl + "/arama/" + URLEncoder.encode(alt, "UTF-8"),
+                        mainUrl + "/arama/" + encodeSearchPath(alt),
                         mainUrl + "/",
                         ensureSession = false,
                         webViewFallback = false
@@ -654,26 +700,79 @@ class TrAnimeIzle(
         lastCookie = jar.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
+    /** Captcha çözümü sıraya alınır: 10 paralel kaynak isteği aynı anda
+     *  çözmeye kalkarsa siteye 10 ayrı doğrulama isteği gider (hem yavaş
+     *  hem de WAF'ı kızdırır). */
+    private val captchaSolveLock = Mutex()
+
+    @Volatile
+    private var captchaSolvedAt: Long = 0L
+
+    /**
+     * v39: sitenin ikon-captcha kapısını **HTTP ile** (WebView'siz) çözer.
+     * Aynı oturumda TTL boyunca bir kez çözülür; eşzamanlı çağrılar kilitlenir.
+     */
+    private suspend fun ensureCaptchaSolved(): Boolean {
+        if (System.currentTimeMillis() - captchaSolvedAt < CAPTCHA_TTL_MS) return true
+        return captchaSolveLock.withLock {
+            if (System.currentTimeMillis() - captchaSolvedAt < CAPTCHA_TTL_MS) return@withLock true
+            val solved = solveCaptcha()
+            if (solved) captchaSolvedAt = System.currentTimeMillis()
+            solved
+        }
+    }
+
+    /**
+     * v39: ikon-captcha kapısına düşen isteği **HTTP ile** (WebView'siz) çözer
+     * ve aynı isteği BİR kez tekrarlar. Çözülemezse çağıran katman kendi
+     * yedeğine (oturum yenileme / diğer yol) devam eder.
+     */
+    private suspend fun captchaRetry(body: String?, url: String? = null): Boolean =
+        (isCaptchaUrl(url) || isCaptchaPage(body)) && ensureCaptchaSolved()
+
     override suspend fun get(url: String, referer: String?): String? =
         guarded("GET ${url.take(110)}") {
-            val resp = app.get(
+            var resp = app.get(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"),
                 timeout = 12
             )
             mergeCookies(resp.cookies)
-            if (!resp.isSuccessful) null else resp.text
+            // v40: gövde TEK kez okunur (nicehttp gövdesi tüketilebilir; ikinci
+            // okuma null dönüp sayfayı sessizce boşaltıyordu).
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
+                Log.d(LOG_TAG, "captcha çözüldü → GET tekrar: ${url.take(90)}")
+                resp = app.get(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"),
+                    timeout = 12
+                )
+                mergeCookies(resp.cookies)
+                text = resp.text
+            }
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun getXhr(url: String, referer: String?): String? =
         guarded("XHR ${url.take(110)}") {
-            val resp = app.get(
+            var resp = app.get(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 timeout = 12
             )
             mergeCookies(resp.cookies)
-            if (!resp.isSuccessful) null else resp.text
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
+                resp = app.get(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                    timeout = 12
+                )
+                mergeCookies(resp.cookies)
+                text = resp.text
+            }
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun getWith(url: String, extra: Map<String, String>): String? =
@@ -692,25 +791,48 @@ class TrAnimeIzle(
         guarded("POST-JSON ${url.take(110)}") {
             // site.js (axios) birebir JSON gövdesi gönderir; form gövde kaynak
             // listesini boş döndürüyordu (v23'te kanıtlandı).
-            val resp = app.post(
+            var resp = app.post(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 json = JsonAsString(json),
                 timeout = 15
             )
             mergeCookies(resp.cookies)
-            if (!resp.isSuccessful) null else resp.text
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
+                Log.d(LOG_TAG, "captcha çözüldü → POST-JSON tekrar: ${url.take(90)}")
+                resp = app.post(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                    json = JsonAsString(json),
+                    timeout = 15
+                )
+                mergeCookies(resp.cookies)
+                text = resp.text
+            }
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun postEmpty(url: String, referer: String?): String? =
         guarded("POST ${url.take(110)}") {
-            val resp = app.post(
+            var resp = app.post(
                 url,
                 headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
                 timeout = 15
             )
             mergeCookies(resp.cookies)
-            if (!resp.isSuccessful) null else resp.text
+            var text = resp.text
+            if (captchaRetry(text, resp.url.toString())) {
+                Log.d(LOG_TAG, "captcha çözüldü → POST tekrar: ${url.take(90)}")
+                resp = app.post(
+                    url,
+                    headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                    timeout = 15
+                )
+                mergeCookies(resp.cookies)
+                text = resp.text
+            }
+            if (!resp.isSuccessful) null else text
         }
 
     override suspend fun postForm(
@@ -718,14 +840,25 @@ class TrAnimeIzle(
         form: Map<String, String>,
         referer: String?
     ): String? = guarded("POST-FORM ${url.take(110)}") {
-        val resp = app.post(
+        var resp = app.post(
             url,
             headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
             data = form,
             timeout = 12
         )
         mergeCookies(resp.cookies)
-        if (!resp.isSuccessful) null else resp.text
+        var text = resp.text
+        if (captchaRetry(text, resp.url.toString())) {
+            resp = app.post(
+                url,
+                headers = browserHeaders(lastCookie, referer ?: mainUrl + "/", isXhr = true),
+                data = form,
+                timeout = 12
+            )
+            mergeCookies(resp.cookies)
+            text = resp.text
+        }
+        if (!resp.isSuccessful) null else text
     }
 
     override suspend fun bytes(url: String, referer: String?): ByteArray? =
@@ -1006,16 +1139,50 @@ class TrAnimeIzle(
 
 
     /**
+     * Yanıt, sitenin **ikon-captcha** kapısına mı düştü? (v39)
+     *
+     * Site istemciyi `/api/CaptchaChallenge` sayfasına yönlendiriyor; bu sayfada
+     * `div.captcha-holder` ve `iconCaptcha` betiği bulunur (MyTV ve Aniyomi
+     * istemcilerinin tespit ölçütüyle birebir aynı).
+     *
+     * Eski sürüm gövdede geçen **herhangi bir** `/api/Captcha` metnini "bot"
+     * sayıyordu. Sitenin kendi JS paketi bu uçtan söz ettiği için NORMAL
+     * sayfalar da bot sanılıp gereksiz WebView diyaloğu açılıyor, bazı
+     * durumlarda içerik hiç gelmiyordu. Artık yalnızca gerçek kapı işaretleri
+     * aranıyor ve kapı HTTP ile sessizce çözülüyor.
+     */
+    private fun isCaptchaPage(text: String?): Boolean {
+        val body = text ?: return false
+        if (body.isEmpty() || body.length > 400_000) return false
+        return body.contains("captcha-holder", ignoreCase = true) ||
+            body.contains("iconCaptcha", ignoreCase = true) ||
+            body.contains("CaptchaChallenge", ignoreCase = true)
+    }
+
+    /**
+     * v40: captcha kapısı **yanıt adresinden** de anlaşılır.
+     *
+     * Kanıt (Aniyomi, `ShittyCaptchaInterceptor.kt`): sunucu korumalı isteği
+     * `…/api/CaptchaChallenge` adresine yönlendiriyor; gövde bazen boş/kısa JSON
+     * oluyor (`{"status":false}`), bu yüzden yalnızca gövdeye bakan kontrol
+     * kapıyı **kaçırıyor** ve boş içerik sessizce yutuluyordu.
+     */
+    private fun isCaptchaUrl(url: String?): Boolean =
+        url != null && url.contains("/api/CaptchaChallenge", ignoreCase = true)
+
+    /**
      * İçerik bot/captcha/Cloudflare challenge sayfası mı?
      * v18: site Cloudflare arkasında (Error 1005 ASN ban kanıtlı) → CF
      * managed challenge başlıkları da bot cevabı sayılır. (Sadece TITLE
      * bazlı kontrol — gövdedeki cf- işaretleri her CF korumalı sayfada
      * normalde de bulunur, yanlış pozitif vermemek için.)
+     * v39: captcha kapısı artık GENEL metinle değil, [isCaptchaPage] ile
+     * tespit edilir (yanlış pozitif giderildi).
      */
     private fun isBotBody(text: String?): Boolean {
         val t = text ?: ""
         if (t.isEmpty()) return true
-        if (t.contains("/api/Captcha", ignoreCase = true)) return true
+        if (isCaptchaPage(t)) return true
         val title = try {
             Jsoup.parse(t).selectFirst("title")?.text() ?: ""
         } catch (_: Exception) {
@@ -1076,6 +1243,22 @@ class TrAnimeIzle(
                 throw e
             }
         }
+        // v39: sitenin ikon-captcha kapısı artık WebView diyaloğu AÇMADAN,
+        // HTTP ile (5 görselin MD5'i → en farklı olan) çözülür ve sayfa BİR kez
+        // tekrar istenir. Çözülemezse aşağıdaki bot/oturum yoluna düşer.
+        if (isCaptchaPage(resp.text) && ensureCaptchaSolved()) {
+            Log.d(LOG_TAG, "captcha çözüldü → sayfa tekrar: $url")
+            resp = try {
+                app.get(url, headers = browserHeaders(lastCookie, referer), timeout = 15)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "captcha sonrası GET hatası: ${e.message}")
+                resp
+            }
+            mergeCookies(resp.cookies)
+        }
+
         if (!resp.isSuccessful || isBotBody(resp.text)) {
             // v26: 403/bot sayfası da ölü domain belirtisi olabilir → önce
             // domain rotasyonu, sonra oturum yenileme.
@@ -1537,6 +1720,9 @@ class TrAnimeIzle(
 
         private const val ACTIVE_DOMAIN_KEY = "kraptor_active_domain"
         private const val DOMAIN_CHECK_TTL_MS = 10 * 60 * 1000L
+
+        /** Çözülen captcha oturumu ne kadar geçerli sayılır (ms). */
+        private const val CAPTCHA_TTL_MS = 10 * 60 * 1000L
 
         /**
          * Domain çözümleme (v17, DEX Companion.getDomain'in sadeleştirilmiş hali):
