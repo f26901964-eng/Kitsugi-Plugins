@@ -1,0 +1,111 @@
+     · [Güncellenecek] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+       drive form=YOK ([])
+     · [Güncellenecek] GDrive → drive.google.com [YEREL] HATA 404
+       drive form=YOK ([])
+     · [Güncellenecek] GDrive → drive.google.com [YEREL] HATA 404
+       drive form=VAR ([id, export, confirm, uuid])
+     · [Güncellenecek] GDrive → drive.google.com [YEREL] OYNAR (video/mp4 206)
+     · [Güncellenecek] MyviRU → myvi.ru [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Güncellenecek] MP4Upload  → www.mp4upload.com [EXTRACTOR] HTTP 206 ctype=text/html; charset=UTF-8
+     · [Güncellenecek] Sibnet → video.sibnet.ru [YEREL] HATA 403
+     · [Güncellenecek] Sibnet → video.sibnet.ru [YEREL] HATA 403
+     · [Güncellenecek] VidBM → vadbam.net [EXTRACTOR] HATA 0
+     · [Güncellenecek] VidBM → vadbam.net [EXTRACTOR] HATA 0
+     · [Güncellenecek] YourUpload → www.yourupload.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Güncellenecek] LiiiVideo → www.liiivideo.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=UTF-8
+     · [Güncellenecek] Vidmoly → vidmoly.me [EXTRACTOR] HATA 404
+     · [Güncellenecek] Vidmoly → vidmoly.biz [EXTRACTOR] HATA 0
+     · [Güncellenecek] Vidmoly → vidmoly.biz [EXTRACTOR] HATA 404
+     · [Güncellenecek] StreamSB → sblona.com [EXTRACTOR] HATA 0
+     · [Güncellenecek] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [Güncellenecek] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [Güncellenecek] Voe → voe.sx [EXTRACTOR] HATA 404
+     · [Güncellenecek] MyViid → myviid.com [EXTRACTOR] HATA 0
+     · [Güncellenecek] StreamLare → streamlare.com [EXTRACTOR] HATA 0
+     · [Güncellenecek] SendVid → sendvid.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Güncellenecek] SendVid → sendvid.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Güncellenecek] SendVid → sendvid.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [VictoriaSubs] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+       drive form=YOK ([])
+     · [VictoriaSubs] GDrive → drive.google.com [YEREL] HATA 404
+     · [VictoriaSubs] SuperVideo → supervideo.tv [EXTRACTOR] HATA 0
+     · [VictoriaSubs] YourUpload → www.yourupload.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [VictoriaSubs] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [VictoriaSubs] SendVid → sendvid.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+       drive form=VAR ([id, export, confirm, uuid])
+     · [SomeSubs] GDrive → drive.google.com [YEREL] OYNAR (video/mp4 206)
+     · [SomeSubs] Abyss → player.abyssplayer.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [SomeSubs] UQload → uqload.io [EXTRACTOR] HTTP 206 ctype=text/html; charset=UTF-8
+     · [Akagami] Aincrad (Reklams\u0131z) → anizm.com.tr [KAPSANMIYOR] HATA 0
+     · [Akagami] Beta Player → pl.puffytr.tr [YEREL] OYNAR (HLS 200 native.m3u8, 12 satır)
+     · [Akagami] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+     · [Akagami] Sistenn → sistenn.uns.bio [YEREL] HATA 404 (video)
+       drive form=YOK ([])
+     · [Akagami] GDrive → drive.google.com [YEREL] HATA 404
+     · [Akagami] Sistenn1 → anizm.rpmvid.com [YEREL] HATA 404 (video)
+     · [Akagami] Sistenn2 → anizm.strp2p.com [YEREL] HATA 404 (video)
+     · [Akagami] Odnoklassniki → ok.ru [YEREL] HTTP 200 ctype=text/html;charset=UTF-8
+     · [Akagami] MyviRU → myvi.ru [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+       drive form=VAR ([id, export, confirm, uuid])
+     · [Akagami] GDrive → drive.google.com [YEREL] OYNAR (video/mp4 206)
+     · [Akagami] Abyss → player.abyssplayer.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Akagami] UQload → uqload.com [EXTRACTOR] HTTP 206 ctype=text/html; charset=UTF-8
+     · [Akagami] UQload → uqload.io [EXTRACTOR] HTTP 206 ctype=text/html; charset=UTF-8
+     · [Akagami] YourUpload → www.yourupload.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Akagami] Vidmoly → vidmoly.biz [EXTRACTOR] HATA 404
+     · [Akagami] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [Akagami] HDVid → hdvid.tv [EXTRACTOR] HATA 522
+     · [Akagami] Voe → voe.sx [EXTRACTOR] HATA 404
+     · [Akagami] Voe → voe.sx [EXTRACTOR] HATA 404
+     · [-] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+     · [-] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+       drive form=YOK ([])
+     · [-] GDrive → drive.google.com [YEREL] HATA 404
+       drive form=YOK ([])
+     · [-] GDrive → drive.google.com [YEREL] HATA 404
+       drive form=VAR ([id, export, confirm, uuid])
+     · [-] GDrive → drive.google.com [YEREL] OYNAR (video/mp4 206)
+     · [-] Myvi.TV → www.myvi.tv [EXTRACTOR] HATA 0
+     · [-] Sibnet → video.sibnet.ru [YEREL] HATA 403
+     · [-] VidBM → vadbam.net [EXTRACTOR] HATA 0
+     · [-] YourUpload → www.yourupload.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [-] LiiiVideo → www.liiivideo.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=UTF-8
+     · [-] Vidmoly → vidmoly.biz [EXTRACTOR] HATA 404
+     · [-] Vidmoly → vidmoly.biz [EXTRACTOR] HATA 404
+     · [-] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [-] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [-] DoodStream → dood.watch [EXTRACTOR] HATA 403
+     · [-] Voe → voe.sx [EXTRACTOR] HATA 404
+     · [-] Voe → voe.sx [EXTRACTOR] HATA 404
+     · [-] StreamLare → streamlare.com [EXTRACTOR] HATA 0
+     · [-] MEGA.nz → mega.nz [EXTRACTOR] HTTP 200 ctype=text/html
+     · [-] SendVid → sendvid.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Void Fansub] Beta Player → pl.puffytr.tr [YEREL] OYNAR (HLS 200 native.m3u8, 12 satır)
+     · [Void Fansub] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+     · [Void Fansub] Odnoklassniki → ok.ru [YEREL] HTTP 200 ctype=text/html;charset=UTF-8
+     · [Void Fansub] Odnoklassniki → ok.ru [YEREL] HTTP 200 ctype=text/html;charset=UTF-8
+       drive form=VAR ([id, export, confirm, uuid])
+     · [Void Fansub] GDrive → drive.google.com [YEREL] OYNAR (video/mp4 206)
+     · [Net-Rip] Aincrad (Reklams\u0131z) → anizmplayer.com [YEREL] API 403 (bölge/IP engeli olabilir)
+     · [Net-Rip] Sistenn → sistenn.uns.bio [YEREL] OYNAR? (4 tür: cfNative, hlsVideoTiktok, cf, source) → OYNAR (HLS 200)
+     · [Net-Rip] Sistenn1 → anizm.rpmvid.com [YEREL] OYNAR? (4 tür: cfNative, hlsVideoTiktok, cf, source) → OYNAR (HLS 200)
+     · [Net-Rip] Sistenn2 → anizm.strp2p.com [YEREL] OYNAR? (4 tür: cfNative, hlsVideoTiktok, cf, source) → OYNAR (HLS 200)
+     · [Net-Rip] Odnoklassniki → ok.ru [YEREL] HTTP 200 ctype=text/html;charset=UTF-8
+       drive form=VAR ([id, export, confirm, uuid])
+     · [Net-Rip] GDrive → drive.google.com [YEREL] OYNAR (video/mp4 206)
+     · [Net-Rip] Abyss → player.abyssplayer.com [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Net-Rip] UQload → uqload.io [EXTRACTOR] HTTP 206 ctype=text/html; charset=UTF-8
+     · [Net-Rip] BYSE → bysesayeveum.com [YEREL] HTTP 200 ctype=text/html
+     · [Net-Rip] Vidmoly → vidmoly.biz [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Net-Rip] HDVid → hdvid.tv [EXTRACTOR] HATA 0
+     · [Net-Rip] Voe → voe.sx [EXTRACTOR] HTTP 200 ctype=text/html; charset=utf-8
+     · [Net-Rip] FlyF → flyf.lat [YEREL] HTTP 200 ctype=text/html; charset=utf-8
+     · [Net-Rip] FireStream → firestream.to [YEREL] HATA 0 (sayfa)
+     · [Net-Rip] StreamCash → streamcash.to [YEREL] HATA resolve 200 {"status":403,"msg":"Missing API key","server_time":"2026-10
+     · [Net-Rip] UpBolt → upbolt.to [EXTRACTOR] HATA 403
+     · [Net-Rip] Vids.ST → vids.st [EXTRACTOR] HATA 0
+ ════════ ÖZET ════════
+ toplam kaynak      : 94
+ çözücü kapsamında  : 93
+ oynatılabilir      : 11
+ SORUNLU kaynaklar  : 23
