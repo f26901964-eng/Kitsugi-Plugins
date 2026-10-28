@@ -10,13 +10,12 @@ import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jsoup.Jsoup
 import java.net.URLDecoder
@@ -76,13 +75,13 @@ internal class TrAnimeIzleStreams(
     /** Aynı adresin iki kez yayınlanmaması için (paralel iş parçacıkları güvenli). */
     private val emitted: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
     private val seenSubs: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
-    private val emitLock = Mutex()
+    private val emitLock = Any()
 
     @Volatile
     private var emittedCount: Int = 0
 
     /** Captcha çözümü tek seferlik ve eşzamanlı çağrılarda yarışsız. */
-    private val captchaLock = Mutex()
+    private val captchaLock = Any()
 
     @Volatile
     private var captchaSolved = false
@@ -111,7 +110,7 @@ internal class TrAnimeIzleStreams(
         Log.d(TAG, "episodeId=$episodeId fansub=${fansubs.size}")
 
         // 1) Fansub → kaynak butonları (paralel, en fazla 4 eşzamanlı).
-        val srcGate = Semaphore(4)
+        val srcGate = AsyncGate(4)
         val sources = coroutineScope {
             fansubs.map { fansub ->
                 async {
@@ -206,7 +205,7 @@ internal class TrAnimeIzleStreams(
         }
         if (looksLikeCaptcha(body)) {
             Log.w(TAG, "fansubSources captcha istedi (fid=${fansub.id})")
-            captchaLock.withLock {
+            synchronized(captchaLock) {
                 if (!captchaSolved) captchaSolved = http.solveCaptcha()
             }
             body = http.postJson(url, json, pageUrl) ?: http.postForm(url, form, pageUrl)
@@ -877,9 +876,9 @@ internal class TrAnimeIzleStreams(
         if (!html.contains("__PCr")) return emptyList()
         val b64 = Regex("""__PCr\s*=\s*["']([A-Za-z0-9+/=]{24,})["']""")
             .find(html)?.groupValues?.getOrNull(1) ?: return emptyList()
-        val decoded = runCatching {
-            String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
-        }.getOrNull() ?: return emptyList()
+        // v41: `android.util.Base64` KULLANILMAZ (plugin sınıf yükleyicisinde
+        // Android çerçeve sınıfına bağlanmak riskli; saf Kotlin çözücü yeter).
+        val decoded = TrAnimeIzleSite.base64Decode(b64) ?: return emptyList()
         return mediaFromJsonText(decoded)
     }
 
@@ -1023,7 +1022,7 @@ internal class TrAnimeIzleStreams(
             this.headers = headers
             this.quality = quality ?: getQualityFromName(label)
         }
-        emitLock.withLock {
+        synchronized(emitLock) {
             emittedCount += 1
             callback(link)
         }
@@ -1069,6 +1068,51 @@ internal class TrAnimeIzleStreams(
     // ------------------------------------------------------------------
 
     /**
+     * v41: `kotlinx.coroutines.sync.Semaphore` yerine **saf kotlinx-coroutines-core**
+     * ile eşzamanlılık kapısı.
+     *
+     * Neden: eklenti dex'inde `kotlinx.coroutines.sync` paketine bağlanmak,
+     * uygulamanın eklenti sınıf yükleyicisi o paketi paylaşmadığında
+     * "çalışma zamanı uyumsuzluğu" (LinkageError) üretebiliyor. Buradaki
+     * uygulama yalnızca `Mutex` + `withLock` (çekirdek API) kullanır.
+     */
+    private class AsyncGate(permits: Int) {
+        private val mutex = Mutex()
+        private var available = permits.coerceAtLeast(1)
+        private val waiting = ArrayDeque<CompletableDeferred<Unit>>()
+
+        suspend fun withPermit(block: suspend () -> Unit) {
+            acquire()
+            try {
+                block()
+            } finally {
+                release()
+            }
+        }
+
+        private suspend fun acquire() {
+            val waiter: CompletableDeferred<Unit>? = mutex.withLock {
+                if (available > 0) {
+                    available -= 1
+                    null
+                } else {
+                    CompletableDeferred<Unit>().also { waiting.addLast(it) }
+                }
+            }
+            waiter?.await()
+        }
+
+        private suspend fun release() {
+            val next = mutex.withLock {
+                val waiter = waiting.removeFirstOrNull()
+                if (waiter == null) available += 1
+                waiter
+            }
+            next?.complete(Unit)
+        }
+    }
+
+    /**
      * Sınırlı eşzamanlılık + toplam süre bütçesi. Tek bir yavaş host
      * tüm listeyi kilitlemez; bütçe dolunca o ana kadar çözülenler geçerlidir.
      */
@@ -1091,7 +1135,7 @@ internal class TrAnimeIzleStreams(
         block: suspend (T) -> Unit
     ) {
         if (items.isEmpty()) return
-        val gate = Semaphore(concurrency)
+        val gate = AsyncGate(concurrency)
         val timedOut = java.util.concurrent.atomic.AtomicInteger(0)
         coroutineScope {
             items.map { item ->

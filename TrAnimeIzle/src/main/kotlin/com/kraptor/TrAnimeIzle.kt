@@ -1,7 +1,5 @@
 package com.kraptor
 
-import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.lagradost.cloudstream3.*
@@ -224,13 +222,26 @@ import java.util.concurrent.atomic.AtomicBoolean
  *    Tüm HTTP yüzeyi (GET/XHR/POST-JSON/POST/POST-FORM) tek okumaya çevrildi.
  *  - `postForm` da captcha tekrarına dâhil edildi (form gövdeli uçlar da kapıya
  *    düşebiliyor; eskiden yalnızca JSON/form çağrısının ilk yolu korunuyordu).
+ *
+ * v41 — **"eklenti çalışma zamanı uyumsuzluğu" (KTS-CSP-9110) düzeltmesi**:
+ *  - Kanıt: Kitsugi-Beta sürüm notları bu hatayı "Linkage/runtime incompatibility"
+ *    olarak tanımlıyor ve eklenti yüklenmeden önce MainAPI/KSerializer/Json
+ *    sınıflarının plugin classloader'ından görünürlüğünü doğruluyor.
+ *  - Ölçüm (yayındaki v40 dex'i vs çalışan eklentiler):
+ *      android.webkit  → v40 VAR | Anizm yok | HDFilmCehennemi yok
+ *      android.app/view/widget → v40 VAR | Anizm yok | HDFilmCehennemi yok
+ *      android.content.SharedPreferences → v40 VAR | ikisinde yok
+ *    Bu sınıfların tamamı v17–v40 WebView "bot kontrolü" diyaloğundan geliyordu.
+ *  - Çözüm: WebView/AlertDialog katmanı **tamamen kaldırıldı** (BotKontrol artık
+ *    saf Kotlin), SharedPreferences okuması kaldırıldı, `android.util.Base64`
+ *    yerine saf Kotlin çözücü, `Semaphore` yerine kendi eşzamanlılık kapısı.
+ *  - Neden kayıp yok: WebView yalnızca **veri merkezi IP engeli** (Cloudflare
+ *    Error 1005) içindi; kullanıcı telefondan bağlanıyor, engel yok. Captcha
+ *    zaten v39'da HTTP ile çözülüyor.
  */
-class TrAnimeIzle(
-    private val context: Context,
-    domainPrefs: SharedPreferences
-) : MainAPI(), TrStreamHttp {
+class TrAnimeIzle : MainAPI(), TrStreamHttp {
 
-    override var mainUrl: String = Companion.getDomain(domainPrefs, "TrAnimeIzle")
+    override var mainUrl: String = DEFAULT_DOMAIN
     override var name = "TrAnimeIzle"
 
     // v26: domain rotasyonu durumu.
@@ -238,7 +249,6 @@ class TrAnimeIzle(
     // - mainPageBase: mainPage haritasının kurulumda hangi domainle
     //   üretildiği (run-time domain değişince URL'ler buna göre haritalanır).
     // - lastDomainCheckAt: canlı domain kontrolü sıklığı (TTL).
-    private val domPrefs: SharedPreferences = domainPrefs
     private var mainPageBase: String = mainUrl
     private var lastDomainCheckAt = 0L
     override val hasMainPage = true
@@ -923,24 +933,14 @@ class TrAnimeIzle(
         MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
 
     /**
-     * Suskun (diyalog açmayan) oturum çözümü:
-     *  1) CookieManager'daki site seti (uygulamanın kendi WebView'i siteyi
-     *     zaten açmış olabilir — KNOWN_WEBVIEW_PLUGINS kancası),
-     *  2) önceki WebView akışından kayıtlı çerez seti.
+     * v41: oturum çerezi = bu oturumda toplanan çerez seti ([lastCookie]).
+     *
+     * Eskiden CookieManager (Android WebView) üzerinden çerez okunuyordu; bu da
+     * eklentiyi `android.webkit`'e bağlıyor ve çalışma zamanı uyumsuzluğuna yol
+     * açıyordu. Site zaten anonim çalışıyor: çerezler yalnızca captcha/oturum
+     * devamlılığı için; HTTP yanıtlarından toplananlar yeterli.
      */
-    private fun cachedSession(): String {
-        val jar = BotKontrolKt.collectJar(mainUrl)
-        if (BotKontrolKt.jarHasSession(jar)) {
-            BotKontrolKt.saveJar(context, mainUrl, jar)
-            return jar
-        }
-        val cached = BotKontrolKt.getSavedCookie(context, mainUrl)
-        if (cached.isNotEmpty()) {
-            BotKontrolKt.resetCookieManagerTo(cached, mainUrl)
-            return cached
-        }
-        return ""
-    }
+    private fun cachedSession(): String = lastCookie
 
     // ------------------------------------------------------------------
     // v20: oturum doğrulama (epoch) + WebView DOM çekme katmanı
@@ -1027,10 +1027,9 @@ class TrAnimeIzle(
             if (probeDomainAlive(c)) {
                 Log.w(LOG_TAG, "DOMAIN DEĞİŞTİRİLDİ: $mainUrl → $c")
                 mainUrl = c
-                try {
-                    domPrefs.edit().putString(ACTIVE_DOMAIN_KEY, c).apply()
-                } catch (_: Exception) {
-                }
+                // v41: SharedPreferences yazımı kaldırıldı (Android çerçeve bağımlılığı).
+                // Domain yalnızca bu oturum için değişir; sonraki açılışta
+                // DEFAULT_DOMAIN'den başlanır ve canlı doğrulama yine çalışır.
                 // yeni domain → yeni oturum (eski çerezler eski domainin)
                 sessionValidated = false
                 lastCookie = ""
@@ -1109,32 +1108,40 @@ class TrAnimeIzle(
             "Ana sayfa prob GEÇERSİZ (isSuccess=${probe?.isSuccessful ?: "?"}, $probeLinks kart linki, " +
                 "botCevabı=${isBotBody(probeText)}) → taze oturum diyaloğu (eski çerezler temizleniyor)"
         )
-        val res = try {
-            BotKontrolKt.botKontrolFetch(context, mainUrl, wipeFirst = true)
+        // v41: WebView diyaloğu YOK. Taze oturum = çerezleri temizleyip ana
+        // sayfayı yeniden çekmek (site anonim oturumda da içerik veriyor).
+        lastCookie = ""
+        val fresh = try {
+            val retry = app.get(
+                mainUrl,
+                headers = browserHeaders("", mainUrl + "/"),
+                timeout = 12
+            )
+            mergeCookies(retry.cookies)
+            retry.text ?: ""
         } catch (e: Exception) {
-            Log.e(LOG_TAG, "Oturum diyaloğu hatası: ${e.message}")
-            BotKontrolKt.WebFetchResult("", "")
+            Log.e(LOG_TAG, "Taze oturum isteği hatası: ${e.message}")
+            ""
         }
-        val resLinks = izleCount(res.html)
-        if (resLinks > 0) {
-            Log.d(LOG_TAG, "Taze oturum alındı ($resLinks kart linki, set ${res.jar.length} karakter)")
-            lastCookie = res.jar
-            return res.jar
-        }
-        Log.e(
-            LOG_TAG,
-            "Diyalog sayfasında da içerik yok (html=${res.html.length} karakter, set=${res.jar.length}) — mevcut setle devam"
-        )
-        lastCookie = res.jar.ifBlank { cookie }
+        val freshLinks = izleCount(fresh)
+        Log.d(LOG_TAG, "Taze oturum denemesi: $freshLinks kart linki, set ${lastCookie.length} karakter")
         return lastCookie
     }
 
-    /** WebView diyaloğu ile oturumu YENİLER (bot cevabı alındıysa). */
-    private suspend fun refreshSession(url: String): String = try {
-        BotKontrolKt.botKontrol(context, url, forceRefresh = true)
-    } catch (e: Exception) {
-        Log.e(LOG_TAG, "Oturum yenileme hatası: ${e.message}")
-        BotKontrolKt.getSavedCookie(context, mainUrl)
+    /**
+     * v41: oturumu HTTP ile yeniler (WebView diyaloğu kaldırıldı).
+     * Çerezleri temizleyip ana sayfayı bir kez daha çeker; yeni çerez seti
+     * [lastCookie]'ye yazılır.
+     */
+    private suspend fun refreshSession(@Suppress("UNUSED_PARAMETER") url: String): String {
+        sessionValidated = false
+        lastCookie = ""
+        return try {
+            ensureValidSession()
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Oturum yenileme hatası: ${e.message}")
+            ""
+        }
     }
 
 
@@ -1310,26 +1317,21 @@ class TrAnimeIzle(
         // v30: WebView yalnızca sayfa GERÇEKTEN boşsa (bot/boş gövde) devreye girer.
         // Eskiden "kart linki yok" ölçütü bölüm sayfalarında da tetikleniyor, her
         // sayfa açılışında 5+ sn'lik diyalog açıyordu.
+        // v41: WebView DOM yedeği KALDIRILDI (Android UI bağımlılığı → çalışma
+        // zamanı uyumsuzluğu). Onun yerine: boş/kısa gövdede istek bir kez daha
+        // denenir; captcha kapısıysa zaten yukarıdaki HTTP çözümü devreye girer.
         if (webViewFallback && ok && !isBotBody(text) && (text?.length ?: 0) < 3000) {
-            Log.w(LOG_TAG, "GET boş içerik getirdi → WebView DOM çekme deneniyor: $url")
-            try {
-                val res = BotKontrolKt.botKontrolFetch(context, url, wipeFirst = false)
-                if (res.html.isNotBlank() &&
-                    (izleCount(res.html) > 0 || res.html.length > (text?.length ?: 0))
-                ) {
-                    if (res.jar.isNotBlank()) {
-                        lastCookie = res.jar
-                        BotKontrolKt.saveJar(context, url, res.jar)
-                    }
-                    Log.d(
-                        LOG_TAG,
-                        "WebView DOM alındı: ${res.html.length} karakter, ${izleCount(res.html)} kart linki"
-                    )
-                    return res.html
+            Log.w(LOG_TAG, "GET boş içerik getirdi → tek tekrar: $url")
+            val retry = guarded("GET-tekrar ${url.take(90)}") {
+                app.get(url, headers = browserHeaders(lastCookie, referer ?: mainUrl + "/"), timeout = 12)
+            }
+            if (retry != null && retry.isSuccessful) {
+                mergeCookies(retry.cookies)
+                val retryText = retry.text ?: ""
+                if (retryText.length > (text?.length ?: 0)) {
+                    Log.d(LOG_TAG, "Tek tekrar ${retryText.length} karakter döndürdü")
+                    return retryText
                 }
-                Log.e(LOG_TAG, "WebView DOM'da da içerik yok (html=${res.html.length})")
-            } catch (e: Exception) {
-                Log.e(LOG_TAG, "WebView DOM çekme hatası: ${e.message}")
             }
         }
         if (text.isNullOrBlank()) {
@@ -1714,33 +1716,34 @@ class TrAnimeIzle(
             "https://tranimeizle.live",
             "https://www.tranimeizle.io",
             "https://tranimeizle.io",
+            "https://www.tranimeizle.net",
+            "https://tranimeizle.net",
+            "https://www.tranimeizle.co",
+            "https://tranimeizle.co",
             "https://www.tranimeizle.top",
             "https://tranimeizle.top"
         )
 
-        private const val ACTIVE_DOMAIN_KEY = "kraptor_active_domain"
         private const val DOMAIN_CHECK_TTL_MS = 10 * 60 * 1000L
 
         /** Çözülen captcha oturumu ne kadar geçerli sayılır (ms). */
         private const val CAPTCHA_TTL_MS = 10 * 60 * 1000L
 
         /**
-         * Domain çözümleme (v17, DEX Companion.getDomain'in sadeleştirilmiş hali):
-         *  - SharedPreferences ("DomainListesi", anahtar = eklenti adı) önde
-         *    (uygulama bu alana seçili domain'i yazar).
-         *  - Yoksa sabit [DEFAULT_DOMAIN].
-         *  - DEX ayrıca harici bir domain listesi (Kraptor123/domainListesi)
-         *    çekiyordu; o liste ESKİ domain'ler (ör. .io) taşıyabildiği için
-         *    v17'de kaldırıldı — tek kaynak: uygulama tercihi + yedek.
+         * Domain çözümleme.
+         *
+         * v41: **SharedPreferences okuması kaldırıldı**. Çalışan eklentilerin
+         * hiçbiri `android.content.SharedPreferences` kullanmıyor; bu bağımlılık
+         * eklenti sınıf yükleyicisinde "çalışma zamanı uyumsuzluğu" riski
+         * taşıyordu. Domain artık:
+         *
+         *  1. [DEFAULT_DOMAIN] ile başlar,
+         *  2. `ensureDomainAlive()` canlı doğrulama yapar (ana sayfa 200 + içerik),
+         *  3. ölü domainde [DOMAIN_CANDIDATES] sırayla denenir.
          */
-        fun getDomain(prefs: SharedPreferences, pluginName: String): String {
-            // v26: 1) uygulamanın açık tercihi (varsa), 2) eklentinin son
-            // doğruladığı domain, 3) varsayılan (.io).
-            val domain = prefs.getString(pluginName, "")?.ifBlank { null }
-                ?: prefs.getString(ACTIVE_DOMAIN_KEY, "")?.ifBlank { null }
-                ?: DEFAULT_DOMAIN
-            Log.d(LOG_TAG, "domain = $domain")
-            return domain
+        fun getDomain(): String {
+            Log.d(LOG_TAG, "domain = $DEFAULT_DOMAIN")
+            return DEFAULT_DOMAIN
         }
     }
 }
