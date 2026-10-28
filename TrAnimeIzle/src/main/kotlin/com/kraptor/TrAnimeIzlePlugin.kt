@@ -31,8 +31,12 @@ class TrAnimeIzlePlugin : Plugin() {
         // v41: Context'in tek kullanımı API imzası; prefs okuması YOK.
         TrAnimeIzleHelper.setup(context)
         registerMainAPI(TrAnimeIzle())
-        registerExtractorAPI(OptracoExtractor())
-        registerExtractorAPI(HdvidExtractor())
-        registerExtractorAPI(Hexload())
+        // v42: registerExtractorAPI(...) ÇAĞRILARI KALDIRILDI.
+        // OpTracoExtractor / HdvidExtractor / Hexload sınıfları `ExtractorApi`
+        // soyut sınıfını miras alıyordu. Bu sınıfın soyut metot imzaları uygulama
+        // sürümüne göre değişebiliyor; uyuşmazlıkta sınıf yüklenirken
+        // AbstractMethodError / NoSuchMethodError → KTS-CSP-9110 üretiyordu.
+        // Üç hostun çözümü artık TrAnimeIzleStreams içinde düz fonksiyon
+        // (resolveOptraco / resolveHdvid / resolveHexload) — hiçbir soyut API yok.
     }
 }
