@@ -90,7 +90,7 @@ status)
     echo "compat_ozet|$(fl_compat_summary)"
     echo "compat_hatali|$(awk -F'\t' '$2=="fail" && $3!="geri-alindi"' "$FL_CSTAT" 2>/dev/null | grep -c .)"
     echo "son_hata|$(fl_compat_errors_tail 1 2>/dev/null | cut -f2- | cut -c1-180)"
-    echo "duraklatildi|$([ -f /data/adb/modules/force_landscape_all/disable ] && echo 1 || echo 0)"
+    echo "duraklatildi|$([ -f "$(fl_moddir)/disable" ] && echo 1 || echo 0)"
     echo "force_liste|$(fl_count "$FL_FORCE")"
     echo "never_liste|$(fl_count "$FL_NEVER")"
     echo "appmode_liste|$(fl_appmode_count)"
@@ -232,10 +232,12 @@ watch)   # izleyici ac/kapa/durum
             if [ "$(fl_watch_on)" = "acik" ]; then
                 echo "OK|izleyici|zaten-acik"
             else
+                [ -x "$MODDIR/watch.sh" ] || chmod 0755 "$MODDIR/watch.sh" 2>/dev/null
+                if [ -x "$MODDIR/watch.sh" ]; then _wch="$MODDIR/watch.sh"; else _wch="sh $MODDIR/watch.sh"; fi
                 if command -v setsid >/dev/null 2>&1; then
-                    setsid "$MODDIR/watch.sh" >/dev/null 2>&1 < /dev/null &
+                    setsid $_wch >/dev/null 2>&1 < /dev/null &
                 else
-                    ( trap "" HUP; "$MODDIR/watch.sh" >/dev/null 2>&1 < /dev/null & )
+                    ( trap "" HUP; $_wch >/dev/null 2>&1 < /dev/null & )
                 fi
                 # v2.12.1: baslama yarisina karsi EN FAZLA 10 sn bekle
                 _i=0
@@ -273,14 +275,26 @@ kilit)   # kilit acik|kapali : cihaz geneli "her seyi yatay yap" kilidi
     case "$2" in
         acik|on|1)
             cfg_set IGNORE_ORIENTATION true
-            wm set-ignore-orientation-request -d 0 true >/dev/null 2>&1
-            echo "OK|kilit|acik|$(fl_rotation_lock_on)"
-            fl_log "genel yatay kilidi: ACIK (tum uygulamalar yatay)" ;;
+            wm set-ignore-orientation-request -d 0 true >/dev/null 2>&1 || \
+            wm set-ignore-orientation-request true >/dev/null 2>&1
+            _ks=$(fl_rotation_lock_on)
+            if [ "$_ks" = "acik" ]; then
+                echo "OK|kilit|acik|$_ks"
+                fl_log "genel yatay kilidi: ACIK (dogrulandi)"
+            else
+                echo "HATA|kilit acilamadi (ignore-orientation=$_ks)"; exit 1
+            fi ;;
         kapali|off|0)
             cfg_set IGNORE_ORIENTATION false
-            wm set-ignore-orientation-request -d 0 false >/dev/null 2>&1
-            echo "OK|kilit|kapali|$(fl_rotation_lock_on)"
-            fl_log "genel yatay kilidi: KAPALI (uygulamalar kendi yonunu secer)" ;;
+            wm set-ignore-orientation-request -d 0 false >/dev/null 2>&1 || \
+            wm set-ignore-orientation-request false >/dev/null 2>&1
+            _ks=$(fl_rotation_lock_on)
+            if [ "$_ks" = "kapali" ]; then
+                echo "OK|kilit|kapali|$_ks"
+                fl_log "genel yatay kilidi: KAPALI (dogrulandi)"
+            else
+                echo "HATA|kilit kapatilamadi (ignore-orientation=$_ks)"; exit 1
+            fi ;;
         *)  echo "durum|$(fl_rotation_lock_on)" ;;
     esac
     ;;
@@ -490,6 +504,8 @@ appmode)  # appmode <paket> <on|off>   -> "ekrana yay" (komple yatay/tam ekran)
                     fl_cache_update_one "$_p"
                     echo "OK|$_p|on|$(printf '%s' "$_r" | cut -d'|' -f2-)" ;;
                 *)
+                    # v2.15: kismi uygulanmis compat degeri birakma
+                    fl_appmode_clear "$_p" > /dev/null 2>&1
                     fl_appmode_del "$_p"   # basarisizsa listede kalmasin
                     fl_appmode_state_set "$_p" fail "-"
                     fl_cache_update_one "$_p"
@@ -571,7 +587,7 @@ apply) # apply [fast|full]
     echo "compat_ozet|$(fl_compat_summary)"
     echo "compat_hatali|$(awk -F'\t' '$2=="fail" && $3!="geri-alindi"' "$FL_CSTAT" 2>/dev/null | grep -c .)"
     echo "son_hata|$(fl_compat_errors_tail 1 2>/dev/null | cut -f2- | cut -c1-180)"
-    echo "duraklatildi|$([ -f /data/adb/modules/force_landscape_all/disable ] && echo 1 || echo 0)"
+    echo "duraklatildi|$([ -f "$(fl_moddir)/disable" ] && echo 1 || echo 0)"
     ;;
 
 # ------------------------------------------------------------
@@ -961,8 +977,11 @@ progress)
 
 # ------------------------------------------------------------
 tani)   # yapilandirilmis tani: her satir KONTROL|OK|HATA|<aciklama>
-    id -u >/dev/null 2>&1 || { echo "KONTROL|HATA|root|id calismadi"; }
-    echo "KONTROL|OK|root|uid=$(id -u 2>/dev/null)"
+    if command -v id >/dev/null 2>&1; then
+        echo "KONTROL|OK|root|uid=$(id -u 2>/dev/null)"
+    else
+        echo "KONTROL|HATA|root|id komutu yok"
+    fi
     command -v pm >/dev/null 2>&1 && echo "KONTROL|OK|pm|$(command -v pm)" || echo "KONTROL|HATA|pm|pm bulunamadi"
     command -v wm >/dev/null 2>&1 && echo "KONTROL|OK|wm|$(command -v wm)" || echo "KONTROL|HATA|wm|wm bulunamadi"
     _np=$(pm list packages -3 2>/dev/null | grep -c .)

@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.14.0
+FL_MODVER=v2.15.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -1710,9 +1710,9 @@ fl_rules_reload() {   # MIUI kurallari yeniden okusun: 4 yol, her biri denenir
         _rlpid=$(pidof "com.miui.$_rlp" 2>/dev/null)
         [ -n "$_rlpid" ] && kill "$_rlpid" 2>/dev/null && _rl_done="$_rl_done kill:$_rlp"
     done
-    # 3) bilinen yayin (varsa)
-    am broadcast -a miui.intent.action.CLOUD_FEATURE_UPDATE >/dev/null 2>&1 && \
-        _rl_done="$_rl_done broadcast"
+    # 3) bilinen yayin (varsa) - NOT: 'am broadcast' alici olmasa bile 0
+    #    dondurur; o yuzden basari SAYILMAZ, sadece gonderilir.
+    am broadcast -a miui.intent.action.CLOUD_FEATURE_UPDATE >/dev/null 2>&1
     # 4) yeni bos dosya zaman damgasi (bazi MIUI surumleri mtime izler)
     for _rlf in /data/system/cloudFeature_fixed_orientation_list.xml \
                 /data/system/cloudFeature_embedded_rules_list.xml; do
@@ -1812,6 +1812,12 @@ fl_mb_write2() {   # $1 paket [$2 true|false] -> ok|<yol>|hemen | ok|katman|... 
 fl_uygula_hepsi() {   # $1 paket
     _ah=$1
     [ -n "$_ah" ] || { echo "SONUC|OLMADI|paket-yok"; return 1; }
+    # v2.15: "HER SEYI UYGULA" artik paketi listelere de ekler ve letterbox
+    # katmanini da uygular. Eskiden sadece o anlik yaziyordu: uygulama
+    # listesinde 'ekrana yay' rozeti gorunmuyor, acilista yeniden
+    # uygulanmiyor, FORCE_RESIZE_APP hic yazilmiyordu.
+    fl_list_add "$FL_FORCE" "$_ah"; fl_list_del "$FL_NEVER" "$_ah"
+    fl_appmode_add "$_ah"
     echo "ADIM|1|...|mailbox|kural yaziliyor"
     _ah1=$(fl_mb_write2 "$_ah")
     case "$_ah1" in
@@ -1824,7 +1830,10 @@ fl_uygula_hepsi() {   # $1 paket
         ok*|"ok|katman"*) echo "ADIM|2|OK|yatay-kural|$(printf '%s' "$_ah2" | cut -d'|' -f2-)" ;;
         *) echo "ADIM|2|UYARI|yatay-kural|$(printf '%s' "$_ah2" | cut -d'|' -f2-)" ;;
     esac
-    echo "ADIM|3|...|aosp-katman|ekrana yay"
+    echo "ADIM|3|...|aosp-katman|letterbox + ekrana yay"
+    if [ "${COMPAT_MODE:-smart}" != "off" ]; then
+        fl_compat_one "$_ah" yes >/dev/null 2>&1
+    fi
     _ah3=$(fl_appmode_apply "$_ah" 2>/dev/null)
     case "$_ah3" in
         ok*) echo "ADIM|3|OK|aosp-katman|$(printf '%s' "$_ah3" | cut -d'|' -f2-)" ;;
@@ -1853,6 +1862,9 @@ fl_uygula_hepsi() {   # $1 paket
 fl_kapat_hepsi() {   # $1 paket
     _kh=$1
     [ -n "$_kh" ] || { echo "SONUC|OLMADI|paket-yok"; return 1; }
+    # v2.15: paket Force/Never listelerinden de cikarilir. Eskiden listede
+    # kaliyordu; sonraki 'Uygula'/acilis onu yeniden zorluyordu.
+    fl_list_del "$FL_FORCE" "$_kh"; fl_list_del "$FL_NEVER" "$_kh"
     # 1) mailbox / yatay kural satirlarimizi sil
     fl_mb_unsave "$_kh"
     for _khf in /product/etc/fixed_orientation_list.xml \
@@ -1905,11 +1917,10 @@ fl_kesin() {   # $1 paket -> ADIM satirlari + SONUC satiri
 
     # 2) zorla yatay kurali
     _k_ey=$(fl_emb_state "$_kp")
-    case "$_k_yr" in x) : ;; esac
     case "$_k_ey" in
         "var|hemen")           echo "ADIM|2|OK|yatay-kural|yazildi, hemen gecerli" ;;
         "var|yeniden-baslat")  echo "ADIM|2|UYARI|yatay-kural|katmana yazildi -> bir kez yeniden baslat" ;;
-        *)                     echo "ADIM|2|UYARI|yatay-kural|yazilamadi (salt-okunur / dosya yok)" ;;
+        *)                     echo "ADIM|2|UYARI|yatay-kural|kural yok (bu uygulama icin uygulanmamis)" ;;
     esac
 
     # 3) cihaz geneli yatay kilidi
@@ -2587,6 +2598,11 @@ fl_apply_orientation() {
         off) [ "$_ig2" = "kapali" ] || { echo "HATA|ignore-orientation hala $_ig2"; return 1; } ;;
         *)   [ "$_ig2" = "acik" ]   || { echo "HATA|ignore-orientation hala $_ig2"; return 1; } ;;
     esac
+    # kilit modunda ekran GERCEKTEN yatay mi (okunabiliyorsa)?
+    if [ "$_mode" = "lock" ]; then
+        fl_is_landscape
+        [ "$?" = "1" ] && { echo "HATA|ekran yataya kilitlenemedi (hala dikey)"; return 1; }
+    fi
     echo "OK|$_mode|ignore=$_ig2|accel=$_ar|urot=$_ur"
     return 0
 }

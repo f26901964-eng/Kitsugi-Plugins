@@ -1,7 +1,0 @@
-id=force_landscape_all
-name=Force Landscape - All Apps
-version=v2.14.0
-versionCode=29
-author=Arena.ai Agent
-description=v2.14.0: Tespit edilen tum buglar duzeltildi. (1) 'Yatay zorla' artik TEK pakete TUM katmanlari uygular (letterbox + MIUI mailbox + yatay kural + ekrana-yay); secim ekranda hicbir sey yapmiyordu. (2) Yon modu tek fonksiyondan uygulanir ve geri okunur: 'sensor' eskiden sensori kapatip ekrani DIKEYE kilitliyordu; 'auto' artik calisiyor; ROTATION_MODE=off yeniden basinca kilide donmuyor. (3) MIUI kurallari Android 13'te yetkili olan /data/system/cloudFeature_* dosyalarina yazilir (/product erofs salt-okunur). (4) skip_mount kaldirildi, tum scriptler 0755. (5) Kaldirma/geri-al artik mailbox-only paketleri de temizler ve overrides XML'ini sifirdan yazmak yerine .fl.bak yedegini geri koyar. (6) Yedekleme mailbox listesini de tasir, geri yukleme gercekten uygular.
-

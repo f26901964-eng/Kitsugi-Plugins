@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.14.0
+# Force Landscape - All Apps  |  v2.15.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -272,3 +272,18 @@ v2.7'yi teslim ettikten sonra kodu baştan sona bir daha taradım. Bulunanlar:
 ## Dogrulama durumu (dürüst not)
 
 Bu surum, gercek komut ciktilarini taklit eden bir test ortaminda (sahte `wm/settings/am/dumpsys/pm/getprop`) 37 uctan uca senaryo ile dogrulandi: yon modlari, tek-uygulama zorla, toplu secim, mailbox ac/kapat, yedekle/geri-yukle, hepsini-geri-al, kaldirma. Bu, cihaz testi DEGILDIR. Kesin kanit: kurulumdan sonra WebUI → uygulama detayinda **"kesin test"**; pencere tam ekransa modul calisiyor demektir. Kural dosyalarinin MIUI tarafindan okundugunun kaniti icin bir kez yeniden baslat gerekebilir (WebUI bunu acikca soyler).
+
+
+## v2.15.0 — tum WebUI butonlari tek tek denetlendi
+
+- WebUI'daki **47 dugme/komut** tek tek arka ucuyla eslestirildi, her biri test ortaminda calistirildi.
+- "HER SEYI UYGULA" artik paketi listelere ekler ve letterbox katmanini da yazar (eskiden acilista yeniden uygulanmiyordu); "HER SEYI GERI AL" paketi Force listesinden de cikarir (eskiden sonraki Uygula geri zorluyordu).
+- Genel yatay kilidi (Kontrol > kilit) artik sonucu dogrular; basarisizsa "oldu" demez.
+- Izleyici WebUI'dan acilirken de calistirilabilirlik yedegi kullanir; baslamazsa loga yazar.
+- Ekrana-yay basarisizliginda kismi compat degeri temizlenir.
+- MIUI kural yenileme, alicisi olmayan yayini "basarili" saymaz; kilit modunda ekranin gercekten yatay oldugu olculur.
+- Arayuz surum etiketi (UI_VER) guncellendi; Durum sekmesindeki sahte "modul farkli" uyarisi giderildi.
+
+## Dogrulama durumu (dürüst not)
+
+Surum, gercek komut ciktilarini taklit eden test ortaminda **47 uctan uca senaryo** ile dogrulandi (yon modlari, tek/toplu zorla, HER SEYI UYGULA/GEMI AL, mailbox, kilit, izleyici ac/kapat, yedekle/geri-yukle, hepsini-geri-al, kaldirma). Bu cihaz testi DEGILDIR; kesin kanit WebUI > uygulama detayi > "kesin test"tir.
