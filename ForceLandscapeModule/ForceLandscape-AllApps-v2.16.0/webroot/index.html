@@ -517,7 +517,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.15.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.16.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
 let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
 async function enrichFromManager(){
@@ -1485,7 +1485,7 @@ function mbTR(s){
 function krTR(s){
   if(!s) return "okunamadı";
   if(s === "yok") return "yok";
-  if(s.indexOf("var|hemen") === 0) return "var ✓ (hemen geçerli)";
+  if(s.indexOf("var|hemen") === 0) return "var ✓ (dosyada; canlı komut/açılışla okunur)";
   if(s.indexOf("var|") === 0) return "var · yeniden başlatınca geçerli";
   return s;
 }

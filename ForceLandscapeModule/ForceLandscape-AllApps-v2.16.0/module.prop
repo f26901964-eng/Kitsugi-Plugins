@@ -1,0 +1,7 @@
+id=force_landscape_all
+name=Force Landscape - All Apps
+version=v2.16.0
+versionCode=31
+author=Arena.ai Agent
+description=v2.16.0: ASIL DUZELTME - uygulamaya ozel katman artik MIUI'nin kendi canli servisiyle uygulaniyor: cmd miui_embedding_window update-rule + set-fixedOri. v2.15'e kadar modul sadece kural DOSYASI yazip 'hemen gecerli' diyordu; MIUI dosyalari acilista okudugu icin uygulamada hicbir degisiklik gorunmuyordu. Artik dosya (kalicilik) + canli komut (aninda) birlikte, geri alma da canli. 'am compat' sirasi belgeli sozdizimine cevrildi. Ozet satirinda canli=ok/yok yazar.
+

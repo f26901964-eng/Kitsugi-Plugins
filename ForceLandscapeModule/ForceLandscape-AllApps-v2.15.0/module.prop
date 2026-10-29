@@ -1,7 +1,0 @@
-id=force_landscape_all
-name=Force Landscape - All Apps
-version=v2.15.0
-versionCode=30
-author=Arena.ai Agent
-description=v2.15.0: Tum WebUI butonlari tek tek denetlendi. (1) 'HER SEYI UYGULA' artik paketi listelere ekler + letterbox yazar (eskiden acilista yeniden uygulanmiyordu). (2) 'HER SEYI GERI AL' paketi Force listesinden de cikarir (eskiden sonraki Uygula geri zorluyordu). (3) Genel yatay kilidi (kilit acik/kapali) artik sonucu dogrular; basarisizsa OK demez. (4) Izleyici WebUI'dan acilirken de sh yedegi kullanir. (5) appmode basarisizliginda kismi compat temizlenir. (6) MIUI kural yenileme artik alicisiz yayini 'basarili' saymaz. (7) Kilit modunda ekranin gercekten yatay oldugu dogrulanir.
-

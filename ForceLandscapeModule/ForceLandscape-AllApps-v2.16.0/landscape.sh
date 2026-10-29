@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.15.0
+FL_MODVER=v2.16.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -1592,6 +1592,72 @@ fl_emb_state() {   # $1 paket -> yok | var|hemen | var|yeniden-baslat
 fl_mb_save()   { fl_list_add "$FL_MB_LIST" "$1"; }
 fl_mb_unsave() { fl_list_del "$FL_MB_LIST" "$1"; }
 
+# ============================================================
+#  v2.16 — MIUI CANLI SERVIS KOMUTU (asli duzeltme)
+#  Arastirma (sothx/coolapk, Xiaomi muhendislerinin hata ayiklama
+#  komutlari): MIUI'nin kendi servisi calisma aninda kural uygular:
+#     cmd miui_embedding_window update-rule   <pkg> fullRule::<kural>
+#     cmd miui_embedding_window set-fixedOri  <pkg> disable::true|false
+#  Dosyaya yazmak tek basina YETMEZ: servis kurallari acilista okur;
+#  dosya degisikligi yeniden baslatmadan gorunmez. v2.15'e kadar modul
+#  sadece dosya yazip "hemen gecerli" diyordu -> kullanici uygulamada
+#  hicbir degisiklik gormuyordu. Artik: dosya (kalicilik) + cmd (canli).
+#  NOT: cmd kurallari yeniden baslatinca ucar; acilista dosya devreye
+#  girer. Ikisi birlikte tam cozumdur.
+# ============================================================
+FL_MIUI_CMD_CACHE=""
+fl_miui_cmd_avail() {   # 0 = servis var, 1 = yok (islem ici onbellekli)
+    case "$FL_MIUI_CMD_CACHE" in evet) return 0 ;; hayir) return 1 ;; esac
+    _mo=$(cmd miui_embedding_window help 2>&1 </dev/null)
+    case "$_mo" in
+        *miui_embedding_window*|*update-rule*|*set-fixedOri*|*[Uu]sage*)
+            FL_MIUI_CMD_CACHE=evet
+            # yardim metnini bir kez loga + dosyaya yaz (tani kaniti)
+            if [ ! -f "$FL_DIR/.miui_cmd_help" ]; then
+                printf '%s\n' "$_mo" > "$FL_DIR/.miui_cmd_help" 2>/dev/null
+                fl_log "miui-cmd: servis VAR. yardim: $(printf '%s' "$_mo" | tr '\n' ' ' | cut -c1-300)"
+            fi
+            return 0 ;;
+    esac
+    FL_MIUI_CMD_CACHE=hayir
+    fl_log "miui-cmd: 'cmd miui_embedding_window' servisi yok/cevap vermiyor"
+    return 1
+}
+
+fl_miui_cmd_run() {   # cmd miui_embedding_window <args> -> 0 ok | 1 fail
+    _mo=$(cmd miui_embedding_window "$@" 2>&1 </dev/null)
+    _mrc=$?
+    fl_log "  miui-cmd: $* -> rc=$_mrc $(printf '%s' "$_mo" | tr '\n' ' ' | cut -c1-140)"
+    case "$_mo" in
+        *[Ee]rror*|*Exception*|*"Failed transaction"*|*"No such"*|*"Unknown"*|*[Ff]ailure*|*"not found"*) return 1 ;;
+    esac
+    [ "$_mrc" = "0" ]
+}
+
+fl_miui_cmd_apply() {   # $1 paket -> ok|yok : canli yatay + mailbox kapat
+    fl_miui_cmd_avail || { echo yok; return 1; }
+    _ok=ok
+    fl_miui_cmd_run update-rule "$1" "fullRule::${FL_RULE_LANDSCAPE:-nra:cr:rcr:nr}" || _ok=yok
+    fl_miui_cmd_run set-fixedOri "$1" "disable::true" || _ok=yok
+    echo "$_ok"
+    [ "$_ok" = "ok" ]
+}
+
+fl_miui_cmd_mailbox() {   # $1 paket $2 true|false -> 0/1 (sadece mailbox, canli)
+    fl_miui_cmd_avail || return 1
+    fl_miui_cmd_run set-fixedOri "$1" "disable::$2"
+}
+
+fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al
+    fl_miui_cmd_avail || return 1
+    fl_miui_cmd_run set-fixedOri "$1" "disable::false" >/dev/null 2>&1
+    # embedded kuralin canli kaldirma bicimi ROM'a gore degisebilir;
+    # bos fullRule denenir, olmazsa dosya yolu zaten temizlendi ve
+    # yeniden baslatmada canli kural da ucar.
+    fl_miui_cmd_run update-rule "$1" "fullRule::" >/dev/null 2>&1
+    return 0
+}
+
 fl_miui_apply() {   # $1 paket -> ok|<aciklama> | fail|<sebep>
     _mp=$1
     [ -n "$_mp" ] || { echo "fail|paket-yok"; return 1; }
@@ -1616,7 +1682,10 @@ fl_miui_apply() {   # $1 paket -> ok|<aciklama> | fail|<sebep>
         *)   _eres="yatay=kural-yok($(printf '%s' "$_err" | cut -d'|' -f2-))" ;;
     esac
     fl_mb_save "$_mp"
-    echo "ok|$_mres $_eres"
+    # v2.16: dosyalar kalicilik icin yazildi; simdi MIUI servisine CANLI
+    # da soyle (yeniden baslatmadan gorunsun). Sonuc ozete eklenir.
+    _cmd=$(fl_miui_cmd_apply "$_mp" 2>/dev/null)
+    echo "ok|$_mres $_eres canli=$_cmd"
     return 0
 }
 
@@ -1636,6 +1705,9 @@ fl_miui_clear() {   # $1 paket -> MIUI kural kayitlarini sil (geri alma)
     _ecf=$(fl_emb_cloud); [ -n "$_ecf" ] && fl_xml_drop "$_ecf" "$_cp2"
     _eoc=$(fl_emb_overlay); [ -f "$_eoc" ] && fl_xml_drop "$_eoc" "$_cp2"
     fl_mb_unsave "$_cp2"
+    # v2.16: canli servis kurali da geri alinir (dosya silmek calisma
+    # anindaki kurali dusurmez; yeniden baslat beklemek gerekmesin)
+    fl_miui_cmd_revert "$_cp2" >/dev/null 2>&1
     return 0
 }
 
@@ -1918,7 +1990,7 @@ fl_kesin() {   # $1 paket -> ADIM satirlari + SONUC satiri
     # 2) zorla yatay kurali
     _k_ey=$(fl_emb_state "$_kp")
     case "$_k_ey" in
-        "var|hemen")           echo "ADIM|2|OK|yatay-kural|yazildi, hemen gecerli" ;;
+        "var|hemen")           echo "ADIM|2|OK|yatay-kural|kural dosyasinda var (acilis/canlı komutla okunur)" ;;
         "var|yeniden-baslat")  echo "ADIM|2|UYARI|yatay-kural|katmana yazildi -> bir kez yeniden baslat" ;;
         *)                     echo "ADIM|2|UYARI|yatay-kural|kural yok (bu uygulama icin uygulanmamis)" ;;
     esac
@@ -2387,25 +2459,28 @@ fl_appmode_count() {
 }
 
 fl_am_cmd() {   # $1 enable|disable|reset  $2 id  $3 paket ; basarili -> stdout: yontem
-    # AOSP sirasi: am compat --no-kill <komut> <id> <paket>
-    _o=$(am compat --no-kill "$1" "$2" "$3" 2>&1)
+    # v2.16: once BELGELENMIS sozdizimi: am compat enable <degisim> <paket>
+    # (Google/OPPO A13 kilavuzu). Eski kod once "am compat --no-kill enable"
+    # deniyordu; ROM bunu "Usage:" ile reddederse cikti hata kalibina
+    # uymadigi icin BASARILI sanilabiliyordu.
+    _o=$(am compat "$1" "$2" "$3" 2>&1 </dev/null)
     case "$_o" in
-        *"nknown option"*|*"nknown command"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*) : ;;
-        *) echo "am-nokill"; return 0 ;;
-    esac
-    _o=$(am compat "$1" --no-kill "$2" "$3" 2>&1)   # bazi ROM'lar sonda ister
-    case "$_o" in
-        *"nknown option"*|*"nknown command"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*) : ;;
-        *) echo "am-nokill-son"; return 0 ;;
-    esac
-    _o=$(am compat "$1" "$2" "$3" 2>&1)
-    case "$_o" in
-        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*) : ;;
+        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
         *) echo "am"; return 0 ;;
     esac
-    _o=$(cmd platform_compat "$1" "$2" "$3" 2>&1)
+    _o=$(am compat "$1" --no-kill "$2" "$3" 2>&1 </dev/null)   # bazi ROM'lar sonda ister
     case "$_o" in
-        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|"") : ;;
+        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
+        *) echo "am-nokill-son"; return 0 ;;
+    esac
+    _o=$(am compat --no-kill "$1" "$2" "$3" 2>&1 </dev/null)
+    case "$_o" in
+        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*) : ;;
+        *) echo "am-nokill"; return 0 ;;
+    esac
+    _o=$(cmd platform_compat "$1" "$2" "$3" 2>&1 </dev/null)
+    case "$_o" in
+        *"nknown"*|*"rror"*|*"xception"*|*"ailed"*|*"ot found"*|*"Usage"*|"") : ;;
         *) echo "cmd"; return 0 ;;
     esac
     return 1
@@ -2628,6 +2703,8 @@ fl_force_apply() {
         _lb=mod-kapali
     fi
     _mr=$(fl_miui_apply "$_fp" 2>/dev/null)
+    _can=yok
+    case "$_mr" in *canli=ok*) _can=ok ;; esac
     case "$_mr" in
         ok*) _mb=ok
              case "$_mr" in *yatay=hemen*) _kr=hemen ;; *yatay=yeniden-baslat*) _kr=yeniden-baslat ;; *) _kr=? ;; esac ;;
@@ -2641,8 +2718,8 @@ fl_force_apply() {
     esac
     fl_rules_reload >/dev/null 2>&1
     am force-stop "$_fp" >/dev/null 2>&1
-    fl_log "force-apply: $_fp letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy"
-    echo "OK|$_fp|force|letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy"
+    fl_log "force-apply: $_fp letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy canli=$_can"
+    echo "OK|$_fp|force|letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy canli=$_can"
     return 0
 }
 

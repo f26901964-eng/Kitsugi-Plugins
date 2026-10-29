@@ -420,8 +420,9 @@ mailbox)  # mailbox <paket> <ac|kapat|durum>  -> MIUI ortadaki sutunu
                 ok*)  fl_mb_save "$_p"
                       _mbst=$(fl_mb_state "$_p")
                       [ "$_mbst" = "kapali" ] || { echo "HATA|mailbox yazildi ama durum=$_mbst"; exit 1; }
-                      echo "OK|mailbox|ac|$_mbst|$(printf '%s' "$_r" | cut -d'|' -f2-)"
-                      fl_log "webui: mailbox AC $_p -> kapali (sutun kaldirildi)" ;;
+                      _live=yok; fl_miui_cmd_mailbox "$_p" true >/dev/null 2>&1 && _live=ok
+                      echo "OK|mailbox|ac|$_mbst|canli=$_live"
+                      fl_log "webui: mailbox AC $_p -> kapali (canli=$_live)" ;;
                 *)    echo "HATA|$(printf '%s' "$_r" | cut -d'|' -f2-)"; exit 1 ;;
             esac
             ;;
@@ -433,8 +434,9 @@ mailbox)  # mailbox <paket> <ac|kapat|durum>  -> MIUI ortadaki sutunu
                 *)     fl_mb_unsave "$_p" ;;
             esac
             _mbst=$(fl_mb_state "$_p")
-            echo "OK|mailbox|kapat|$_mbst|$(printf '%s' "$_r" | cut -d'|' -f2-)"
-            fl_log "webui: mailbox KAPAT $_p -> $_mbst (yatay kuralina dokunulmadi)"
+            _live=yok; fl_miui_cmd_mailbox "$_p" false >/dev/null 2>&1 && _live=ok
+            echo "OK|mailbox|kapat|$_mbst|canli=$_live"
+            fl_log "webui: mailbox KAPAT $_p -> $_mbst canli=$_live (yatay kuralina dokunulmadi)"
             ;;
         durum|"")     echo "durum|$(fl_mb_state "$_p")" ;;
         *)            echo "HATA|gecersiz deger: $_v (ac|kapat|durum)"; exit 1 ;;

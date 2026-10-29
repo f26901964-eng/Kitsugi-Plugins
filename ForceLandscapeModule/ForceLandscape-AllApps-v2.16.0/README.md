@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.15.0
+# Force Landscape - All Apps  |  v2.16.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -287,3 +287,22 @@ Bu surum, gercek komut ciktilarini taklit eden bir test ortaminda (sahte `wm/set
 ## Dogrulama durumu (dürüst not)
 
 Surum, gercek komut ciktilarini taklit eden test ortaminda **47 uctan uca senaryo** ile dogrulandi (yon modlari, tek/toplu zorla, HER SEYI UYGULA/GEMI AL, mailbox, kilit, izleyici ac/kapat, yedekle/geri-yukle, hepsini-geri-al, kaldirma). Bu cihaz testi DEGILDIR; kesin kanit WebUI > uygulama detayi > "kesin test"tir.
+
+
+## v2.16.0 — ASIL DUZELTME: uygulamaya ozel katman artik CANLI uygulaniyor
+
+Arastirma ile bulundu (sothx/coolapk; Xiaomi muhendislerinin hata ayiklama komutlari): MIUI'nin kendi servisi kurallari calisma aninda uygular:
+
+```
+cmd miui_embedding_window update-rule  <paket> fullRule::nra:cr:rcr:nr
+cmd miui_embedding_window set-fixedOri <paket> disable::true
+```
+
+- v2.15 ve oncesi yalnizca kural **dosyasi** yazip "hemen gecerli" diyordu. MIUI bu dosyalari acilista okudugu icin, yeniden baslatmadan (ve bazen hic) uygulamada degisiklik gorunmuyordu. "Uygulamaya ozel hicbir sey calismiyor" sikayetinin sebebi buydu.
+- Artik her per-app islemde **dosya (kalicilik) + canli servis komutu (aninda etki)** birlikte kullanilir; geri alma da canli yapilir (`set-fixedOri disable::false`). Sonuc satirinda `canli=ok|yok` acikca yazar; servis yoksa dosya yolu calismaya devam eder ve bu da acikca soylenir.
+- `am compat` deneme sirasi belgeli sozdizimine cevrildi (`am compat enable <degisim> <paket>` once); ROM'un "Usage:" reddini basari sanma ihtimali kaldirildi.
+- Kesin test artik "hemen gecerli" iddiasinda bulunmaz; kuralin dosyada oldugunu soyler, canli olcum ayridir.
+
+## Dogrulama durumu (dürüst not)
+
+57 uctan uca senaryo sahte-komut ortaminda gecti; yeni senaryolar canli servis komutlarinin dogru pakete, dogru bicimde gittigini ve servis yokken davranisin durust oldugunu kapsar. Cihaz testi DEGILDIR. Cihazdaki kesin kanit: WebUI > uygulama > "kesin test" + logdaki `miui-cmd:` satirlari (servisin cevabi orada birebir yazar).
