@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.16.0
+# Force Landscape - All Apps  |  v2.17.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -306,3 +306,14 @@ cmd miui_embedding_window set-fixedOri <paket> disable::true
 ## Dogrulama durumu (dürüst not)
 
 57 uctan uca senaryo sahte-komut ortaminda gecti; yeni senaryolar canli servis komutlarinin dogru pakete, dogru bicimde gittigini ve servis yokken davranisin durust oldugunu kapsar. Cihaz testi DEGILDIR. Cihazdaki kesin kanit: WebUI > uygulama > "kesin test" + logdaki `miui-cmd:` satirlari (servisin cevabi orada birebir yazar).
+
+
+## v2.17.0 — sahte basari avcisi
+
+- `fl_force_apply` artik kritik katman basarisizsa hata kodu doner; **Yatay zorla / apply-one / toplu secim** bunu `HATA` olarak bildirir (eskiden basarisizlik ozet satirinin icinde gizleniyor, arayuz "oldu" diyordu).
+- `mode` yazdigini geri okur; `restore` sonucu olcer; toplu secim ve yedek yukleme arka uc hatasini yutmaz; ekrana-yay basarisizligi loga gercek sebebiyle duser.
+- Ilke: her dugme ya sonucu **olcer** ya da olmadigini **soyler**. Calismayan sey landscape.log'a sebebiyle yazilir (MIUI servis cevaplari `miui-cmd:` satirlarinda birebir gorulur).
+
+## Dürüstlük notu
+
+Bu modul cihazi elimde olmadan "%100 calisir" sozu veremez; kimse veremez. Verilebilecek soz sudur: **bir sey calismazsa arayuz onu basari gibi gostermez ve log gercek sebebi yazar.** Cihaz kaniti: WebUI > uygulama > kesin test; tutmazsa Kayıtlar > log dosyasini gonder, `miui-cmd:` ve `force-apply:` satirlari sorunu satiriyla gosterir.

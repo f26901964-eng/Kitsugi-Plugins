@@ -1,0 +1,7 @@
+id=force_landscape_all
+name=Force Landscape - All Apps
+version=v2.17.0
+versionCode=32
+author=Arena.ai Agent
+description=v2.17.0: Sahte basari avcisi surum. fl_force_apply artik katman basarisizsa hata kodu doner; 'set force', 'apply-one', 'setmany' bunu HATA olarak bildirir (eskiden ozet satirinda gizleniyordu). 'mode' yazdigini geri okur, 'restore' sonuc olcer, toplu secim ve yedek yukleme arka uc hatasini yutmaz, appmode basarisizligi loga duser. Ilke: her dugme ya olcer ya da olmadigini soyler; calismayan sey loga gercek sebebiyle yazilir.
+

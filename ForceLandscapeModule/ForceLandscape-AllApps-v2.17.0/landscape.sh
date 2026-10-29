@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.16.0
+FL_MODVER=v2.17.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -2720,6 +2720,11 @@ fl_force_apply() {
     am force-stop "$_fp" >/dev/null 2>&1
     fl_log "force-apply: $_fp letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy canli=$_can"
     echo "OK|$_fp|force|letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy canli=$_can"
+    # v2.17: kritik katman basarisizsa cagiran OK sansin diye 0 DONME.
+    # (letterbox=unknown olumcul degil: ROM durumu raporlayamiyor olabilir.)
+    case "$_mb" in hata) return 1 ;; esac
+    case "$_yy" in hata) return 1 ;; esac
+    case "$_lb" in disabled) return 1 ;; esac
     return 0
 }
 

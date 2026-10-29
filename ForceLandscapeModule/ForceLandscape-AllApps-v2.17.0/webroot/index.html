@@ -517,7 +517,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.16.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.17.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
 let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
 async function enrichFromManager(){
@@ -1790,13 +1790,16 @@ const ACT = {
     if(!list.length) return toast("liste boş");
     busyStart(list.length + " uygulama işaretleniyor…");
     try{
-      let i = 0;
+      let i = 0, hata = "";
       while(i < list.length){
         const chunk = list.slice(i, i+15);
-        await out("setmany force " + chunk.map(sq).join(" "));
+        const r = await out("setmany force " + chunk.map(sq).join(" "));
+        const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+        if(bad) hata = bad.replace("HATA|","").replace(/[|]/g," · ");
         i += 15;
       }
       await loadApps();
+      if(hata){ toast("bazıları olmadı: " + hata); return; }
     }catch(e){ toast(e.message||e); }
     busyEnd(); await render(); toast(list.length + " uygulama: yatay zorla");
   },
@@ -1806,13 +1809,16 @@ const ACT = {
     if(!list.length) return toast("liste boş");
     busyStart(list.length + " uygulama bırakılıyor…");
     try{
-      let i = 0;
+      let i = 0, hata = "";
       while(i < list.length){
         const chunk = list.slice(i, i+15);
-        await out("setmany never " + chunk.map(sq).join(" "));
+        const r = await out("setmany never " + chunk.map(sq).join(" "));
+        const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+        if(bad) hata = bad.replace("HATA|","").replace(/[|]/g," · ");
         i += 15;
       }
       await loadApps();
+      if(hata) toast("bazıları olmadı: " + hata);
     }catch(e){ toast(e.message||e); }
     busyEnd(); await render(); toast(list.length + " uygulama: dokunma");
   },
@@ -1989,10 +1995,13 @@ const ACT = {
     busyStart("yedek uygulanıyor…");
     try{
       const payload = "printf '%s' " + sq(text) + " | " + SHELL + " " + SCRIPT + " restore-backup";
-      await execRaw(payload);
+      const rr = await execRaw(payload);
+      const ilk = String((rr && rr.stdout) || "").split("\n")[0] || "";
       await loadStatus(); await loadApps();
+      if(ilk.indexOf("OK|") !== 0) toast("yedek uygulanamadı: " + (ilk || "cevap yok"));
+      else toast("yedek yüklendi ve uygulandı ✓");
     }catch(e){ toast(e.message||e); }
-    busyEnd(); await render(); toast("yedek yüklendi");
+    busyEnd(); await render();
   }
 };
 /* Her ACT çağrısından sonra "işlem sürüyor" ekranı KESİN kapanır.

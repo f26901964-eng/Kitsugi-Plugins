@@ -185,8 +185,15 @@ set)  # set <paket> <force|never|auto>
             # MIUI mailbox + yatay kurali + ekrana-yay), her biri olculur.
             # Eski yol sadece letterbox yaziyordu; MIUI'li cihazda secim
             # ekranda hicbir sey degistirmiyordu.
-            _rv=$(fl_force_apply "$_p" 2>/dev/null | cut -d'|' -f4-)
+            _fo=$(fl_force_apply "$_p" 2>/dev/null); _frc=$?
+            _rv=$(printf '%s' "$_fo" | cut -d'|' -f4-)
             [ -n "$_rv" ] || _rv="uygulandi"
+            if [ "$_frc" != "0" ]; then
+                fl_log "webui: $_p -> force KATMAN HATASI ($_rv)"
+                fl_cache_update_one "$_p"
+                echo "HATA|$_p|force|$_rv"
+                exit 1
+            fi
             ;;
     esac
     fl_log "webui: $_p -> $_v ($_rv)"
@@ -510,6 +517,7 @@ appmode)  # appmode <paket> <on|off>   -> "ekrana yay" (komple yatay/tam ekran)
                     fl_appmode_clear "$_p" > /dev/null 2>&1
                     fl_appmode_del "$_p"   # basarisizsa listede kalmasin
                     fl_appmode_state_set "$_p" fail "-"
+                    fl_log "webui: ekrana-yay BASARISIZ $_p -> $(printf '%s' "$_r" | cut -d'|' -f2-)" 
                     fl_cache_update_one "$_p"
                     echo "HATA|$_p|$(printf '%s' "$_r" | cut -d'|' -f2-)"
                     exit 1 ;;
@@ -546,8 +554,18 @@ appmode-list)  # secili paketler + son durum
 # ------------------------------------------------------------
 mode) # mode <smart|whitelist|all|off>
     case "$2" in
-        smart|whitelist|all|off) cfg_set COMPAT_MODE "$2"; fl_apps_cache_build > /dev/null 2>&1
-            fl_log "webui: mod=$2"; echo "OK|$2" ;;
+        smart|whitelist|all|off)
+            cfg_set COMPAT_MODE "$2"
+            fl_apps_cache_build > /dev/null 2>&1
+            _mv=$(sed -n 's/^COMPAT_MODE=//p' "$FL_CFG" 2>/dev/null | tail -n 1)
+            if [ "$_mv" = "$2" ]; then
+                fl_log "webui: mod=$2 (dogrulandi)"
+                echo "OK|$2"
+            else
+                fl_log "webui: mod=$2 YAZILAMADI (okunan: $_mv)"
+                echo "HATA|mod yazilamadi (config: ${_mv:-bos})"
+                exit 1
+            fi ;;
         *) echo "HATA|gecersiz mod: $2"; exit 1 ;;
     esac
     ;;
@@ -597,9 +615,10 @@ apply-one) # apply-one <paket> : tek uygulamaya TUM katmanlari uygula
     _p=$2
     [ -n "$_p" ] || { echo "HATA|paket yok"; exit 1; }
     fl_list_add "$FL_FORCE" "$_p"; fl_list_del "$FL_NEVER" "$_p"
-    _r=$(fl_force_apply "$_p" 2>/dev/null)
-    fl_log "webui: apply-one $_p -> $_r"
+    _r=$(fl_force_apply "$_p" 2>/dev/null); _frc=$?
+    fl_log "webui: apply-one $_p -> $_r (rc=$_frc)"
     fl_cache_update_one "$_p"
+    if [ "$_frc" != "0" ]; then echo "HATA|$_p|force|$(printf '%s' "$_r" | cut -d'|' -f4-)"; exit 1; fi
     echo "OK|$_p|force|$(printf '%s' "$_r" | cut -d'|' -f4-)"
     ;;
 
@@ -806,6 +825,12 @@ save)
 restore)
     fl_restore > /dev/null 2>&1
     rm -f "$FL_FORCE" "$FL_NEVER" "$FL_TARGETS" 2>/dev/null
+    # v2.17: "geri alindi" demeden once olc
+    if [ "$(fl_rotation_lock_on)" = "acik" ]; then
+        fl_log "webui: restore SONRASI ignore-orientation hala acik!"
+        echo "HATA|restore|ignore-orientation hala acik (wm reddetmis olabilir)"
+        exit 1
+    fi
     echo "OK|tum ayarlar geri alindi"
     ;;
 

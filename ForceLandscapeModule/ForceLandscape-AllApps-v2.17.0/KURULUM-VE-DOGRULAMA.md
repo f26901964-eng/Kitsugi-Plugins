@@ -1,4 +1,4 @@
-# Force Landscape — v2.16.0 · Kurulum ve Doğrulama
+# Force Landscape — v2.17.0 · Kurulum ve Doğrulama
 
 Cihaz: Xiaomi Pad 6 (pipa) · MIUI V14.0.10.0.TMZCNXM · Android 13 · SukiSU Ultra
 Tarih: 2026-10-29
