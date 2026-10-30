@@ -1,0 +1,2319 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="cache-control" content="no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<title>Force Landscape v2.13.0</title>
+<style>
+:root{
+  --bg:#0e1116; --bg2:#151a22; --card:#1a2029; --line:#26303d; --txt:#e8eef7;
+  --dim:#9fb0c6; --accent:#4dabf7; --ok:#3ddc97; --warn:#ffd166; --bad:#ff6b6b;
+  --radius:14px;
+}
+@media (prefers-color-scheme: light){
+  header{background:rgba(244,247,251,.9)}
+  :root{--bg:#f4f7fb;--bg2:#ffffff;--card:#ffffff;--line:#dfe7f1;--txt:#131a24;--dim:#5a6b80;--accent:#1c7ed6;}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TR",sans-serif;
+  font-size:15px;line-height:1.5;overscroll-behavior-y:contain}
+header{position:sticky;top:0;z-index:20;background:rgba(14,17,22,.88);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:10px 14px 8px}
+.hrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.title{font-weight:700;font-size:16px;letter-spacing:.2px}
+.sub{color:var(--dim);font-size:12px}
+.spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;
+  background:var(--card);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--dim)}
+.pill.ok{color:#062;background:#c9f7e2;border-color:#8fe3c1}
+.pill.warn{color:#4a3500;background:#ffe9b3;border-color:#ffd166}
+.pill.bad{color:#5a0000;background:#ffd4d4;border-color:#ff9d9d}
+@media (prefers-color-scheme: dark){
+  .pill.ok{color:#052e20;background:#3ddc97;border-color:#3ddc97}
+  .pill.warn{color:#3a2c00;background:#ffd166;border-color:#ffd166}
+  .pill.bad{color:#3d0000;background:#ff6b6b;border-color:#ff6b6b}
+}
+button{font:inherit;font-size:14px;padding:9px 14px;border-radius:11px;border:1px solid var(--line);
+  background:var(--card);color:var(--txt);cursor:pointer;transition:.12s;min-height:40px}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:700}
+button.good{background:var(--ok);border-color:var(--ok);color:#04231a;font-weight:700}
+button.danger{background:transparent;border-color:var(--bad);color:var(--bad);font-weight:600}
+button.sm{padding:5px 10px;font-size:13px;min-height:32px;border-radius:9px}
+button.ghost{background:transparent}
+button.on{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:700}
+button[disabled]{opacity:.45;pointer-events:none}
+.tabs{position:sticky;top:0;z-index:15;display:flex;gap:6px;overflow-x:auto;padding:8px 12px;
+  background:var(--bg);border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:8px 13px;border-radius:999px;border:1px solid var(--line);
+  background:var(--bg2);color:var(--dim);font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#04121f}
+#view{padding:12px 12px 90px;max-width:900px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:13px;margin-bottom:11px}
+.card h2{margin:0 0 9px;font-size:14.5px;font-weight:700;letter-spacing:.2px}
+.card h2 .hint{font-weight:400}
+.hint{color:var(--dim);font-size:12.5px;line-height:1.45}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media (max-width:520px){.grid{grid-template-columns:1fr}}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.kv:last-child{border-bottom:none}
+.kv b{font-weight:600;color:var(--dim)}
+.kv span{text-align:right;word-break:break-word;font-variant-numeric:tabular-nums}
+.big{font-size:26px;font-weight:800;line-height:1.1}
+.stat{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:11px}
+.stat .lbl{color:var(--dim);font-size:12px;margin-bottom:3px}
+.warnbox{background:#fff4d6;color:#4a3500;border:1px solid #ffd166;border-radius:12px;
+  padding:11px 13px;margin-bottom:11px;font-size:13.5px}
+.badbox{background:#ffe1e1;color:#5a0000;border:1px solid #ff9d9d;border-radius:12px;
+  padding:11px 13px;margin-bottom:11px;font-size:13.5px}
+.okbox{background:#dcf7ea;color:#04321f;border:1px solid #8fe3c1;border-radius:12px;
+  padding:11px 13px;margin-bottom:11px;font-size:13.5px}
+@media (prefers-color-scheme: dark){
+  .warnbox{background:#3a2c00;color:#ffe9b3;border-color:#7a5c00}
+  .badbox{background:#3d0000;color:#ffd4d4;border-color:#8a2020}
+  .okbox{background:#04231a;color:#bff5dd;border-color:#1c6b4e}
+}
+.app{display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line)}
+.app:last-child{border-bottom:none}
+.ava{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-weight:800;
+  font-size:14px;color:#fff;flex:0 0 auto}
+.ava{position:relative;overflow:hidden}
+.ava .avimg{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
+.ava .avtxt{line-height:1}
+.aname{flex:1;min-width:0}
+.aname .n{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aname .p{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.b{font-size:10.5px;padding:1px 6px;border-radius:6px;background:var(--line);color:var(--dim)}
+.b.force{background:#3ddc9733;color:var(--ok)}
+.b.skip{background:#ff6b6b26;color:var(--bad)}
+.b.ok{background:#4dabf733;color:var(--accent)}
+.iacts{display:flex;gap:5px;flex:0 0 auto}
+input[type=search],input[type=text],textarea,select{font:inherit;font-size:14px;padding:9px 11px;
+  border-radius:10px;border:1px solid var(--line);background:var(--bg2);color:var(--txt);width:100%}
+textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;min-height:120px}
+pre{background:#0a0d12;color:#d5e2f0;border:1px solid var(--line);border-radius:12px;padding:11px;
+  overflow:auto;font-size:12px;line-height:1.45;max-height:52vh;margin:0;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+@media (prefers-color-scheme: light){
+  header{background:rgba(244,247,251,.9)}pre{background:#0f1720;color:#dbe7f5}}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;padding:6px 11px;border-radius:999px;border:1px solid var(--line);
+  background:var(--bg2);color:var(--dim);font-size:12.5px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#04121f}
+.bar{height:9px;border-radius:999px;background:var(--line);overflow:hidden;margin:8px 0}
+.bar>i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.centered{display:grid;place-items:center;padding:40px 0;color:var(--dim);gap:10px}
+.spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;animation:sp 1s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,140%);background:#111827;color:#fff;
+  padding:11px 16px;border-radius:12px;font-size:13.5px;max-width:90vw;z-index:60;transition:.25s;
+  box-shadow:0 8px 30px #0006}
+.toast.on{transform:translate(-50%,0)}
+.sheet{position:fixed;inset:0;z-index:50;background:#0008;display:flex;align-items:flex-end}
+.sheet>.box{background:var(--bg);width:100%;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;
+  padding:16px 14px 26px;border-top:1px solid var(--line)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.copyable{-webkit-user-select:all;user-select:all}
+.sep{height:1px;background:var(--line);margin:11px 0}
+/* ---- v2.7: ikon + alt yazi dugmeler, gercek logo ---- */
+/* v2.8: 4 dugme 1480 px satira sigmiyor, yazilar kirpiliyordu ->
+   daha kompakt dugme + tasma yerine alt satira inme */
+.app{flex-wrap:nowrap}
+.aname{min-width:120px;flex:1 1 auto}
+.iacts{gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
+.sm.act{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1px;padding:3px 7px;min-height:42px;min-width:46px;line-height:1.05}
+.sm.act .ic{font-size:15px;line-height:1}
+.sm.act .cap{font-size:8.5px;font-weight:700;letter-spacing:0;opacity:.92;white-space:nowrap}
+.b.verify{background:#3ddc9726;color:var(--ok)}
+.b.warn{background:#ff6b6b26;color:var(--bad)}
+.sm.act.on .cap{opacity:1}
+.sm.act.ghostln{background:transparent}
+.ava .avimg{background:transparent}
+.b.am{background:#ffd16633;color:var(--warn)}
+legend-ic{display:none}
+details{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--bg2);margin-bottom:9px}
+summary{cursor:pointer;font-weight:600;font-size:14px}
+
+/* v2.14: dar ekranlarda buton ve pill'lerin tasmamasi icin */
+.row{flex-wrap:wrap}
+.pill{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.mono{word-break:break-all}
+button{max-width:100%}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <div>
+      <div class="title">Force Landscape <span class="sub" id="ver">v2.13.0</span></div>
+      <div class="sub" id="hdev">cihaz bilgisi yükleniyor…</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="orient">?</span>
+    <span class="pill" id="layer" style="display:none"></span>
+    <button class="sm ghost" id="btnRefresh" title="Yenile">⟳</button>
+  </div>
+</header>
+
+<div class="tabs" id="tabs"></div>
+<div id="view"><div class="centered"><span class="spin"></span>yükleniyor…</div></div>
+<div class="toast" id="toast"></div>
+<div id="sheetHost"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Force Landscape v2.13.0 — WebUI
+   Tasarım kuralları:
+   * Açılışta en fazla 2 arka uç çağrısı (status + apps).
+   * Otomatik yenileme SADECE başlık rozetlerini günceller; sekme
+     içeriğini ASLA yeniden çizmez (kaydırma/odak kaybı olmasın).
+   * Her komut zaman aşımına sahip; köprü yoksa/patlarsa ekranda
+     açıklama görünür, sayfa ölmez.
+   ============================================================ */
+
+/* Modul dizini: once yoneticiden (ksu.moduleInfo), olmazsa sabit yol.
+   KernelSU WebUI sayfayi https://mui.kernelsu.org/ uzerinden servis eder;
+   bu yuzden location.pathname gercek dosya yolunu VERMEZ. */
+let MODDIR = "/data/adb/modules/force_landscape_all";
+let SCRIPT = MODDIR + "/webui.sh";
+let SHELL = "/system/bin/sh";       // Android'de her zaman vardir
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s === undefined || s === null ? "" : s)
+  .replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let ST = {};            // status
+let APPS = [];          // uygulama listesi
+let CSTAT = [];         // letterbox paket durumlari
+let TAB = "durum";
+let Q = "";             // arama
+let FILTER = "hepsi";   // hepsi|force|skip|applied|degil
+let SORT = "ad";        // ad|durum|boyut
+let LOGSRC = "modul";   // modul|hata|compat|sistem|test|yon
+let LOGN = 300;
+let LOGQ = "";
+let AUTO = true;        // otomatik yenileme
+let busy = false, busyText = "";
+let lastErr = "";
+let APP_ERR = "";
+let NOTICE = "";
+let pollTimer = null, logTimer = null;
+let COPY = {};          // sayfa ici kopyalanacak metinler
+
+/* ---------------- köprü ---------------- */
+function hasKsu(){ return typeof ksu !== "undefined" && ksu && typeof ksu.exec === "function"; }
+
+let BRIDGE = "unknown";   // async | sync | promise | none
+let cbSeq = 0;
+let BLOCKING = true;      // sync kopru -> arayuz komut suresince donar
+let CMD_TIMEOUT = 120000;
+
+function toast(m){
+  const t = $("toast");
+  t.textContent = String(m);
+  t.classList.add("on");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove("on"), 2600);
+}
+
+/* --- async kopru: exec(cmd, options, callbackAdi) --- */
+function execAsync(cmd){
+  return new Promise((resolve, reject)=>{
+    const name = "__ksucb_" + (++cbSeq);
+    let settled = false;
+    const to = setTimeout(()=>{
+      if(settled) return;
+      settled = true;
+      try{ delete window[name]; }catch(e){}
+      reject(new Error("komut zaman aşımı (" + Math.round(CMD_TIMEOUT/1000) + " sn)"));
+    }, CMD_TIMEOUT);
+    window[name] = function(code, out, err){
+      if(settled) return;
+      settled = true;
+      clearTimeout(to);
+      try{ delete window[name]; }catch(e){}
+      resolve({ errno: Number(code) || 0, stdout: out === undefined ? "" : String(out),
+                stderr: err === undefined ? "" : String(err) });
+    };
+    try{
+      ksu.exec(cmd, null, name);
+    }catch(e){
+      clearTimeout(to);
+      try{ delete window[name]; }catch(x){}
+      if(!settled){ settled = true; reject(e); }
+    }
+  });
+}
+
+/* --- sync kopru: exec(cmd) -> stdout string (JS is parcacigini bloklar) --- */
+function execSync(cmd){
+  return new Promise((resolve, reject)=>{
+    try{
+      const r = ksu.exec(cmd);
+      if(r && typeof r.then === "function"){
+        r.then(v => resolve(Object.assign(
+            typeof v === "string" ? {errno:0, stdout:v, stderr:""}
+              : {errno:(v&&v.errno)||0, stdout:(v&&(v.stdout||v.out))||"", stderr:(v&&v.stderr)||""},
+            { promise: true })))
+         .catch(reject);
+        return;
+      }
+      if(r && typeof r === "object"){
+        resolve({ errno: Number(r.errno||r.code||0), stdout: String(r.stdout !== undefined ? r.stdout : (r.out||"")),
+                  stderr: String(r.stderr || "") });
+        return;
+      }
+      resolve({ errno: 0, stdout: r === undefined || r === null ? "" : String(r), stderr: "" });
+    }catch(e){ reject(e); }
+  });
+}
+
+function execRaw(cmd){
+  if(BRIDGE === "spawn") return execSpawn(cmd);
+  if(BRIDGE === "async") return execAsync(cmd);
+  return execSync(cmd);
+}
+
+/* Kopru tipini BIR KEZ, zararsiz bir "ping" komutuyla tespit eder.
+   Desteklenen yonetici imzalari:
+     1) exec(cmd, options, callbackAdi)  -> asenkron (KernelSU/SukiSU/APatch)
+     2) exec(cmd) -> stdout (string)     -> senkron (JS parcacigini bloklar)
+     3) exec(cmd) -> Promise             -> KernelSU Next / KsuWebUIStandalone
+   Hicbiri yoksa arayuz bunu acikca soyler. */
+function probeAsync(cmd, waitMs){
+  return new Promise(resolve=>{
+    const name = "__ksuprobe_" + (++cbSeq);
+    let done = false;
+    const finish = v => {
+      if(done) return;
+      done = true;
+      try{ delete window[name]; }catch(e){}
+      resolve(v);
+    };
+    window[name] = function(code, o, e){
+      finish({ errno: Number(code) || 0, stdout: o === undefined ? "" : String(o),
+               stderr: e === undefined ? "" : String(e) });
+    };
+    try{ ksu.exec(cmd, null, name); }catch(e){ finish(null); return; }
+    setTimeout(()=>finish(null), waitMs);
+  });
+}
+
+/* ---- spawn koprusu: GERCEKTEN asenkron (JS is parcacigini bloklamaz) ----
+   KernelSU 3 argumanli exec()'i senkron calistirir: Java metodu komut bitene
+   kadar donmez, bu yuzden "callback'li" olsa bile JS bekler. spawn() ise
+   enqueue() kullanir; cikti parca parca 'data' olarak akar, 'exit' ile biter.
+   Bu yuzden once spawn denenir. */
+function probeSpawn(cmd, waitMs){
+  return new Promise(resolve=>{
+    if(!hasKsu() || typeof ksu.spawn !== "function") return resolve(null);
+    const name = "__ksuspawn_" + (++cbSeq);
+    let out = "", err = "", done = false;
+    const finish = v => { if(done) return; done = true; try{ delete window[name]; }catch(e){} resolve(v); };
+    try{
+      window[name] = {
+        stdout: { emit: (ev, d)=>{ if(d !== undefined) out += (out ? "\n" : "") + String(d); } },
+        stderr: { emit: (ev, d)=>{ if(d !== undefined) err += (err ? "\n" : "") + String(d); } },
+        emit: (ev, arg)=>{
+          if(ev === "exit"){
+            finish({ errno: Number(arg) || 0, stdout: out, stderr: err, spawn: true });
+          } else if(ev === "error"){
+            finish({ errno: (arg && arg.exitCode) || 1, stdout: out,
+                     stderr: (arg && arg.message) || err, spawn: true });
+          }
+        }
+      };
+      ksu.spawn(cmd, "[]", null, name);
+    }catch(e){ finish(null); return; }
+    setTimeout(()=>finish(null), waitMs);
+  });
+}
+
+function execSpawn(cmd){
+  return new Promise((resolve, reject)=>{
+    const name = "__ksuspawn_" + (++cbSeq);
+    let out = "", err = "", settled = false;
+    const cleanup = ()=>{ try{ delete window[name]; }catch(e){} };
+    const to = setTimeout(()=>{
+      if(settled) return;
+      settled = true; cleanup();
+      reject(new Error("komut zaman aşımı (" + Math.round(CMD_TIMEOUT/1000) + " sn)"));
+    }, CMD_TIMEOUT);
+    window[name] = {
+      stdout: { emit: (ev, d)=>{ if(d !== undefined) out += (out ? "\n" : "") + String(d); } },
+      stderr: { emit: (ev, d)=>{ if(d !== undefined) err += (err ? "\n" : "") + String(d); } },
+      emit: (ev, arg)=>{
+        if(settled) return;
+        if(ev === "exit"){
+          settled = true; clearTimeout(to); cleanup();
+          resolve({ errno: Number(arg) || 0, stdout: out, stderr: err });
+        } else if(ev === "error"){
+          settled = true; clearTimeout(to); cleanup();
+          resolve({ errno: (arg && arg.exitCode) || 1, stdout: out,
+                    stderr: (arg && arg.message) || err });
+        }
+      }
+    };
+    try{ ksu.spawn(cmd, "[]", null, name); }
+    catch(e){
+      clearTimeout(to); cleanup();
+      if(!settled){ settled = true; reject(e); }
+    }
+  });
+}
+
+async function detectBridge(){
+  if(!hasKsu()){ BRIDGE = "none"; return; }
+  try{
+    if(typeof ksu.moduleInfo === "function"){
+      const mi = JSON.parse(ksu.moduleInfo());
+      if(mi && mi.moduleDir){ MODDIR = String(mi.moduleDir); SCRIPT = MODDIR + "/webui.sh"; }
+    }
+  }catch(e){}
+
+  const tryShell = async shell => {
+    const cmd = shell + " " + SCRIPT + " ping";
+    // 0) spawn (gercekten asenkron)
+    const sp = await probeSpawn(cmd, 1200);
+    if(sp && /OK\|/.test(sp.stdout)){ SHELL = shell; BRIDGE = "spawn"; BLOCKING = false; return true; }
+    // 1) asenkron (callback'li exec)
+    const r = await probeAsync(cmd, 700);
+    if(r && /OK\|/.test(r.stdout)){ SHELL = shell; BRIDGE = "async"; BLOCKING = false; return true; }
+    // 2/3) senkron ya da promise
+    try{
+      const sres = await execSync(cmd);
+      if(/OK\|/.test(sres.stdout)){
+        SHELL = shell;
+        BRIDGE = (sres.promise ? "promise" : "sync");
+        BLOCKING = BRIDGE === "sync";
+        return true;
+      }
+    }catch(e){}
+    return false;
+  };
+
+  if(await tryShell("/system/bin/sh")) return;
+  if(await tryShell("sh")) return;          // bazi ortamlarda /system/bin yok
+  if(await tryShell("/bin/sh")) return;
+  BRIDGE = "none";
+}
+
+async function out(args){
+  const cmd = SHELL + " " + SCRIPT + " " + args;
+  let r;
+  try{ r = await execRaw(cmd); }
+  catch(e){ throw new Error((e && e.message) || String(e)); }
+  let t = r.stdout || "";
+  const err = r.stderr || "";
+  if(err && String(err).trim()) t += (t ? "\n" : "") + "[stderr] " + String(err).trim();
+  if(!t && r.errno) t = "(boş çıktı, kod " + r.errno + ")";
+  return t;
+}
+function kvParse(txt){
+  const o = {};
+  String(txt||"").split("\n").forEach(l=>{
+    const i = l.indexOf("|");
+    if(i < 0) return;
+    o[l.slice(0,i).trim()] = l.slice(i+1);
+  });
+  return o;
+}
+const sq = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
+
+/* ---------------- biçimlendirme ---------------- */
+function bytes(n){
+  n = Number(n)||0;
+  if(n <= 0) return "—";
+  const u = ["B","KB","MB","GB"]; let i = 0;
+  while(n >= 1024 && i < u.length-1){ n /= 1024; i++; }
+  return (i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)) + " " + u[i];
+}
+function up(sec){
+  sec = Number(sec)||0; if(!sec) return "—";
+  const d = Math.floor(sec/86400), h = Math.floor(sec%86400/3600), m = Math.floor(sec%3600/60);
+  if(d) return d + " gün " + h + " sa";
+  if(h) return h + " sa " + m + " dk";
+  return m + " dk";
+}
+function dt(s){
+  if(!s || s === "-") return "—";
+  return String(s).replace("T"," ").slice(0,19);
+}
+const oriTR = o => ({landscape:"yatay", portrait:"dikey", free:"serbest", unknown:"bilinmiyor"})[o] || o || "—";
+const whyTR = w => ({
+  "sen-sectigin":"sen seçtin", "oyun-listesi":"oyun listesinde", "sistem-haric":"sistem paketi",
+  "dokunma-listesi":"dokunma listende", "kendi-yatay":"kendi yatay çalışıyor",
+  "serbest-yon":"yönü serbest", "kendi-dikey":"kendi dikey çalışıyor",
+  "yon-bilinmiyor":"yönü bilinmiyor", "mod-kapali":"mod kapalı",
+  "beyaz-liste-disi":"beyaz listede değil", "mod-all":"mod: hepsi"
+})[w] || w || "—";
+
+/* Bilinen uygulamalar (paket -> görünen ad). Liste dışındakiler
+   paket adından türetilir: com.akbank.cepsube -> "Akbank Cepsube" */
+const NAMES = {
+ "com.trendyol":"Trendyol","com.hepsiburada":"Hepsiburada","com.getir":"Getir","com.n11.mobile":"N11",
+ "com.sahibinden":"Sahibinden","com.arabam":"Arabam","com.instagram.android":"Instagram",
+ "com.facebook.katana":"Facebook","com.twitter.android":"X (Twitter)","com.snapchat.android":"Snapchat",
+ "com.zhiliaoapp.musically":"TikTok","com.whatsapp":"WhatsApp","org.telegram.messenger":"Telegram",
+ "com.discord":"Discord","com.reddit.frontpage":"Reddit","com.spotify.music":"Spotify",
+ "com.netflix.mediaclient":"Netflix","com.amazon.mShop.android.shopping":"Amazon",
+ "com.aliexpress.v4":"AliExpress","com.google.android.apps.docs":"Google Drive",
+ "com.google.android.apps.maps":"Google Haritalar","com.google.android.youtube":"YouTube",
+ "com.microsoft.office.word":"Word","com.microsoft.office.excel":"Excel","com.microsoft.teams":"Teams",
+ "com.slack":"Slack","com.zoom.us":"Zoom","com.notion.id":"Notion","com.todoist":"Todoist",
+ "com.trello":"Trello","com.evernote":"Evernote","com.duolingo":"Duolingo",
+ "com.coursera.android":"Coursera","com.udemy.android":"Udemy","com.khanacademy.android":"Khan Academy",
+ "com.quizlet.quizletandroid":"Quizlet","com.goodreads":"Goodreads","com.scribd.app.reader0":"Scribd",
+ "com.audible.application":"Audible","com.pandora.android":"Pandora","com.deezer.android":"Deezer",
+ "com.soundcloud.android":"SoundCloud","com.shazam.android":"Shazam","com.pinterest":"Pinterest",
+ "com.tumblr":"Tumblr","com.linkedin.android":"LinkedIn","com.ubercab":"Uber","com.bitaksi":"BiTaksi",
+ "com.booking":"Booking.com","com.airbnb.android":"Airbnb","com.ebay.mobile":"eBay","com.letgo":"Letgo",
+ "com.dolap.android":"Dolap","com.yemeksepeti":"Yemeksepeti","com.mapfactor.navigator":"MapFactor",
+ "com.here.app.maps":"HERE WeGo","com.waze":"Waze","com.yandex.maps":"Yandex Haritalar",
+ "com.papara":"Papara","com.paribu":"Paribu","com.binance.dev":"Binance","com.btcturk":"BtcTurk",
+ "com.akbank.cepsube":"Akbank","com.garanti.cepsubesi":"Garanti BBVA","com.isbank.mobil":"İş Bankası",
+ "com.yapikredi.cepsube":"Yapı Kredi","com.ziraat.ziraatmobil":"Ziraat","com.tmob.akbank":"Akbank (TMOB)",
+ "com.vodafone.selfservis":"Vodafone","com.turkcell":"Turkcell","com.turktelekom":"Türk Telekom",
+ "tr.gov.turkiye.edevlet.kapisi":"e-Devlet","com.adobe.reader":"Adobe Acrobat",
+ "com.pubg.imobile":"PUBG Mobile","com.mojang.minecraftpe":"Minecraft",
+ "com.supercell.clashofclans":"Clash of Clans","com.supercell.clashroyale":"Clash Royale",
+ "com.supercell.brawlstars":"Brawl Stars","com.tencent.ig":"PUBG (Tencent)","com.dts.freefireth":"Free Fire",
+ "com.mobile.legends":"Mobile Legends","com.riotgames.league.wildrift":"Wild Rift",
+ "com.roblox.client":"Roblox","com.ea.gp.fifamobile":"FC Mobile","com.konami.pesam":"eFootball",
+ "com.miHoYo.GenshinImpact":"Genshin Impact","com.activision.callofduty.shooter":"COD Mobile",
+ "com.king.candycrushsaga":"Candy Crush","com.spotify.lite":"Spotify Lite",
+ "com.google.android.apps.youtube.music":"YouTube Music","com.google.android.youtube.music":"YouTube Music",
+ "ru.zdevs.zarchiver":"ZArchiver","bin.mt.plus":"MT Manager","com.termux":"Termux",
+ "com.android.chrome":"Chrome","org.mozilla.firefox":"Firefox","com.opera.browser":"Opera",
+ "com.google.android.gm":"Gmail","com.google.android.apps.photos":"Google Fotoğraflar",
+ "com.google.android.calendar":"Takvim","com.google.android.keep":"Keep",
+ "com.miui.gallery":"Galeri","com.miui.videoplayer":"Video","com.miui.player":"Müzik",
+ "com.android.vending":"Play Store","com.miui.notes":"Notlar","com.miui.calculator":"Hesap Makinesi",
+ "com.microsoft.office.outlook":"Outlook","com.outlook.office":"Outlook",
+ "com.whatsapp.w4b":"WhatsApp Business","com.viber.voip":"Viber","com.skype.raider":"Skype",
+ "com.vkontakte.android":"VK","com.asana.app":"Asana","com.salesforce.chatter":"Salesforce",
+ "com.workday.workdroidapp":"Workday","com.cisco.webex.meetings":"Webex","com.ibm.lotus.traveler":"IBM Traveler"
+};
+function appName(pkg){
+  const m = MG[pkg];
+  if(m && m.label) return m.label;
+  if(NAMES[pkg]) return NAMES[pkg];
+  const parts = String(pkg).split(".").filter(p => !["com","org","net","app","apps","android","mobile","client","id","v4","dev"].includes(p));
+  const last = parts.length ? parts[parts.length-1] : pkg;
+  return last.charAt(0).toUpperCase() + last.slice(1);
+}
+/* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
+   API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
+let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
+let UI_VER = "v2.18.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
+let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
+async function enrichFromManager(){
+  if(!hasKsu() || typeof ksu.getPackagesInfo !== "function") return;
+  try{
+    const names = APPS.map(a=>a.pkg);
+    for(let i=0;i<names.length;i+=150){
+      const part = names.slice(i, i+150);
+      let arr = null;
+      try{ arr = JSON.parse(ksu.getPackagesInfo(JSON.stringify(part))); }
+      catch(e){ return; }
+      if(!Array.isArray(arr)) return;
+      arr.forEach(o=>{
+        if(!o || o.error || !o.packageName) return;
+        MG[o.packageName] = {
+          label: o.appLabel || "",
+          versionName: o.versionName || "",
+          versionCode: o.versionCode || "",
+          isSystem: !!o.isSystem
+        };
+      });
+    }
+    ICONS = (typeof ksu.listPackages === "function");
+  }catch(e){ /* yonetici desteklemiyor -> yedek yol */ }
+}
+function appColor(pkg){
+  let h = 0;
+  for(let i=0;i<pkg.length;i++) h = (h*31 + pkg.charCodeAt(i)) % 360;
+  return "hsl(" + h + " 58% 42%)";
+}
+/* ============================================================
+   v2.8.1 — UYGULAMA LOGOLARI (gerçekten çalışan motor)
+   ------------------------------------------------------------
+   Neden v2.7'de logo gelmiyordu?
+     1) `ksu://icon/` isteği HİÇ denemiyordu: yalnızca
+        `ksu.getPackagesInfo` varsa (ICONS=true) logoya geçiliyordu.
+        SukiSU Ultra'nın WebUI köprüsünde bu fonksiyon yoksa
+        liste baştan harf kutusuna düşüyordu.
+     2) `loading="lazy"` yüzünden ekran dışındaki satırların <img>
+        isteği, liste sürekli yeniden çizildiği için hiç başlamıyordu.
+     3) Yedek şema sırası sabitti; hangisinin çalıştığı hiç ölçülmüyordu.
+
+   Şimdi: açılışta iki şema da GERÇEKTEN denenir (1x1 görünmez prob),
+   hangisi çalışıyorsa o kullanılır, ölçüm sonucu Durum sekmesinde ve
+   "logo testi" düğmesinde gösterilir. Hiçbiri çalışmazsa harf kutusu.
+   ============================================================ */
+const ICON_SCHEMES = ["ksu://icon/", "mui://icon/"];
+let ICON_BASE = "ksu://icon/";     // kazanan şema
+let ICON_PROBED = false;           // prob koştu mu
+let ICON_STATE = {                 // Durum sekmesinde gösterilir
+  ksu: "denenmedi", mui: "denenmedi", ok: 0, bad: 0
+};
+
+/* tek şemayı görünmez bir Image ile dene (1.2 sn süre sınırı) */
+function probeScheme(base, pkg){
+  return new Promise(resolve => {
+    if(typeof Image !== "function") return resolve(false);
+    let done = false;
+    const img = new Image();
+    const fin = ok => { if(!done){ done = true; resolve(ok); } };
+    const to = setTimeout(()=>fin(false), 1200);
+    img.onload  = () => { clearTimeout(to); fin(img.naturalWidth > 1); };
+    img.onerror = () => { clearTimeout(to); fin(false); };
+    img.src = base + (pkg || "com.android.settings");
+  });
+}
+
+/* ikon motorunu seç: sırayla dene, ilk çalışan kazanır */
+async function initIcons(force){
+  if(ICON_PROBED && !force) return ICON_BASE;
+  ICON_PROBED = true;
+  for(const base of ICON_SCHEMES){
+    const key = base === "ksu://icon/" ? "ksu" : "mui";
+    const ok = await probeScheme(base);
+    ICON_STATE[key] = ok ? "çalışıyor" : "yok";
+    if(ok){ ICON_BASE = base; return ICON_BASE; }
+  }
+  ICON_STATE.ksu = ICON_STATE.ksu === "çalışıyor" ? "çalışıyor" : "yok";
+  return ICON_BASE;
+}
+function iconURL(pkg){
+  return ICON_BASE + pkg;
+}
+function appColor(pkg){
+  let h = 0;
+  for(let i=0;i<pkg.length;i++) h = (h*31 + pkg.charCodeAt(i)) % 360;
+  return "hsl(" + h + " 58% 42%)";
+}
+/* logo: base şema -> diğer şema -> harf. lazy YOK (yuklenmesin diye bekliyordu). */
+function avatar(pkg){
+  const raw = (appName(pkg) || "?");
+  const ch = esc((raw.trim()[0] || "?").toUpperCase());
+  const alt = ICON_BASE === "ksu://icon/" ? "mui://icon/" : "ksu://icon/";
+  return `<div class="ava" style="background:${appColor(pkg)}">
+    <img class="avimg" src="${iconURL(esc(pkg))}" alt="" decoding="async"
+         data-alt="${alt}${esc(pkg)}" onerror="avFallback(this)">
+    <span class="avtxt" style="display:none">${ch}</span></div>`;
+}
+let ICON_OK = 0, ICON_BAD = 0;   // kaç logo yüklendi / kaç tanesi harfe düştü
+document.addEventListener("load", function(ev){
+  const t = ev.target;
+  if(t && t.tagName === "IMG" && t.classList && t.classList.contains("avimg")) ICON_OK++;
+}, true);
+document.addEventListener("error", function(ev){
+  const t = ev.target;
+  if(t && t.tagName === "IMG" && t.classList && t.classList.contains("avimg")){
+    try{ avFallback(t); }catch(e){}
+  }
+}, true);
+
+function avFallback(img){
+  try{
+    if(img.dataset.step === "1"){ throw 0; }         // 2. şema da olmadı
+    const alt = img.getAttribute("data-alt");
+    if(alt){ img.dataset.step = "1"; img.src = alt; return; }
+    throw 0;
+  }catch(e){
+    ICON_BAD++;
+    img.style.display = "none";
+    const p = img.parentNode, t = p && p.querySelector(".avtxt");
+    if(t) t.style.display = "";
+  }
+}
+
+/* ============================================================
+   VERİ KATMANI
+   ============================================================ */
+let busyTimer = null;
+const BUSY_MAX = 300000;   // 5 dk: bu süre sonunda ekran ASLA kilitli kalmaz
+function busyStart(t){
+  busy = true; busyText = t || "işlem sürüyor…";
+  if(busyTimer) clearTimeout(busyTimer);
+  busyTimer = setTimeout(()=>{
+    if(!busy) return;
+    busy = false; lastErr = "işlem 5 dakikada bitmedi (zaman aşımı)";
+    try{ toast("işlem uzun sürdü — ekran açıldı, ayrıntı: Kayıtlar"); }catch(e){}
+    try{ render(); }catch(e){}
+  }, BUSY_MAX);
+  render();
+}
+function busyEnd(){
+  busy = false;
+  if(busyTimer){ clearTimeout(busyTimer); busyTimer = null; }
+}
+function paintBusy(){ const v = $("view"); if(busy && v) v.innerHTML = `<div class="centered"><span class="spin"></span>${esc(busyText)}</div>`; }
+
+async function loadStatus(){
+  const txt = await out("status");
+  const o = kvParse(txt);
+  if(!Object.keys(o).length) throw new Error("durum okunamadı (webui.sh status boş döndü)");
+  ST = o;
+  paintHeader();
+}
+function paintHeader(){
+  if(ST.surum) $("ver").textContent = ST.surum;
+  $("hdev").textContent = [ST.cihaz, ST.rom].filter(Boolean).join(" · ") || "—";
+  const o = $("orient");
+  const y = (ST.ekran_yonu||"").trim();
+  if(y === "0"){ o.className = "pill ok"; o.textContent = "YATAY"; }
+  else if(y === "1"){ o.className = "pill warn"; o.textContent = "DİKEY"; }
+  else { o.className = "pill"; o.textContent = "yön ?"; }
+  const L = $("layer");
+  const ok = parseInt(ST.compat_applied||"0",10), kalan = parseInt(ST.compat_kalan||"0",10);
+  if((ST.compat_mod||"") === "off"){ L.style.display = "none"; }
+  else if(ok > 0 && kalan === 0){ L.style.display=""; L.className="pill ok"; L.textContent="letterbox " + ok; }
+  else if(ok > 0){ L.style.display=""; L.className="pill warn"; L.textContent="letterbox " + ok + "/" + (ok+kalan); }
+  else { L.style.display=""; L.className="pill bad"; L.textContent="letterbox yok"; }
+}
+
+async function loadApps(){
+  APP_ERR = "";
+  ICON_OK = 0; ICON_BAD = 0;
+  const txt = await out("apps");
+  const lines = String(txt).split("\n");
+  const bad = lines.find(l=>l.startsWith("#yok|"));
+  if(bad){ APP_ERR = bad.slice(5) || "liste oluşturulamadı"; APPS = []; return; }
+  const rows = lines.filter(l=>l && l[0] !== "#");
+  APPS = rows.map(l=>{
+    const c = l.split("\t");
+    return { pkg:c[0], dec:c[1]||"skip", applied:c[2]==="1", ori:c[3]||"unknown",
+             why:c[4]||"", ver:c[5]||"", size:parseInt(c[6]||"0",10)||0,
+             sdk:c[7]||"", inst:c[8]||"", am:c[9]==="1", amst:c[10]||"" };
+  });
+  if(!APPS.length) APP_ERR = "liste boş (cihazda kullanıcı uygulaması bulunamadı?)";
+  await enrichFromManager();
+}
+
+async function loadCstat(){
+  const txt = await out("cstat");
+  CSTAT = String(txt).split("\n").filter(l=>l && l[0] !== "#").map(l=>{
+    const c = l.split("\t");
+    return { pkg:c[0], res:c[1]||"", how:c[2]||"" };
+  });
+}
+
+async function loadSys(){
+  SYS = kvParse(await out("sysinfo"));
+}
+
+/* ============================================================
+   ÇİZİM
+   ============================================================ */
+const TABS = [
+  ["durum","Durum"], ["uygulamalar","Uygulamalar"], ["letterbox","Letterbox"],
+  ["kontrol","Kontrol"], ["kayitlar","Kayıtlar"], ["cihaz","Cihaz"],
+  ["ayarlar","Ayarlar"], ["yardim","Yardım"]
+];
+/* v2.11.2: "kontrol tamamen bende" paneli — her anahtar tek yerde,
+   durumu SISTEMDEN okunur, ac/kapa dogrulanir. */
+let KONTROL = [];        // [id, etiket, durum, acCmd, kapaCmd, kapsam]
+let ONDEKI = "-";
+function kontrolParse(txt){
+  const rows = [], on = {};
+  String(txt||"").split("\n").forEach(l => {
+    if(l.indexOf("#ondeki|") === 0){ on.ondeki = l.slice(9); return; }
+    if(l.charAt(0) === "#" || !l.trim()) return;
+    const a = l.split("|");
+    if(a.length >= 6) rows.push(a);
+  });
+  return {rows: rows, ondeki: on.ondeki || "-"};
+}
+async function loadKontrol(){
+  try{ const r = kontrolParse(await out("kontrol")); KONTROL = r.rows; ONDEKI = r.ondeki; }
+  catch(e){ KONTROL = []; }
+}
+function durumPill(id, d){
+  const d2 = (d||"").trim();
+  let ok = false, bad = false;
+  if(["acik","kapali","etkin","duraklatildi","smart","all","off","whitelist","lock","sensor","1","0","var"].indexOf(d2) < 0){
+    ok = d2 !== "-";
+  }
+  if(id === "yatay-kilit") ok = (d2 === "acik");
+  else if(id === "izleyici") ok = (d2 === "acik");
+  else if(id === "orta-pencere") ok = (d2 === "kapali");
+  else if(id === "modul") ok = (d2 === "etkin");
+  else if(id === "resizable") ok = (d2 === "1");
+  else if(id === "letterbox") ok = (d2 !== "off");
+  else if(id === "yon-modu") ok = (d2 !== "off");
+  else if(id === "ekrana-yay" || id === "mailbox") ok = !/^0 /.test(d2);
+  bad = !ok && d2 !== "-";
+  return `<span class="pill ${ok ? "ok" : (bad ? "bad" : "")}">${esc(d2 || "—")}</span>`;
+}
+function renderTabs(){
+  $("tabs").innerHTML = TABS.map(([id,label])=>{
+    let n = "";
+    if(id === "uygulamalar" && APPS.length) n = ` <span style="opacity:.65">${APPS.length}</span>`;
+    if(id === "letterbox"){
+      const h = parseInt(ST.compat_hatali||"0",10);
+      if(h > 0) n = ` <span style="color:var(--bad);font-weight:800">!</span>`;
+    }
+    return `<div class="tab ${TAB===id?"on":""}" data-tab="${id}">${label}${n}</div>`;
+  }).join("");
+}
+async function setTab(t){
+  TAB = t;
+  renderTabs();
+  await render();
+}
+async function render(){
+  const v = $("view");
+  if(busy){ paintBusy(); return; }
+  const y = window.scrollY;
+  if(TAB === "durum") v.innerHTML = viewDurum();
+  else if(TAB === "uygulamalar") v.innerHTML = viewApps();
+  else if(TAB === "letterbox") v.innerHTML = viewLetterbox();
+  else if(TAB === "kontrol"){
+    if(!KONTROL.length){
+      v.innerHTML = `<div class="centered"><span class="spin"></span>anahtarlar okunuyor…</div>`;
+      try{ await loadKontrol(); }catch(e){}
+    }
+    v.innerHTML = viewKontrol();
+  }
+  else if(TAB === "kayitlar") v.innerHTML = viewLog();
+  else if(TAB === "cihaz"){
+    if(!Object.keys(SYS || {}).length){
+      v.innerHTML = `<div class="centered"><span class="spin"></span>cihaz bilgileri okunuyor…</div>`;
+      try{ await loadSys(); }catch(e){ SYS = SYS || {}; }
+    }
+    v.innerHTML = viewCihaz();
+  }
+  else if(TAB === "ayarlar") v.innerHTML = viewAyarlar();
+  else v.innerHTML = viewYardim();
+  window.scrollTo(0, y);
+  if(TAB === "kayitlar") await fillLog();
+  if(TAB === "letterbox" && !CSTAT.length){ try{ await loadCstat(); }catch(e){} v.innerHTML = viewLetterbox(); }
+}
+
+/* ---------------- KONTROL (v2.11.2) ---------------- */
+function viewKontrol(){
+  if(!KONTROL.length)
+    return `<div class="badbox"><b>Anahtarlar okunamadı.</b> Arka uç cevap vermedi —
+      Ayarlar → “Modülü duraklat/devam et” ile durumu tazele, sonra tekrar dene.</div>`;
+  const rows = KONTROL.map(([id, label, dur, acCmd, kapaCmd, kapsam]) => {
+    const d = (dur||"").trim();
+    const isOn = (id === "yatay-kilit") ? d === "acik"
+      : (id === "izleyici") ? d === "acik"
+      : (id === "orta-pencere") ? d === "kapali"
+      : (id === "modul") ? d === "etkin"
+      : (id === "resizable") ? d === "1"
+      : (id === "letterbox") ? d !== "off"
+      : (id === "yon-modu") ? d !== "off"
+      : (id === "ekrana-yay" || id === "mailbox") ? !/^0 /.test(d) : d !== "-";
+    let btns = "";
+    if(kapsam === "uygulama"){
+      btns = `<button class="sm ghost" data-tab="uygulamalar">Uygulamalardan seç</button>`;
+    }else{
+      btns = `<button class="sm ${isOn ? "" : "on"}" data-ctl="${esc(acCmd)}" data-ctlname="${esc(label)}">Aç</button>
+              <button class="sm ${isOn ? "on" : ""}" data-ctl="${esc(kapaCmd)}" data-ctlname="${esc(label)}">Kapat</button>`;
+    }
+    return `<div class="card" style="padding:12px">
+      <div class="row" style="align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <div style="font-weight:700">${esc(label)}</div>
+          <div class="hint">${kapsam === "cihaz" ? "cihaz geneli" : "uygulama bazlı"} · komut: <span class="mono">${esc(kapsam === "cihaz" ? (isOn ? kapaCmd : acCmd) : "Uygulamalar → ℹ️ → §")}</span></div>
+        </div>
+        ${durumPill(id, d)}
+        <div class="row" style="gap:6px">${btns}</div>
+      </div>
+    </div>`;
+  }).join("");
+  return `
+  <div class="okbox"><b>Kontrol sende.</b> Aşağıdaki her anahtarın durumu <b>sistemden okunur</b>;
+    Aç/Kapat dediğinde komut çalışır ve sonuç <b>yeniden okunur</b> — “oldu” demek için kanıt gerekir.</div>
+  <div class="sep"></div>
+  <div class="row" style="margin-bottom:10px;flex-wrap:wrap">
+    <button class="primary" data-act="tamKontrol">🛡 TAM KONTROL (kanıtlı)</button>
+    <button class="sm ghost" data-act="kontrolReload">↻ Anahtarları yenile</button>
+    <button class="sm ghost" data-act="rulesReload">🔄 MIUI kurallarını yeniden yükle</button>
+    <span class="hint">öndeki uygulama: <b class="mono">${esc(ONDEKI)}</b></span>
+  </div>
+  <div id="tamHost"></div>
+  <div class="grid" style="grid-template-columns:1fr">${rows}</div>
+  <div class="hint" style="margin-top:12px">
+    Kural: bir anahtar “Açık ✓” görünüyorsa sistemde etkin demektir. “Kapalı” ise gerçekten kapalıdır —
+    bu sürümde hiçbir düğme “niyet” göstermez, hepsi sonucu geri okur.
+  </div>`;
+}
+
+/* ---------------- DURUM ---------------- */
+function kv(k,v){ return `<div class="kv"><b>${esc(k)}</b><span>${esc(v === undefined || v === "" ? "—" : v)}</span></div>`; }
+
+function viewDurum(){
+  const applied = parseInt(ST.compat_applied||"0",10);
+  const kalan = parseInt(ST.compat_kalan||"0",10);
+  const hatali = parseInt(ST.compat_hatali||"0",10);
+  const durduruldu = (ST.duraklatildi||"") === "1";
+  const testi = ST.compat_testi || "—";
+  const testOk = testi.includes("CALISIYOR");
+  const ig = (ST.ignore_orientation||"") === "yes" || (ST.ignore_orientation||"").includes("true");
+  const fr = (ST.force_resizable||"").trim() === "1";
+
+  let banner = "";
+  if(durduruldu)
+    banner = `<div class="warnbox"><b>Modül duraklatıldı.</b> Açılışta hiçbir şey yapmıyor. Ayarlar → “Devam et” ile geri aç.</div>`;
+  else if(applied === 0 && (ST.compat_mod||"smart") !== "off")
+    banner = `<div class="badbox"><b>Letterbox katmanı henüz uygulanmadı.</b> Aşağıdaki <b>Uygula</b> düğmesine bas — ilk turda tüm uygulamaları işler.</div>`;
+  else if(hatali > 0)
+    banner = `<div class="warnbox"><b>${hatali} pakette hata var.</b> Letterbox sekmesinde sebebini gör; gerekiyorsa “Onar”a bas.</div>`;
+  else if(applied > 0 && kalan === 0)
+    banner = `<div class="okbox"><b>Her şey yerinde.</b> ${applied} uygulama letterbox'tan çıkarıldı; kalan yok.</div>`;
+
+  return `
+  ${banner}
+  ${NOTICE ? `<div class="warnbox">${esc(NOTICE)}</div>` : ""}
+  <div class="grid">
+    <div class="stat"><div class="lbl">Yön</div>
+      <div class="big">${(ST.ekran_yonu||"") === "0" ? "YATAY" : (ST.ekran_yonu||"") === "1" ? "DİKEY" : "?"}</div>
+      <div class="hint">istenen: ${esc(ST.mod_istenen||"—")} · uygulanan: ${esc(ST.mod_uygulanan||"—")}</div></div>
+    <div class="stat"><div class="lbl">Letterbox çözülen</div>
+      <div class="big">${applied}</div>
+      <div class="hint">kalan ${kalan} · hata ${hatali}</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Hızlı işlemler</h2>
+    <div class="row">
+      <button class="primary" data-act="apply">Uygula</button>
+      <button data-act="repair">Onar (kalanlar)</button>
+      <button data-act="test">Katman testi</button>
+      <button class="ghost" data-act="diag">Tanı</button>
+      <button class="danger" data-act="revertAll">Hepsini geri al</button>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      “Uygula” ayarları yazar ve kalan uygulamalara letterbox düzeltmesini <b>parça parça</b>
+      uygular; ilerleme çubuğu görünür, sayfa donmaz.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Kontrol listesi</h2>
+    ${kv("ignore-orientation", ig ? "açık ✓" : "kapalı ✗")}
+    ${kv("force_resizable_activities", fr ? "1 ✓" : (ST.force_resizable||"—"))}
+    ${kv("Katman testi", testOk ? "çalışıyor ✓" : testi)}
+    ${kv("Ekran", ST.ekran || "—")}
+    ${kv("Modül sürümü (arka uç)", ST.surum || "—")}
+    ${kv("Arayüz sürümü", UI_VER + (ST.surum && ST.surum !== UI_VER
+        ? "  ⚠ modül farklı — yeniden başlat / modülü güncelle" : " ✓"))}
+    ${kv("Cihaz geneli yatay kilidi", ST.kilit === "acik"
+        ? "AÇIK — bu yüzden “dokunma” uygulamayı dikey yapmaz, yalnızca katmanı kaldırır"
+        : ST.kilit === "kapali" ? "kapalı (uygulamalar kendi yönünü seçebilir)" : "okunamadı")}
+    ${ST.kilit === "acik" ? `<div class="row" style="margin:6px 0 0">
+        <button class="sm ghost" data-act="kilitOff">Genel yatay kilidini kapat</button>
+      </div>` : `<div class="row" style="margin:6px 0 0">
+        <button class="sm ghost" data-act="kilitOn">Genel yatay kilidini aç</button>
+      </div>`}
+    ${kv("Tam ekran izleyicisi", ST.izleyici === "acik"
+        ? "çalışıyor ✓ (uygulama açılınca ekranı doldurur)"
+        : "kapalı — “ekrana yay” uygulamayı tam ekrana oturtmaz")}
+    <div class="row" style="margin:6px 0 0">
+      <button class="sm ${ST.izleyici === "acik" ? "ghost" : "primary"}"
+              data-act="${ST.izleyici === "acik" ? "watchOff" : "watchOn"}">
+        ${ST.izleyici === "acik" ? "İzleyiciyi kapat" : "İzleyiciyi aç (önerilir)"}
+      </button>
+      <button class="sm ghost" data-act="miuiEmbedOff">MIUI orta pencereyi kapat</button>
+    </div>
+    ${kv("Son işlem", LAST_OP || "—")}
+    ${kv("Son uygulama", ST.son_uygulama || "—")}
+    ${kv("Uygulama önbelleği", (ST.apps_cache||"0") + " paket, " + (ST.apps_age||"?") + " sn önce")}
+    ${kv("Log", (ST.log_bayt||"0") + " bayt")}
+    ${kv("Arayüz köprüsü", BRIDGE === "spawn" ? "spawn ✓ (gerçekten donmaz, canlı akış)"
+        : BRIDGE === "async" ? "callback'li (yönetici komut bitene kadar JS bekler — parça parça çalışır)"
+        : BRIDGE === "sync" ? "senkron (uzun işlemde kısa bekleme)"
+        : BRIDGE === "promise" ? "promise ✓" : "yok")}
+    ${kv("Ekrana yayılan", (ST.appmode_liste || "0") + " uygulama (v2.8)")}
+    ${kv("MIUI orta pencere", ST.miui_embed === "acik"
+        ? "AÇIK — oyunlar ortada kalır (aşağıdan kapat)"
+        : ST.miui_embed === "kapali" ? "kapalı ✓ (tam ekran yolu açık)" : "yok / okunamadı")}
+    ${ST.miui_embed === "acik" ? `<div class="row" style="margin-top:8px">
+        <button class="primary" data-act="miuiEmbedOff">MIUI orta pencereyi kapat (tam ekran için şart)</button>
+      </div>` : ""}
+    ${kv("Logo motoru", "ksu://icon: " + ICON_STATE.ksu + " · mui://icon: " + ICON_STATE.mui
+        + " · kullanılan: " + (ICON_BASE === "ksu://icon/" ? "ksu" : "mui"))}
+    ${kv("Logolar (bu liste)", (ICON_OK + ICON_BAD === 0)
+        ? "henüz yüklenmedi (liste çizilince sayılır)"
+        : ICON_OK + " logo yüklendi · " + ICON_BAD + " harfe düştü")}
+    <div class="row" style="margin-top:8px">
+      <button class="sm ghost" data-act="logoTest">🔍 logo testi</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="good" data-act="save">Rapor + log indir</button>
+    <button class="ghost" data-act="report">Raporu göster</button>
+    <button class="ghost" data-live="1">Canlı ölçüm</button>
+  </div>
+  <div class="hint" style="margin-top:8px">İndirilen dosya: /sdcard/Download/force_landscape_&lt;tarih&gt;.log</div>
+  `;
+}
+
+/* ---------------- UYGULAMALAR ---------------- */
+function filteredApps(){
+  let a = APPS.slice();
+  const q = Q.trim().toLowerCase();
+  if(q) a = a.filter(x => x.pkg.toLowerCase().includes(q) || appName(x.pkg).toLowerCase().includes(q));
+  if(FILTER === "force") a = a.filter(x => x.dec === "force");
+  else if(FILTER === "skip") a = a.filter(x => x.dec === "skip");
+  else if(FILTER === "applied") a = a.filter(x => x.applied);
+  else if(FILTER === "degil") a = a.filter(x => !x.applied);
+  else if(FILTER === "am") a = a.filter(x => x.am);
+  const rank = x => x.dec === "force" ? 0 : 1;
+  a.sort((x,y)=>{
+    if(SORT === "boyut") return (y.size||0) - (x.size||0);
+    if(SORT === "durum") return rank(x)-rank(y) || appName(x.pkg).localeCompare(appName(y.pkg));
+    return appName(x.pkg).localeCompare(appName(y.pkg));
+  });
+  return a;
+}
+function appRow(a){
+  const badges = [];
+  badges.push(a.dec === "force" ? `<span class="b force">yatay zorlanır</span>` : `<span class="b skip">dokunulmaz</span>`);
+  if(a.applied) badges.push(`<span class="b ok">uygulandı</span>`);
+  if(a.am){
+    const ok = (a.amst === "ok" || a.amst === "");
+    badges.push(`<span class="b am">ekrana yayıldı${ok ? "" : " · doğrulanamadı"}</span>`);
+  }
+  if(a.ori !== "unknown") badges.push(`<span class="b">${esc(oriTR(a.ori))}</span>`);
+  const mv = (MG[a.pkg] && MG[a.pkg].versionName) || (a.ver && a.ver !== "-" ? a.ver : "");
+  const meta = [mv ? "v"+mv : "", a.size ? bytes(a.size) : ""].filter(Boolean).join(" · ");
+  return `<div class="app">
+    ${avatar(a.pkg)}
+    <div class="aname" data-detail="${esc(a.pkg)}">
+      <div class="n">${esc(appName(a.pkg))}</div>
+      <div class="p">${esc(a.pkg)}${meta ? " · " + esc(meta) : ""}</div>
+      <div class="badges">${badges.join("")}</div>
+    </div>
+    <div class="iacts">
+      <button class="sm act ${a.dec==="force"?"on":""}" data-force="${esc(a.pkg)}"
+        title="Yatay zorla: dikey kilidini kaldır, sensörü takip et"><span class="ic">↔️</span><span class="cap">yatay</span></button>
+      <button class="sm act ${a.am?"on":""}" data-appmode="${esc(a.pkg)}" data-am="${a.am?"1":"0"}"
+        title="Ekrana yay (tam ekran yatay): sağ-sol bantlar kalkar, uygulama ekranı doldurur"><span class="ic">⤢</span><span class="cap">yay</span></button>
+      <button class="sm act ${a.dec==="skip"?"on":""}" data-never="${esc(a.pkg)}"
+        title="Dokunma: bu uygulamaya hiç karışma"><span class="ic">🚫</span><span class="cap">bırak</span></button>
+      <button class="sm act" data-detail="${esc(a.pkg)}"
+        title="Ayrıntı: bilgi, aç, durdur"><span class="ic">ℹ️</span><span class="cap">bilgi</span></button>
+    </div>
+  </div>`;
+}
+function appRows(){
+  const a = filteredApps();
+  if(!a.length) return `<div class="centered">eşleşen uygulama yok<br><span class="hint">arama/filtreyi değiştir</span></div>`;
+  return a.map(appRow).join("");
+}
+function viewApps(){
+  if(APP_ERR){
+    return `<div class="badbox"><b>Uygulama listesi okunamadı.</b><br>${esc(APP_ERR)}
+      <div class="hint" style="margin-top:7px">Listeyi yeniden oluşturmayı dene; olmazsa Ayarlar → Tanı çıktısını gönder.</div></div>
+      <div class="row"><button class="primary" data-act="appsRefresh">Yeniden oluştur</button>
+      <button class="ghost" data-act="appsLazy">Şimdi oluştur</button></div>`;
+  }
+  const chips = [["hepsi","Tümü"],["force","Zorlanan"],["am","Ekrana yayılan"],["skip","Dokunulmaz"],["applied","Uygulanmış"],["degil","Uygulanmamış"]];
+  return `
+  <div class="row" style="margin-bottom:8px">
+    <input type="search" id="q" placeholder="Uygulama ara (ad veya paket)" value="${esc(Q)}" style="flex:1;min-width:180px">
+    <button class="sm ghost" data-act="appsRefresh" title="Listeyi yeniden oluştur">⟳</button>
+  </div>
+  <div class="chips">${chips.map(([id,l])=>`<div class="chip ${FILTER===id?"on":""}" data-filter="${id}">${l}</div>`).join("")}</div>
+  <div class="row" style="margin:6px 0 9px">
+    <span class="hint">sırala:</span>
+    ${[["ad","Ad"],["durum","Durum"],["boyut","Boyut"]].map(([id,l])=>`<button class="sm ${SORT===id?"on":""}" data-sort="${id}">${l}</button>`).join("")}
+    <span class="spacer"></span>
+    <button class="sm ghost" data-act="selectForce">Görünenleri zorla</button>
+    <button class="sm ghost" data-act="selectSkip">Görünenleri bırak</button>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden"><div id="applist">${appRows()}</div></div>
+  <div class="hint">${APPS.length} uygulama · gösterilen ${filteredApps().length}
+    · ↔️ <b>yatay</b> dikey kilidini kaldırır · ⤢ <b>yay</b> ekrana yayar (sağ-sol bant yok) ·
+    🚫 <b>bırak</b> hiç karışmaz · ℹ️ <b>bilgi</b> ayrıntı/aç/durdur</div>`;
+}
+
+/* ---------------- LETTERBOX ---------------- */
+function viewLetterbox(){
+  const applied = parseInt(ST.compat_applied||"0",10);
+  const kalan = parseInt(ST.compat_kalan||"0",10);
+  const toplam = Math.max(applied + kalan, 1);
+  const pct = Math.min(100, Math.round(applied * 100 / toplam));
+  const prog = (ST.progress||"").trim();
+  const okN = CSTAT.filter(x=>x.res==="ok").length;
+  const fail = CSTAT.filter(x=>x.res==="fail");
+  return `
+  <div class="card">
+    <h2>Letterbox düzeltmesi <span class="hint">(uygulama bazlı FORCE_RESIZE_APP)</span></h2>
+    <div class="row" style="justify-content:space-between">
+      <span class="hint">uygulanan</span><b>${applied} / ${applied+kalan}</b>
+    </div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    ${prog ? `<div class="hint mono">${esc(prog)}</div>` : ""}
+    <div class="row" style="margin-top:10px">
+      <button class="primary" data-act="apply">Kalanları uygula</button>
+      <button class="ghost" data-act="letterboxReload">Yenile</button>
+      <button class="danger" data-act="compatReset">Tümünü geri al</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Katman testi</h2>
+    <div class="hint mono copyable">${esc(ST.compat_testi || "—")}</div>
+    <div class="row" style="margin-top:9px"><button data-act="test">Testi yeniden çalıştır</button>
+      <button class="ghost" data-act="rawtest">Ham çıktı</button></div>
+  </div>
+  ${fail.length ? `<div class="badbox"><b>${fail.length} pakette hata</b>
+      <div class="hint" style="margin-top:6px">${fail.slice(0,6).map(f=>esc(f.pkg)).join(", ")}${fail.length>6?" …":""}</div>
+      <div class="row" style="margin-top:8px"><button class="sm" data-act="errors">Hata metinleri</button></div></div>` : ""}
+  <div class="card">
+    <h2>Paket durumları <span class="hint">(${okN} başarılı, ${fail.length} hatalı)</span></h2>
+    <div class="row" style="margin-bottom:8px">
+      <input type="search" id="cq" placeholder="paket filtrele" value="">
+    </div>
+    <div id="cstatList" style="max-height:320px;overflow:auto">
+      ${CSTAT.length ? CSTAT.map(x=>`<div class="kv"><b class="mono">${esc(x.pkg)}</b>
+        <span style="color:${x.res==="ok"?"var(--ok)":"var(--bad)"}">${esc(x.res)}${x.how && x.how!=="-"? " · "+esc(x.how):""}</span></div>`).join("")
+      : `<div class="hint">kayıt yok</div>`}
+    </div>
+  </div>`;
+}
+
+/* ---------------- KAYITLAR ---------------- */
+function viewLog(){
+  const srcs = [["modul","Modül logu"],["hata","Letterbox hataları"],["compat","Paket durumları"],
+                ["sistem","Sistem (logcat)"],["test","Katman testi"],["yon","Yön önbelleği"]];
+  return `
+  <div class="chips">${srcs.map(([id,l])=>`<div class="chip ${LOGSRC===id?"on":""}" data-logsrc="${id}">${l}</div>`).join("")}</div>
+  <div class="row" style="margin:6px 0 9px">
+    <button class="sm ${LOGN===200?"on":""}" data-logn="200">200</button>
+    <button class="sm ${LOGN===500?"on":""}" data-logn="500">500</button>
+    <button class="sm ${LOGN===1000?"on":""}" data-logn="1000">1000</button>
+    <span class="spacer"></span>
+    <button class="sm ghost" data-act="logreload">⟳ Yenile</button>
+    <button class="sm ${logTimer?"on":""}" data-act="logauto">Otomatik</button>
+  </div>
+  <div class="row" style="margin-bottom:9px">
+    <input type="search" id="logq" placeholder="logda ara" value="${esc(LOGQ)}" style="flex:1">
+  </div>
+  <pre id="logbox">yükleniyor…</pre>
+  <div class="row" style="margin-top:9px">
+    <button data-act="logcopy">Kopyala</button>
+    <button class="good" data-act="save">Dosyaya kaydet</button>
+    <button class="danger" data-act="clearlog">Logu temizle</button>
+    <button class="ghost" data-act="logstat">Log tanısı</button>
+  </div>
+  <div class="hint" style="margin-top:8px">
+    “Sistem (logcat)” seçeneği modülle ilgili satırları gösterir (rotation, compat change, KernelSU).
+    Otomatik kapalıyken sayfa kendiliğinden yenilenmez.
+  </div>`;
+}
+async function fillLog(){
+  const box = $("logbox");
+  if(!box) return;
+  try{
+    const txt = await out("logs " + LOGSRC + " " + LOGN);
+    let lines = String(txt).split("\n");
+    if(LOGQ.trim()){
+      const q = LOGQ.trim().toLowerCase();
+      lines = lines.filter(l=>l.toLowerCase().includes(q));
+    }
+    const body = lines.join("\n").trim();
+    box.textContent = body || "(kayıt yok — yukarıdaki kaynak/filtre boş döndü)";
+    COPY.log = body;
+    box.scrollTop = box.scrollHeight;
+  }catch(e){
+    box.textContent = "log alınamadı: " + (e.message || e);
+  }
+}
+function startLogAuto(){
+  stopLogAuto();
+  logTimer = setInterval(async ()=>{
+    if(TAB !== "kayitlar" || busy || document.hidden) return;
+    await fillLog();
+  }, 5000);
+}
+function stopLogAuto(){ if(logTimer){ clearInterval(logTimer); logTimer = null; } }
+
+/* ---------------- CİHAZ ---------------- */
+let SYS = {};
+function viewCihaz(){
+  /* v2.7: sayfa ASLA "—", "NaN °C", "?(API —)" gibi cop gostermez.
+     Deger yoksa satir HIC cizilmez; hic deger yoksa uyari + tek dugme. */
+  const g = k => {
+    const v = (SYS || {})[k];
+    if(v === undefined || v === null) return "";
+    const t = String(v).trim();
+    if(!t || t === "null" || t === "unknown" || t === "-" || t === "—") return "";
+    return t;
+  };
+  const n = k => { const v = parseInt(g(k), 10); return isNaN(v) ? null : v; };
+  const row = (k, v) => (v === "" || v === null || v === undefined) ? "" : kv(k, v);
+
+  const var_mi = Object.keys(SYS || {}).length > 0;
+  const dolu = ["model","cihaz","android","ekran_cozunurluk","ram_toplam","batarya"]
+                 .filter(k => g(k)).length;
+  if(!var_mi || dolu === 0){
+    return `<div class="warnbox"><b>Cihaz bilgileri okunamadı.</b>
+      <div class="hint" style="margin-top:7px">Arka uç (webui.sh sysinfo) cevap vermedi.
+      Aşağıdaki düğmeye bas; yine olmazsa Ayarlar → Tanı çıktısını gönder.</div></div>
+      <div class="row"><button class="primary" data-act="sysReload">Cihaz bilgilerini oku</button></div>
+      ${Object.keys(SYS || {}).length ? `<div class="card"><h2>Ham cevap</h2><pre>${esc(JSON.stringify(SYS, null, 1)).slice(0, 2000)}</pre></div>` : ""}`;
+  }
+
+  const ramT = n("ram_toplam"), ramB = n("ram_bos");
+  const dT = n("depolama_toplam"), dD = n("depolama_dolu");
+  const ramPct = (ramT && ramB !== null) ? Math.max(0, Math.min(100, Math.round((ramT - ramB) * 100 / ramT))) : null;
+  const dPct = (dT && dD !== null) ? Math.max(0, Math.min(100, Math.round(dD * 100 / dT))) : null;
+  const tRaw = n("batarya_sicaklik");
+  const tC = (tRaw !== null && tRaw > 0) ? (tRaw > 250 ? (tRaw / 10) : tRaw).toFixed(1) + " °C" : "";
+  const yonS = g("yon") === "0" ? "YATAY" : g("yon") === "1" ? "DİKEY" : "";
+  const android = [g("android"), g("sdk") ? "API " + g("sdk") : ""].filter(Boolean).join(" / ");
+  const marka = [g("marka"), g("cihaz")].filter(Boolean).join(" / ");
+
+  return `
+  <div class="card">
+    <h2>Cihaz</h2>
+    ${row("Model", g("model"))}
+    ${row("Marka / cihaz kodu", marka)}
+    ${row("Ürün", g("urun"))}
+    ${row("Android", android)}
+    ${row("MIUI", g("miui"))}
+    ${row("Derleme", g("derleme"))}
+    ${row("Güvenlik yaması", g("yama"))}
+  </div>
+  <div class="card">
+    <h2>Sistem</h2>
+    ${row("Çekirdek", g("cekirdek"))}
+    ${row("Mimari", [g("abi"), g("mimari")].filter(Boolean).join(" / "))}
+    ${row("SELinux", g("selinux"))}
+    ${row("Root (uid)", g("root"))}
+    ${row("KernelSU / SukiSU", g("ksu"))}
+    ${row("Açılış süresi", g("uptime") ? up(g("uptime")) : "")}
+  </div>
+  <div class="card">
+    <h2>Bellek ve depolama</h2>
+    <div class="row" style="justify-content:space-between"><span class="hint">RAM</span>
+      <b>${ramT ? bytes((ramT - (ramB || 0)) * 1024) + " / " + bytes(ramT * 1024) : "—"}</b></div>
+    ${ramPct !== null ? `<div class="bar"><i style="width:${ramPct}%"></i></div>` : ""}
+    <div class="row" style="justify-content:space-between;margin-top:6px"><span class="hint">/data</span>
+      <b>${dT ? bytes(dD * 1024) + " / " + bytes(dT * 1024) : "—"}</b></div>
+    ${dPct !== null ? `<div class="bar"><i style="width:${dPct}%"></i></div>` : ""}
+  </div>
+  <div class="card">
+    <h2>Ekran ve pil</h2>
+    ${row("Çözünürlük (fiziksel)", g("ekran_cozunurluk"))}
+    ${row("Yoğunluk", g("ekran_yogunluk"))}
+    ${row("Güncel ekran", g("ekran"))}
+    ${row("Ekran yönü", yonS)}
+    ${row("Yenileme hızı", g("yenileme") ? g("yenileme") + " Hz" : "")}
+    ${row("Batarya", g("batarya") ? g("batarya") + " %" : "")}
+    ${row("Sıcaklık", tC)}
+  </div>
+  <div class="row">
+    <button data-act="sysReload">⟳ Yenile</button>
+    <button class="ghost" data-act="sysCopy">📋 Tümünü kopyala</button>
+    <button class="ghost" data-act="save">💾 Rapor + log indir</button>
+  </div>
+  <div class="hint" style="margin-top:8px">Okunma zamanı: ${esc(new Date().toLocaleTimeString("tr-TR"))} ·
+    modül ${esc(g("surum") || "—")}</div>`;
+}
+
+/* ---------------- AYARLAR ---------------- */
+function viewAyarlar(){
+  const modes = [
+    ["smart","Akıllı (önerilen)","Dikey çalışan uygulamalara uygulanır; kendi yatay çalışan oyun/video uygulamalarına dokunulmaz."],
+    ["whitelist","Sadece seçtiklerim","Yalnızca ⚡ ile işaretlediğin uygulamalara uygulanır."],
+    ["all","Hepsi","İstisnasız tüm kullanıcı uygulamalarına uygulanır (oyunlarda sorun çıkabilir)."],
+    ["off","Kapalı","Letterbox düzeltmesi hiç uygulanmaz; yalnız yön katmanı çalışır."]
+  ];
+  const yon = [["auto","Otomatik (ROM'a göre seç)"],["sensor","Sensör (nasıl tutarsan öyle)"],
+               ["lock","Kilitli (hep yatay)"],["off","Kapalı"]];
+  const p = (ST.duraklatildi||"") === "1";
+  return `
+  <div class="card">
+    <h2>Letterbox modu</h2>
+    ${modes.map(([id,l,d])=>`<div style="margin-bottom:9px">
+        <div class="row"><button class="sm ${ST.compat_mod===id?"on":""}" data-mode="${id}">${l}</button></div>
+        <div class="hint">${d}</div></div>`).join("")}
+  </div>
+  <div class="card">
+    <h2>Yön modu</h2>
+    ${yon.map(([id,l])=>`<div class="row" style="margin-bottom:8px">
+        <button class="sm ${ST.mod_istenen===id?"on":""}" data-rotate="${id}">${l}</button></div>`).join("")}
+    <div class="hint">Seçim <b>anında</b> uygulanır ve kalıcı olur (yeniden başlatınca da geçerli). Her buton sonucu geri okuyup gösterir.</div>
+  </div>
+  <div class="card">
+    <h2>Duraklat / geri al</h2>
+    <div class="row">
+      ${p ? `<button class="good" data-act="resume">Devam et</button>`
+          : `<button data-act="pause">Duraklat</button>`}
+      <button class="danger" data-act="restore">Tümünü geri al</button>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      Duraklat: modül açılışta hiçbir şey yapmaz, ayarlar geri alınır. Tümünü geri al: tüm compat
+      değişiklikleri ve yön ayarları temizlenir.
+    </div>
+  </div>
+  <div class="card">
+    <h2>Yedek</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button data-act="backup">Seçimleri kopyala</button>
+      <button class="ghost" data-act="restoreBackup">Yedekten yükle</button>
+    </div>
+    <textarea id="backupBox" placeholder="force|com.ornek.uygulama …"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="sm" data-act="backupLoad">Panodaki/alandaki yedeği uygula</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Teşhis</h2>
+    <div class="row"><button data-act="tani">Tanı çalıştır</button>
+      <button class="ghost" data-act="diag">Ayrıntılı tanı</button>
+      <button class="ghost" data-act="logstat">Log tanısı</button></div>
+  </div>`;
+}
+
+/* ---------------- YARDIM ---------------- */
+function viewYardim(){
+  return `
+  <div class="card">
+    <h2>3 adımda kurulum</h2>
+    <div class="hint">
+      1) SukiSU Ultra → Modüller → Force Landscape → <b>WebUI</b><br>
+      2) Bu sayfada <b>Uygula</b> → bekleyen paketler parça parça uygulanır.<br>
+      3) Değiştirdiğin uygulamayı tamamen kapatıp aç (uygulama kartındaki ↻ ile otomatik).
+    </div>
+  </div>
+  <details><summary>Neden bazı uygulamalar ortada dar kalıyor?</summary>
+    <div class="hint">Uygulama “sadece dikey” dediğinde Android onu letterbox'a alır. Modül
+    FORCE_RESIZE_APP (change 174042936) ile bu davranışı uygulama bazında kaldırır. Ayar
+    uygulandıktan sonra uygulamanın yeniden başlaması gerekir.</div></details>
+  <details><summary>Oyunlar / videolar etkilenir mi?</summary>
+    <div class="hint">Akıllı modda kendi yatay çalışan uygulamalar atlanır. Yine de bozulan olursa
+    ⏹ ile “dokunma” işaretle; anında geri alınır.</div></details>
+  <details><summary>Her şeyi geri almak istiyorum</summary>
+    <div class="hint">Ayarlar → Tümünü geri al. Ardından modülü kaldırabilirsin; XML yedeği (.fl.bak)
+    geri döner. Acil durumda <span class="mono">touch /data/adb/modules/force_landscape_all/disable</span>
+    + yeniden başlat.</div></details>
+  <details><summary>Riskler (dürüst liste)</summary>
+    <div class="hint">
+      • Ayar değişikliği uygulamayı yeniden başlatınca etkili olur.<br>
+      • Bazı ROM'lar wm komutlarını kısıtlar; o durumda Tanı çıktısında HATA satırı görürsün.<br>
+      • Bildirim/klavye gibi sistem pencereleri tam ekran değildir, normaldir.<br>
+      • Modül root gerektirir; root'lu cihazda her modül gibi risk taşır.
+    </div></details>
+  <details><summary>Veriler nerede?</summary>
+    <div class="hint mono">/data/adb/force_landscape/ (log, önbellek, ayarlar)<br>
+    /sdcard/Download/force_landscape_*.log (indirdiğin rapor)</div></details>
+  <div class="hint" style="text-align:center;margin-top:10px">Force Landscape v2.13.0 · Xiaomi Pad 6 / MIUI 14 / Android 13</div>`;
+}
+
+/* ============================================================
+   EYLEMLER
+   ============================================================ */
+/* Uygulama içi onay penceresi. window.confirm() WebView'de
+   desteklenmeyebilir; desteklenmiyorsa sessizce "iptal" döner ve
+   düğmeler hiçbir şey yapmıyormuş gibi görünür. Bu yüzden kendi
+   penceremizi kullanıyoruz. */
+function askConfirm(title, text, okLabel){
+  return new Promise(resolve=>{
+    const host = $("sheetHost");
+    host.innerHTML = `<div class="sheet" data-ask="1"><div class="box">
+      <div style="font-weight:700;font-size:16px;margin-bottom:6px">${esc(title)}</div>
+      <div class="hint" style="margin-bottom:14px">${esc(text)}</div>
+      <div class="row">
+        <button class="danger" data-ask-ok="1">${esc(okLabel || "Evet, yap")}</button>
+        <button class="ghost" data-ask-no="1">Vazgeç</button>
+      </div>
+    </div></div>`;
+    const done = v => { host._askDone = null; host.innerHTML = ""; resolve(v); };
+    host._askDone = done;   // v2.8.1: dışarı tıklamada da (data-close) false ile çözülür
+  });
+}
+document.addEventListener("click", ev=>{
+  const t = ev.target.closest("[data-ask-ok],[data-ask-no]");
+  if(!t) return;
+  const host = $("sheetHost");
+  const done = host._askDone;
+  if(typeof done === "function"){ host._askDone = null; done(!!t.dataset.askOk); }
+});
+
+function copyText(t, okMsg){
+  const s = String(t || "");
+  const done = ()=>toast(okMsg || "kopyalandı");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(s).then(done).catch(()=>fallbackCopy(s, done));
+  } else fallbackCopy(s, done);
+}
+function fallbackCopy(s, done){
+  try{
+    const ta = document.createElement("textarea");
+    ta.value = s; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    done();
+  }catch(e){ toast("kopyalanamadı — metni seçip elle kopyala"); }
+}
+
+async function doApply(){
+  busyStart("hazırlanıyor…");
+  let guard = 0, more = "1", applied = 0, kalan = "?", hata = 0, sonKalan = -1, ayni = 0;
+  try{
+    while(more === "1" && guard++ < 80){
+      const CH = BLOCKING ? 6 : 15;
+      const arg = (guard === 1 ? "apply-chunk " + CH : "apply-chunk " + CH + " devam");
+      const raw = await out(arg);
+      const o = kvParse(raw);
+      if(!o.durum && guard === 1){
+        lastErr = (raw || "(boş çıktı)").split("\n").slice(0,2).join(" ").slice(0,160);
+        break;
+      }
+      if(o.uygulanan) applied = o.uygulanan;
+      if(o.kalan !== undefined) kalan = o.kalan;
+      if(o.basarisiz) hata = parseInt(o.basarisiz,10) || hata;
+      more = (o.devam || "0").trim();
+      busyText = "letterbox uygulanıyor… " + applied + " paket · kalan " + kalan + (hata ? (" · hata " + hata) : "");
+      paintBusy();
+      const kn = parseInt(kalan,10);
+      if(kn === sonKalan) { if(++ayni >= 2) break; } else { ayni = 0; sonKalan = kn; }
+      if(!o.uygulanan && !o.kalan && guard > 1) break;
+    }
+  }catch(e){ lastErr = e.message || String(e); }
+  if(hata > 0) NOTICE = hata + " pakette hata oluştu — Letterbox sekmesinde sebebini görebilirsin.";
+  busyEnd();
+  try{ await loadStatus(); await loadApps(); CSTAT = []; }catch(e){}
+  await render();
+  toast(lastErr ? ("hata: " + lastErr)
+    : (hata > 0 ? ("bitti — " + applied + " uygulandı, " + hata + " hata")
+                : ("bitti — uygulanan: " + applied)));
+  lastErr = "";
+}
+
+async function setApp(pkg, val){
+  const nm = appName(pkg);
+  busyStart((val === "force" ? "yatay zorlanıyor: " : val === "never" ? "dokunulmaz: " : "otomatik: ") + nm);
+  let sonuc = "";
+  try{
+    const r = await out("set " + sq(pkg) + " " + val);
+    const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+    if(bad){
+      /* geri alma DOĞRULANAMADI -> gerçeği söyle, "tamam" deme */
+      sonuc = "olmadı: " + bad.replace("HATA|","").replace(/[|]/g," · ");
+    } else if(val === "force"){
+      /* v2.14: 'set force' artik TUM katmanlari kendisi uygular;
+         cikti hangi katmanin ne oldugunu soyler, onu goster. */
+      const okL = String(r||"").split("\n").find(l => l.startsWith("OK|"));
+      sonuc = okL ? ("yatay zorlandı ✓ " + (okL.split("|").slice(3).join(" ") || ""))
+                  : "cevap yok — durumu kontrol et";
+    } else {
+      sonuc = (val === "never" ? "dokunma — katman geri alındı" : "otomatik");
+    }
+    await loadApps();
+  }catch(e){ sonuc = "hata: " + (e.message || e); }
+  busyEnd();
+  await render();
+  toast(nm + " → " + sonuc);
+}
+
+/* v2.7: uygulama basina "ekrana yay" (komple yatay / tam ekran) */
+async function setAppMode(pkg, on){
+  const nm = appName(pkg);
+  busyStart((on ? "ekrana yayılıyor: " : "eski hâline dönüyor: ") + nm);
+  try{
+    const r = await out("appmode " + sq(pkg) + " " + (on ? "on" : "off"));
+    const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+    if(bad) throw new Error(bad.replace("HATA|",""));
+    await loadApps();
+    let gercek = "";
+    try{ const v = kvParse(await out("verify " + sq(pkg))); gercek = v.pencere || ""; }catch(e){}
+    if(on){
+      toast(nm + (gercek.indexOf("orta|") === 0
+        ? " → ayar açıldı ama MIUI hâlâ ortada tutuyor (orta pencereyi kapat)"
+        : " → ekrana yayıldı"));
+    } else {
+      toast(nm + " → eski hâline döndü");
+    }
+  }catch(e){
+    toast("olmadı: " + (e.message || e));
+  }
+  busyEnd();
+  await render();
+}
+
+/* v2.8: "gerçek durum" satırları — sistemden okunan değerleri Türkçeye çevirir.
+   Ayrı fonksiyon: test edilebilir, tek yerde mantık. */
+function stTR(s){
+  if(s === "enabled") return "açık ✓";
+  if(s === "disabled") return "kapalı ✗";
+  /* v2.13: "unknown" artik "kayıt yok" demek — uygulanmamış olabilir,
+     ama "okunamadı" demek yanlıştı: komut calisti, kayit yoktu. */
+  if(s === "unknown" || s === "uygulanmadi") return "kayıt yok";
+  return "okunamadı";
+}
+function winTR(w){
+  if(w === "kapali") return "uygulama kapalı — açıp ölç";
+  if(!w || w === "?") return "ölçülemedi (pencere yok)";
+  if(w === "tam") return "tam ekran ✓";
+  if(w.indexOf("orta|") === 0) return "ortada (" + w.slice(5) + ") ✗";
+  return w;
+}
+/* v2.11: MIUI "信箱模式" — uygulamayi ekranin ORTASINDA telefon
+   oraninda bir sutuna koyan davranis. AOSP compat anahtarlari bunu
+   kaldirmaz; MIUI'nin kendi kural dosyasi kaldirir. */
+function mbTR(s){
+  if(s === "kapali")     return "kapalı ✓ (sütun kalkar)";
+  if(s === "aktif")      return "AÇIK — uygulama ortada kalır ✗";
+  if(s === "varsayilan") return "AÇIK (varsayılan) — kapatılmalı ✗";
+  if(s === "yok")        return "kural dosyası yok (bu ROM'da mailbox yok)";
+  return "okunamadı";
+}
+function krTR(s){
+  if(!s) return "okunamadı";
+  if(s === "yok") return "yok";
+  if(s.indexOf("var|hemen") === 0) return "var ✓ (dosyada; canlı komut/açılışla okunur)";
+  if(s.indexOf("var|") === 0) return "var · yeniden başlatınca geçerli";
+  return s;
+}
+function realStateRows(real){
+  const r = real || {};
+  const lbk = r.letterbox_kaynak ? ` · kaynak: ${r.letterbox_kaynak}` : "";
+  return [
+    ["letterbox (resize)", stTR(r.letterbox) + lbk],
+    ["ekrana yay · kapıcı", stTR(r.yay_OVERRIDE_MIN_ASPECT_RATIO)],
+    ["ekrana yay · 16:9", stTR(r.yay_OVERRIDE_MIN_ASPECT_RATIO_LARGE)],
+    ["pencere", winTR(r.pencere)],
+    ["MIUI orta pencere", r.miui_embed === "acik" ? "AÇIK — ortada kalır ✗"
+        : r.miui_embed === "kapali" ? "kapalı ✓" : "yok"],
+    ["MIUI mailbox (orta sütun)", mbTR(r.mailbox)],
+    ["yatay kuralı (fullRule)", krTR(r.yatay_kural)]
+  ];
+}
+
+async function openAppSheet(pkg){
+  const a = APPS.find(x=>x.pkg === pkg) || {pkg, dec:"auto", applied:false, ori:"unknown"};
+  pushSheetHistory();
+  $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+    <div class="row" style="align-items:center;gap:11px">
+      ${avatar(pkg)}
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700">${esc(appName(pkg))}</div>
+        <div class="hint mono" style="word-break:break-all">${esc(pkg)}</div>
+      </div>
+      <button class="sm ghost" data-close="1">✕</button>
+    </div>
+    <div class="sep"></div>
+    <div id="sheetBody"><div class="centered"><span class="spin"></span>bilgiler okunuyor…</div></div>
+  </div></div>`;
+  let d = {};
+  try{ d = kvParse(await out("appinfo " + sq(pkg))); }
+  catch(e){ d = {}; }
+  const ch = [];
+  if(d.surum && d.surum !== "-") ch.push(["Sürüm", d.surum + (d.surum_kodu && d.surum_kodu !== "-" ? " (" + d.surum_kodu + ")" : "")]);
+  if(d.boyut) ch.push(["Boyut", bytes(d.boyut)]);
+  if(d.hedef_sdk && d.hedef_sdk !== "-") ch.push(["Hedef SDK", d.hedef_sdk]);
+  ch.push(["Kurulum", dt(d.kurulum)]);
+  ch.push(["Çalışıyor", d.calisiyor === "1" ? ("evet (pid " + (d.pid||"?") + ")") : "hayır"]);
+  ch.push(["Karar", (d.karar === "force" ? "yatay zorlanıyor" : "dokunulmuyor") + " · " + whyTR(d.neden)]);
+  ch.push(["Öğrenilen yön", oriTR(d.yon)]);
+  if(d.compat) ch.push(["Letterbox kaydı", d.compat + (d.compat_yontem && d.compat_yontem !== "-" ? " · " + d.compat_yontem : "")]);
+  if(d.baslatici) ch.push(["Başlatıcı", String(d.baslatici).replace(/^.*cmp=/, "")]);
+  if(d.apk && d.apk !== "-") ch.push(["APK", d.apk]);
+
+  const body = `
+    ${ch.map(([k,v])=>kv(k,v)).join("")}
+    <div class="sep"></div>
+    <div class="hint" style="margin-bottom:6px"><b>Gerçek durum (sistemden okundu)</b></div>
+    <div id="sheetReal"><div class="hint">okunuyor…</div></div>
+    <div class="sep"></div>
+    <div class="row">
+      <button class="sm ${d.karar==="force"?"on":""}" data-force="${esc(pkg)}">⚡ Yatay zorla</button>
+      <button class="sm ${d.karar!=="force"?"on":""}" data-never="${esc(pkg)}">⏹ Dokunma</button>
+      <button class="sm ghost" data-auto="${esc(pkg)}">Otomatik</button>
+      <button class="sm act ${(APPS.find(x=>x.pkg===pkg)||{}).am?"on":""}"
+        data-appmode="${esc(pkg)}" data-am="${(APPS.find(x=>x.pkg===pkg)||{}).am?"1":"0"}"
+        title="Ekrana yay: sağ-sol bantları kaldırır, tam ekran"><span class="ic">⤢</span><span class="cap">ekrana yay</span></button>
+    </div>
+    <div class="sep"></div>
+    <div class="row">
+      <button class="sm act" data-fullscreen="${esc(pkg)}"
+        title="Şimdi tam ekran: açık olan uygulamanın penceresini ekran boyutuna getirir">
+        <span class="ic">⛶</span><span class="cap">tam ekran</span></button>
+      <button class="good" data-hepsi="${esc(pkg)}"
+        title="Her katmanı uygular (mailbox + yatay kural + ekrana yay), kuralları yeniden yükler ve ölçer">
+        🚀 HER ŞEYİ UYGULA</button>
+      <button class="sm act" data-hepsikapat="${esc(pkg)}"
+        title="Yazdığımız her satırı siler, uygulamayı fabrika hâline döndürür ve doğrular">
+        ⟲ HER ŞEYİ GERİ AL</button>
+      <button class="sm act" data-kesin="${esc(pkg)}"
+        title="Kesin test: bu uygulama için yapılan her şeyi tek tek ölçer ve hüküm verir">
+        <span class="ic">✔</span><span class="cap">kesin test</span></button>
+      <button class="sm act" data-proof="${esc(pkg)}"
+        title="MIUI kural dosyaları: var mı, izni/sahibi ne, bizim satırımız ne — kanıt">
+        📄 Kural kanıtı</button>
+      <button class="sm ghost" data-softreboot="1"
+        title="MIUI kendi kurallarını yalnızca açılışta okur. Zygote tazelenir (~20 sn), veriler silinmez.">
+        ♻️ Kuralları zorla yükle</button>
+      <button class="sm act" data-mailbox="${esc(pkg)}"
+        title="MIUI'nin ortadaki telefon sütununu (信箱模式) bu uygulama için kapatır">
+        <span class="ic">📬</span><span class="cap">mailbox kapat</span></button>
+      <button class="good" data-open="${esc(pkg)}">Uygulamayı aç</button>
+      <button data-stop="${esc(pkg)}">Durdur</button>
+      <button data-restart="${esc(pkg)}">↻ Yeniden başlat</button>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      Yatay/dokunma değişikliği anında uygulanır; görünmesi için uygulamanın
+      kapalıyken açılması gerekir → “↻ Yeniden başlat”.<br>
+      <b>⤢ Ekrana yay</b>: uygulamanın “sadece dikey / en fazla 16:9” kısıtını kaldırır,
+      sağ-sol siyah bantları yok eder. Geri almak için aynı düğmeye tekrar bas.
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="sm ghost" data-copy="${esc(JSON.stringify(d, null, 2))}">Bilgileri kopyala</button>
+    </div>`;
+  const b = $("sheetBody");
+  if(b) b.innerHTML = body;
+
+  /* v2.8: "gerçek durum" AYRI ve ASENKRON yüklenir.
+     Böylece dumpsys/am compat state yavaş olsa bile pencere donmaz;
+     v2.7'deki gibi tek komut takılırsa bütün ayrıntı ekranı beklemiyor. */
+  (async () => {
+    let real = {};
+    try{ real = kvParse(await out("verify " + sq(pkg))); }catch(e){ real = {}; }
+    const el = $("sheetReal");
+    if(!el) return;                      // pencere kapanmış
+    const rows = realStateRows(real);
+    const mbAcik = (real.mailbox === "aktif" || real.mailbox === "varsayilan");
+    const uyari = mbAcik
+      ? `<div class="warnbox" style="margin-top:9px">Bu uygulama <b>MIUI mailbox</b> (ortada telefon sütunu)
+         kuralında. AOSP ayarları bunu kaldırmaz — <b>📬 mailbox kapat</b> düğmesine bas,
+         sonra uygulamayı <b>↻ yeniden başlat</b>.</div>`
+      : (real.pencere && String(real.pencere).indexOf("orta|") === 0 && real.miui_embed === "acik")
+        ? `<div class="warnbox" style="margin-top:9px">Bu uygulama <b>MIUI orta penceresinde</b> duruyor.
+           “Ekrana yay” bunu kaldıramaz — <b>MIUI orta pencereyi kapat</b> düğmesine bas.</div>` : "";
+    el.innerHTML = rows.map(([k,v])=>kv(k,v)).join("") + uyari;
+  })();
+}
+
+async function appAction(cmd, pkg, label){
+  try{
+    const r = await out(cmd + " " + sq(pkg));
+    const o = kvParse(r);
+    toast(label + ": " + (o.OK === undefined ? (o.HATA || "tamam") : (o.OK.split("|")[2] || "tamam")));
+    await loadApps();
+  }catch(e){ toast(e.message || e); }
+  $("sheetHost").innerHTML = "";
+  await render();
+}
+
+const ACT = {
+  /* v2.12: MIUI kurallarini yeniden baslatmadan okut */
+  async rulesReload(){
+    busyStart("MIUI kuralları yeniden yükleniyor…");
+    let r = "";
+    try{ r = await out("rules-reload"); }catch(e){ r = String((e&&e.message)||e); }
+    busyEnd();
+    toast(String(r||"").split("\n")[0].replace(/\|/g," · "));
+    await render();
+  },
+
+  /* v2.11.2: Kontrol paneli */
+  async kontrolReload(){
+    busyStart("anahtarlar okunuyor…");
+    try{ await loadKontrol(); }catch(e){}
+    busyEnd(); await render();
+  },
+
+  /* v2.11.2: TAM KONTROL — her yetenek + öndeki uygulama için kanıt */
+  async tamKontrol(){
+    busyStart("tam kontrol çalışıyor… (birkaç saniye)");
+    let txt = "", kd = "";
+    try{ txt = await out("tamkontrol"); }catch(e){ txt = String((e&&e.message)||e); }
+    busyEnd();
+    const lines = String(txt||"").split("\n");
+    const kontrol = lines.filter(l => /^[a-z-]+\|/.test(l) && l.split("|").length >= 6).length;
+    const kOk = (String(txt).match(/^KONTROL\|OK\|/gm)||[]).length;
+    const kUy = (String(txt).match(/^UYARI\|/gm)||[]).length;
+    const kHa = (String(txt).match(/^KONTROL\|HATA\|/gm)||[]).length;
+    const son = lines.find(l => l.indexOf("SONUC|") === 0) || "SONUC|KANIT-YOK|cevap yok";
+    const sp = son.split("|");
+    const hukum = sp[1], sebep = sp.slice(2).join(" ");
+    const iyi = (kHa === 0 && hukum === "CALISIYOR");
+    const renk = iyi ? "okbox" : "warnbox";
+    const host = $("tamHost");
+    if(host) host.innerHTML = `
+      <div class="${renk}" style="margin-bottom:12px">
+        <b>TAM KONTROL sonucu:</b> ${kontrol} anahtar · tanı ${kOk} OK / ${kUy} uyarı / ${kHa} hata ·
+        öndeki uygulama hükmü <b>${esc(hukum)}</b>${sebep ? " — " + esc(sebep) : ""}
+        ${iyi ? "" : `<div class="hint" style="margin-top:6px">Uyarı/hata varsa aşağıdaki satırlarda hangi anahtar olduğu yazıyor.</div>`}
+      </div>
+      <pre class="hint mono" style="white-space:pre-wrap;max-height:280px;overflow:auto">${esc(lines.filter(l => l && l.indexOf("---") !== 0).join("\n"))}</pre>`;
+    toast(iyi ? "TAM KONTROL: her şey yerinde ✓" : ("TAM KONTROL: " + hukum + " — uyarıları gör"));
+    LAST_OP = "tam kontrol · " + new Date().toLocaleTimeString("tr-TR");
+    await render();
+  },
+
+  /* v2.8: MIUI orta-pencereyi kapat (resetprop) */
+  async miuiEmbedOff(){
+    busyStart("MIUI orta pencere kapatılıyor…");
+    try{
+      const r = await out("miui-embed off");
+      const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+      if(bad) throw new Error(bad.replace("HATA|",""));
+      await loadStatus();
+      toast("MIUI motoru kapatıldı — DİKKAT: kapalıyken uygulamaya özel yatay kuralları ÇALIŞMAZ");
+    }catch(e){ toast("olmadı: " + (e.message||e)); }
+    busyEnd();
+    await render();
+  },
+
+  /* v2.8.1: logolar gelmiyorsa SEBEBİNİ söyler (şema şema ölçüm) */
+  async logoTest(){
+    busyStart("logo şemaları deneniyor…");
+    try{
+      const r = {};
+      for(const base of ICON_SCHEMES){
+        r[base] = await probeScheme(base) ? "çalışıyor" : "yok";
+      }
+      await initIcons(true);
+      const k = s => (s === "çalışıyor" ? "✓ çalışıyor" : "✗ yok");
+      toast("ksu://icon " + k(r["ksu://icon/"]) + "  ·  mui://icon " + k(r["mui://icon/"])
+        + "  ·  kullanılan: " + (ICON_BASE === "ksu://icon/" ? "ksu" : "mui"));
+      await loadApps();     // sayaclar sifirlanip yeniden dolsun
+    }catch(e){ toast("logo testi: " + (e.message||e)); }
+    busyEnd();
+    await render();
+  },
+
+  /* v2.9: HER ŞEYİ geri al ve DOĞRULA — "hiçbir şey çalışmıyor" durumunun panzehiri */
+  async revertAll(){
+    if(!await askConfirm("Hepsini geri al?",
+        "Tüm uygulamalardaki yatay zorlama, letterbox (resize) ve ekrana-yay katmanları kaldırılır, "
+        + "listeler temizlenir, uygulamalar durdurulur. Her adım sistemden DOĞRULANIR.", "Evet, hepsini geri al")) return;
+    busyStart("geri alınıyor + doğrulanıyor… (uygulama sayısına göre 1-2 dk)");
+    let satir = [], ok = false;
+    try{
+      const r = await out("revert-all");
+      const lines = String(r||"").split("\n");
+      const temiz = lines.find(l => /^temizlenen\|/.test(l)) || "";
+      const hata  = lines.find(l => l.startsWith("HATA"));
+      ok = !hata && lines.some(l => l.startsWith("OK|hepsi"));
+      satir.push(temiz.replace("|", ": "));
+      if(hata) satir.push("KALAN → " + hata.replace("HATA|",""));
+      LAST_OP = (ok ? "✅ hepsi geri alındı · " : "⚠ kısmen · ") + satir.join(" · ")
+              + " · " + new Date().toLocaleTimeString("tr-TR");
+    }catch(e){ LAST_OP = "⚠ revert-all hata: " + (e.message||e); }
+    busyEnd();
+    try{ await loadStatus(); await loadApps(); }catch(e){}
+    await render();
+    toast(ok ? "hepsi geri alındı ve doğrulandı" : (LAST_OP || "kısmen geri alındı — tanıya bak"));
+  },
+
+  async kilitOff(){
+    busyStart("genel yatay kilidi kapatılıyor…");
+    try{ const r = await out("kilit kapali");
+         toast(/OK\|kilit\|kapali/.test(r) ? "kilit kapalı — artık uygulamalar kendi yönünü seçer" : "olmadı: " + r.trim().slice(0,80)); }
+    catch(e){ toast("hata: " + (e.message||e)); }
+    busyEnd(); try{ await loadStatus(); }catch(e){} await render();
+  },
+  async kilitOn(){
+    busyStart("genel yatay kilidi açılıyor…");
+    try{ const r = await out("kilit acik");
+         toast(/OK\|kilit\|acik/.test(r) ? "kilit açık — tüm uygulamalar yatay" : "olmadı: " + r.trim().slice(0,80)); }
+    catch(e){ toast("hata: " + (e.message||e)); }
+    busyEnd(); try{ await loadStatus(); }catch(e){} await render();
+  },
+
+  async watchOn(){
+    busyStart("izleyici açılıyor…");
+    try{ const r = await out("watch acik");
+         toast(/OK\|izleyici/.test(r) ? "izleyici açık — oyunlar açılınca ekranı dolduracak" : "olmadı: " + r.trim().slice(0,80));
+         LAST_OP = "izleyici açıldı · " + new Date().toLocaleTimeString("tr-TR"); }
+    catch(e){ toast("hata: " + (e.message||e)); }
+    busyEnd(); try{ await loadStatus(); }catch(e){} await render();
+  },
+  async watchOff(){
+    busyStart("izleyici kapatılıyor…");
+    try{ const r = await out("watch kapali");
+         toast(/OK\|izleyici/.test(r) ? "izleyici kapalı" : "olmadı: " + r.trim().slice(0,80));
+         LAST_OP = "izleyici kapatıldı · " + new Date().toLocaleTimeString("tr-TR"); }
+    catch(e){ toast("hata: " + (e.message||e)); }
+    busyEnd(); try{ await loadStatus(); }catch(e){} await render();
+  },
+
+  async apply(){ await doApply(); },
+
+  async repair(){ await doApply(); },
+
+  async test(){
+    busyStart("katman testi çalışıyor…");
+    let txt = "";
+    try{ txt = await out("test"); }catch(e){ txt = "hata: " + (e.message||e); }
+    busyEnd();
+    await loadStatus();
+    await render();
+    toast(txt.includes("CALISIYOR") ? "katman çalışıyor ✓" : "katman testi: sonuç yukarıda");
+  },
+
+  async appsRefresh(){
+    busyStart("uygulama listesi oluşturuluyor… (paket bilgileri taranıyor)");
+    try{
+      await out("apps-refresh");
+      await loadApps();
+    }catch(e){ APP_ERR = e.message || String(e); }
+    busyEnd();
+    await render();
+    toast(APP_ERR ? "liste oluşturulamadı" : (APPS.length + " uygulama hazır"));
+  },
+
+  async appsLazy(){
+    busyStart("liste oluşturuluyor…");
+    try{ await out("apps"); await loadApps(); }catch(e){ APP_ERR = e.message||String(e); }
+    busyEnd(); await render();
+  },
+
+  async selectForce(){
+    const list = filteredApps().map(a=>a.pkg);
+    if(!list.length) return toast("liste boş");
+    busyStart(list.length + " uygulama işaretleniyor…");
+    try{
+      let i = 0, hata = "";
+      while(i < list.length){
+        const chunk = list.slice(i, i+15);
+        const r = await out("setmany force " + chunk.map(sq).join(" "));
+        const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+        if(bad) hata = bad.replace("HATA|","").replace(/[|]/g," · ");
+        i += 15;
+      }
+      await loadApps();
+      if(hata){ toast("bazıları olmadı: " + hata); return; }
+    }catch(e){ toast(e.message||e); }
+    busyEnd(); await render(); toast(list.length + " uygulama: yatay zorla");
+  },
+
+  async selectSkip(){
+    const list = filteredApps().map(a=>a.pkg);
+    if(!list.length) return toast("liste boş");
+    busyStart(list.length + " uygulama bırakılıyor…");
+    try{
+      let i = 0, hata = "";
+      while(i < list.length){
+        const chunk = list.slice(i, i+15);
+        const r = await out("setmany never " + chunk.map(sq).join(" "));
+        const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+        if(bad) hata = bad.replace("HATA|","").replace(/[|]/g," · ");
+        i += 15;
+      }
+      await loadApps();
+      if(hata) toast("bazıları olmadı: " + hata);
+    }catch(e){ toast(e.message||e); }
+    busyEnd(); await render(); toast(list.length + " uygulama: dokunma");
+  },
+
+  async letterboxReload(){
+    CSTAT = [];
+    try{ await loadCstat(); }catch(e){}
+    await loadStatus(); await render(); toast("yenilendi");
+  },
+
+  async compatReset(){
+    if(!await askConfirm("Letterbox geri alınsın mı?",
+        "Tüm uygulamalardaki FORCE_RESIZE_APP düzeltmesi kaldırılır. Uygulamalar eski (dar sütun) haline döner.")) return;
+    busyStart("geri alınıyor…");
+    try{ await out("restore"); }catch(e){}
+    busyEnd(); await loadStatus(); await loadApps(); CSTAT = [];
+    await render(); toast("geri alındı");
+  },
+
+  async errors(){
+    let t = "";
+    try{ t = await out("logs hata 60"); }catch(e){ t = e.message||String(e); }
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Letterbox hataları</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <pre style="margin-top:10px">${esc(t)}</pre>
+      <div class="row" style="margin-top:10px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+    </div></div>`;
+  },
+
+  async rawtest(){
+    let t = "";
+    try{ t = await out("test-ham"); }catch(e){ t = e.message||String(e); }
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Katman testi (ham)</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <pre style="margin-top:10px">${esc(t)}</pre>
+      <div class="row" style="margin-top:10px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+    </div></div>`;
+  },
+
+  async diag(){
+    busyStart("tanı çalışıyor…");
+    let t = "";
+    try{ t = await out("diag"); }catch(e){ t = e.message||String(e); }
+    busyEnd(); await render();
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Ayrıntılı tanı</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <pre style="margin-top:10px">${esc(t)}</pre>
+      <div class="row" style="margin-top:10px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+    </div></div>`;
+  },
+
+  async tani(){
+    busyStart("tanı çalışıyor…");
+    let t = "";
+    try{ t = await out("tani"); }catch(e){ t = e.message||String(e); }
+    busyEnd(); await render();
+    const rows = String(t).split("\n").filter(Boolean).map(l=>{
+      const c = l.split("|");
+      const kind = c[0] || "";
+      const color = kind === "KONTROL" ? (c[1] === "OK" ? "var(--ok)" : "var(--bad)") : "var(--warn)";
+      const name = kind === "KONTROL" ? c[2] : c[1];
+      const val = kind === "KONTROL" ? c[3] : c[2];
+      return `<div class="kv"><b>${esc(name)}</b><span style="color:${color}">${esc(val||"")}</span></div>`;
+    }).join("");
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Tanı sonucu</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <div style="margin-top:10px">${rows || esc(t)}</div>
+      <div class="row" style="margin-top:12px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+      <div class="hint" style="margin-top:8px">Bir sorun bildirirken bu çıktıyı kopyalayıp gönder.</div>
+    </div></div>`;
+  },
+
+  async logstat(){
+    let t = "";
+    try{ t = await out("logstat"); }catch(e){ t = e.message||String(e); }
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Log tanısı</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <pre style="margin-top:10px">${esc(t)}</pre>
+      <div class="row" style="margin-top:10px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+    </div></div>`;
+  },
+
+  async save(){
+    busyStart("rapor + log hazırlanıyor…");
+    let r = "";
+    try{ r = await out("save"); }catch(e){ r = e.message||String(e); }
+    busyEnd(); await render();
+    const o = kvParse(r);
+    toast(o.OK ? ("kaydedildi: " + o.OK.split("|")[1]) : ("kaydedilemedi: " + (o.HATA||r)));
+  },
+
+  async report(){
+    let t = "";
+    try{ t = await out("cat-report"); }catch(e){ t = e.message||String(e); }
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Tanı raporu</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <pre style="margin-top:10px">${esc(t)}</pre>
+      <div class="row" style="margin-top:10px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+    </div></div>`;
+  },
+
+  async clearlog(){
+    if(!await askConfirm("Log temizlensin mi?", "landscape.log dosyasının içeriği silinir. Rapor dosyası etkilenmez.")) return;
+    try{ await out("clearlog"); }catch(e){}
+    await fillLog(); toast("log temizlendi");
+  },
+
+  async logreload(){ await fillLog(); toast("yenilendi"); },
+
+  async logauto(){
+    if(logTimer){ stopLogAuto(); toast("otomatik kapandı"); }
+    else { startLogAuto(); toast("otomatik açık (5 sn)"); }
+    await render();
+  },
+
+  async logcopy(){ copyText(COPY.log || "", "log kopyalandı"); },
+
+  async sysReload(){
+    busyStart("cihaz bilgisi okunuyor…");
+    try{ await loadSys(); }catch(e){ toast(e.message||e); }
+    busyEnd(); await render(); toast("güncellendi");
+  },
+
+  async sysCopy(){
+    if(!Object.keys(SYS).length){ try{ await loadSys(); }catch(e){} }
+    copyText(Object.entries(SYS).map(([k,v])=>k + ": " + v).join("\n"), "cihaz bilgisi kopyalandı");
+  },
+
+  async pause(){
+    if(!await askConfirm("Modül duraklatılsın mı?",
+        "Yön ve letterbox ayarları geri alınır, modül açılışta hiçbir şey yapmaz. Geri açmak için Ayarlar → Devam et.")) return;
+    busyStart("duraklatılıyor…");
+    try{ await out("pause"); }catch(e){}
+    try{ await loadStatus(); }catch(e){}
+    busyEnd(); await render(); toast("duraklatıldı — yeniden başlat");
+  },
+
+  async resume(){
+    busyStart("devam ettiriliyor…");
+    try{ await out("resume"); }catch(e){}
+    try{ await loadStatus(); }catch(e){}
+    busyEnd(); await render(); toast("etkin — yeniden başlat");
+  },
+
+  async restore(){
+    if(!await askConfirm("Her şey geri alınsın mı?",
+        "Letterbox düzeltmeleri ve yön ayarları tamamen kaldırılır. Tablet fabrika davranışına döner.")) return;
+    busyStart("geri alınıyor…");
+    try{ await out("restore"); }catch(e){}
+    busyEnd(); await loadStatus(); await loadApps(); CSTAT = [];
+    await render(); toast("her şey geri alındı");
+  },
+
+  async backup(){
+    let t = "";
+    try{ t = await out("backup"); }catch(e){ t = e.message||String(e); }
+    const box = $("backupBox");
+    if(box) box.value = t;
+    copyText(t, "seçimler kopyalandı");
+  },
+
+  async restoreBackup(){ await ACT.backupLoad(); },
+
+  async backupLoad(){
+    const box = $("backupBox");
+    const text = box ? box.value.trim() : "";
+    if(!text) return toast("alan boş — önce yedek al veya yapıştır");
+    busyStart("yedek uygulanıyor…");
+    try{
+      const payload = "printf '%s' " + sq(text) + " | " + SHELL + " " + SCRIPT + " restore-backup";
+      const rr = await execRaw(payload);
+      const ilk = String((rr && rr.stdout) || "").split("\n")[0] || "";
+      await loadStatus(); await loadApps();
+      if(ilk.indexOf("OK|") !== 0) toast("yedek uygulanamadı: " + (ilk || "cevap yok"));
+      else toast("yedek yüklendi ve uygulandı ✓");
+    }catch(e){ toast(e.message||e); }
+    busyEnd(); await render();
+  }
+};
+/* Her ACT çağrısından sonra "işlem sürüyor" ekranı KESİN kapanır.
+   (Bir komut hata fırlatsa bile ekran kilitli kalmaz.) */
+Object.keys(ACT).forEach(k => {
+  const f = ACT[k];
+  ACT[k] = async function(){
+    try{ return await f.apply(this, arguments); }
+    catch(e){ lastErr = (e && e.message) || String(e); try{ toast("hata: " + lastErr); }catch(x){} }
+    finally{ try{ busyEnd(); }catch(x){} try{ await render(); }catch(x){} }
+  };
+});
+
+
+/* ============================================================
+   OLAYLAR
+   ============================================================ */
+document.addEventListener("click", async ev=>{
+  const t = ev.target.closest("[data-tab],[data-act],[data-filter],[data-sort],[data-logsrc],[data-logn],[data-mode],[data-rotate],[data-force],[data-never],[data-auto],[data-appmode],[data-detail],[data-open],[data-stop],[data-restart],[data-copy],[data-close],[data-live],[data-fullscreen],[data-mailbox],[data-kesin],[data-ctl],[data-hepsi],[data-hepsikapat],[data-proof],[data-softreboot]");
+  if(!t) return;
+  const d = t.dataset;
+
+  if(d.close){
+    const _h = $("sheetHost");
+    if(typeof _h._askDone === "function"){ const _f = _h._askDone; _h._askDone = null; _f(false); return; }
+    _h.innerHTML = "";
+    return;
+  }
+  if(d.live !== undefined){
+    busyStart("canlı ölçüm…");
+    try{ const s = await out("status-full"); ST = Object.assign(ST, kvParse(s)); }catch(e){}
+    busyEnd(); await loadStatus(); await render(); toast("canlı ölçüm alındı"); return;
+  }
+  if(d.copy){ copyText(d.copy); return; }
+  if(d.tab){ await setTab(d.tab); return; }
+  if(d.filter){ FILTER = d.filter; await render(); return; }
+  if(d.sort){ SORT = d.sort; await render(); return; }
+  if(d.logsrc){ LOGSRC = d.logsrc; await render(); return; }
+  if(d.logn){ LOGN = parseInt(d.logn,10) || 300; await render(); return; }
+  if(d.mode){
+    busyStart("mod değiştiriliyor…");
+    try{ await out("mode " + d.mode); await loadStatus(); await loadApps(); }catch(e){ toast(e.message||e); }
+    busyEnd(); await render(); toast("mod: " + d.mode); return;
+  }
+  if(d.rotate){
+    busyStart("yön uygulanıyor…");
+    let sonuc = "";
+    try{
+      const r = await out("rotate " + d.rotate);
+      const ilk = String(r||"").split("\n")[0] || "";
+      if(ilk.indexOf("OK|") === 0){
+        const par = ilk.split("|");
+        await loadStatus();
+        sonuc = "yön modu: " + (par[1] || d.rotate) + " ✓ (" + par.slice(2).join(" · ") + ")";
+      } else if(ilk.indexOf("HATA") === 0){
+        sonuc = "olmadı: " + ilk.replace(/^HATA\|?/, "").replace(/\|/g, " · ");
+      } else {
+        sonuc = "cevap yok (arka uç çalışmadı)";
+      }
+    }catch(e){ sonuc = "hata: " + (e.message||e); }
+    busyEnd(); await render(); toast(sonuc); return;
+  }
+  if(d.force){ await setApp(d.force, "force"); return; }
+  if(d.never){ await setApp(d.never, "never"); return; }
+  if(d.appmode){ await setAppMode(d.appmode, d.am !== "1"); return; }
+  if(d.auto){ await setApp(d.auto, "auto"); return; }
+  if(d.proof){
+    busyStart("MIUI kural dosyaları okunuyor…");
+    let txt = "";
+    try{ txt = await out("proof " + sq(d.proof)); }catch(e){ txt = String((e && e.message) || e); }
+    busyEnd();
+    const lines = String(txt || "").split("\n").filter(Boolean);
+    const el = $("sheetReal");
+    if(el){
+      el.innerHTML = lines.map(l => {
+        const p = l.split("|");
+        if(p[0] === "dosya")
+          return kv(p[1].split("/").pop(), p[2] === "yok"
+            ? "yok ✗"
+            : `${p[3]} · ${p[4]} · ${p[5]}`);
+        return `<div class="hint mono" style="word-break:break-all">${esc(l.slice(6))}</div>`;
+      }).join("") || `<div class="hint">kanıt satırı yok</div>`;
+    }
+    const satir = lines.filter(l => l.indexOf("satir|") === 0).length;
+    toast(satir ? ("kural kanıtı: " + satir + " satırımız dosyada ✓") : "kural kanıtı: dosyalarda bizim satırımız yok");
+    return;
+  }
+  if(d.softreboot){
+    if(!await askConfirm("Kuralları zorla yükle?",
+      "MIUI kendi kural dosyalarını yalnızca açılışta okur. Zygote tazelenir: ekran ~20 sn kararır, sistem yeniden başlar gibi olur. Verilerin silinmez.",
+      "Tazele")) return;
+    busyStart("zygote tazeleniyor…");
+    let r = "";
+    try{ r = await out("softreboot"); }catch(e){ r = String((e && e.message) || e); }
+    busyEnd();
+    toast(String(r || "").replace(/\|/g, " · "));
+    return;
+  }
+  if(d.fullscreen){
+    busyStart("tam ekran yapılıyor…");
+    try{
+      const r = await out("fullscreen " + sq(d.fullscreen));
+      const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+      if(bad) throw new Error(bad.replace(/^HATA\|/,"").replace(/\|/g," · "));
+      toast(appName(d.fullscreen) + " → tam ekran ✓");
+      LAST_OP = "tam ekran: " + d.fullscreen + " · " + new Date().toLocaleTimeString("tr-TR");
+    }catch(e){
+      const m = String((e && e.message) || e);
+      toast(/gorev-yok/.test(m) ? "önce uygulamayı aç, sonra tekrar bas" : ("olmadı: " + m));
+      LAST_OP = "tam ekran olmadı: " + m;
+    }
+    busyEnd(); try{ await loadStatus(); }catch(e){} await render();
+    return;
+  }
+  if(d.ctl){
+    busyStart(d.ctlname + " → " + d.ctl + "…");
+    try{
+      const r = await out(d.ctl);
+      const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+      if(bad) throw new Error(bad.replace(/^HATA\|/,"").replace(/\|/g," · "));
+      await loadKontrol();
+      toast(d.ctlname + ": " + (String(r||"").split("\n")[0].replace(/\|/g," · ")));
+      LAST_OP = d.ctl + " · " + new Date().toLocaleTimeString("tr-TR");
+    }catch(e){ toast("olmadı: " + (e.message||e)); }
+    busyEnd(); try{ await loadStatus(); }catch(e){} await render();
+    return;
+  }
+  if(d.hepsi || d.hepsikapat){
+    const pkg2 = d.hepsi || d.hepsikapat;
+    const cmd = d.hepsi ? "uygula-hepsi" : "kapat-hepsi";
+    busyStart((d.hepsi ? "her şey uygulanıyor…" : "her şey geri alınıyor…") + " " + appName(pkg2));
+    let txt = "";
+    try{ txt = await out(cmd + " " + sq(pkg2)); }
+    catch(e){ txt = String((e && e.message) || e); }
+    busyEnd();
+    const lines = String(txt||"").split("\n").filter(l => l.indexOf("ADIM|") === 0 || l.indexOf("SONUC|") === 0 || l.indexOf("HATA") === 0);
+    const son = lines.find(l => l.indexOf("SONUC|") === 0) || "SONUC|OLMADI|cevap yok";
+    const sp = son.split("|"), hukum = sp[1], sebep = sp.slice(2).join(" ");
+    const metin = lines.map(l => {
+      const a = l.split("|");
+      if(a[0] === "SONUC") return "HÜKÜM: " + a[1] + " — " + a.slice(2).join(" ");
+      return (a[2] === "OK" ? "✓ " : a[2] === "KANIT-YOK" ? "? " : a[2] === "UYARI" ? "! " : a[2] === "HATA" ? "✗ " : "· ")
+             + a[3] + ": " + (a.slice(4).join("|") || "");
+    }).join("\n");
+    toast((hukum === "CALISIYOR" ? "✔ " : hukum === "KANIT-YOK" ? "? " : "✗ ") + appName(pkg2) + " → " + hukum + " · " + sebep);
+    LAST_OP = cmd + ": " + pkg2 + " → " + hukum + " · " + new Date().toLocaleTimeString("tr-TR");
+    const host = $("sheetReal");
+    if(host) host.innerHTML = `<pre class="hint mono" style="white-space:pre-wrap;margin:0">${esc(metin)}</pre>`
+      + `<div class="${hukum === "CALISIYOR" ? "okbox" : "warnbox"}" style="margin-top:9px">HÜKÜM: <b>${esc(hukum)}</b> — ${esc(sebep)}</div>`
+      + (hukum !== "CALISIYOR" ? `<div class="hint" style="margin-top:6px">Olmadıysa: <b>Ayarlar → Rapor oluştur</b> ve dosyayı gönder; ayrıca bir kez yeniden başlatıp tekrar dene.</div>` : "");
+    try{ await loadApps(); }catch(e){}
+    await render();
+    return;
+  }
+  if(d.kesin){
+    busyStart("kesin test çalışıyor…");
+    let txt = "";
+    try{ txt = await out("kesin " + sq(d.kesin)); }
+    catch(e){ txt = String((e && e.message) || e); }
+    busyEnd();
+    const lines = String(txt||"").split("\n").filter(l => l.indexOf("ADIM|") === 0 || l.indexOf("SONUC|") === 0);
+    const son = lines.find(l => l.indexOf("SONUC|") === 0) || "SONUC|OLMADI|cevap yok";
+    const p = son.split("|");
+    const durum = p[1], sebep = p.slice(2).join(" ");
+    const adimlar = lines.filter(l => l.indexOf("ADIM|") === 0).map(l => {
+      const a = l.split("|");
+      return (a[2] === "OK" ? "✓ " : a[2] === "KANIT-YOK" ? "? " : a[2] === "UYARI" ? "! " : "✗ ")
+             + a[3] + ": " + (a[4] || "");
+    }).join("\n");
+    LAST_OP = "kesin test: " + d.kesin + " → " + durum + " · " + new Date().toLocaleTimeString("tr-TR");
+    toast(durum === "CALISIYOR" ? ("✔ " + appName(d.kesin) + " çalışıyor — " + sebep)
+        : durum === "KANIT-YOK" ? ("? " + appName(d.kesin) + " — " + sebep)
+        : ("✗ " + appName(d.kesin) + " olmadı — " + sebep));
+    const host = $("sheetReal");
+    if(host) host.innerHTML = `<pre class="hint" style="white-space:pre-wrap;font-family:monospace;margin:0">${esc(adimlar)}</pre>`
+      + `<div class="${durum === "CALISIYOR" ? "okbox" : "warnbox"}" style="margin-top:9px">HÜKÜM: <b>${esc(durum)}</b> — ${esc(sebep)}</div>`;
+    await render();
+    return;
+  }
+  if(d.mailbox){
+    busyStart("MIUI mailbox kapatılıyor…");
+    try{
+      const r = await out("mailbox " + sq(d.mailbox) + " ac");
+      const bad = String(r||"").split("\n").find(l => l.startsWith("HATA"));
+      if(bad) throw new Error(bad.replace(/^HATA\|/,""));
+      toast(appName(d.mailbox) + " → mailbox kapalı ✓ · şimdi “↻ yeniden başlat”");
+      LAST_OP = "mailbox kapatıldı: " + d.mailbox;
+    }catch(e){ toast("olmadı: " + (e.message || e)); }
+    busyEnd(); await render();
+    return;
+  }
+  if(d.detail){ await openAppSheet(d.detail); return; }
+  if(d.open){ await appAction("app-start", d.open, "açıldı"); return; }
+  if(d.stop){ await appAction("app-stop", d.stop, "durduruldu"); return; }
+  if(d.restart){ await appAction("app-restart", d.restart, "yeniden başlatıldı"); return; }
+  if(d.act){
+    if(typeof ACT[d.act] !== "function"){
+      toast("bu düğme bu sürümde tanımlı değil: " + d.act);
+      return;
+    }
+    // HANGI durumda olursa olsun: islem biter, "islem suruyor" ekrani ASLA kilitli kalmaz
+    try{ await ACT[d.act](); }
+    catch(e){ lastErr = (e && e.message) || String(e); toast("hata: " + lastErr); }
+    finally{ busyEnd(); try{ await render(); }catch(e){} }
+    return;
+  }
+});
+
+document.addEventListener("input", ev=>{
+  const t = ev.target;
+  if(t.id === "q"){
+    Q = t.value;
+    const box = $("applist");
+    if(box){ box.innerHTML = appRows(); }
+  } else if(t.id === "logq"){
+    LOGQ = t.value;
+    clearTimeout(t._h);
+    t._h = setTimeout(()=>fillLog(), 350);
+  } else if(t.id === "cq"){
+    const q = t.value.toLowerCase();
+    const box = $("cstatList");
+    if(box && box.querySelectorAll) box.querySelectorAll(".kv").forEach(el=>{
+      el.style.display = el.textContent.toLowerCase().includes(q) ? "" : "none";
+    });
+  }
+});
+
+/* klavye kısayolu: Esc ile pencereyi kapat */
+document.addEventListener("keydown", ev=>{
+  if(ev.key === "Escape" && $("sheetHost").innerHTML){ $("sheetHost").innerHTML = ""; }
+});
+
+/* Android geri tuşu: açık pencere varsa önce onu kapat,
+   yoksa normal davranış (sayfadan çık). */
+function pushSheetHistory(){
+  try{ history.pushState({ sheet: 1 }, ""); }catch(e){}
+}
+window.addEventListener("popstate", ()=>{
+  if($("sheetHost").innerHTML){ $("sheetHost").innerHTML = ""; }
+});
+
+$("btnRefresh").addEventListener("click", async ()=>{
+  try{ await loadStatus(); }catch(e){}
+  if(TAB === "uygulamalar"){ try{ await loadApps(); }catch(e){} }
+  if(TAB === "letterbox"){ CSTAT = []; try{ await loadCstat(); }catch(e){} }
+  if(TAB === "cihaz"){ try{ await loadSys(); }catch(e){} }
+  await renderTabs();
+  await render();
+  toast("yenilendi");
+});
+
+/* ============================================================
+   AÇILIŞ
+   ============================================================ */
+(async function boot(){
+  renderTabs();
+  if(!hasKsu()){
+    $("view").innerHTML = `<div class="badbox"><b>KernelSU köprüsü yok.</b>
+      <div class="hint" style="margin-top:8px">Bu sayfa SukiSU Ultra / KernelSU yöneticisinin
+      <b>WebUI</b> penceresinde açılmalı. Tarayıcıda açtıysan sistem komutları çalışmaz.</div></div>`;
+    return;
+  }
+  await detectBridge();
+  if(BRIDGE === "none"){
+    $("view").innerHTML = `<div class="badbox"><b>Komut köprüsü kurulamadı.</b>
+      <div class="hint" style="margin-top:8px">Yönetici sürümü WebUI komutlarını desteklemiyor olabilir.
+      Modülün Action düğmesini kullanabilirsin.</div></div>`;
+    return;
+  }
+  try{
+    await loadStatus();
+  }catch(e){
+    $("view").innerHTML = `<div class="badbox"><b>Arka uca ulaşılamadı.</b><br>${esc(e.message||e)}
+      <div class="hint" style="margin-top:8px">Bu sayfa KernelSU/SukiSU yöneticisinin WebUI penceresinde açılmalı.
+      Tarayıcıda açtıysan köprü çalışmaz.</div></div>`;
+    return;
+  }
+  /* v2.8.1: logo motorunu AÇILIŞTA ölç (ksu://icon vs mui://icon).
+     Ölçüm yapılmadan liste çizilirse logolar harfe düşebiliyordu. */
+  try{ await initIcons(); }catch(e){}
+  try{ await loadApps(); }catch(e){ APP_ERR = e.message || String(e); }
+  /* v2.7 DUZELTME: v2.6'da cihaz bilgisi hic yuklenmiyordu (SYS bos kaliyor,
+     "Cihaz" sekmesi —/NaN dolu goruluyordu). Artik acilista okunur. */
+  try{ await loadSys(); }catch(e){ SYS = {}; }
+  await render();
+  renderTabs();
+  // onbellek 6 saatten eskiyse sessizce tazele (yeni kurulan uygulamalar gorunsun)
+  const age = parseInt(ST.apps_age || "0", 10);
+  if(age > 21600 && !busy){
+    execRaw(SHELL + " " + SCRIPT + " apps-refresh").then(async ()=>{
+      try{ await loadApps(); await loadStatus(); renderTabs(); }catch(e){}
+    }).catch(()=>{});
+  }
+  if(AUTO){
+    pollTimer = setInterval(async ()=>{
+      if(busy || document.hidden || TAB === "kayitlar") return;
+      try{
+        await loadStatus();
+        renderTabs();
+        if(TAB === "durum"){
+          const v = $("view");
+          const y = window.scrollY;
+          if(v && !document.querySelector("input:focus,textarea:focus")){
+            v.innerHTML = viewDurum();
+            window.scrollTo(0, y);
+          }
+        }
+      }catch(e){}
+    }, 15000);
+  }
+})();
+
+</script>
+</body>
+</html>
