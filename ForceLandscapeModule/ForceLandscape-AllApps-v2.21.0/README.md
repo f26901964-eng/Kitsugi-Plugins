@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.20.0
+# Force Landscape - All Apps  |  v2.21.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -395,3 +395,27 @@ Log ayrıca şunu da doğruladı: WebUI üzerinden yapılan her işlem
 (yazan her komut ve her hata) `landscape.log`'a düşüyor; log
 dosyasındaki 10:58–10:59 satırları kullanıcının bastığı düğmelerle
 birebir eşleşiyor. (Salt okuma amaçlı liste/durum sorguları loglanmaz.)
+
+
+## v2.21.0 — log kapsamı tamamlandı
+
+Kullanıcı sorusu: "WebUI'daki her işlem, her detay, her arka plan
+işlemi loga düşüyor mu?" Denetim sonucu ve kapatılan boşluklar:
+
+- **Giriş kaydı:** Yazma yapan her WebUI komutu, çalışmadan önce
+  `webui-cmd: <komut> <argümanlar>` satırıyla loga girer.
+- **Hata tuzağı:** Bir komut 0 dışında kodla biterse (handler yarıda
+  ölse bile) EXIT trap'i `webui-cmd HATA rc=<kod>: ...` yazar.
+  Okuma komutları (15 sn'de bir gelen `status` gibi) girişte sessizdir
+  ama hataları yine tuzağa takılır. (`kesin`in rc=2'si "kanıt yok"
+  demektir, hata sayılmaz.)
+- **Rotasyon:** Log 192KB'a ulaşınca eskiden siliniyordu; artık
+  `landscape.log.1`'e taşınır. "TAM LOG" çıktısı ikisini birden verir.
+- **İzleyici:** `ölçülemedi` sonuçları da artık loga düşer.
+- **Köprü hataları:** Komut betiğe hiç ulaşamazsa (ksu köprüsü errno /
+  zaman aşımı), WebUI tarafı da hatayı loga yazmayı dener
+  (`webui-js:` satırları).
+
+Tek istisna: betiğin kendisi çalıştırılamıyorsa (dosya bozuk/izin),
+o an shell tarafı log yazamaz; hata WebUI'da görünür ve JS tarafı
+yazmayı dener. Bunun dışında başarısız olan hiçbir işlem logsuz kalmaz.

@@ -281,9 +281,33 @@ function execSync(cmd){
 }
 
 function execRaw(cmd){
-  if(BRIDGE === "spawn") return execSpawn(cmd);
-  if(BRIDGE === "async") return execAsync(cmd);
-  return execSync(cmd);
+  const p = (BRIDGE === "spawn") ? execSpawn(cmd)
+          : (BRIDGE === "async") ? execAsync(cmd) : execSync(cmd);
+  // v2.21: kopru duzeyindeki hatalar (errno / zaman asimi / kopru yok)
+  // betige hic ulasamaz; onlari da loga dusur (en iyi cabayla, sessizce).
+  if(!window._jsLogBusy){
+    p.then(r=>{
+      if(r && r.errno) jsLog("errno=" + r.errno + " cmd=" + String(cmd).slice(0,140) +
+                             " stderr=" + String(r.stderr || "").slice(0,140));
+    }).catch(e=>{
+      jsLog("kopru hatasi: " + ((e && e.message) || e) + " cmd=" + String(cmd).slice(0,140));
+    });
+  }
+  return p;
+}
+
+/* Betik hic calisamazsa bile hatayi landscape.log'a yazmayi dener.
+   Kendi cagrisini loglamaz (dongu olmasin). */
+function jsLog(msg){
+  if(window._jsLogBusy) return;
+  window._jsLogBusy = true;
+  try{
+    const line = "[" + new Date().toLocaleString("tr-TR") + "] webui-js: " +
+                 String(msg).replace(/[\r\n]+/g, " ").slice(0, 300);
+    const p = execRaw("printf '%s\\n' " + sq(line) + " >> /data/adb/force_landscape/landscape.log");
+    if(p && p.then) p.then(()=>{ window._jsLogBusy = false; }, ()=>{ window._jsLogBusy = false; });
+    else window._jsLogBusy = false;
+  }catch(e){ window._jsLogBusy = false; }
 }
 
 /* Kopru tipini BIR KEZ, zararsiz bir "ping" komutuyla tespit eder.
@@ -517,7 +541,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.20.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.21.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
 let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
 async function enrichFromManager(){

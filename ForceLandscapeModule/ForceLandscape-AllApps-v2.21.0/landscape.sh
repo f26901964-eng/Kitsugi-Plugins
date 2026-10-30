@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.20.0
+FL_MODVER=v2.21.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -235,7 +235,9 @@ fl_log() {
     [ "$FL_LOG_OK" = "1" ] || return 0
     (
         _sz=$(wc -c < "$FL_LOG" 2>/dev/null)
-        [ -n "$_sz" ] && [ "$_sz" -gt 196608 ] && : > "$FL_LOG"
+        # v2.21: dosya dolunca SILME, .1'e tasi (eski kanit korunur;
+        # export/TAM LOG ikisini birden verir)
+        [ -n "$_sz" ] && [ "$_sz" -gt 196608 ] && mv -f "$FL_LOG" "$FL_LOG.1" 2>/dev/null
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$FL_LOG"
     ) 2>/dev/null
 }

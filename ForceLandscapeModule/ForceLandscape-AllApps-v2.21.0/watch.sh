@@ -53,6 +53,7 @@ while :; do
                     OK*)   _n=$((_n + 1))
                            say "$_fg -> $(_r_cut "$_r")" ;;
                     HATA*) say "$_fg -> $(_r_cut "$_r")" ;;
+                    *)     say "$_fg -> olculemedi: $(_r_cut "$_r")" ;;   # v2.21: bu sonuc da loga dussun
                 esac
             fi
         fi

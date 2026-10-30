@@ -1,7 +1,0 @@
-id=force_landscape_all
-name=Force Landscape - All Apps
-version=v2.20.0
-versionCode=35
-author=Arena.ai Agent
-description=v2.20.0: Cihaz logu kanitiyla duzeltme: MIUI servisi bos 'fullRule::' silme bicimini 'Error! Please check RULE::PARAM.' diye reddediyormus; canli kural dusmedigi icin Dokunma yeniden baslatana kadar tutmuyordu. Artik geri alma aday bicimleri tek tek deneyip servisin kabul ettigini kullanir ve sonucu (canli=tam|kismi) hukumde soyler; kismi ise 'yeniden baslatta duser' diye acikca yazar. Log kaniti: ayni cihazda update-rule/set-fixedOri uygulama komutlari 'successful' donuyor, motor acik, tum WebUI islemleri loga dusuyor.
-

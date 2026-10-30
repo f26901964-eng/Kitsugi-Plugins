@@ -5,6 +5,7 @@ MODDIR=${0%/*}
 [ -f "$MODDIR/landscape.sh" ] || MODDIR=/data/adb/modules/force_landscape_all
 . "$MODDIR/landscape.sh"
 
+fl_log "uninstall.sh calisti: tum degisiklikler geri aliniyor"
 fl_restore
 
 # v1.9: XML yedegi ile yazilan compat override'ini geri al

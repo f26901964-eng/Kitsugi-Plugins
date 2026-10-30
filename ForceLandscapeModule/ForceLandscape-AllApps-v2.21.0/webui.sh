@@ -16,6 +16,24 @@ MODDIR=${0%/*}
 
 fl_prepare
 
+# ------------------------------------------------------------
+# v2.21: LOG KAPSAMI (kullanici talebi: her islem + her hata yakalansin)
+#  - Yazma yapan her komut giriste loglanir (komut + argumanlar).
+#  - Okuma komutlari (15 sn'de bir gelen status/apps gibi) giriste
+#    sessizdir; ama cikis kodu 0 degilse EXIT trap'i hatayi loglar.
+#  - 'kesin' komutunun rc=2'si (KANIT-YOK) hata degildir, loglanmaz;
+#    kendi SONUC satirini zaten yazar.
+#  Boylece basarisiz olan hicbir islem logsuz kalmaz; betigin kendi
+#  icinde yuttugu hatalar da (handler yarida olurse) trap sayesinde
+#  en azindan "su komut su kodla oldu" diye dusulur.
+_WC_CMD=$1
+_WC_ARGS=$*
+case "$_WC_CMD" in
+    status|status-full|ping|apps|verify|appinfo|sysinfo|appmode-list|errors|cstat|diag|log|logs|logstat|logsize|cat-report|progress|export|backup|proof) : ;;
+    *) fl_log "webui-cmd: $_WC_ARGS" ;;
+esac
+trap '_wc_rc=$?; if [ "$_wc_rc" != "0" ]; then case "$_WC_CMD:$_wc_rc" in kesin:2) : ;; *) fl_log "webui-cmd HATA rc=$_wc_rc: $_WC_ARGS" ;; esac; fi' EXIT
+
 cfg_set() { # $1=anahtar $2=deger
     _k=$1; _v=$2
     [ -f "$FL_CFG" ] || cp -f "$FL_DEFAULT_CFG" "$FL_CFG" 2>/dev/null
@@ -809,6 +827,7 @@ save)
         cat "$FL_REPORT" 2>/dev/null
         echo
         echo "===== TAM LOG ====="
+        [ -f "$FL_LOG.1" ] && { echo "--- (onceki bolum: landscape.log.1) ---"; cat "$FL_LOG.1" 2>/dev/null; }
         cat "$FL_LOG" 2>/dev/null
     } > "$_o" 2>/dev/null
     chmod 0664 "$_o" 2>/dev/null

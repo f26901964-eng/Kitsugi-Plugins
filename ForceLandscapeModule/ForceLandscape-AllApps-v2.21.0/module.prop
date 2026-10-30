@@ -1,0 +1,7 @@
+id=force_landscape_all
+name=Force Landscape - All Apps
+version=v2.21.0
+versionCode=36
+author=Arena.ai Agent
+description=v2.21.0: Log kapsami tamamlandi: WebUI'dan gelen yazma yapan her komut giriste (komut+arguman) loglanir; okuma komutlari sessizdir ama cikis kodu sifir degilse EXIT trap'i hatayi loglar (kesin rc=2 haric). Log 192KB'da silinmez, landscape.log.1'e tasinir ve TAM LOG export'u ikisini birden verir. Izleyicinin 'olculemedi' sonuclari da loga duser. Kopru duzeyinde betige ulasamayan hatalar (errno/zaman asimi) WebUI tarafindan da loga yazilmaya calisilir (webui-js: satirlari). Ilke: basarisiz olan hicbir islem logsuz kalmaz.
+
