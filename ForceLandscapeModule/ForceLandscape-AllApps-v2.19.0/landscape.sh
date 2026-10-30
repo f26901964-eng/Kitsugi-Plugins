@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.18.0
+FL_MODVER=v2.19.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -1670,12 +1670,16 @@ fl_miui_cmd_mailbox() {   # $1 paket $2 true|false -> 0/1 (sadece mailbox, canli
 
 fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al
     fl_miui_cmd_avail || return 1
-    fl_miui_cmd_run set-fixedOri "$1" "disable::false" >/dev/null 2>&1
-    # embedded kuralin canli kaldirma bicimi ROM'a gore degisebilir;
-    # bos fullRule denenir, olmazsa dosya yolu zaten temizlendi ve
-    # yeniden baslatmada canli kural da ucar.
-    fl_miui_cmd_run update-rule "$1" "fullRule::" >/dev/null 2>&1
-    return 0
+    _rv1=ok
+    fl_miui_cmd_run set-fixedOri "$1" "disable::false" >/dev/null 2>&1 || _rv1=fail
+    _rv2=ok
+    fl_miui_cmd_run update-rule "$1" "fullRule::" >/dev/null 2>&1 || _rv2=fail
+    # v2.19: sonuc LOGA yazilir (eskiden sessizce yutuluyordu). Bos
+    # fullRule bazi ROM'larda reddedilir; o durumda dosya zaten temiz
+    # oldugu icin kural yeniden baslatmada kesin duser.
+    fl_log "canli-geri-al: $1 fixedOri=$_rv1 fullRule=$_rv2"
+    [ "$_rv1" = "ok" ] && return 0
+    return 1
 }
 
 fl_miui_apply() {   # $1 paket -> ok|<aciklama> | fail|<sebep>
@@ -2363,6 +2367,17 @@ fl_rules_proof() {   # [$1 paket] -> dosya/satir kanit satirlari
             fi
         fi
     done
+    # v2.19: motor durumu + MIUI servisinin KENDI yardim metni + son
+    # canli komut cevaplari. "MIUI protokolune uygun mu" sorusunun
+    # kaniti buradan okunur; yardim metni cihazdan gelir, tahmini degil.
+    echo "motor|$(fl_miui_embed_state 2>/dev/null)"
+    if [ -f "$FL_DIR/.miui_cmd_help" ]; then
+        sed 's/^/yardim|/' "$FL_DIR/.miui_cmd_help" 2>/dev/null | head -n 30
+    fi
+    if [ -f "$FL_LOG" ]; then
+        grep -F "miui-cmd:" "$FL_LOG" 2>/dev/null | tail -n 15 | sed 's/^/canli-log|/'
+        grep -F "canli-geri-al:" "$FL_LOG" 2>/dev/null | tail -n 5 | sed 's/^/canli-log|/'
+    fi
 }
 
 # ---------- v2.13: MIUI kural onbellegini ZORLA tazele ----------
@@ -2458,7 +2473,24 @@ fl_revert_pkg() {   # $1 = paket  [$2 = "never" ise dokunma listesine ekle]
     [ -n "$_rv" ] || return 1
     _r=$(fl_reset_pkg_ids "$_rv")          # 4 saglayici + dogrulama
     fl_xml_drop_pkg "$_rv"
+    fl_appmode_clear "$_rv" > /dev/null 2>&1   # v2.19: oran katmani da geri alinir (eksikti!)
     fl_miui_clear "$_rv"                   # v2.11: mailbox + yatay kural
+    # v2.19: MIUI dosyalarinda satirimiz KALDI mi diye GERI OKU.
+    # Kalmissa "temiz" demek yalan olur -> HATA don.
+    _mkalan=""
+    for _mf in /data/system/cloudFeature_fixed_orientation_list.xml \
+               /data/system/cloudFeature_embedded_rules_list.xml \
+               /product/etc/fixed_orientation_list.xml \
+               /product/etc/embedded_rules_list.xml; do
+        [ -f "$_mf" ] || continue
+        [ -n "$(fl_pkg_line "$_mf" "$_rv" 2>/dev/null)" ] && _mkalan="$_mkalan $_mf"
+    done
+    if [ -n "$_mkalan" ]; then
+        fl_compat_status_set "$_rv" fail "geri-alinamadi"
+        fl_log "geri alma BASARISIZ: $_rv -> MIUI kurali su dosyalarda kaldi:$_mkalan"
+        echo "HATA|miui-dosya-temizlenemedi:$_mkalan"
+        return 1
+    fi
     fl_list_del "$FL_FORCE" "$_rv"
     [ "$2" = "never" ] && fl_list_add "$FL_NEVER" "$_rv"
     if [ -f "$FL_DONE" ]; then
@@ -2732,41 +2764,55 @@ fl_apply_orientation() {
 #  Cikti: OK|<pkg>|force|letterbox=<s> mailbox=<s> kural=<s> yay=<s>
 # ============================================================
 fl_force_apply() {
+    # v2.19: MIUI'li cihazda "Yatay zorla" = MIUI'NIN KENDI PROTOKOLU:
+    #   embedded_rules_list fullRule + fixed_orientation disable="true"
+    #   (dosya = kalicilik) + cmd miui_embedding_window (canli) + motor acik.
+    # AOSP oran override'lari (ekrana-yay gerilmesi) bu yola ARTIK DAHIL
+    # DEGIL: sahada oyunu saga-sola gerip bozdugu ve geri almayi
+    # karmasiklastirdigi goruldu. Gerdime isteyen ayri dugmeyi kullanir
+    # ("ekrana yay" / "HER SEYI UYGULA"). MIUI yoksa eski compat yolu.
     _fp=$1
     [ -n "$_fp" ] || { echo "HATA|paket-yok"; return 1; }
-    _lb="-"; _mb="-"; _kr="-"; _yy="-"
+    if fl_miui_var; then
+        _mt=$(fl_miui_engine_guard 2>/dev/null)
+        _mr=$(fl_miui_apply "$_fp" 2>/dev/null)
+        _can=yok; case "$_mr" in *canli=ok*) _can=ok ;; esac
+        _lb="-"
+        case "$_mr" in
+            ok*)
+                _mb=ok
+                case "$_mr" in *yatay=hemen*) _kr=hemen ;; *yatay=yeniden-baslat*) _kr=yeniden-baslat ;; *) _kr=? ;; esac
+                case "$_mr" in
+                    *ayar-kapali*)
+                        # kullanici MIUI mailbox'i config'den kapatmis:
+                        # kural yazilmaz; yedek olarak compat yolu denenir
+                        fl_compat_one "$_fp" yes >/dev/null 2>&1
+                        _lb=$(fl_change_state "$COMPAT_ID" "$_fp" 2>/dev/null); [ -n "$_lb" ] || _lb=unknown
+                        _mb=ayar-kapali ;;
+                esac
+                am force-stop "$_fp" >/dev/null 2>&1
+                fl_log "force-apply(miui): $_fp kural=$_kr canli=$_can motor=$_mt letterbox=$_lb"
+                echo "OK|$_fp|force|mod=miui-protokol kural=$_kr canli=$_can motor=$_mt letterbox=$_lb"
+                case "$_mt" in kapali-acilamadi) return 1 ;; esac
+                return 0 ;;
+            *)
+                fl_log "force-apply(miui) HATA: $_fp -> $_mr motor=$_mt"
+                echo "OK|$_fp|force|mod=miui-protokol hata=$_mr motor=$_mt"
+                return 1 ;;
+        esac
+    fi
+    # MIUI degil: AOSP compat yolu
+    _lb="-"
     if [ "${COMPAT_MODE:-smart}" != "off" ] && [ "$COMPAT_FORCE_RESIZE" = "true" ]; then
         fl_compat_one "$_fp" yes >/dev/null 2>&1
-        _lb=$(fl_change_state "$COMPAT_ID" "$_fp" 2>/dev/null)
-        [ -n "$_lb" ] || _lb=unknown
+        _lb=$(fl_change_state "$COMPAT_ID" "$_fp" 2>/dev/null); [ -n "$_lb" ] || _lb=unknown
     else
         _lb=mod-kapali
     fi
-    _mr=$(fl_miui_apply "$_fp" 2>/dev/null)
-    _can=yok
-    case "$_mr" in *canli=ok*) _can=ok ;; esac
-    case "$_mr" in
-        ok*) _mb=ok
-             case "$_mr" in *yatay=hemen*) _kr=hemen ;; *yatay=yeniden-baslat*) _kr=yeniden-baslat ;; *) _kr=? ;; esac ;;
-        *)   _mb=hata; _kr=hata ;;
-    esac
-    fl_appmode_add "$_fp"
-    _ar=$(fl_appmode_apply "$_fp" 2>/dev/null)
-    case "$_ar" in
-        ok*) _yy=ok; fl_appmode_state_set "$_fp" ok "$(printf '%s' "$_ar" | cut -d'|' -f2-)" ;;
-        *)   _yy=hata; fl_appmode_state_set "$_fp" fail "$(printf '%s' "$_ar" | cut -d'|' -f2-)" ;;
-    esac
-    _mt=$(fl_miui_engine_guard 2>/dev/null)
-    fl_rules_reload >/dev/null 2>&1
     am force-stop "$_fp" >/dev/null 2>&1
-    fl_log "force-apply: $_fp letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy canli=$_can motor=$_mt"
-    echo "OK|$_fp|force|letterbox=$_lb mailbox=$_mb kural=$_kr yay=$_yy canli=$_can motor=$_mt"
-    # v2.17: kritik katman basarisizsa cagiran OK sansin diye 0 DONME.
-    # (letterbox=unknown olumcul degil: ROM durumu raporlayamiyor olabilir.)
-    case "$_mb" in hata) return 1 ;; esac
-    case "$_yy" in hata) return 1 ;; esac
-    case "$_lb" in disabled) return 1 ;; esac
-    case "$_mt" in kapali-acilamadi) return 1 ;; esac
+    fl_log "force-apply(aosp): $_fp letterbox=$_lb"
+    echo "OK|$_fp|force|mod=aosp-compat letterbox=$_lb"
+    case "$_lb" in disabled|mod-kapali) return 1 ;; esac
     return 0
 }
 

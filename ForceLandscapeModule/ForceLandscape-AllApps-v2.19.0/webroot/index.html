@@ -517,7 +517,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.18.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.19.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
 let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
 async function enrichFromManager(){
@@ -1497,8 +1497,7 @@ function realStateRows(real){
     ["ekrana yay · kapıcı", stTR(r.yay_OVERRIDE_MIN_ASPECT_RATIO)],
     ["ekrana yay · 16:9", stTR(r.yay_OVERRIDE_MIN_ASPECT_RATIO_LARGE)],
     ["pencere", winTR(r.pencere)],
-    ["MIUI orta pencere", r.miui_embed === "acik" ? "AÇIK — ortada kalır ✗"
-        : r.miui_embed === "kapali" ? "kapalı ✓" : "yok"],
+    ["MIUI motoru (kural servisi)", r.miui_embed === "acik" ? "AÇIK ✓ (kurallar işlenir)" : (r.miui_embed === "kapali" ? "KAPALI ✗ — uygulamaya özel kurallar işlenmez, yeniden başlat" : "bilinmiyor")],
     ["MIUI mailbox (orta sütun)", mbTR(r.mailbox)],
     ["yatay kuralı (fullRule)", krTR(r.yatay_kural)]
   ];

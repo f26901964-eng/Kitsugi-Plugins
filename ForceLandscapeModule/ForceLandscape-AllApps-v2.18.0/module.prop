@@ -1,7 +1,0 @@
-id=force_landscape_all
-name=Force Landscape - All Apps
-version=v2.18.0
-versionCode=33
-author=Arena.ai Agent
-description=v2.18.0: ASIL KOKE INEN DUZELTME: v2.8'den beri acilis betigi, varsayilan config (MIUI_NO_EMBEDDING=true) yuzunden MIUI kural motorunu (activity embedding) her acilista kapatiyordu; ama uygulamaya ozel yatay kurallarini isleyen servis tam olarak bu. Motor kapaliyken dosya yazmak da canli komut da ise yaramaz; global kilit calistigi icin ariza gizlendi. Artik: force/mailbox listesinde uygulama varsa acilis motoru ACAR, config ne derse desin; liste bosken dokunulmaz. Her 'Yatay zorla'da motor durumu olculur (motor=...) ve kapaliysa acma denenir; kesin test ADIM0'da motoru olcer.
-

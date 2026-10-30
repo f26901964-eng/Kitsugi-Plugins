@@ -1033,8 +1033,8 @@ tani)   # yapilandirilmis tani: her satir KONTROL|OK|HATA|<aciklama>
     # v2.8: MIUI orta-pencere (en sik "ortada kaldi" sebebi)
     if fl_miui_var; then
         case "$(fl_miui_embed_state)" in
-            acik)   echo "UYARI|miui_orta_pencere|ACIK - uygulamalar ekranin ortasinda kalir (Ayarlar > MIUI orta pencere: kapat)" ;;
-            kapali) echo "KONTROL|OK|miui_orta_pencere|kapali (tam ekran yolu acik)" ;;
+            acik)   echo "KONTROL|OK|miui_motor|acik (uygulamaya ozel kurallari isleyen servis ayakta; ortada kalma ayari uygulama basina mailbox ile yonetilir)" ;;
+            kapali) echo "UYARI|miui_motor|KAPALI - uygulamaya ozel kurallar islenmez (acilis betigi force listesi doluyken acar; yeniden baslat)" ;;
             *)      echo "UYARI|miui_orta_pencere|prop okunamadi" ;;
         esac
     fi

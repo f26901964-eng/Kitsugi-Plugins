@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.18.0
+# Force Landscape - All Apps  |  v2.19.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -344,3 +344,27 @@ Düzeltme:
 Not: Motor açılışta servis tarafından okunmuş olabilir; bu yüzden
 güncellemeden sonra **bir kez yeniden başlatmak** gerekir. Sonrasında
 kesin test ADIM0 `OK|miui-motor|acik` göstermeli.
+
+
+## v2.19.0 — MIUI protokolüne tam uyum + simetrik geri alma
+
+Saha kanıtı (v2.18.0, Xiaomi Pad 6): motor artık AÇIK, fullRule dosyada,
+mailbox kapalı — ama geri alma tutmuyor ve "Yatay zorla" oyunu
+sağa-sola geriyordu. Kod denetiminde bulunanlar:
+
+- `fl_revert_pkg`, oran katmanını (`fl_appmode_clear`) hiç geri
+  almıyordu → gerdirme kalıcı oluyordu. Artık çağrılıyor.
+- "Yatay zorla" MIUI cihazda AOSP oran override'larını da yazıyordu
+  (gerdirme bundan). Artık **MIUI'nin kendi protokolü** tek başına:
+  embedded `fullRule` + fixedOri `disable="true"` dosyada,
+  `cmd miui_embedding_window` ile canlı, motor açık. (sothx/coolapk
+  reçetesi birebir.) Gerdirme yalnızca "ekrana yay"/"HER ŞEYİ UYGULA"da.
+- Geri alma artık **geri okunarak** doğrulanıyor: MIUI dosyalarında
+  satırımız kaldıysa işlem `HATA|miui-dosya-temizlenemedi` döner;
+  canlı geri almanın sonucu loga yazılır (`canli-geri-al:`).
+- "Kural kanıtı" çıktısına MIUI servisinin **cihazdan alınan kendi
+  yardım metni** (`yardim|`) ve son canlı komut cevapları (`canli-log|`)
+  eklendi — protokol uygunluğu tahmine değil cihaz çıktısına dayanır.
+- Detay ekranındaki yanıltıcı "MIUI orta pencere: AÇIK — ortada kalır"
+  satırı "MIUI motoru (kural servisi): AÇIK ✓" olarak düzeltildi;
+  ortada kalma artık yalnız mailbox satırından okunur.
