@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.19.0
+# Force Landscape - All Apps  |  v2.20.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -368,3 +368,30 @@ sağa-sola geriyordu. Kod denetiminde bulunanlar:
 - Detay ekranındaki yanıltıcı "MIUI orta pencere: AÇIK — ortada kalır"
   satırı "MIUI motoru (kural servisi): AÇIK ✓" olarak düzeltildi;
   ortada kalma artık yalnız mailbox satırından okunur.
+
+
+## v2.20.0 — cihaz logu kanıtıyla canlı geri alma düzeltmesi
+
+Kullanıcının gönderdiği cihaz logu (`force_landscape_20261030-105956.log`)
+şunları **kanıtladı**:
+
+- Açılışta motor açık, servis ayakta; `update-rule` / `set-fixedOri`
+  uygulama komutları cihazda `Update ... successful` dönüyor.
+- **Ama** geri almada kullandığımız boş parametre reddediliyor:
+  `update-rule <pkg> fullRule::` → `Error! Please check RULE::PARAM.`
+  Yani canlı kural hiç düşmüyor, dosya temiz olsa bile servis
+  belleğindeki kural yeniden başlatana kadar zorlamaya devam
+  ediyordu. "Dokunma'ya basıyorum, eski hâline dönmüyor" şikâyetinin
+  sebebi buydu (v2.19'daki `fl_appmode_clear` eksikliğiyle birlikte).
+
+Düzeltme: canlı geri alma artık aday biçimleri tek tek deniyor,
+servisin cevabını okuyor (`successful`/`Error`), ilk kabul edileni
+kullanıyor ve hangisinin tuttuğunu loga yazıyor
+(`canli-geri-al: ... bicim=...`). Hiçbiri tutmazsa sonuç
+`canli=kismi-yeniden-baslat` diye açıkça söyleniyor; "tamamen geri
+alındı" yalanı yok.
+
+Log ayrıca şunu da doğruladı: WebUI üzerinden yapılan her işlem
+(yazan her komut ve her hata) `landscape.log`'a düşüyor; log
+dosyasındaki 10:58–10:59 satırları kullanıcının bastığı düğmelerle
+birebir eşleşiyor. (Salt okuma amaçlı liste/durum sorguları loglanmaz.)

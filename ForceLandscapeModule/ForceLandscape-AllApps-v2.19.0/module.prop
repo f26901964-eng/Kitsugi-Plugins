@@ -1,7 +1,0 @@
-id=force_landscape_all
-name=Force Landscape - All Apps
-version=v2.19.0
-versionCode=34
-author=Arena.ai Agent
-description=v2.19.0: MIUI protokolune tam uyum: 'Yatay zorla' artik AOSP oran gerdirme (ekrana-yay) icermiyor; sadece MIUI'nin kendi recetesi (embedded fullRule + fixedOri disable dosyada, cmd miui_embedding_window canli, motor acik). Geri alma simetrik: oran katmani (appmode_clear) da geri alinir, MIUI dosyalarinda satir kaldigi geri okunarak dogrulanir, canli geri alma sonucu loga yazilir. 'Kural kaniti' MIUI servisinin cihazdan alinan kendi yardim metnini ve son canli komut cevaplarini gosterir. Detay ekrani: 'MIUI motoru' satiri duzeltildi.
-

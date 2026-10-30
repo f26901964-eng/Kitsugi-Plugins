@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.19.0
+FL_MODVER=v2.20.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -1668,18 +1668,31 @@ fl_miui_cmd_mailbox() {   # $1 paket $2 true|false -> 0/1 (sadece mailbox, canli
     fl_miui_cmd_run set-fixedOri "$1" "disable::$2"
 }
 
-fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al
-    fl_miui_cmd_avail || return 1
-    _rv1=ok
-    fl_miui_cmd_run set-fixedOri "$1" "disable::false" >/dev/null 2>&1 || _rv1=fail
-    _rv2=ok
-    fl_miui_cmd_run update-rule "$1" "fullRule::" >/dev/null 2>&1 || _rv2=fail
-    # v2.19: sonuc LOGA yazilir (eskiden sessizce yutuluyordu). Bos
-    # fullRule bazi ROM'larda reddedilir; o durumda dosya zaten temiz
-    # oldugu icin kural yeniden baslatmada kesin duser.
-    fl_log "canli-geri-al: $1 fixedOri=$_rv1 fullRule=$_rv2"
-    [ "$_rv1" = "ok" ] && return 0
-    return 1
+fl_miui_cmd_revert() {   # $1 paket : canli kurallari geri al -> "tam|kismi|fail"
+    # v2.20 (CIHAZ LOGU KANITI): servis bos parametreyi reddediyor:
+    #   update-rule <pkg> fullRule::  ->  "Error! Please check RULE::PARAM."
+    # Yani eski silme bicimi canli kurali HIC dusurmuyordu; dosya temiz
+    # olsa bile kural servis bellekte kalip yeniden baslatana kadar
+    # zorlamaya devam ediyordu ("Dokunma tutmuyor"un sebebi).
+    # Artik aday bicimler tek tek denenir; servisin cevabi okunur
+    # ("successful" = kabul, "Error" = red), ilk kabul edilen kullanilir
+    # ve hangisi oldugu loga yazilir. Hicbiri tutmazsa "kismi" doner:
+    # dosya temiz oldugu icin kural yeniden baslatta kesin duser.
+    fl_miui_cmd_avail || { echo "fail"; return 1; }
+    _r1=fail
+    fl_miui_cmd_run set-fixedOri "$1" "disable::false" >/dev/null 2>&1 && _r1=ok
+    _r2=fail; _form="-"
+    for _cand in "PARAMSIZ" "fullRule::default" "fullRule::"; do
+        if [ "$_cand" = "PARAMSIZ" ]; then
+            fl_miui_cmd_run update-rule "$1" >/dev/null 2>&1 && { _r2=ok; _form=paramsiz; break; }
+        else
+            fl_miui_cmd_run update-rule "$1" "$_cand" >/dev/null 2>&1 && { _r2=ok; _form=$_cand; break; }
+        fi
+    done
+    fl_log "canli-geri-al: $1 fixedOri=$_r1 fullRule=$_r2 bicim=$_form"
+    if [ "$_r1" = "ok" ] && [ "$_r2" = "ok" ]; then echo "tam"; return 0; fi
+    if [ "$_r1" = "ok" ]; then echo "kismi"; return 2; fi
+    echo "fail"; return 1
 }
 
 fl_miui_apply() {   # $1 paket -> ok|<aciklama> | fail|<sebep>
@@ -1732,7 +1745,9 @@ fl_miui_clear() {   # $1 paket -> MIUI kural kayitlarini sil (geri alma)
     fl_mb_unsave "$_cp2"
     # v2.16: canli servis kurali da geri alinir (dosya silmek calisma
     # anindaki kurali dusurmez; yeniden baslat beklemek gerekmesin)
-    fl_miui_cmd_revert "$_cp2" >/dev/null 2>&1
+    # v2.20: sonucu dondur (tam|kismi|fail) - cagiran yalan soylemesin
+    _ccr=$(fl_miui_cmd_revert "$_cp2" 2>/dev/null)
+    echo "${_ccr:-fail}"
     return 0
 }
 
@@ -2474,7 +2489,7 @@ fl_revert_pkg() {   # $1 = paket  [$2 = "never" ise dokunma listesine ekle]
     _r=$(fl_reset_pkg_ids "$_rv")          # 4 saglayici + dogrulama
     fl_xml_drop_pkg "$_rv"
     fl_appmode_clear "$_rv" > /dev/null 2>&1   # v2.19: oran katmani da geri alinir (eksikti!)
-    fl_miui_clear "$_rv"                   # v2.11: mailbox + yatay kural
+    _mclr=$(fl_miui_clear "$_rv")          # v2.11+v2.20: mailbox/yatay kural + canli (tam|kismi|fail)
     # v2.19: MIUI dosyalarinda satirimiz KALDI mi diye GERI OKU.
     # Kalmissa "temiz" demek yalan olur -> HATA don.
     _mkalan=""
@@ -2502,9 +2517,17 @@ fl_revert_pkg() {   # $1 = paket  [$2 = "never" ise dokunma listesine ekle]
     am force-stop "$_rv" >/dev/null 2>&1
     if [ "$_r" = "temiz" ]; then
         fl_compat_status_set "$_rv" fail "geri-alindi"
-        fl_log "geri alindi: $_rv (letterbox + ekrana-yay + XML + durduruldu) | DOGRULANDI"
-        echo "OK|temiz"
-        return 0
+        # v2.20: canli kural dusuruldu mu, o da hukumde yazar. "kismi" =
+        # dosya temiz ama servis canli silmeyi reddetti -> kural yeniden
+        # baslatta duser; bunu "tamamen geri alindi" diye SUNMA.
+        case "$_mclr" in
+            tam)   fl_log "geri alindi: $_rv | DOGRULANDI (canli dahil)"
+                   echo "OK|temiz|canli=tam"; return 0 ;;
+            kismi) fl_log "geri alindi (kismi): $_rv | dosya temiz, canli kural yeniden baslatta duser"
+                   echo "OK|temiz|canli=kismi-yeniden-baslat"; return 0 ;;
+            *)     fl_log "geri alindi (canli yok): $_rv | dosya temiz, canli servis cevap vermedi"
+                   echo "OK|temiz|canli=yok"; return 0 ;;
+        esac
     fi
     fl_compat_status_set "$_rv" fail "geri-alinamadi"
     fl_log "geri alma BASARISIZ: $_rv -> $_r (am compat bu ROM'da reddediyor)"

@@ -175,7 +175,7 @@ set)  # set <paket> <force|never|auto>
             # v2.9: geri alma DOGRULANIR; basarisizsa OK yazilmaz
             _rr=$(fl_revert_pkg "$_p")
             case "$_rr" in
-                OK*)    _rv="geri-alindi" ;;
+                OK*)    _rv="geri-alindi ($(printf '%s' "$_rr" | cut -d'|' -f3-))" ;;
                 *)      echo "HATA|$_p|$_rr"
                         fl_log "webui: $_p -> $_v REDDEDILDI ($_rr)"
                         fl_cache_update_one "$_p"; exit 1 ;;
@@ -208,7 +208,7 @@ revert)   # revert <paket> : bu pakete uygulanmis HER SEYI aninda geri al
     _rr=$(fl_revert_pkg "$_p" never)
     fl_cache_update_one "$_p"
     case "$_rr" in
-        OK*) echo "OK|$_p|geri-alindi|dogrulandi" ;;
+        OK*) echo "OK|$_p|geri-alindi|$(printf '%s' "$_rr" | cut -d'|' -f3-)" ;;
         *)    echo "HATA|$_p|$_rr"
               echo "cozum|am compat bu ROM'da reddediyor; 'Hepsini geri al' dene veya yeniden baslat"
               exit 1 ;;
