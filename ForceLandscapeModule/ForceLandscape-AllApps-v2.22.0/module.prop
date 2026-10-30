@@ -1,0 +1,7 @@
+id=force_landscape_all
+name=Force Landscape - All Apps
+version=v2.22.0
+versionCode=37
+author=Arena.ai Agent
+description=v2.22.0: SukiSU tarzi teshis paketi: log penceresi 512KB x 4 kusak (~2MB) oldu; rotasyonda en eski kusak duser, kanit gunlerce korunur. Yeni 'bundle' komutu: config + listeler + MIUI kural kaniti + servis yardimi + durum + hatalar tek metinde — Kayitlar > 'Teshis paketini kopyala'. 'Dosyaya kaydet' (save) artik tani raporu + teshis paketi + TAM LOG (tum kusaklar, eskiden yeniye) icerir. Log goruntuleyici de tum kusaklari birlesik okur.
+

@@ -1,4 +1,4 @@
-# Force Landscape - All Apps  |  v2.21.0
+# Force Landscape - All Apps  |  v2.22.0
 
 Xiaomi Pad 6 (pipa) · MIUI 14 / Android 13 · SukiSU Ultra
 
@@ -419,3 +419,24 @@ işlemi loga düşüyor mu?" Denetim sonucu ve kapatılan boşluklar:
 Tek istisna: betiğin kendisi çalıştırılamıyorsa (dosya bozuk/izin),
 o an shell tarafı log yazamaz; hata WebUI'da görünür ve JS tarafı
 yazmayı dener. Bunun dışında başarısız olan hiçbir işlem logsuz kalmaz.
+
+
+## v2.22.0 — SukiSU tarzı teşhis paketi + büyük log penceresi
+
+Kullanıcı talebi: log paylaşımı SukiSU Ultra'daki gibi olsun, boyut
+sınırı cömert olsun.
+
+- Log rotasyonu artık **512KB × 4 kuşak** (~2MB pencere): dolunca
+  zincir kayar, en eski kuşak düşer. Log görüntüleyici tüm kuşakları
+  birleşik okur (eski satırlar da görünür).
+- Yeni **`bundle`** komutu (Kayıtlar > "Teşhis paketini kopyala"):
+  config + listeler + MIUI kural kanıtı + servisin yardım metni +
+  seçili paketlerin kural satırları + durum + compat hataları,
+  tek metin hâlinde. Bir şey bozulduğunda bu paketi göndermek yeterli.
+- **Dosyaya kaydet (`save`)** artık: Tanı Raporu + Teşhis Paketi +
+  TAM LOG (tüm kuşaklar, eskiden yeniye) — tek dosya, indirilip
+  paylaşmaya hazır.
+
+Not: Modül logu modülün kendi işlemlerini kapsar. Çekirdek/KernelSU
+tarafının logları SukiSU'nun kendi "log paylaş"ındadır; ikisi
+birbirini tamamlar.

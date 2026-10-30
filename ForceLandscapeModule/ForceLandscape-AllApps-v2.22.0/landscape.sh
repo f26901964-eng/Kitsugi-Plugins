@@ -94,7 +94,7 @@ FL_APPMODE_ST=$FL_DIR/appmode_state.txt   # pkg<TAB>ok|fail<TAB>yontem (v2.7)
 # Bu yuzden "ekrana yay" yapilsa bile oyun ortada kaliyordu. Asagidaki
 # prop false yapilinca MIUI gommesi tamamen kapanir.
 FL_MIUI_EMB_PROP=ro.config.miui_activity_embedding_enable
-FL_MODVER=v2.21.0
+FL_MODVER=v2.22.0
 FL_TAB=$(printf '\t')            # gercek sekme karakteri (IFS icin)
 
 PATH=/system/bin:/system/xbin:/sbin:/data/adb/ksu/bin:$PATH
@@ -235,9 +235,14 @@ fl_log() {
     [ "$FL_LOG_OK" = "1" ] || return 0
     (
         _sz=$(wc -c < "$FL_LOG" 2>/dev/null)
-        # v2.21: dosya dolunca SILME, .1'e tasi (eski kanit korunur;
-        # export/TAM LOG ikisini birden verir)
-        [ -n "$_sz" ] && [ "$_sz" -gt 196608 ] && mv -f "$FL_LOG" "$FL_LOG.1" 2>/dev/null
+        # v2.22: 512KB x 4 kusak (~2MB pencere). Dolunca zincir kayar,
+        # en eski kusak duser; boylece gunlerce islem kaniti korunur.
+        if [ -n "$_sz" ] && [ "$_sz" -gt 524288 ]; then
+            rm -f "$FL_LOG.3" 2>/dev/null
+            [ -f "$FL_LOG.2" ] && mv -f "$FL_LOG.2" "$FL_LOG.3" 2>/dev/null
+            [ -f "$FL_LOG.1" ] && mv -f "$FL_LOG.1" "$FL_LOG.2" 2>/dev/null
+            mv -f "$FL_LOG" "$FL_LOG.1" 2>/dev/null
+        fi
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$FL_LOG"
     ) 2>/dev/null
 }
@@ -607,21 +612,19 @@ fl_file_tail() {   # $1 dosya  $2 satir  -> son N satir (tail komutuna bagimli d
     awk -v n="${2:-200}" '{ a[NR]=$0 } END { s=NR-n+1; if (s<1) s=1; for (i=s;i<=NR;i++) print a[i] }' "$1" 2>/dev/null
 }
 
-fl_log_tail() {   # $1 satir : modul logu; bos/okunamazsa sebebini YAZAR
+fl_log_tail() {   # $1 satir : modul logu (tum kusaklar, eskiden yeniye)
     _ln=${1:-200}
-    if [ ! -f "$FL_LOG" ]; then
+    if [ ! -f "$FL_LOG" ] && [ ! -f "$FL_LOG.1" ]; then
         echo "(log dosyasi yok: $FL_LOG)"
         echo "(modul henuz bir islem yapmadi olabilir — Durum > Uygula dedikten sonra tekrar bak)"
         return 0
     fi
-    _lb=$(wc -c < "$FL_LOG" 2>/dev/null)
-    case "$_lb" in ''|*[!0-9]*) _lb=0 ;; esac
-    if [ "$_lb" -eq 0 ]; then
-        echo "(log dosyasi bos: $FL_LOG)"
-        echo "ipucu: LOG=1 mi? ls -l $FL_DIR"
-        return 0
-    fi
-    fl_file_tail "$FL_LOG" "$_ln"
+    # v2.22: yalniz son dosya degil; .3 .2 .1 ve guncel birlesik okunur
+    _lt=""
+    for _lf in "$FL_LOG.3" "$FL_LOG.2" "$FL_LOG.1" "$FL_LOG"; do
+        [ -f "$_lf" ] && _lt="$_lt $_lf"
+    done
+    cat $_lt 2>/dev/null | awk -v n="$_ln" '{ a[NR]=$0 } END { s=NR-n+1; if (s<1) s=1; for (i=s;i<=NR;i++) print a[i] }'
 }
 
 fl_perms_fix() {   # WebUI'nin okuyabilmesi icin durum dosyalarini 0644 yap
@@ -2395,6 +2398,53 @@ fl_rules_proof() {   # [$1 paket] -> dosya/satir kanit satirlari
         grep -F "miui-cmd:" "$FL_LOG" 2>/dev/null | tail -n 15 | sed 's/^/canli-log|/'
         grep -F "canli-geri-al:" "$FL_LOG" 2>/dev/null | tail -n 5 | sed 's/^/canli-log|/'
     fi
+}
+
+fl_diag_bundle() {   # SukiSU tarzi tek dosyalik teshis paketi (stdout)
+    echo "===== FORCE LANDSCAPE TEŞHİS PAKETİ ====="
+    echo "surum|$(fl_modver 2>/dev/null || echo $FL_MODVER)"
+    echo "tarih|$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "cihaz|$(getprop ro.product.model 2>/dev/null) | MIUI $(getprop ro.miui.ui.version.name 2>/dev/null) | Android $(getprop ro.build.version.release 2>/dev/null) (API $(getprop ro.build.version.sdk 2>/dev/null))"
+    echo "miui-motoru|$(getprop ro.config.miui_activity_embedding_enable 2>/dev/null) (true olmali)"
+    echo
+    echo "----- config.conf -----"
+    cat "$FL_CFG" 2>/dev/null
+    echo
+    echo "----- listeler -----"
+    for _lf2 in force never appmode mailbox; do
+        case "$_lf2" in
+            force)   _lp=$FL_FORCE ;; never) _lp=$FL_NEVER ;;
+            appmode) _lp=$FL_APPMODE ;; mailbox) _lp=$FL_MB_LIST ;;
+        esac
+        echo "[$_lf2] $(grep -c . "$_lp" 2>/dev/null || echo 0) kayit"
+        sed 's/^/  /' "$_lp" 2>/dev/null | head -n 100
+    done
+    echo
+    echo "----- MIUI servis / kural kaniti -----"
+    fl_rules_proof ""
+    echo
+    echo "----- secili paketlerin kural satirlari -----"
+    _bp=$( { cat "$FL_FORCE" "$FL_APPMODE" 2>/dev/null; } | sort -u | head -n 10 )
+    for _bpk in $_bp; do
+        echo "[paket $_bpk]"
+        for _bf in /data/system/cloudFeature_fixed_orientation_list.xml \
+                   /data/system/cloudFeature_embedded_rules_list.xml \
+                   /product/etc/fixed_orientation_list.xml \
+                   /product/etc/embedded_rules_list.xml; do
+            _bl=$(fl_pkg_line "$_bf" "$_bpk" 2>/dev/null)
+            [ -n "$_bl" ] && echo "  $_bf :: $_bl"
+        done
+    done
+    echo
+    echo "----- durum (state.txt) -----"
+    cat "$FL_STATE" 2>/dev/null
+    echo
+    echo "----- compat hatalari (son 30) -----"
+    [ -s "$FL_CERR" ] && fl_file_tail "$FL_CERR" 30 || echo "(yok)"
+    echo
+    echo "----- log dosyalari -----"
+    ls -l "$FL_LOG" "$FL_LOG.1" "$FL_LOG.2" "$FL_LOG.3" 2>/dev/null
+    echo "===== PAKET SONU (log TAM LOG bolumunde) ====="
 }
 
 # ---------- v2.13: MIUI kural onbellegini ZORLA tazele ----------

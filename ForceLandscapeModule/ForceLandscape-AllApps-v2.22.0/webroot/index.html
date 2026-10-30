@@ -541,7 +541,7 @@ function appName(pkg){
 /* Yoneticiden (KernelSU/SukiSU) gercek uygulama adi, surumu ve ikonu.
    API yoksa sessizce atlanir; asagidaki sozluk/turetilmis ad kullanilir. */
 let MG = {};          // pkg -> {label, versionName, versionCode, isSystem}
-let UI_VER = "v2.21.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
+let UI_VER = "v2.22.0";       // bu sayfanın sürümü (arka uçla karşılaştırılır)
 let LAST_OP = "";          // son işlemin DOĞRULANMIŞ sonucu
 let ICONS = false;    // ksu://icon destekleniyor mu (denenir)
 async function enrichFromManager(){
@@ -1136,6 +1136,7 @@ function viewLog(){
   <pre id="logbox">yükleniyor…</pre>
   <div class="row" style="margin-top:9px">
     <button data-act="logcopy">Kopyala</button>
+    <button data-act="bundlecopy">Teşhis paketini kopyala</button>
     <button class="good" data-act="save">Dosyaya kaydet</button>
     <button class="danger" data-act="clearlog">Logu temizle</button>
     <button class="ghost" data-act="logstat">Log tanısı</button>
@@ -1936,6 +1937,20 @@ const ACT = {
     busyEnd(); await render();
     const o = kvParse(r);
     toast(o.OK ? ("kaydedildi: " + o.OK.split("|")[1]) : ("kaydedilemedi: " + (o.HATA||r)));
+  },
+
+  async bundlecopy(){
+    busyStart("teşhis paketi hazırlanıyor…");
+    let t = "";
+    try{ t = await out("bundle"); }catch(e){ t = e.message||String(e); }
+    busyEnd();
+    $("sheetHost").innerHTML = `<div class="sheet" data-close="1"><div class="box">
+      <div class="row"><b>Teşhis paketi</b><span class="spacer"></span>
+      <button class="sm ghost" data-close="1">✕</button></div>
+      <div class="hint" style="margin-top:8px">Ayarlar + listeler + MIUI kural kanıtı + servis durumu tek metinde. Bunu bana gönderebilirsin; TAM LOG ayrıca "Dosyaya kaydet" ile iner.</div>
+      <pre style="margin-top:10px">${esc(t)}</pre>
+      <div class="row" style="margin-top:10px"><button class="sm" data-copy="${esc(t)}">Kopyala</button></div>
+    </div></div>`;
   },
 
   async report(){

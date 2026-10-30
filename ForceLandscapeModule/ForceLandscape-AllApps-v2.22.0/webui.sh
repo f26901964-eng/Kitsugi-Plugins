@@ -29,7 +29,7 @@ fl_prepare
 _WC_CMD=$1
 _WC_ARGS=$*
 case "$_WC_CMD" in
-    status|status-full|ping|apps|verify|appinfo|sysinfo|appmode-list|errors|cstat|diag|log|logs|logstat|logsize|cat-report|progress|export|backup|proof) : ;;
+    status|status-full|ping|apps|verify|appinfo|sysinfo|appmode-list|errors|cstat|diag|log|logs|logstat|logsize|cat-report|progress|export|backup|proof|bundle) : ;;
     *) fl_log "webui-cmd: $_WC_ARGS" ;;
 esac
 trap '_wc_rc=$?; if [ "$_wc_rc" != "0" ]; then case "$_WC_CMD:$_wc_rc" in kesin:2) : ;; *) fl_log "webui-cmd HATA rc=$_wc_rc: $_WC_ARGS" ;; esac; fi' EXIT
@@ -504,6 +504,10 @@ proof)    # proof [paket] : MIUI kural dosyalarinin GERCEK hali + bizim satirimi
     exit 0
     ;;
 
+bundle)   # bundle : SukiSU tarzi tek parca teshis paketi (ayarlar+listeler+kanitlar)
+    fl_diag_bundle
+    ;;
+
 # ------------------------------------------------------------
 softreboot)  # kurallari zorla yukle: zygote tazele (MIUI acilista okur)
     _sr=$(fl_miui_softreboot)
@@ -826,8 +830,13 @@ save)
         echo "===== TANI RAPORU ====="
         cat "$FL_REPORT" 2>/dev/null
         echo
+        echo "===== TEŞHİS PAKETİ ====="
+        fl_diag_bundle 2>/dev/null
+        echo
         echo "===== TAM LOG ====="
-        [ -f "$FL_LOG.1" ] && { echo "--- (onceki bolum: landscape.log.1) ---"; cat "$FL_LOG.1" 2>/dev/null; }
+        for _lg in "$FL_LOG.3" "$FL_LOG.2" "$FL_LOG.1"; do
+            [ -f "$_lg" ] && { echo "--- (onceki bolum: $_lg) ---"; cat "$_lg" 2>/dev/null; }
+        done
         cat "$FL_LOG" 2>/dev/null
     } > "$_o" 2>/dev/null
     chmod 0664 "$_o" 2>/dev/null
