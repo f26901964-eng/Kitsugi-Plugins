@@ -40,6 +40,9 @@ tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach {
     testLogging {
         showStandardStreams = true
         events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showStackTraces = true
+        showCauses = true
     }
     outputs.upToDateWhen { false }
 }

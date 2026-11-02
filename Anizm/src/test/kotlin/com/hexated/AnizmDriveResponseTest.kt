@@ -31,7 +31,8 @@ class AnizmDriveResponseTest {
             override fun source(): BufferedSource = source.buffer()
         }
         return Response.Builder().request(Request.Builder().url("https://drive.usercontent.google.com/download?id=A").build())
-            .protocol(Protocol.HTTP_1_1).code(200).message("OK").body(body).build()
+            .protocol(Protocol.HTTP_1_1).code(200).message("OK")
+            .header("Content-Type", type).body(body).build()
     }
 
     @Test

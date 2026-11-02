@@ -93,11 +93,21 @@ internal object AnizmPlaybackPolicy {
         }?.let { URLDecoder.decode(it.substringAfter('=', ""), "UTF-8") }
     } catch (_: Exception) { null }
 
+    private val SENDVID_RESERVED_PATHS = setOf(
+        "playlist", "playlists", "embed", "login", "register", "upload", "api",
+        "terms", "privacy", "dmca", "contact", "about", "faq", "search",
+        "trending", "popular", "new", "random", "video", "videos", "user",
+        "users", "channel", "channels", "category", "categories", "tag", "tags",
+        "sitemap", "robots.txt", "favicon.ico", "assets", "static", "css", "js", "img"
+    )
+
     fun sendvidEmbed(url: String): String? {
         val uri = httpUri(url) ?: return null
         if (!isSendvidHost(url)) return null
         val id = Regex("^/(?:embed/)?([A-Za-z0-9_-]+)(?:\\.mp4)?/?$")
             .find(uri.path.orEmpty())?.groupValues?.get(1) ?: return null
+        // SendVid kökündeki site sayfaları video kimliği değildir.
+        if (id.lowercase(Locale.ROOT) in SENDVID_RESERVED_PATHS) return null
         return "https://sendvid.com/embed/$id"
     }
 
