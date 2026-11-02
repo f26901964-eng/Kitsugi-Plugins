@@ -4,6 +4,7 @@ package com.keyiflerolsun
 
 import android.util.Base64
 import android.util.Log
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -56,6 +57,8 @@ class DiziBox : MainAPI() {
             val fromCloudflare = response.header("server")?.equals("cloudflare", ignoreCase = true) == true
 
             if (cloudflareMeta || (blocked && (mitigated || challengeBody || fromCloudflare))) {
+                // Çözücü aynı isteği yeniden göndermeden önce ilk gövdeyi kapat.
+                response.close()
                 return cloudflareKiller.intercept(chain)
             }
 
@@ -112,9 +115,12 @@ class DiziBox : MainAPI() {
             cookies     = playerCookies,
             interceptor = interceptor, cacheTime = 60
         ).document
-        val home = document.select(cardSelector)
-            .mapNotNull { it.toCardResult() }
-            .distinctBy { it.url }
+        val cards = document.select(cardSelector).mapNotNull { it.toCardResult() }
+        val home = when {
+            cards.isNotEmpty() -> cards
+            page == 1          -> document.toSeriesLinkResults()
+            else               -> emptyList()
+        }.distinctBy { it.url }
         return newHomePageResponse(request.name, home)
     }
 
@@ -176,10 +182,24 @@ class DiziBox : MainAPI() {
             interceptor = interceptor
         ).document
 
-        return document.select(cardSelector)
-            .mapNotNull { it.toCardResult() }
-            .distinctBy { it.url }
+        val cards = document.select(cardSelector).mapNotNull { it.toCardResult() }
+        return cards.ifEmpty { document.toSeriesLinkResults() }.distinctBy { it.url }
     }
+
+    /**
+     * Kart işaretlemesi yoksa (canlı /tum-bolumler/ sayfası A-Z dizi bağlantı listesi döndürür:
+     * <a href=".../diziler/..." title="X izle">) dizileri bağlantı başlığından okur.
+     */
+    private fun Document.toSeriesLinkResults(): List<SearchResponse> =
+        select("a[href*='/diziler/'][title]").mapNotNull { anchor ->
+            val href = fixUrlNull(anchor.attr("href").trim()) ?: return@mapNotNull null
+            val title = anchor.attr("title")
+                .replace(Regex("\\s+izle\\b.*$", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            if (title.isBlank()) return@mapNotNull null
+            newTvSeriesSearchResponse(title, href, TvType.TvSeries)
+        }
 
     /** GET ile dener; boş/hatalı ise aynı parametreleri POST ile dener. */
     private suspend fun ajaxSearch(query: String): List<SearchResponse>? {
