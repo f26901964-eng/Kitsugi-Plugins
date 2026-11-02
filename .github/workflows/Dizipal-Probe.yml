@@ -1,0 +1,179 @@
+# Dizipal canlı sözleşme dökümü + derleme doğrulaması.
+#
+# Amaç: eklenti artık **Next.js** bir siteye bakıyor (eski PHP teması değil).
+# Seçicileri tahminle değil ölçümle yazabilmek için site HTML'i, JS parçaları ve
+# API adayları GitHub runner'ından (tam internet) dökülür; sonuç
+# `dizipal-dump-data` dalına itilir (sandbox artifact indiremiyor, dalı okuyabiliyor).
+#
+# İkinci iş eklentiyi derleyip **Kotlin derleme hatasını** buradan görünür kılar.
+name: Dizipal Prob
+
+on:
+  push:
+    branches:
+      - arena/e43f167a-kitsugi-plugins
+    paths:
+      - "tools/dizipal_*.py"
+      - ".github/workflows/Dizipal-Probe.yml"
+      - "DiziPal/**"
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Site tabanı"
+        required: false
+        default: "https://dizipal1593.com"
+      query:
+        description: "Arama sorgusu"
+        required: false
+        default: "Nocturne"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dizipal-prob-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  Dump:
+    name: Site dökümü
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Önceki dökümü tohumla
+        continue-on-error: true
+        run: |
+          git fetch -q origin dizipal-dump-data:refs/dumpbranch || true
+          git checkout refs/dumpbranch -- site-dump 2>/dev/null || true
+          ls site-dump/dizipal | head -20 || true
+      - name: Erişim + tam döküm
+        env:
+          PYTHONPATH: .
+          SITE_DUMP_DIR: site-dump
+        run: |
+          mkdir -p site-dump/dizipal
+          python3 tools/dizipal_dump.py \
+            --base "${{ inputs.base || 'https://dizipal1593.com' }}" \
+            --query "${{ inputs.query || 'Nocturne' }}" \
+            --reuse --skip-api --fast 2>&1 | tee site-dump/dump-log.txt || true
+          echo "--- dosyalar ---"
+          ls -la site-dump/dizipal | head -40 || true
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "## Dizipal dökümü"
+            echo '```'
+            head -c 20000 site-dump/dump-log.txt 2>/dev/null || echo "(günlük yok)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dump
+          path: site-dump/
+
+  Derle:
+    name: Kotlin derlemesi
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: JDK 17
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android SDK lisansları
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+      - name: DiziPal derle
+        id: build
+        continue-on-error: true
+        run: |
+          chmod +x gradlew
+          ./gradlew :DiziPal:make :DiziPal:test --stacktrace 2>&1 | tee /tmp/dizipal-build.log
+          echo "exit=${PIPESTATUS[0]}"
+      - name: Derleme özeti
+        if: always()
+        run: |
+          mkdir -p site-dump
+          cp /tmp/dizipal-build.log site-dump/dizipal-build.log 2>/dev/null || true
+          {
+            echo "## DiziPal derlemesi"
+            echo '```'
+            tail -c 12000 /tmp/dizipal-build.log 2>/dev/null || echo "(günlük yok)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build
+          path: site-dump/
+
+  Oynatici:
+    name: Oynatıcı zinciri
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Şifre çözme bağımlılığı
+        run: python3 -m pip install --quiet cryptography || echo "cryptography kurulamadı (openssl yedeği)"
+      - name: Bölüm → şifre çözme → oynatıcı → m3u8
+        env:
+          PYTHONPATH: .
+          SITE_DUMP_DIR: site-dump
+        run: |
+          mkdir -p site-dump
+          python3 tools/dizipal_player_probe.py 2>&1 | tee site-dump/player-log.txt || true
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "## Oynatıcı probu"
+            echo '```'
+            head -c 12000 site-dump/player-log.txt 2>/dev/null || echo "(günlük yok)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player
+          path: site-dump/
+
+  Yayin:
+    name: Dal'a it
+    needs: [Dump, Derle, Oynatici]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          path: site-dump
+          merge-multiple: true
+      - name: dizipal-dump-data dalına it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -R site-dump | head -40 || true
+          if [ ! -d site-dump ]; then echo "site-dump yok"; exit 0; fi
+          rm -rf /tmp/dumppush && mkdir -p /tmp/dumppush
+          cp -r site-dump/. /tmp/dumppush/
+          cd /tmp/dumppush
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git checkout -q -b dizipal-dump-data
+          git add -A
+          git commit -qm "dizipal dump ${GITHUB_RUN_ID}" || echo "değişiklik yok"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:dizipal-dump-data \
+            && echo "döküm dizipal-dump-data dalına itildi"

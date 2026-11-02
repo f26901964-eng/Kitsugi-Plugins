@@ -21,6 +21,7 @@ AnimeciX
 TrAnimeIzle
 
 # ── Dizi / Film ──────────────────────────────────────────────────────────────
+DiziPal
 FilmMakinesi
 HDFilmCehennemi
 DiziBox

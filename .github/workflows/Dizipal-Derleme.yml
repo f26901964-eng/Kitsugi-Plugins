@@ -1,0 +1,57 @@
+# DiziPal için hızlı derleme + birim testi geri bildirimi.
+# (Uzun süren canlı döküm işlerini beklemeden Kotlin hatalarını görmek için.)
+name: DiziPal Derleme
+
+on:
+  push:
+    branches:
+      - arena/e43f167a-kitsugi-plugins
+    paths:
+      - "DiziPal/**"
+      - ".github/workflows/Dizipal-Derleme.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  Derle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: JDK 17
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android SDK lisansları
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+      - name: Derle ve test et
+        run: |
+          chmod +x gradlew
+          ./gradlew :DiziPal:make :DiziPal:test --stacktrace 2>&1 | tee build.log
+      - name: Günlüğü dala it (sandbox artefakt indiremiyor)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/net
+          cp build.log /tmp/net/ 2>/dev/null || true
+          mkdir -p /tmp/net/tests
+          cp -r DiziPal/build/test-results/test /tmp/net/tests/ 2>/dev/null || true
+          ls -R /tmp/net | head -20
+          cd /tmp/net && git init -q && git config user.email "actions@github.com" && git config user.name "GitHub Actions"
+          git checkout -q -b dizipal-build-data
+          git add -A && git commit -qm "dizipal build ${GITHUB_RUN_ID}" || echo "değişiklik yok"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:dizipal-build-data \
+            && echo "günlük dizipal-build-data dalına itildi"
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "## DiziPal derleme"
+            echo '```'
+            grep -E "^(e:|w: .*DiziPal)|BUILD|Task :DiziPal|tests? (completed|failed)|FAILED" build.log | tail -60 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

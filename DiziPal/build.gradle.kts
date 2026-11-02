@@ -1,4 +1,4 @@
-version = 33
+version = 104
 
 cloudstream {
     authors     = listOf("keyiflerolsun", "muratcesmecioglu")
@@ -14,5 +14,24 @@ cloudstream {
     **/
     status  = 1 // will be 3 if unspecified
     tvTypes = listOf("TvSeries", "Movie")
-    iconUrl = "https://www.google.com/s2/favicons?domain=https://dizipal952.com&sz=%size%"
+    iconUrl = "https://www.google.com/s2/favicons?domain=https://dizipal1593.com&sz=%size%"
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+}
+
+android {
+    testOptions {
+        // android.util.Log gibi platform çağrıları ağsız testlerde no-op dönsün
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+    outputs.upToDateWhen { false }
 }
