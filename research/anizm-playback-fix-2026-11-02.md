@@ -27,7 +27,9 @@
 
 - Yerel: `python3 -m unittest discover -s tests -v` → 30 test geçti.
 - Yerel: `python3 tools/check_kotlin_comments.py` ve `git diff --check` temiz.
-- Android/Gradle: yayınlama yapmayan `Derleme Testi` iş akışında `:Anizm:testDebugUnitTest`, `:Anizm:make`, `makePluginsJson` ve `.cs3` iç manifest tutarlılığı çalıştırılır. Sonuç CI koşusundan sonra buraya işlenir.
+- Android/Gradle: yayınlama yapmayan `Derleme Testi` PR #64 üzerinden çalıştırıldı. Son koşu [41472844742](https://github.com/f26901964-eng/Kitsugi-Plugins/actions/runs/41472844742) **başarılı**: `Etkin Eklentileri Derle`, `Birim Testleri (regresyon)` (`:Anizm:testDebugUnitTest` dahil), `Anizm paket ve manifest tutarlılığı` ve artifact yükleme adımları geçti.
+- Paket doğrulaması: CI içinde `Anizm/build/Anizm.cs3` üretildi; `classes.dex` mevcut, `.cs3` iç `manifest.json` adı `Anizm` ve sürümü `22`; `makePluginsJson` çıktısındaki tek Anizm girdisi de sürüm `22`. Artifact: `Kitsugi-Plugins-41472844742` (14 gün saklanır). Bu artifact yayın değildir; `builds` dalına yazılmadı.
+- İlk CI denemeleri test altyapısı hataları verdi (test classpath'inde CloudStream API/çalışma zamanı bağımlılıkları, OkHttp test imzası, Drive test fixture'ı). Bunlar düzeltildi; son koşu temiz. Canlı host probları bu koşuda etiketle tetiklenmedi ve çalışma ortamı'tan doğrudan host erişimi kurulamadı.
 - Canlı video hostları: bu çalışma ortamından doğrudan erişim kurulamadı. 403/TLS/zaman aşımı sonucu “ölü video” olarak yorumlanmadı.
 - Gerçek Android cihazda Media3/MPV ile görüntü+ses testi yapılmadı.
 

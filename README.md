@@ -24,6 +24,8 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 > koşullu tekilleştirme düzeltmeleri ekler. Ayrıntı:
 > [`research/anizm-playback-fix-2026-11-02.md`](research/anizm-playback-fix-2026-11-02.md).
 > v22 henüz `builds` dalında yayımlanmadı; gerçek cihazda oynatma doğrulaması bekliyor.
+> Yayınlama yapmayan Derleme Testi (PR #64, koşu 41472844742) başarılı: Gradle birim
+> testleri, paket ve manifest tutarlılığı geçti.
 >
 > **TrAnimeIzle v45 (kaynak kodu):** eklenti çekirdeği sıfırdan, tek katman
 > olarak yeniden yazıldı. Captcha artık sitenin **kendi** IconCaptcha v2
