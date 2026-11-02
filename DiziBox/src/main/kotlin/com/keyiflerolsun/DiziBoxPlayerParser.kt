@@ -292,8 +292,7 @@ internal object DiziBoxPlayerParser {
         // de bulunur. Dizi adresi biliniyorsa yalnızca o dizinin bölüm slug'ına sahip olanları al.
         val base = seriesUrl?.let { seriesSlugBase(it) } ?: return all.values.toList()
         val own = all.values.filter { episode ->
-            val path = runCatching { URI(episode.url).path.orEmpty() }.getOrDefault("")
-            path.trim('/').substringAfterLast('/').startsWith("$base-", ignoreCase = true)
+            episode.url.trimEnd('/').substringBefore('?').substringAfterLast('/').startsWith(base + "-", ignoreCase = true)
         }
         return if (own.isNotEmpty()) own else all.values.toList()
     }

@@ -208,7 +208,7 @@ class DiziBoxPlayerParserTest {
         )
 
         val scoped = DiziBoxPlayerParser.episodeAnchors(document, "https://www.dizibox.live/diziler/visionquest/")
-        assertEquals(2, scoped.size)
+        assertEquals("scoped=" + scoped.map { it.url }, 2, scoped.size)
         assertEquals(1, scoped[0].season)
         assertEquals(2, scoped[1].episode)
 
