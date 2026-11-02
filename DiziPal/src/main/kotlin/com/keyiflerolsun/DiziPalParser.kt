@@ -293,8 +293,13 @@ object DiziPalParser {
             found.add(lang to src)
         }
 
-        Regex("\"subtitle\"\\s*:\\s*\"([^\"]+\\.(?:vtt|srt)[^\"]*)\"").findAll(text).forEach { match ->
-            found.add("tr" to match.groupValues[1])
+        // JSON / oynatıcı yapılandırması: {"file":"…vtt","label":"Türkçe"}
+        Regex("(?:file|src|url|subtitle)\\s*[:=]\\s*[\"']([^\"']+\\.(?:vtt|srt)[^\"']*)[\"']").findAll(text).forEach { match ->
+            val window = text.substring(maxOf(0, match.range.first - 240), match.range.first)
+            val lang = Regex("(?:srclang|subtitle_lang|label|lang|language)\\s*[:=]\\s*[\"']([^\"']+)[\"']")
+                .find(window)?.groupValues?.get(1) ?: "tr"
+
+            found.add(lang to match.groupValues[1])
         }
 
         return found.distinctBy { it.second }

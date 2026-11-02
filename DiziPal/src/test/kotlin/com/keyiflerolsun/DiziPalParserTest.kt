@@ -121,7 +121,7 @@ class DiziPalParserTest {
     fun `kaçışlı rsc metni çözülür`() {
         val raw = """\"player\":{\"kind\":\"episode\"},\"x\":\"a\/b"""
 
-        assertEquals(""""player":{"kind":"episode"},"x":"a/b"""", DiziPalParser.unescapeRsc(raw))
+        assertEquals(""""player":{"kind":"episode"},"x":"a/b""", DiziPalParser.unescapeRsc(raw))
     }
 
     @Test
