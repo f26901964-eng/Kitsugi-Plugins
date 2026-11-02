@@ -16,6 +16,25 @@
 | **YourUpload / vidcache** | Generic extractor yeniden yayınında `link.referer`, büyük/küçük harfe duyarsız başlıklar, `Cookie`, `Origin`, `User-Agent`, tüm `audioTracks` ve `extractorData` korunuyor. Vidcache/YourUpload için gerekirse embed Origin türetiliyor. | Ağsız test: Referer, cookie, UA, iki ses parçası ve interceptor verisi kaybolmuyor. | Gerçek extractor yönlendirmesi, CDN ve cihazda oynatma. |
 | **Google Drive** | `/uc` / `/download` sorgusu korunuyor; gerçek GET onay formu alanları action sorgusuyla birleştiriliyor; kota/HTML video diye yayınlanmıyor; yanıt en çok 4 KiB binary / 256 KiB HTML örnekleniyor; nihai redirect adresi ve HLS/DASH tipi korunuyor. | Ağsız test: form, kota, 404, belirsiz erişim, uzantısız HLS, sınırlı okuma ve yanıt kapatma. | Gerçek dosya izni, cookie, kota/virüs taraması onayı, transcode ve cihazda oynatma. |
 
+## Canlı host doğrulaması (CI, imzasız rapor)
+
+`ANIZM_SAFE_LIVE=1` ile çalışan `AnizmSafeLiveProbeTest`, gerçek `AnizmStreams` kodunu canlı siteye karşı koştu. Rapor imzalı URL/sorgu/cookie/token içermez; yalnız host, durum, içerik tipi ve süre bayrakları yazar. Son başarılı koşu: [41491086855](https://github.com/f26901964-eng/Kitsugi-Plugins/actions/runs/41491086855).
+
+Hedef: **Shingeki no Kyojin 1. bölüm** (`anizm.com.tr`). Arama → seri → 26 bölüm → 1. bölüm zinciri doğrulandı. Çözücü **13 akış** yayınladı:
+
+| Kategori | Adet | Canlı HTTP sonucu | Yorum |
+|---|---:|---|---|
+| Google Drive | 7 | `206 video/mp4`; ilk 64 KiB örnekte MP4 süresi yaklaşık **1540–1552 s** | Drive kaynakları bu koşuda gerçek uzun video gövdesi döndürdü; HTML/kota yanıtı medya yapılmadı. |
+| SendVid | 3 | `206 video/mp4`; MP4 süresi **5.0 s**, yaklaşık 36 KiB | Üç ayrı SendVid linki de hosttan kısa hata klibi döndürdü. Bu, eklentinin çözemediği bir URL değil; hostun verdiği medya bu. Kısa süre/boyut tek başına filtre nedeni yapılmadı. |
+| OK.ru | 1 | HLS manifest `400` | Metadata’dan HLS bulundu; okcdn manifest isteği CI ortamında 400 döndü. 403/400’tan tek başına “ölü video” sonucu çıkarılmadı. |
+| YourUpload / vidcache | 2 | `SocketTimeoutException` | CI ortamından CDN’ye zaman aşımı. Cihazda oynatma veya hostun kesin ölü olduğu iddiası yok. |
+| Aincrad / AnizmPlayer | 0 | — | Bu bölümün canlı kaynak listesinde AnizmPlayer kaynağı dönmedi; HLS master düzeltmesi ağsız regresyonla doğrulandı. |
+
+Canlı prob sonrası yapılan ek düzeltmeler:
+- SendVid/vidcache/okcdn için açık `Origin` verilmemişse Referer’ın origin’i tüm emission yollarında ekleniyor; mevcut Origin değiştirilmiyor.
+- SendVid embed sayfası açıkça “temporarily unavailable / video not found” diyorsa MP4 meta olsa bile yayınlanmıyor. Canlıdaki 5 saniyelik klipler sayfa hata metni vermeden geçerli MP4 döndürdüğü için süre/boyutla otomatik silinmedi.
+- Güvenli prob HLS manifestlerini `Range` başlığı olmadan dener; binary/MP4 için sınırlı ön ek okur.
+
 ## Tekilleştirme ve uygulama sınırı
 
 - Eklenti tekilleştirmesi artık yalnız URL değil: URL + tür + kalite + kanonik başlıklar + tüm ses parçaları/başlıkları + `extractorData`.
@@ -27,10 +46,10 @@
 
 - Yerel: `python3 -m unittest discover -s tests -v` → 30 test geçti.
 - Yerel: `python3 tools/check_kotlin_comments.py` ve `git diff --check` temiz.
-- Android/Gradle: yayınlama yapmayan `Derleme Testi` PR #64 üzerinden çalıştırıldı. Son koşu [41472844742](https://github.com/f26901964-eng/Kitsugi-Plugins/actions/runs/41472844742) **başarılı**: `Etkin Eklentileri Derle`, `Birim Testleri (regresyon)` (`:Anizm:testDebugUnitTest` dahil), `Anizm paket ve manifest tutarlılığı` ve artifact yükleme adımları geçti.
-- Paket doğrulaması: CI içinde `Anizm/build/Anizm.cs3` üretildi; `classes.dex` mevcut, `.cs3` iç `manifest.json` adı `Anizm` ve sürümü `22`; `makePluginsJson` çıktısındaki tek Anizm girdisi de sürüm `22`. Artifact: `Kitsugi-Plugins-41472844742` (14 gün saklanır). Bu artifact yayın değildir; `builds` dalına yazılmadı.
+- Android/Gradle: yayınlama yapmayan `Derleme Testi` PR #64 üzerinden çalıştırıldı. Son koşu [41491086855](https://github.com/f26901964-eng/Kitsugi-Plugins/actions/runs/41491086855) **başarılı**: `Etkin Eklentileri Derle`, `Birim Testleri (regresyon)` (`:Anizm:testDebugUnitTest` dahil), `Anizm paket ve manifest tutarlılığı` ve artifact yükleme adımları geçti.
+- Paket doğrulaması: CI içinde `Anizm/build/Anizm.cs3` üretildi; `classes.dex` mevcut, `.cs3` iç `manifest.json` adı `Anizm` ve sürümü `22`; `makePluginsJson` çıktısındaki tek Anizm girdisi de sürüm `22`. Artifact: `Kitsugi-Plugins-41491086855` (14 gün saklanır). Bu artifact yayın değildir; `builds` dalına yazılmadı.
 - İlk CI denemeleri test altyapısı hataları verdi (test classpath'inde CloudStream API/çalışma zamanı bağımlılıkları, OkHttp test imzası, Drive test fixture'ı). Bunlar düzeltildi; son koşu temiz. Canlı host probları bu koşuda etiketle tetiklenmedi ve çalışma ortamı'tan doğrudan host erişimi kurulamadı.
-- Canlı video hostları: bu çalışma ortamından doğrudan erişim kurulamadı. 403/TLS/zaman aşımı sonucu “ölü video” olarak yorumlanmadı.
+- Canlı video hostları: sandbox’tan doğrudan erişim kurulamadı; CI içinde güvenli canlı prob çalıştırıldı. 403/TLS/zaman aşımı sonucu “ölü video” olarak yorumlanmadı.
 - Gerçek Android cihazda Media3/MPV ile görüntü+ses testi yapılmadı.
 
 ## Yayın durumu
