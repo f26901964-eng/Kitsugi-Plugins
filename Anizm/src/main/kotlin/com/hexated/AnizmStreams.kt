@@ -420,6 +420,15 @@ internal class AnizmStreams(
         val embed = AnizmPlaybackPolicy.sendvidEmbed(url) ?: return false
         val page = http.get(embed, url) ?: return false
         val doc = Jsoup.parse(page, embed)
+        // Açık hata sayfası video diye yayınlanmaz. Bu karar kısa süre/boyut veya
+        // 403'ten değil, sayfanın kendi hata metninden gelir.
+        val errorText = (doc.title() + " " + doc.select("title, .error, .alert, #error, h1, h2").text())
+            .lowercase(java.util.Locale.ROOT)
+        if (Regex("""temporarily unavailable|video (?:is )?unavailable|video not found|video removed|bu video(?:ya)? (?:şu an )?ulaşılamıyor|video bulunamadı""")
+                .containsMatchIn(errorText)) {
+            Log.d(TAG, "sendvid: açık hata sayfası, medya yayınlanmadı")
+            return false
+        }
         val candidates = buildList {
             for (selector in listOf(
                 "meta[property=og:video:secure_url]", "meta[property=og:video]",

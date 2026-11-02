@@ -93,6 +93,18 @@ class AnizmStreamBehaviorTest {
     }
 
     @Test
+    fun `sendvid explicit temporarily unavailable page is not emitted even with MP4 meta`() = runBlocking {
+        http.pages["https://sendvid.com/embed/unavail1"] = """
+            <html><head><title>Video temporarily unavailable</title></head><body>
+            <meta property="og:video:secure_url" content="https://sendvid.com/unavail1.mp4">
+            <script>var video_source = "https://sendvid.com/unavail1.mp4";</script>
+            </body></html>
+        """.trimIndent()
+        assertFalse(resolve("https://sendvid.com/unavail1"))
+        assertTrue(out.isEmpty())
+    }
+
+    @Test
     fun `sendvid error HTML does not become a media link`() = runBlocking {
         http.pages["https://sendvid.com/embed/missing1"] = "<html><body>Video not found</body></html>"
         assertFalse(resolve("https://sendvid.com/missing1"))
