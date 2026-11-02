@@ -36,10 +36,10 @@ kanıta bağlıdır; kaynağı belirtilmeyen davranış yoktur.
 
 | Dosya | Değişiklik |
 | --- | --- |
-| `TrAnimeIzle.kt` | Tek katmanlı çekirdek: tarayıcı başlıkları (`user-agent` **küçük harf** → NiceHttp varsayılanını ezer), süreç düzeyinde paylaşılan çerez kavanozu (`TrCookieJar`), her istekte captcha kapısı tespiti + çözüm + **tek** tekrar, 20/15/10 sn zaman aşımları |
+| `TrAnimeIzle.kt` | `load()`: bölüm sayfasından seri sayfasına geçişte üç aday (breadcrumb → slug kuralı → sezon eki atılmış adres), bölüm listesi veren ilk aday kullanılır. Tek katmanlı çekirdek: tarayıcı başlıkları (`user-agent` **küçük harf** → NiceHttp varsayılanını ezer), süreç düzeyinde paylaşılan çerez kavanozu (`TrCookieJar`), her istekte captcha kapısı tespiti + çözüm + **tek** tekrar, 20/15/10 sn zaman aşımları |
 | `TrAnimeCaptcha.kt` | IconCaptcha v2 mantığı **saf Kotlin**: yanıt dizge/nesne/sarmal biçimlerinin tümü, MD5 ile "farklı olan" ikon, tema okuma, kapı işaretleri |
 | `TrAnimeIzleSite.kt` | Bölüm adı `N. Bölüm`, `p.title > span`, `Toplam N` yedeği, `Yapım` etiketi |
-| `TrAnimeIzleMatch.kt` | `SEASON_SUFFIX`: `-2-sezon` / `-sezon-2` ekleri `toSeriesUrl`, `seriesUrlOf`, `seriesKey` içinde atılır |
+| `TrAnimeIzleMatch.kt` | `SEASON_SUFFIX`: `-2-sezon` / `-sezon-2` ekleri `seriesKey` içinde atılır; `alternateSeriesUrl` sezon eki **atılmış** seri adresini yedek olarak üretir |
 | `TrAnimeIzleStreams.kt` | `episodeId` yoksa `fansubSources` çağrısı **atlanır** (0 ile gidip boş dönüyordu); kaynak bütçeleri 75→30 sn / 25→15 sn |
 
 ## 3. Captcha akışı (sitenin kendi protokolü)
@@ -52,6 +52,9 @@ POST /api/Captcha/            form {cID:0, pC:<hash>, rT:2}    → oturum doğru
 ```
 
 * `cID` widget sırasıdır (0, yedek 1), `tM` sayfadaki `captchaTheme` değeridir (`dark`).
+* "Farklı olan" ikon **yalnızca MD5** ile bulunur; boyut/uzunluk gibi kaba ipuçları
+  yanlış ikon seçip oturumu işaretleyebildiği için kullanılmaz (Aniyomi/MyTV de böyle).
+  Gruplama ayrışmazsa yeni bir captcha istenir.
 * Form gövdesi **`FormBody`** ile gönderilir: NiceHttp'in `data` haritası
   `addEncoded` kullanıyor (değerleri önceden kodlanmış sayar) ve hash'lerde
   bozulma riski taşır.
@@ -70,5 +73,5 @@ kapısına düşülürse `TrAgeGate` formu otomatik onaylar.
 * `TrAnimeIzleRealMarkupTest` — **gerçek** kart/detay/bölüm/captcha HTML'i ile
   5 test (seçiciler bozulursa kırılır).
 * `TrCaptchaTest` — yanıt biçimleri, "farklı olan" ikon, tema, kapı işaretleri.
-* Derleme + JUnit: PR CI'ında (`Derleme Testi`).
+* Derleme + JUnit: PR CI'ında (`Derleme Testi`) — v45 için **yeşil** (3 dk 48 sn).
 * Canlı oynatma cihazda doğrulanmalı: `adb logcat | grep kraptor_TrAnime`.
