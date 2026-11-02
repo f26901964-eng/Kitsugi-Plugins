@@ -135,15 +135,15 @@
       "keyiflerolsun",
       "muratcesmecioglu"
     ],
-    "description": "en yeni dizileri güvenli ve hızlı şekilde sunar.",
+    "description": "Dizipal (dizipal1593.com): Next.js sözleşmesine göre yeniden yazıldı — trend/yeni bölüm/kategori listeleri, arama, dizi & film detayı, bölüm kaynakları ve şifreli oynatıcı çözümü.",
     "fileSize": 29471,
-    "repositoryUrl": "https://github.com/feroxx/Kekik-cloudstream",
+    "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
     "language": "tr",
     "tvTypes": [
       "TvSeries",
       "Movie"
     ],
-    "iconUrl": "https://www.google.com/s2/favicons?domain=dizipal.bid&sz=%size%",
+    "iconUrl": "https://www.google.com/s2/favicons?domain=https://dizipal1593.com&sz=%size%",
     "apiVersion": 1,
     "fileHash": "sha256-8af26d84991c1b65c848351b40c4761f1df621c3b26fc96862de8184dece5a5f"
   },

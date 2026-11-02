@@ -280,13 +280,24 @@ object DiziPalParser {
 
     // ── Oynatıcı sayfası ─────────────────────────────────────────────────────
 
+    //: Reklam/pre-roll akışı izleri — bunlar bölümün kendisi değil.
+    private val AD_HINTS = listOf("vast", "preroll", "pre-roll", "adserver", "doubleclick",
+        "googlesyndication", "/ads/", "ad_" , "banner", "jingle", "promo")
+
     /** Oynatıcı HTML'inde geçen m3u8/mp4 adresleri (kaçışlı `/` dahil). */
     fun mediaUrls(body: String): List<String> {
         val text = body.replace("\\/", "/")
         val m3u8 = Regex("""(?:https?:)?//[^\s"'<>\\]+\.m3u8[^\s"'<>\\]*""").findAll(text).map { it.value }.toList()
-        if (m3u8.isNotEmpty()) return m3u8.distinct()
+        if (m3u8.isNotEmpty()) return withoutAds(m3u8).distinct()
 
-        return Regex("""(?:https?:)?//[^\s"'<>\\]+\.mp4[^\s"'<>\\]*""").findAll(text).map { it.value }.distinct().toList()
+        val mp4 = Regex("""(?:https?:)?//[^\s"'<>\\]+\.mp4[^\s"'<>\\]*""").findAll(text).map { it.value }.toList()
+        return withoutAds(mp4).distinct()
+    }
+
+    private fun withoutAds(urls: List<String>): List<String> {
+        val clean = urls.filter { url -> AD_HINTS.none { hint -> url.lowercase().contains(hint) } }
+
+        return if (clean.isNotEmpty()) clean else urls
     }
 
     /** `<iframe src>` adresleri. */

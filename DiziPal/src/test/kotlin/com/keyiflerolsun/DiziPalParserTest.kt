@@ -146,6 +146,18 @@ class DiziPalParserTest {
     }
 
     @Test
+    fun `reklam akışını atlar`() {
+        val body = """
+            <script>
+            {vast: "https://ads.example.com/preroll/master.m3u8"}
+            {file: "https://cdn.example.com/hls/dizi/master.m3u8"}
+            </script>
+        """.trimIndent()
+
+        assertEquals(listOf("https://cdn.example.com/hls/dizi/master.m3u8"), DiziPalParser.mediaUrls(body))
+    }
+
+    @Test
     fun `kaçışlı rsc metni çözülür`() {
         val raw = """\"player\":{\"kind\":\"episode\"},\"x\":\"a\/b"""
 
