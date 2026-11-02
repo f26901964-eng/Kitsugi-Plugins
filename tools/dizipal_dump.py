@@ -41,6 +41,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.parse
 from typing import Iterable
 
@@ -94,17 +95,45 @@ def looks_like_site(text: str) -> bool:
 
 
 def save(name: str, text: str) -> str:
-    os.makedirs(OUT, exist_ok=True)
     path = os.path.join(OUT, name)
+    os.makedirs(os.path.dirname(path) or OUT, exist_ok=True)
     with open(path, "w", encoding="utf-8", errors="replace") as handle:
         handle.write(text or "")
     return path
 
 
+LAYER_ORDER = ("direct", "translate", "jina", "allorigins", "codetabs")
+
+
+def best_fetch(url: str, via: str | None = None, headers: dict | None = None):
+    """Katmanları sırayla dene; **site içeriği taşıyan** ilk cevabı döndür."""
+    layers = (via,) if via else LAYER_ORDER
+    fallback = None
+    for name in layers:
+        if name in ("translate", "jina"):
+            time.sleep(5)  # vekiller hız sınırı koyuyor
+        result = tizle_reach.fetch(url, via=name, headers=headers)
+        if result.status == 429:
+            time.sleep(10)
+            result = tizle_reach.fetch(url, via=name, headers=headers)
+        if result.status == 200 and result.text and not is_blocked(result.text):
+            fallback = fallback or result
+            if looks_like_site(result.text) or url.endswith((".js", ".txt", ".xml", ".json")):
+                return result
+        elif result.status == 200 and result.text and fallback is None:
+            fallback = result
+    return fallback
+
+
 def fetch_report(url: str, via: str | None = None, save_as: str | None = None,
                  headers: dict | None = None) -> str:
     """Tek adres çek, sonucu raporla, istenirse diske yaz. Dönen: gövde."""
-    result = tizle_reach.fetch(url, via=via, headers=headers)
+    result = best_fetch(url, via=via, headers=headers)
+    if result is None:
+        log(f"  {url} → hiçbir katman cevap vermedi")
+        if save_as:
+            save(save_as, "")
+        return ""
     flags = []
     if is_blocked(result.text):
         flags.append("ENGELLİ")
@@ -309,7 +338,25 @@ def main(argv: Iterable[str] | None = None) -> int:
     log(f"# Dizipal dökümü — {base}")
     log()
     via = reachability(base, args.fast)
-    log(f"\nSeçilen katman: **{via}**\n")
+    log(f"\nMatris kazananı: **{via}** (sayfa başına otomatik yedekleme açık)\n")
+    via = None
+
+    # ── Kullanıcı dökümleri (Drive) ve yapısal özet ─────────────────────────
+    log("## Drive dökümleri")
+    drive_sizes = fetch_drive_files(os.path.join(OUT, "drive"))
+    log("")
+    log("## Yapısal özet (Drive dökümleri)")
+    digest_lines: list[str] = []
+    for name in DRIVE_FILES:
+        path = os.path.join(OUT, "drive", name)
+        if not os.path.exists(path):
+            continue
+        body = open(path, encoding="utf-8", errors="replace").read()
+        digest_lines += digest(body, name)
+        for line in digest(body, name):
+            log(line)
+    save("DIGEST.md", "\n".join(digest_lines))
+
 
     targets = [
         ("/", "home.html"),
@@ -379,22 +426,6 @@ def main(argv: Iterable[str] | None = None) -> int:
         body = fetch_report(url, via=via, save_as="api/" + slugify(url))
         if body:
             log(f"    gövde: {body[:200].replace(chr(10), ' ')}")
-
-    # ── Kullanıcı dökümleri (Drive) ve yapısal özet ─────────────────────────
-    log("## Drive dökümleri")
-    drive_sizes = fetch_drive_files(os.path.join(OUT, "drive"))
-    log("")
-    log("## Yapısal özet (Drive dökümleri)")
-    digest_lines: list[str] = []
-    for name in DRIVE_FILES:
-        path = os.path.join(OUT, "drive", name)
-        if not os.path.exists(path):
-            continue
-        body = open(path, encoding="utf-8", errors="replace").read()
-        digest_lines += digest(body, name)
-        for line in digest(body, name):
-            log(line)
-    save("DIGEST.md", "\n".join(digest_lines))
 
     # ── Özet ────────────────────────────────────────────────────────────────
     summary = [
