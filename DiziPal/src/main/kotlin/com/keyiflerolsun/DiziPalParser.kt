@@ -16,6 +16,8 @@ import javax.crypto.spec.SecretKeySpec
  */
 object DiziPalParser {
 
+    // Ölçüm tarihi: 03.11.2026 (dizipal_dump + dizipal_player_probe)
+
     private const val PBKDF2_ITERATIONS = 999
     private const val PBKDF2_LENGTH     = 32
 
