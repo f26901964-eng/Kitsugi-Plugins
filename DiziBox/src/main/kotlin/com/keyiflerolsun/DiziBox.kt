@@ -218,7 +218,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
 
         // Tema değiştiyse ve grid-box yoksa slug kalıbından bölümleri topla.
         if (episodeList.isEmpty()) {
-            DiziBoxPlayerParser.episodeAnchors(document).forEach { anchor ->
+            DiziBoxPlayerParser.episodeAnchors(document, url).forEach { anchor ->
                 episodeList.add(newEpisode(anchor.url) {
                     this.name = "${anchor.season}. Sezon ${anchor.episode}. Bölüm"
                     this.season = anchor.season
@@ -567,6 +567,12 @@ private fun Element.toMainPageResult(): SearchResponse? {
             DiziBoxPlayerParser.playerIframes(pageDocument, pageUrl).forEach { iframe ->
                 Log.d("DZBX", "iframe » $iframe")
                 iframeDecode(pageUrl, iframe, subtitleCallback, linkCallback, visitedFrames)
+            }
+
+            // Oynatıcı menüsü (DBX Pro / Moly+ / Odnok) adresleri ayrı sarmalayıcılar olabilir.
+            DiziBoxPlayerParser.playerOptionUrls(pageDocument, pageUrl).forEach { option ->
+                Log.d("DZBX", "player option » $option")
+                iframeDecode(pageUrl, option, subtitleCallback, linkCallback, visitedFrames)
             }
         }
 

@@ -162,4 +162,57 @@ class DiziBoxPlayerParserTest {
             ),
         )
     }
+
+    @Test
+    fun readsLazyLoadedPlayerIframesAndPlayerMenuOptions() {
+        val document = Jsoup.parse(
+            """
+                <div id="Player">
+                    <iframe data-lazy-src="https://www.dizibox.live/player/king/king.php?v=lazy"></iframe>
+                </div>
+                <ul class="player-menu">
+                    <li data-src="/player/moly/moly.php?h=menu">Moly+</li>
+                    <li data-iframe="/embed/abc123">Odnok</li>
+                    <li data-src="https://www.dizibox.live/wp-content/uploads/afisler/poster.jpg">poster</li>
+                </ul>
+            """.trimIndent(),
+            episodeUrl,
+        )
+
+        assertEquals(
+            listOf("https://www.dizibox.live/player/king/king.php?v=lazy"),
+            DiziBoxPlayerParser.playerIframes(document, episodeUrl),
+        )
+        assertEquals(
+            listOf(
+                "https://www.dizibox.live/player/moly/moly.php?h=menu",
+                "https://www.dizibox.live/embed/abc123",
+            ),
+            DiziBoxPlayerParser.playerOptionUrls(document, episodeUrl),
+        )
+    }
+
+    @Test
+    fun scopesEpisodeListToTheLoadedSeriesAndIgnoresSidebarEpisodes() {
+        val document = Jsoup.parse(
+            """
+                <div class="episodes">
+                    <a href="https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/">1.Sezon 1.Bölüm</a>
+                    <a href="https://www.dizibox.live/visionquest-1-sezon-2-bolum-izle/">1.Sezon 2.Bölüm</a>
+                </div>
+                <aside>
+                    <a href="https://www.dizibox.live/other-show-3-sezon-4-bolum-izle/">Popüler</a>
+                </aside>
+            """.trimIndent(),
+            "https://www.dizibox.live/diziler/visionquest/",
+        )
+
+        val scoped = DiziBoxPlayerParser.episodeAnchors(document, "https://www.dizibox.live/diziler/visionquest/")
+        assertEquals(2, scoped.size)
+        assertEquals(1, scoped[0].season)
+        assertEquals(2, scoped[1].episode)
+
+        assertEquals("a-gentleman-in-moscow", DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/a-gentleman-in-moscow-hd-3/"))
+        assertEquals("visionquest", DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/visionquest/"))
+    }
 }

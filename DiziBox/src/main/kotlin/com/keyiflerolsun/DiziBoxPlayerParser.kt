@@ -63,11 +63,31 @@ internal object DiziBoxPlayerParser {
 
     /** Player iframe URLs in the episode's current #video-area. */
     fun playerIframes(document: Document, pageUrl: String): List<String> =
-        iframeUrls(document.select("#video-area iframe[src], #video-area iframe[data-src]"), pageUrl)
+        iframeUrls(document.select("#video-area iframe, #Player iframe, .video-area iframe"), pageUrl)
 
     /** Nested frames inside a player wrapper (for example King -> MolyStream). */
     fun nestedIframes(document: Document, pageUrl: String): List<String> =
-        iframeUrls(document.select("iframe[src], iframe[data-src]"), pageUrl)
+        iframeUrls(document.select("iframe"), pageUrl)
+
+    /**
+     * Oynatıcı seçim menüsündeki (DBX Pro / Moly+ / Odnok gibi) öğelerin adresleri.
+     * Bu öğeler çoğu zaman `<a>` değil; adres `data-*` veya `value` özniteliğinde
+     * tutuluyor. Yalnızca oynatıcıya benzeyen adresler alınır (bölüm sayfası değil).
+     */
+    fun playerOptionUrls(document: Document, pageUrl: String): List<String> {
+        val playerLike = Regex(
+            """(?i)/player/|/embed/|king\.php|moly\.php|haydi\.php|sheila""",
+        )
+        val attributeNames = listOf("data-src", "data-url", "data-iframe", "data-player", "data-embed", "data-link", "value")
+        return document.select("[data-src], [data-url], [data-iframe], [data-player], [data-embed], [data-link], option[value]")
+            .asSequence()
+            .filterNot { it.tagName().equals("iframe", ignoreCase = true) }
+            .flatMap { element -> attributeNames.asSequence().map { element.attr(it) } }
+            .mapNotNull { resolveUrl(it, pageUrl) }
+            .filter { playerLike.containsMatchIn(it) }
+            .distinct()
+            .toList()
+    }
 
     /** Alternate player pages exposed by the current selector and the legacy toolbar. */
     fun alternatePlayerPages(document: Document, pageUrl: String): List<String> {
@@ -257,17 +277,37 @@ internal object DiziBoxPlayerParser {
      * Bölüm listesi `article.grid-box` dışındaki temalarda da çalışsın diye
      * `-sezon-N-bolum-M(-izle)` kalıbına uyan tüm çapaları toplar.
      */
-    fun episodeAnchors(document: Document): List<EpisodeAnchor> {
+    fun episodeAnchors(document: Document, seriesUrl: String? = null): List<EpisodeAnchor> {
         val slug = Regex("""-sezon-(\d+)-bolum-(\d+)(?:-izle)?/?""", RegexOption.IGNORE_CASE)
-        val seen = LinkedHashMap<String, EpisodeAnchor>()
+        val all = LinkedHashMap<String, EpisodeAnchor>()
         document.select("a[href]").forEach { anchor ->
             val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
             val match = slug.find(href) ?: return@forEach
             val season = match.groupValues[1].toIntOrNull() ?: return@forEach
             val episode = match.groupValues[2].toIntOrNull() ?: return@forEach
-            seen.putIfAbsent(href, EpisodeAnchor(href, season, episode))
+            all.putIfAbsent(href, EpisodeAnchor(href, season, episode))
         }
-        return seen.values.toList()
+
+        // Sayfa kenar çubuğunda (Popüler Bölümler, Gündemdekiler) başka dizilerin bölümleri
+        // de bulunur. Dizi adresi biliniyorsa yalnızca o dizinin bölüm slug'ına sahip olanları al.
+        val base = seriesUrl?.let { seriesSlugBase(it) } ?: return all.values.toList()
+        val own = all.values.filter { episode ->
+            val path = runCatching { URI(episode.url).path.orEmpty() }.getOrDefault("")
+            path.trim('/').substringAfterLast('/').startsWith("$base-", ignoreCase = true)
+        }
+        return if (own.isNotEmpty()) own else all.values.toList()
+    }
+
+    /** `/diziler/a-gentleman-in-moscow-hd-3/` → `a-gentleman-in-moscow` (bölüm slug'ının başı). */
+    fun seriesSlugBase(seriesUrl: String): String? {
+        var slug = runCatching { URI(seriesUrl).path.orEmpty() }.getOrDefault("")
+            .trim('/').substringAfterLast('/')
+            .takeIf { it.isNotBlank() } ?: return null
+        val suffix = Regex("""-(?:izle|hd)(?:-\d+)?$""", RegexOption.IGNORE_CASE)
+        while (suffix.containsMatchIn(slug)) {
+            slug = suffix.replace(slug, "")
+        }
+        return slug.takeIf { it.isNotBlank() }
     }
 
     /**
@@ -357,7 +397,9 @@ internal object DiziBoxPlayerParser {
 
     private fun iframeUrls(elements: List<Element>, pageUrl: String): List<String> =
         elements.mapNotNull { iframe ->
-            val candidates = listOf(iframe.attr("src"), iframe.attr("data-src"))
+            // Tembel yükleme (lazy-load) eklentileri gerçek adresi farklı özniteliğe koyabiliyor.
+            val candidates = listOf("src", "data-src", "data-lazy-src", "data-litespeed-src")
+                .map { iframe.attr(it) }
             candidates.firstNotNullOfOrNull { candidate -> resolveUrl(candidate, pageUrl) }
         }.filterNot { it.contains("\${") || it.contains("{{") }.distinct()
 
