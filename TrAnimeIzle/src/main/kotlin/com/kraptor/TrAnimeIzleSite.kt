@@ -37,7 +37,9 @@ internal data class TrDetail(
     val typeText: String?,
     val totalEpisodes: Int?,
     val fansubs: List<String>,
-    val episodes: List<TrEpisode>
+    val episodes: List<TrEpisode>,
+    /** "Bölüm Süresi" (dakika) — bulunamazsa null. */
+    val durationMinutes: Int? = null
 )
 
 /** Fansub (çevirmen) seçicisi: `data-fid`. */
@@ -305,14 +307,23 @@ internal object TrAnimeIzleSite {
             ) tags.add(text)
         }
 
-        val year = infoValue(doc, "Yapım Yılı")?.let { Regex("\\b(19|20)\\d{2}\\b").find(it)?.value?.toIntOrNull() }
+        val year = (infoValue(doc, "Yapım Yılı") ?: infoValue(doc, "Yapım"))
+            ?.let { Regex("\\b(19|20)\\d{2}\\b").find(it)?.value?.toIntOrNull() }
         val score = firstText(doc, "span.dt_rating_vgs", "div.rating span", "span.imdb-point")
             ?.let { Regex("\\d{1,2}(?:[.,]\\d)?").find(it)?.value?.replace(',', '.')?.toDoubleOrNull() }
             ?.takeIf { it in 0.1..10.0 }
         val typeText = infoValue(doc, "Anime Tipi") ?: infoValue(doc, "Tür")
         val totalEpisodes = infoValue(doc, "Bölüm Sayısı")?.substringBefore("/")?.trim()?.toIntOrNull()
+            ?: Regex("(?i)toplam\\s*(\\d{1,4})")
+                .find(doc.select("p.animeDetail-desc").text())
+                ?.groupValues?.getOrNull(1)?.toIntOrNull()
         val fansubs = doc.select("dd:contains(Fansublar) + dt a, div.fansub-list a").map { it.text().trim() }
             .filter { it.isNotBlank() }
+
+        // "Bölüm Süresi: 24 dk" ya da özet satırı "Toplam 25 / 25 ( 24 dk )".
+        val duration = infoValue(doc, "Bölüm Süresi")?.let { firstInt(it) }
+            ?: infoValue(doc, "Süre")?.let { firstInt(it) }
+            ?: firstInt(doc.select("p.animeDetail-desc").text())
 
         return TrDetail(
             title = title,
@@ -324,7 +335,8 @@ internal object TrAnimeIzleSite {
             typeText = typeText,
             totalEpisodes = totalEpisodes,
             fansubs = fansubs,
-            episodes = parseEpisodes(doc, base, pageUrl, title)
+            episodes = parseEpisodes(doc, base, pageUrl, title),
+            durationMinutes = duration?.takeIf { it in 1..300 }
         )
     }
 
@@ -346,6 +358,7 @@ internal object TrAnimeIzleSite {
             if (!url.startsWith("http")) return
             val rawName = firstNonNull(
                 anchor.selectFirst("div.etitle span")?.text(),
+                anchor.selectFirst("p.title > span")?.text(),
                 anchor.selectFirst("p.title")?.text(),
                 anchor.selectFirst("span.title")?.text(),
                 anchor.selectFirst("span")?.text(),
@@ -365,13 +378,14 @@ internal object TrAnimeIzleSite {
                 if (TrAnimeIzleMatch.score(pageKey.replace('-', ' '), key.replace('-', ' ')) < 0.6) return
             }
             if (found.containsKey(number)) return
-            val cleaned = TrAnimeIzleMatch.cleanTitle(rawName)
+            // Ad her zaman "N. Bölüm": kart metni seri adını da taşıyor ve
+            // temizlendiğinde TÜM bölümler aynı ada sahip oluyordu.
             val date = anchor.selectFirst("small.author, small, time, .date")?.text()?.trim()
             found[number] = TrEpisode(
                 url = url,
                 number = number,
                 season = TrAnimeIzleMatch.seasonOf(rawName) ?: pageSeason,
-                name = cleaned?.takeIf { it.length in 2..120 } ?: "$number. Bölüm",
+                name = "$number. Bölüm",
                 date = date,
                 poster = imageUrl(anchor.selectFirst("img"))
             )
@@ -413,6 +427,9 @@ internal object TrAnimeIzleSite {
 
     private fun firstNonNull(vararg values: String?): String? =
         values.firstOrNull { !it.isNullOrBlank() }?.trim()
+
+    private fun firstInt(text: String): Int? =
+        Regex("(\\d{1,3})").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
 
     // ------------------------------------------------------------------
     // Oynatıcı zinciri (saf metin işlemleri)

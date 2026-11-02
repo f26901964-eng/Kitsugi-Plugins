@@ -73,6 +73,17 @@ class TrAnimeIzleMatchTest {
             TrAnimeIzleMatch.toSeriesUrl("$base/the-apothecary-diaries-3-sezon-12-bolum-izle")
         )
         assertNull(TrAnimeIzleMatch.toSeriesUrl("$base/anime/one-piece-izle"))
+        // Sezon eki atılmış varyant yalnızca yedek olarak üretilir.
+        assertEquals(
+            "$base/anime/the-apothecary-diaries-izle",
+            TrAnimeIzleMatch.alternateSeriesUrl("$base/the-apothecary-diaries-3-sezon-12-bolum-izle")
+        )
+        assertNull(TrAnimeIzleMatch.alternateSeriesUrl("$base/one-piece-1120-bolum-izle"))
+        // Anahtar sezon ekini taşımaz: sezon bölümleri tek seride buluşur.
+        assertEquals(
+            TrAnimeIzleMatch.seriesKey("$base/anime/the-apothecary-diaries-izle"),
+            TrAnimeIzleMatch.seriesKey("$base/the-apothecary-diaries-3-sezon-12-bolum-izle")
+        )
     }
 
     // ------------------------------------------------------------------
