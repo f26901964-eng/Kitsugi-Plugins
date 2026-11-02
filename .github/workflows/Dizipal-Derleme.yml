@@ -8,6 +8,7 @@ on:
       - arena/e43f167a-kitsugi-plugins
     paths:
       - "DiziPal/**"
+      - ".github/workflows/Dizipal-Derleme.yml"
   workflow_dispatch:
 
 permissions:
