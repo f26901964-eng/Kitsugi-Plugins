@@ -340,7 +340,7 @@ jobs:
           TEST_TASKS=""
           for dir in $TEST_PLUGINS; do
             if [ -d "$dir/src/test" ]; then
-              TEST_TASKS="$TEST_TASKS :$dir:test"
+              TEST_TASKS="$TEST_TASKS :$dir:testDebugUnitTest"
               echo "Test edilecek: $dir"
             fi
           done
@@ -378,12 +378,39 @@ jobs:
 
           echo "✅ Birim testleri başarılı"
 
+      - name: Anizm paket ve manifest tutarlılığı
+        if: success()
+        run: |
+          python3 - <<'PY'
+          import json, re, zipfile
+          from pathlib import Path
+          cs3 = Path("Anizm/build/Anizm.cs3")
+          if not cs3.exists():
+              print("Anizm bu koşuda derlenmedi; paket kontrolü atlandı.")
+              raise SystemExit(0)
+          source = Path("Anizm/build.gradle.kts").read_text()
+          version = int(re.search(r"^version\s*=\s*(\d+)", source, re.M).group(1))
+          with zipfile.ZipFile(cs3) as archive:
+              assert "classes.dex" in archive.namelist()
+              manifest = json.loads(archive.read("manifest.json"))
+          assert manifest["name"] == "Anizm", manifest
+          assert manifest["version"] == version, (manifest["version"], version)
+          plugins = json.loads(Path("build/plugins.json").read_text())
+          entries = [p for p in plugins if (p.get("internalName") or p.get("name")) == "Anizm"]
+          assert len(entries) == 1, entries
+          assert entries[0]["version"] == version, entries[0]
+          print(f"Anizm v{version}: .cs3 iç manifesti ve makePluginsJson sürümü tutarlı; boyut={cs3.stat().st_size} B")
+          PY
+
       - name: Derlenen eklentileri indirilebilir artifact olarak ekle
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Kitsugi-Plugins-${{ github.run_id }}
           path: |
+            Anizm/build/Anizm.cs3
+            build/plugins.json
+            build/repo.json
             DiziBox/build/DiziBox.cs3
             HDFilmIzle/build/HDFilmIzle.cs3
             TrAnimeIzle/build/TrAnimeIzle.cs3

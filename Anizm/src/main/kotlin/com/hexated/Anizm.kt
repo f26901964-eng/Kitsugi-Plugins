@@ -916,6 +916,20 @@ class Anizm : MainAPI(), AnizmHttp {
     override suspend fun get(url: String, referer: String?): String? =
         getText(url, referer ?: mainUrl + "/", xhr = false, timeout = 12L)
 
+    override suspend fun inspectDrive(url: String, referer: String): AnizmDriveResponse = try {
+        val response = app.get(
+            url,
+            headers = headers(referer, xhr = false) + mapOf("Range" to "bytes=0-262143"),
+            timeout = 12L
+        )
+        inspectDriveResponse(response.okhttpResponse)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(LOG_TAG, "Drive probe hatası (${e.javaClass.simpleName})")
+        AnizmDriveResponse(AnizmDriveKind.UNKNOWN)
+    }
+
     /**
      * v3 kaynak uçları (`/bolum/{ep}/cevirmen/{id}`, `/video/{vid}`) AJAX ile
      * beslenir: `X-Requested-With` + `Accept: application/json` + `Sec-Fetch-*: same-origin`.
@@ -973,9 +987,7 @@ class Anizm : MainAPI(), AnizmHttp {
 
     companion object {
         private const val LOG_TAG = "hexated_Anizm"
-        private const val UA =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+        private const val UA = AnizmPlaybackPolicy.USER_AGENT
 
         private const val PLAYER_HOST = "https://anizmplayer.com"
 

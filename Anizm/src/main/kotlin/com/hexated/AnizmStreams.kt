@@ -1,11 +1,11 @@
 package com.hexated
 
 import com.lagradost.api.Log
+import com.lagradost.cloudstream3.AudioFile
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.newSubtitleFile
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.utils.M3u8Helper
 import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
@@ -55,7 +55,7 @@ internal class AnizmStreams(
     /** Çözülecek oynatıcı adayı. */
     private data class Source(val fansub: String, val host: String, val url: String)
 
-    private val emitted: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
+    private val emitted = mutableSetOf<AnizmStreamIdentity>()
     private val seenSubs: MutableSet<String> = Collections.synchronizedSet(LinkedHashSet())
     private val emitLock = Mutex()
 
@@ -308,7 +308,7 @@ internal class AnizmStreams(
         return AnizmApi.parsePlayerUrl(body, videoUrl)
     }
 
-    private suspend fun resolveTarget(
+    internal suspend fun resolveTarget(
         rawUrl: String,
         referer: String,
         label: String,
@@ -319,6 +319,13 @@ internal class AnizmStreams(
         val url = normalize(AnizmSite.absolute(referer, rawUrl) ?: rawUrl)
         if (url.isEmpty()) return false
 
+        // Doğrudan MP4 zaten medyadır; sayfa kimliğinden embed adresi UYDURMA.
+        // Çözümleme zincirinin verdiği özgün Referer'ı koru, yalnız host Origin'ini ekle.
+        if (AnizmPlaybackPolicy.isSendvidHost(url) && isDirectMedia(url)) {
+            emitMedia(url, label, referer, callback, trusted = true,
+                extraHeaders = mapOf("Origin" to "https://sendvid.com"))
+            return true
+        }
         if (isDirectMedia(url)) {
             emitMedia(url, label, referer, callback)
             return true
@@ -338,19 +345,21 @@ internal class AnizmStreams(
         // Anizm'in KENDİ oynatıcısı (pl.puffytr.tr) — HLS master'ı doğrudan verir.
         if (resolveSitePlayer(url, label, callback)) return true
 
+        // Host'a özel yollar, genel sayfa tarayıcısından ÖNCE çalışır. Özellikle
+        // Drive /uc bir video gövdesidir; genel http.get ile metne alınmamalıdır.
+        if (AnizmPlaybackPolicy.isDriveHost(url)) {
+            // Onaylanmış kota/hata HTML'sinden sonra genel extractor'a düşülmez.
+            return resolveGoogleDrive(url, label, callback)
+        }
+        if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
+        if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
+        if (AnizmPlaybackPolicy.isSendvidHost(url) && resolveSendvid(url, label, callback)) return true
+
         // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
         if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
 
         // Sistenn ailesi (uns.bio / rpmvid / strp2p …): AES'li /api/v1/video?…
         if (resolveSistennPlayer(url, referer, label, callback)) return true
-
-        // Host'a özel yerel çözücüler (extractor katmanı bozulsa da çalışır).
-        if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
-        if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
-
-        if (url.contains("drive.google") || url.contains("docs.google")) {
-            if (resolveGoogleDrive(url, label, referer, callback)) return true
-        }
 
         if (tryExtractors(url, referer, label, subtitleCallback, callback)) return true
         if (depth >= 2) return false
@@ -396,9 +405,42 @@ internal class AnizmStreams(
     // Yerel host çözücüleri (ok.ru, sibnet)
     // ------------------------------------------------------------------
 
-    private fun isOkRu(url: String): Boolean {
-        val host = runCatching { java.net.URI(url).host.orEmpty() }.getOrDefault("")
-        return host.endsWith("ok.ru") || host.endsWith("odnoklassniki.ru")
+    private fun isOkRu(url: String): Boolean = AnizmPlaybackPolicy.isOkRuHost(url)
+
+    /**
+     * SendVid'in güncel MP4 sayfası. Üst akıştaki Sendvid extractor'ı yalnız HLS
+     * meta alanını açıyor; `video_source` / `<source>` MP4 yolunu burada da okuyoruz.
+     * Boyut/süre tek başına hata klibi kanıtı değildir: geçerli MP4 filtrelenmez.
+     */
+    private suspend fun resolveSendvid(
+        url: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val embed = AnizmPlaybackPolicy.sendvidEmbed(url) ?: return false
+        val page = http.get(embed, url) ?: return false
+        val doc = Jsoup.parse(page, embed)
+        val candidates = buildList {
+            for (selector in listOf(
+                "meta[property=og:video:secure_url]", "meta[property=og:video]",
+                "video[src]", "video source[src]", "source[src]"
+            )) {
+                doc.select(selector).forEach { el ->
+                    add(el.attr("content").ifBlank { el.attr("src") })
+                }
+            }
+            Regex("""(?:video_source|file)\s*[:=]\s*["']([^"']+)["']""")
+                .findAll(page).forEach { add(it.groupValues[1]) }
+        }
+        var found = false
+        for (raw in candidates) {
+            val media = normalize(AnizmSite.absolute(embed, raw) ?: raw)
+            if (!AnizmPlaybackPolicy.isSendvidHost(media) || !isDirectMedia(media)) continue
+            emitMedia(media, label, embed, callback, trusted = true,
+                extraHeaders = mapOf("Origin" to "https://sendvid.com"))
+            found = true
+        }
+        return found
     }
 
     /**
@@ -721,55 +763,71 @@ internal class AnizmStreams(
     private suspend fun resolveGoogleDrive(
         url: String,
         label: String,
-        referer: String,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        val alreadyDownload = AnizmPlaybackPolicy.isDriveDownload(url)
         val fileId = Regex("""/file/d/([A-Za-z0-9_-]{6,})""").find(url)
             ?.groupValues?.getOrNull(1)
             ?: Regex("""[?&]id=([A-Za-z0-9_-]{6,})""").find(url)
                 ?.groupValues?.getOrNull(1)
-            ?: return false
 
-        // 0) Drive'ın KENDİ oynatma API'si (indirme kotasına girmez).
-        //    Kanıt: `preview` sayfasındaki `AIza…` anahtarı +
-        //    content-workspacevideo-pa.googleapis.com/v1/drive/media/<id>/playback
-        //    → mediaStreamingData.formatStreamingData.progressiveTranscodes[].url
-        val playback = drivePlaybackStreams(fileId)
-        if (playback.isNotEmpty()) {
-            Log.d(TAG, "gdrive: oynatma API'si ${playback.size} akış verdi ($fileId)")
-            for ((height, mediaUrl) in playback) {
-                emitMedia(
-                    mediaUrl,
-                    if (height > 0) "$label ${height}p" else label,
-                    "https://drive.google.com/",
-                    callback,
-                    trusted = true
-                )
+        // Existing /uc or /download links may already contain confirmation/security
+        // tokens. Never reconstruct them from just an id or discard their query.
+        if (!alreadyDownload && fileId != null) {
+            val playback = drivePlaybackStreams(fileId)
+            if (playback.isNotEmpty()) {
+                for ((height, mediaUrl) in playback) {
+                    emitMedia(mediaUrl, if (height > 0) "$label ${height}p" else label,
+                        "https://drive.google.com/", callback, trusted = true)
+                }
+                return true
             }
-            return true
         }
-
-        // 1) Uyarı sayfasını çek ve gizli form alanlarından gerçek adresi kur.
-        val warningPage = http.get(
-            "https://drive.usercontent.google.com/download?id=$fileId&export=download",
-            "https://drive.google.com/"
-        )
-        val resolved = warningPage?.let { driveDownloadUrl(it) }
-        if (resolved != null) {
-            Log.d(TAG, "gdrive: form çözümlendi ($fileId)")
-            emitMedia(resolved, label, "https://drive.google.com/", callback, trusted = true)
-            return true
+        val download = if (alreadyDownload) url else {
+            if (fileId == null) return false
+            "https://drive.usercontent.google.com/download?id=$fileId&export=download"
         }
-
-        // 2) Uyarı sayfası yoksa dosya doğrudan iniyordur.
-        emitMedia(
-            "https://drive.usercontent.google.com/download?id=$fileId&export=download&confirm=t",
-            label,
-            "https://drive.google.com/",
-            callback,
-            trusted = true
-        )
+        val first = http.inspectDrive(download, "https://drive.google.com/")
+        when (first.kind) {
+            AnizmDriveKind.MEDIA, AnizmDriveKind.HLS, AnizmDriveKind.DASH -> {
+                emitDriveMedia(first, download, label, callback)
+                return true
+            }
+            AnizmDriveKind.UNKNOWN -> {
+                // An explicit link can still work in the player (e.g. with a later
+                // cookie); don't invent a fresh link when the probe failed.
+                if (alreadyDownload) {
+                    emitMedia(download, label, "https://drive.google.com/", callback, trusted = true)
+                    return true
+                }
+                return false
+            }
+            AnizmDriveKind.DEAD -> return false
+            AnizmDriveKind.HTML -> Unit
+        }
+        val confirmed = first.body?.let { driveDownloadUrl(it, first.finalUrl ?: download) } ?: return false
+        val checked = http.inspectDrive(confirmed, "https://drive.google.com/")
+        if (checked.kind == AnizmDriveKind.HTML || checked.kind == AnizmDriveKind.DEAD) {
+            Log.d(TAG, "gdrive: onay sonrası dosya yerine HTML/hata döndü")
+            return false
+        }
+        emitDriveMedia(checked, confirmed, label, callback)
         return true
+    }
+
+    private suspend fun emitDriveMedia(
+        response: AnizmDriveResponse,
+        fallbackUrl: String,
+        label: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val type = when (response.kind) {
+            AnizmDriveKind.HLS -> ExtractorLinkType.M3U8
+            AnizmDriveKind.DASH -> ExtractorLinkType.DASH
+            else -> null
+        }
+        emitMedia(response.finalUrl ?: fallbackUrl, label, "https://drive.google.com/",
+            callback, trusted = true, type = type)
     }
 
     /**
@@ -816,22 +874,44 @@ internal class AnizmStreams(
      * gerçek indirme adresine çevirir. Alternatif olarak sayfada hazır duran
      * `drive.usercontent.google.com/download?…` bağlantısı da kabul edilir.
      */
-    private fun driveDownloadUrl(body: String): String? {
+    internal fun driveDownloadUrl(body: String, pageUrl: String): String? {
         if (body.isBlank()) return null
-        val unescaped = body.replace("&amp;", "&").replace("\\/", "/")
-        val ready = Regex("""(https://drive\.usercontent\.google\.com/download\?[^"'<>\\\s]+)""")
-            .find(unescaped)?.groupValues?.getOrNull(1)
-        if (ready != null && ready.contains("confirm=")) return ready
-        val action = Regex("""<form[^>]+action="(https://drive\.usercontent\.google\.com/download[^"]*)"""")
-            .find(unescaped)?.groupValues?.getOrNull(1) ?: return ready
-        val fields = Regex("""<input[^>]+name="([^"]+)"[^>]*value="([^"]*)"""")
-            .findAll(unescaped)
-            .associate { it.groupValues[1] to it.groupValues[2] }
-        if (fields.isEmpty()) return ready
-        val query = fields.entries.joinToString("&") {
-            "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}"
+        val doc = Jsoup.parse(body, pageUrl)
+        for (form in doc.select("form[action]")) {
+            if (form.attr("method").equals("post", true)) continue
+            val action = form.absUrl("action").substringBefore('#')
+            if (!action.startsWith("https://", true) || !AnizmPlaybackPolicy.isDriveDownload(action)) continue
+            val fields = form.select("input[name]").filter { input ->
+                val type = input.attr("type").lowercase(java.util.Locale.ROOT)
+                type !in setOf("submit", "button", "reset", "image", "file") &&
+                    ((type != "checkbox" && type != "radio") || input.hasAttr("checked"))
+            }.associate { it.attr("name") to it.attr("value") }
+            if (fields.isEmpty()) continue
+            return mergeFormQuery(action, fields)
         }
-        return action + (if (action.contains('?')) "&" else "?") + query
+        // Some Drive pages expose the already confirmed link instead of a form.
+        for (anchor in doc.select("a[href]")) {
+            val target = anchor.absUrl("href")
+            if (target.startsWith("https://", true) && AnizmPlaybackPolicy.isDriveDownload(target) &&
+                AnizmPlaybackPolicy.queryParameter(target, "confirm") != null) return target
+        }
+        return null
+    }
+
+    /** GET formundaki alanlar action sorgusundaki aynı adların yerine geçer. */
+    internal fun mergeFormQuery(action: String, fields: Map<String, String>): String {
+        val uri = java.net.URI(action)
+        val query = linkedMapOf<String, String>()
+        uri.rawQuery.orEmpty().split('&').filter { it.isNotEmpty() }.forEach { part ->
+            val name = java.net.URLDecoder.decode(part.substringBefore('='), "UTF-8")
+            val value = java.net.URLDecoder.decode(part.substringAfter('=', ""), "UTF-8")
+            query[name] = value
+        }
+        query.putAll(fields)
+        val encoded = query.entries.joinToString("&") {
+            URLEncoder.encode(it.key, "UTF-8") + "=" + URLEncoder.encode(it.value, "UTF-8")
+        }
+        return action.substringBefore('?').substringBefore('#') + if (encoded.isEmpty()) "" else "?$encoded"
     }
 
     private fun isSibnet(url: String): Boolean =
@@ -852,7 +932,8 @@ internal class AnizmStreams(
         val json = runCatching { JSONObject(body.trim()) }.getOrNull() ?: return false
         var found = false
         json.optString("hlsManifestUrl").takeIf { it.startsWith("http") }?.let { hls ->
-            emitMedia(hls, label, "$OKRU/", callback, trusted = true)
+            emitMedia(hls, label, "$OKRU/", callback, trusted = true,
+                extraHeaders = mapOf("Origin" to OKRU))
             found = true
         }
         json.optJSONArray("videos")?.let { videos ->
@@ -866,7 +947,8 @@ internal class AnizmStreams(
                     if (name.isBlank()) label else "$label • $name",
                     "$OKRU/",
                     callback,
-                    trusted = true
+                    trusted = true,
+                    extraHeaders = mapOf("Origin" to OKRU)
                 )
                 found = true
             }
@@ -1052,17 +1134,31 @@ internal class AnizmStreams(
         } catch (e: Throwable) {
             Log.d(TAG, "loadExtractor hatası (${url.take(90)}): ${e.message}")
         }
-        if (bag.isEmpty()) return false
-        for (link in bag) {
+        return emitExtractorLinks(bag, label, referer, callback)
+    }
+
+    /** Extractor sözleşmesindeki tüm oynatma meta verisini korur. */
+    internal suspend fun emitExtractorLinks(
+        links: List<ExtractorLink>,
+        label: String,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (links.isEmpty()) return false
+        for (link in links) {
+            val ref = AnizmPlaybackPolicy.header(link.headers, "Referer")
+                ?: link.referer.ifBlank { referer }
+            val extras = if (AnizmPlaybackPolicy.needsEmbedOrigin(link.url) &&
+                AnizmPlaybackPolicy.header(link.headers, "Origin") == null
+            ) {
+                AnizmPlaybackPolicy.origin(ref)?.let { mapOf("Origin" to it) }.orEmpty()
+            } else emptyMap()
             emitLink(
-                link.url,
-                label,
-                referer,
-                link.type,
-                link.quality,
-                link.headers,
-                callback,
-                trusted = true
+                link.url, label, ref, link.type, link.quality,
+                AnizmPlaybackPolicy.mergeHeaders(extras, link.headers),
+                callback, trusted = true,
+                audioTracks = link.audioTracks,
+                extractorData = link.extractorData
             )
         }
         return true
@@ -1073,51 +1169,28 @@ internal class AnizmStreams(
         label: String,
         referer: String,
         callback: (ExtractorLink) -> Unit,
-        trusted: Boolean = false
+        trusted: Boolean = false,
+        extraHeaders: Map<String, String>? = null,
+        type: ExtractorLinkType? = null
     ) {
         val url = normalize(AnizmSite.absolute(referer, rawUrl) ?: rawUrl)
         if (url.isEmpty()) return
-        val isHls = url.substringBefore('?').lowercase().let { it.endsWith(".m3u8") || it.contains(".m3u8") }
-        if (isHls) {
-            val variants = try {
-                withTimeoutOrNull(8_000) {
-                    M3u8Helper.generateM3u8(
-                        pluginName,
-                        url,
-                        referer,
-                        headers = streamHeaders(referer)
-                    )
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                Log.d(TAG, "m3u8 varyant çözümü başarısız: ${e.message}")
-                null
-            }
-            if (!variants.isNullOrEmpty()) {
-                for (variant in variants) {
-                    val qualityLabel = if (variant.quality in 144..4320) "$label ${variant.quality}p" else label
-                    emitLink(
-                        variant.url,
-                        qualityLabel,
-                        referer,
-                        ExtractorLinkType.M3U8,
-                        variant.quality,
-                        variant.headers,
-                        callback,
-                        trusted = true
-                    )
-                }
-                return
-            }
+        val path = url.substringBefore('?').lowercase()
+        val mediaType = type ?: when {
+            path.contains(".m3u8") -> ExtractorLinkType.M3U8
+            path.endsWith(".mpd") -> ExtractorLinkType.DASH
+            else -> ExtractorLinkType.VIDEO
         }
+        // Emit the master, not separately expanded HLS variants. Variant-only
+        // playlists can omit external audio groups and signed query parameters;
+        // the player can select quality directly from the complete master.
         emitLink(
             url,
             label,
             referer,
-            if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO,
+            mediaType,
             null,
-            null,
+            extraHeaders,
             callback,
             trusted = trusted
         )
@@ -1137,10 +1210,12 @@ internal class AnizmStreams(
         quality: Int?,
         extraHeaders: Map<String, String>?,
         callback: (ExtractorLink) -> Unit,
-        trusted: Boolean = false
+        trusted: Boolean = false,
+        audioTracks: List<AudioFile> = emptyList(),
+        extractorData: String? = null
     ) {
         val url = normalize(rawUrl)
-        if (url.isEmpty() || !emitted.add(url)) return
+        if (url.isEmpty()) return
         // EMİSYON KURALI: sayfa/embed adresi ASLA yayınlanmaz. Yayınlanırsa
         // uygulama onu kendi derin tarayıcısına (EmbedMediaScanner) veriyor ve
         // tarayıcı yolu patladığında kartta KTS-CSP-9110 görünüyor (v31'de yaşandı).
@@ -1148,8 +1223,9 @@ internal class AnizmStreams(
             Log.d(TAG, "medya olmayan adres yayınlanmadı (9110 koruması): ${url.take(110)}")
             return
         }
-        val ref = referer.ifBlank { base() + "/" }
-        val headers = streamHeaders(ref) + (extraHeaders ?: emptyMap())
+        val ref = AnizmPlaybackPolicy.header(extraHeaders.orEmpty(), "Referer")
+            ?: referer.ifBlank { base() + "/" }
+        val headers = AnizmPlaybackPolicy.mergeHeaders(streamHeaders(ref), extraHeaders.orEmpty())
         val link = newExtractorLink(
             source = pluginName,
             name = label.ifBlank { pluginName },
@@ -1159,8 +1235,21 @@ internal class AnizmStreams(
             this.referer = ref
             this.headers = headers
             this.quality = quality ?: getQualityFromName(label)
+            this.audioTracks = audioTracks
+            this.extractorData = extractorData
         }
+        val identity = AnizmStreamIdentity(
+            url = url,
+            type = type,
+            quality = link.quality,
+            headers = AnizmPlaybackPolicy.canonicalHeaders(headers),
+            audioTracks = audioTracks.map {
+                it.url to AnizmPlaybackPolicy.canonicalHeaders(it.headers.orEmpty())
+            },
+            extractorData = extractorData
+        )
         emitLock.withLock {
+            if (!emitted.add(identity)) return
             emittedCount += 1
             callback(link)
         }
@@ -1333,8 +1422,7 @@ internal class AnizmStreams(
         )
         private const val OKRU = "https://ok.ru"
         private const val SIBNET = "https://video.sibnet.ru"
-        private const val UA =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"
+        private const val UA = AnizmPlaybackPolicy.USER_AGENT
         /** Tek bir kaynağın (video → oynatıcı → akış) üst sınırı. */
         private const val PER_ITEM_MS = 18_000L
 
@@ -1359,6 +1447,9 @@ internal interface AnizmHttp {
 
     /** Belge GET. */
     suspend fun get(url: String, referer: String? = null): String?
+
+    /** Bounded Drive response inspection; never buffer a binary download as text. */
+    suspend fun inspectDrive(url: String, referer: String): AnizmDriveResponse
 
     /** XHR GET (JSON uçları: `data-sources`, `/video/{id}`). */
     suspend fun getXhr(url: String, referer: String? = null): String?

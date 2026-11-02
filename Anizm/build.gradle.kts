@@ -1,4 +1,4 @@
-version = 20
+version = 21
 
 cloudstream {
     authors     = listOf("hexated", "byayzen")
@@ -18,6 +18,7 @@ cloudstream {
 }
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
 
 // Canlı prob (LiveChainProbeTest) çıktısı CI günlüğünde/PR yorumunda görünsün.

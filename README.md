@@ -11,7 +11,7 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
-| Anime | **Anizm** | 5 |
+| Anime | **Anizm** | 21 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Anime | **AnimeciX** | 24 |
 | Anime | **TrAnimeIzle** | 44 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Film / Dizi | **FilmMakinesi** | 72 |
@@ -19,6 +19,11 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
+> **Anizm v21 (kaynak kodu):** Aincrad/OK.ru HLS master, SendVid MP4, YourUpload
+> Referer/başlık/ses meta verisi ve Google Drive onay/HTML yanıtları için düzeltmeler içerir.
+> Ayrıntı ve doğrulama sınırları: [`research/anizm-playback-fix-2026-11-02.md`](research/anizm-playback-fix-2026-11-02.md).
+> Bu sürüm henüz `builds` dalında yayımlanmadı; gerçek cihazda oynatma doğrulaması bekliyor.
+>
 > **TrAnimeIzle v44 (kaynak kodu):** CAPTCHA ve kaynak zinciri için düzeltmeler içerir.
 > Bu sürümün cihazlara ulaşması için derlenip yayınlanması gerekir; canlı oynatma
 > henüz doğrulanmamıştır.
