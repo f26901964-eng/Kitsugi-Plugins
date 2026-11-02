@@ -96,7 +96,7 @@ jobs:
         continue-on-error: true
         run: |
           chmod +x gradlew
-          ./gradlew :DiziPal:make --stacktrace 2>&1 | tee /tmp/dizipal-build.log
+          ./gradlew :DiziPal:make :DiziPal:test --stacktrace 2>&1 | tee /tmp/dizipal-build.log
           echo "exit=${PIPESTATUS[0]}"
       - name: Derleme özeti
         if: always()
