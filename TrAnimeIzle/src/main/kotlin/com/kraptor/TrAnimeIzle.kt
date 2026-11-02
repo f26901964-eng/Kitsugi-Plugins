@@ -52,7 +52,7 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
     override val hasMainPage = true
     override val hasQuickSearch = true
     override var lang = "tr"
-    override val supportedTypes = setOf(TvType.Anime)
+    override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie)
 
     override val mainPage = mainPageOf(
         "$mainUrl/listeler/yenibolum/sayfa-" to "Yeni Bölümler",
@@ -259,6 +259,7 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
                 this.year = detail.year
                 this.tags = detail.tags
                 this.score = detail.score?.let { Score.from10(it) }
+                this.duration = detail.durationMinutes
                 this.showStatus = if (completed) ShowStatus.Completed else ShowStatus.Ongoing
                 addEpisodes(DubStatus.Subbed, episodeList)
             }
