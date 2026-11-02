@@ -1,0 +1,41 @@
+# DiziPal için hızlı derleme + birim testi geri bildirimi.
+# (Uzun süren canlı döküm işlerini beklemeden Kotlin hatalarını görmek için.)
+name: DiziPal Derleme
+
+on:
+  push:
+    branches:
+      - arena/e43f167a-kitsugi-plugins
+    paths:
+      - "DiziPal/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  Derle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: JDK 17
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android SDK lisansları
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+      - name: Derle ve test et
+        run: |
+          chmod +x gradlew
+          ./gradlew :DiziPal:make :DiziPal:test --stacktrace 2>&1 | tee build.log
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "## DiziPal derleme"
+            echo '```'
+            grep -E "^(e:|w: .*DiziPal)|BUILD|Task :DiziPal|tests? (completed|failed)|FAILED" build.log | tail -60 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
