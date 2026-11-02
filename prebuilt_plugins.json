@@ -1845,14 +1845,14 @@
       "kraptor",
       "byayzen"
     ],
-    "description": "TrAnimeIzle anime arşivi: isim eşleştirmeli arama, ana sayfa kategorileri, Kitsu ile zenginleştirilmiş detay ve bölümler; tüm fansub/kalite kaynakları ve OpTraco/Hdvid/Hexload oynatıcı çözücüleri.",
+    "description": "TrAnimeIzle anime arşivi: isim eşleştirmeli arama, ana sayfa kategorileri, detay + bölüm listesi, captcha (bot kontrolü) otomatik çözümü; tüm fansub/kalite kaynakları ve OpTraco/Hdvid/Hexload oynatıcı çözücüleri.",
     "fileSize": 70894,
     "repositoryUrl": "https://github.com/Kraptor123/cs-kraptor",
     "language": "tr",
     "tvTypes": [
       "Anime"
     ],
-    "iconUrl": "https://www.google.com/s2/favicons?domain=tranimeizle.io&sz=128",
+    "iconUrl": "https://www.google.com/s2/favicons?domain=tranimeizle.live&sz=128",
     "apiVersion": 1,
     "fileHash": "sha256-60004911f1d3104d68363371eca10ea21db0bc77ff9cea7b18eb38e0fb1d38b0"
   },
