@@ -31,6 +31,14 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew :DiziPal:make :DiziPal:test --stacktrace 2>&1 | tee build.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dizipal-build
+          path: |
+            build.log
+            DiziPal/build/reports/tests/**
+            DiziPal/build/test-results/**
       - name: Özet
         if: always()
         run: |
