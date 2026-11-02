@@ -77,59 +77,80 @@ class DiziBox : MainAPI() {
         "${mainUrl}/tur/yarisma/page/SAYFA"    to "Yarışma"
     )
 
+    /**
+     * Canlı tema (2026) kart türleri:
+     *  - article.article-series-poster      (ana sayfa dizi afişleri; başlık a.poster-title)
+     *  - article.article-series-small-grid  (ana sayfa küçük dizi kartları; başlık yok, a.figure)
+     *  - article.article-episode-card       (/tum-bolumler; başlık a.episode-card-title)
+     *  - article.article-episode-small-grid (ana sayfa bölüm kartları; a.figure-link)
+     *  - article.detailed-article           (eski tema / arşiv / arama)
+     */
+    private val cardSelector =
+        "article.article-series-poster, article.article-series-small-grid, " +
+            "article.article-episode-card, article.article-episode-small-grid, article.detailed-article"
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url      = request.data.replace("SAYFA", "$page")
         val document = app.get(
             url,
-            cookies     = mapOf(
-                "LockUser"      to "true",
-                "isTrustedUser" to "true",
-                "dbxu"          to "1743289650198"
-            ),
+            cookies     = playerCookies,
             interceptor = interceptor, cacheTime = 60
         ).document
-        val home = when (request.name) {
-            "Dizi Arşivi" ->
-                document.select("article.detailed-article").mapNotNull { it.toMainPageResult() }
-            "Tüm Bölümler" ->
-                document.select("article.article-episode-card a.figure-link, article.grid-box a.figure-link")
-                    .mapNotNull { it.toEpisodeCardResult() }
-            else ->
-                document.select("article.article-series-poster, article.detailed-article")
-                    .mapNotNull { it.toMainPageResult() }
-        }
+        val home = document.select(cardSelector)
+            .mapNotNull { it.toCardResult() }
+            .distinctBy { it.url }
         return newHomePageResponse(request.name, home)
     }
 
-    /** /tum-bolumler kartları doğrudan bölüm çapasıdır (<a class="figure-link">). */
-    private fun Element.toEpisodeCardResult(): SearchResponse? {
-        val href = fixUrlNull(this.attr("href")) ?: return null
-        val title = this.attr("title").trim().takeIf { it.isNotBlank() }
-            ?: this.selectFirst("img")?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
-            ?: this.text().trim().takeIf { it.isNotBlank() }
+    /** Tüm kart türleri için tek ayrıştırıcı. Başlık ve afiş için birden çok yedek kullanır. */
+    private fun Element.toCardResult(): SearchResponse? {
+        val anchor = selectFirst("a.episode-card-title")
+            ?: selectFirst("a.poster-title")
+            ?: selectFirst("a.series-details")
+            ?: selectFirst("a.figure-link[href]")
+            ?: selectFirst("a.figure[href]")
+            ?: selectFirst("a[href]")
             ?: return null
-        val posterUrl = fixUrlNull(
-            this.selectFirst("img")?.let { img ->
-                img.attr("data-src").takeIf { it.isNotBlank() } ?: img.attr("src")
-            },
-        )
-        return newTvSeriesSearchResponse(title, href, TvType.TvSeries) { this.posterUrl = posterUrl }
+        val href = fixUrlNull(anchor.attr("href").trim()) ?: return null
+        val image = selectFirst("img")
+
+        // Küçük kartlarda <a> içinde IMDb puanı (span.imdb) da bulunur; metinden çıkarılır.
+        val anchorText = anchor.clone().apply { select(".imdb").remove() }.text()
+        val title = listOf(
+            anchorText,
+            anchor.attr("title"),
+            image?.attr("alt") ?: "",
+            slugTitle(href),
+        ).map { raw ->
+            // Yan çubuk bağlantılarında başlık "Before izle Drama" gibi tür etiketi taşır.
+            raw.replace(Regex("\\s+"), " ").replace(Regex("\\s+izle\\b.*$", RegexOption.IGNORE_CASE), "").trim()
+        }.firstOrNull { it.isNotBlank() } ?: return null
+
+        val backgroundUrl = selectFirst("div.box-image")?.attr("style")
+            ?.let { Regex("""url\(['"]?([^'")]+)""").find(it)?.groupValues?.get(1) }
+        val imageUrl = listOf(
+            image?.attr("data-src"),
+            image?.attr("src"),
+            backgroundUrl,
+        ).firstOrNull { !it.isNullOrBlank() && !it.startsWith("data:") }
+
+        return newTvSeriesSearchResponse(title, href, TvType.TvSeries) {
+            this.posterUrl = fixUrlNull(imageUrl)
+        }
     }
 
-private fun Element.toMainPageResult(): SearchResponse? {
-    val title = this.selectFirst("a")?.text() ?: return null
-    val href = fixUrlNull(this.selectFirst("a")?.attr("href")) ?: return null
-    val posterUrl = fixUrlNull(
-        this.selectFirst("img")?.let { img ->
-            img.attr("data-src").takeIf { it.isNotBlank() } ?: img.attr("src")
-        }
-    )
-
-    return newTvSeriesSearchResponse(title, href, TvType.TvSeries) { this.posterUrl = posterUrl }
-}
+    /** URL slug'ından okunabilir başlık: "friends-izle-hd" -> "Friends". */
+    private fun slugTitle(href: String): String {
+        return href.trimEnd('/').substringAfterLast('/')
+            .replace(Regex("(-izle)+$"), "")
+            .replace(Regex("-hd(-\\d+)?$"), "")
+            .split('-')
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+    }
 
     override suspend fun search(query: String): List<SearchResponse> {
-        // 2026 canlı tema: arama admin-ajax dwls_search XHR JSON'u ile yapılıyor.
+        // Canlı tema: arama admin-ajax dwls_search ile JSON döndürür (üst düzey dizi).
         ajaxSearch(query)?.let { if (it.isNotEmpty()) return it }
 
         // Hata/boş yanıt durumunda klasik HTML aramasına düş.
@@ -139,30 +160,53 @@ private fun Element.toMainPageResult(): SearchResponse? {
             interceptor = interceptor
         ).document
 
-        return document.select("article.detailed-article").mapNotNull { it.toMainPageResult() }
+        return document.select(cardSelector)
+            .mapNotNull { it.toCardResult() }
+            .distinctBy { it.url }
     }
 
-    private suspend fun ajaxSearch(query: String): List<SearchResponse>? = runCatching {
-        val ajaxUrl = "${mainUrl}/wp-admin/admin-ajax.php?action=dwls_search" +
-            "&s=${java.net.URLEncoder.encode(query, "UTF-8")}"
-        val body = app.get(
-            ajaxUrl,
-            headers = mapOf(
-                "User-Agent" to playerUserAgent,
-                "X-Requested-With" to "XMLHttpRequest",
-                "Accept" to "application/json, text/javascript, */*; q=0.01",
-            ),
-            cookies = playerCookies,
-            referer = "$mainUrl/",
-            interceptor = interceptor,
-        ).text
+    /** GET ile dener; boş/hatalı ise aynı parametreleri POST ile dener. */
+    private suspend fun ajaxSearch(query: String): List<SearchResponse>? {
+        val ajaxUrl = "${mainUrl}/wp-admin/admin-ajax.php"
+        val headers = mapOf(
+            "User-Agent" to playerUserAgent,
+            "X-Requested-With" to "XMLHttpRequest",
+            "Accept" to "application/json, text/javascript, */*; q=0.01",
+        )
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
 
-        DiziBoxPlayerParser.dwlsSearchResults(body).map { result ->
+        val getBody = runCatching {
+            app.get(
+                "$ajaxUrl?action=dwls_search&s=$encoded",
+                headers     = headers,
+                cookies     = playerCookies,
+                referer     = "$mainUrl/",
+                interceptor = interceptor,
+            ).text
+        }.getOrNull()
+        val getResults = getBody?.let { DiziBoxPlayerParser.dwlsSearchResults(it) }.orEmpty()
+        if (getResults.isNotEmpty()) return toDwlsResponses(getResults)
+
+        val postBody = runCatching {
+            app.post(
+                ajaxUrl,
+                data        = mapOf("action" to "dwls_search", "s" to query),
+                headers     = headers,
+                cookies     = playerCookies,
+                referer     = "$mainUrl/",
+                interceptor = interceptor,
+            ).text
+        }.getOrNull()
+        val postResults = postBody?.let { DiziBoxPlayerParser.dwlsSearchResults(it) }.orEmpty()
+        return if (postResults.isNotEmpty()) toDwlsResponses(postResults) else null
+    }
+
+    private fun toDwlsResponses(results: List<DiziBoxPlayerParser.DwlsResult>): List<SearchResponse> =
+        results.map { result ->
             newTvSeriesSearchResponse(result.title, result.url, TvType.TvSeries) {
                 this.posterUrl = fixUrlNull(DiziBoxPlayerParser.upscaleThumbnail(result.thumbnail))
             }
-        }
-    }.getOrNull()
+        }.distinctBy { it.url }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
@@ -533,11 +577,16 @@ private fun Element.toMainPageResult(): SearchResponse? {
         callback: (ExtractorLink) -> Unit,
     ): Boolean {
         Log.d("DZBX", "data » $data")
-        val document = app.get(
-            data,
-            cookies = playerCookies,
-            interceptor = interceptor,
-        ).document
+        val document = try {
+            app.get(
+                data,
+                cookies = playerCookies,
+                interceptor = interceptor,
+            ).document
+        } catch (exception: Exception) {
+            Log.d("DZBX", "Episode page failed: ${exception.message}")
+            return false
+        }
 
         // Ana sayfa + araç çubuğundaki alternatif oynatıcı sayfaları (sınırlı tut).
         val pageUrls = (listOf(data) + DiziBoxPlayerParser.alternatePlayerPages(document, data))
@@ -569,15 +618,20 @@ private fun Element.toMainPageResult(): SearchResponse? {
                 }
             }
 
+            // Her oynatıcı denemesi ayrı korunur: bir kaynağın hatası diğerlerini düşürmez.
             DiziBoxPlayerParser.playerIframes(pageDocument, pageUrl).forEach { iframe ->
                 Log.d("DZBX", "iframe » $iframe")
-                iframeDecode(pageUrl, iframe, subtitleCallback, linkCallback, visitedFrames)
+                runCatching {
+                    iframeDecode(pageUrl, iframe, subtitleCallback, linkCallback, visitedFrames)
+                }.onFailure { Log.d("DZBX", "iframe failed: ${it.message}") }
             }
 
             // Oynatıcı menüsü (DBX Pro / Moly+ / Odnok) adresleri ayrı sarmalayıcılar olabilir.
             DiziBoxPlayerParser.playerOptionUrls(pageDocument, pageUrl).forEach { option ->
                 Log.d("DZBX", "player option » $option")
-                iframeDecode(pageUrl, option, subtitleCallback, linkCallback, visitedFrames)
+                runCatching {
+                    iframeDecode(pageUrl, option, subtitleCallback, linkCallback, visitedFrames)
+                }.onFailure { Log.d("DZBX", "player option failed: ${it.message}") }
             }
         }
 

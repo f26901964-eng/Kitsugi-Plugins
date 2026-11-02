@@ -238,4 +238,20 @@ class DiziBoxPlayerParserTest {
         assertTrue(pages.contains("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/2/"))
         assertTrue(pages.contains("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/3/"))
     }
+
+    @Test
+    fun readsDwlsSearchAsTopLevelArrayAndWrappedResults() {
+        // Canlı tema admin-ajax dwls_search yanıtı üst düzey dizidir (şablon searchResults[0] kullanır).
+        val topLevel = """[{"post_title":"The Mentalist &amp; Friends","permalink":"https:\/\/www.dizibox.live\/diziler\/the-mentalist\/","attachment_thumbnail":"https:\/\/www.dizibox.live\/wp-content\/uploads\/afisler\/the-mentalist-50x50.jpg","show_more":true},{"post_title":"","permalink":"https://x/"}]"""
+        val results = DiziBoxPlayerParser.dwlsSearchResults(topLevel)
+        assertEquals(1, results.size)
+        assertEquals("The Mentalist & Friends", results[0].title)
+        assertEquals("https://www.dizibox.live/diziler/the-mentalist/", results[0].url)
+
+        val wrapped = """{"results":[{"post_title":"Dizi","permalink":"https://www.dizibox.live/diziler/dizi/"}]}"""
+        assertEquals(1, DiziBoxPlayerParser.dwlsSearchResults(wrapped).size)
+
+        assertTrue(DiziBoxPlayerParser.dwlsSearchResults("0").isEmpty())
+        assertTrue(DiziBoxPlayerParser.dwlsSearchResults("<html>blocked</html>").isEmpty())
+    }
 }
