@@ -123,11 +123,17 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
         return newSearchResponseList(ordered.map { it.toSearchResponse() }, page < 2)
     }
 
-    private fun TrCard.toSearchResponse(): AnimeSearchResponse =
-        newAnimeSearchResponse(name, url, TvType.Anime) {
-            this.posterUrl = poster
-            this.score = score?.let { Score.from10(it) }
+    private fun TrCard.toSearchResponse(): AnimeSearchResponse {
+        // DİKKAT: `newAnimeSearchResponse { … }` bloğunun alıcısı da `score`
+        // alanı taşıyor; niteliksiz `score` yanlışlıkla onu okur (Score? →
+        // Score.from10'a verilemez). Değerler önce yerel değişkene alınır.
+        val cardScore = score
+        val cardPoster = poster
+        return newAnimeSearchResponse(name, url, TvType.Anime) {
+            this.posterUrl = cardPoster
+            this.score = cardScore?.let { Score.from10(it) }
         }
+    }
 
     // ==================================================================
     //  Ana sayfa
