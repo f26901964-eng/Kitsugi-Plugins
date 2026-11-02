@@ -1,0 +1,214 @@
+<!-- https://anizm.com.tr/js/v3-push.js?v=1.0.0
+  status=200 via=curl final=https://anizm.com.tr/js/v3-push.js?v=1.0.0 error=
+  content-type= location=
+  bytes=7365 -->
+(function () {
+    'use strict';
+
+    if (window.__v3PushClientLoaded) return;
+    window.__v3PushClientLoaded = true;
+
+    var card = document.querySelector('[data-v3-push]');
+    var clientScript = document.currentScript;
+    var swVersion = (card && card.dataset.swVersion) || (clientScript && clientScript.dataset.swVersion) || '3';
+    var registrationPromise;
+
+    function registerWorker() {
+        if (!registrationPromise) {
+            registrationPromise = navigator.serviceWorker.register('/sw2.js?v=' + encodeURIComponent(swVersion), {
+                updateViaCache: 'none'
+            }).catch(function (error) {
+                registrationPromise = null;
+                throw error;
+            });
+        }
+
+        return registrationPromise.then(function (registration) {
+            window._v3ServiceWorkerRegistration = registration;
+            return registration;
+        });
+    }
+
+    if (window.isSecureContext && 'serviceWorker' in navigator) {
+        registerWorker().catch(function () {});
+    }
+
+    if (!card) return;
+
+    var button = card.querySelector('[data-v3-push-enable]');
+    var status = card.querySelector('[data-v3-push-status]');
+    var help = card.querySelector('[data-v3-push-help]');
+    var vapidPublicKey = (card.dataset.vapidPublicKey || '').trim();
+    var subscribeUrl = card.dataset.subscribeUrl;
+
+    function setStatus(message, state) {
+        status.textContent = message;
+        if (state) status.dataset.state = state;
+        else delete status.dataset.state;
+    }
+
+    function setDeniedState() {
+        help.hidden = false;
+        help.open = true;
+        button.disabled = false;
+        button.textContent = 'İzin ayarlarını görüntüle';
+        setStatus('Bu site için bildirim izni kapalı. Açmak için aşağıdaki adımları izle.', 'info');
+    }
+
+    function base64UrlToUint8Array(value) {
+        var padding = '='.repeat((4 - value.length % 4) % 4);
+        var base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+        var raw = window.atob(base64);
+        var output = new Uint8Array(raw.length);
+
+        for (var index = 0; index < raw.length; index += 1) {
+            output[index] = raw.charCodeAt(index);
+        }
+
+        return output;
+    }
+
+    function bytesToBase64(value) {
+        var bytes = new Uint8Array(value);
+        var binary = '';
+
+        for (var index = 0; index < bytes.length; index += 1) {
+            binary += String.fromCharCode(bytes[index]);
+        }
+
+        return window.btoa(binary);
+    }
+
+    async function saveSubscription(subscription) {
+        var p256dh = subscription.getKey('p256dh');
+        var auth = subscription.getKey('auth');
+        var csrfToken = document.querySelector('meta[name="csrf-token"]');
+
+        if (!p256dh || !auth) {
+            throw new Error('Tarayıcı abonelik anahtarları alınamadı.');
+        }
+
+        var response = await fetch(subscribeUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken ? csrfToken.content : ''
+            },
+            body: JSON.stringify({
+                endpoint: subscription.endpoint,
+                p256dh_key: bytesToBase64(p256dh),
+                auth_token: bytesToBase64(auth),
+                domain: window.location.hostname
+            })
+        });
+        var result = await response.json().catch(function () { return {}; });
+
+        if (!response.ok || result.success !== true) {
+            throw new Error('Bildirim aboneliği sunucuya kaydedilemedi.');
+        }
+    }
+
+    function setEnabledState() {
+        button.disabled = true;
+        button.textContent = 'Bildirimler açık';
+        help.hidden = true;
+        help.open = false;
+        setStatus('Bu tarayıcıda yeni bölüm bildirimleri etkin.', 'success');
+    }
+
+    async function initialize() {
+        if (!window.isSecureContext || !('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+            button.disabled = true;
+            setStatus('Bu tarayıcı veya bağlantı web bildirimlerini desteklemiyor. Telegram kanalını kullanabilirsin.', 'error');
+            return;
+        }
+
+        if (Notification.permission === 'denied') {
+            setDeniedState();
+            return;
+        }
+
+        if (!vapidPublicKey) {
+            button.disabled = true;
+            setStatus('Bildirimler şu anda yapılandırılmamış. Telegram kanalını kullanabilirsin.', 'error');
+            return;
+        }
+
+        if (Notification.permission === 'granted') {
+            try {
+                var registration = await registerWorker();
+                var subscription = await registration.pushManager.getSubscription();
+
+                if (subscription) {
+                    await saveSubscription(subscription);
+                    setEnabledState();
+                    return;
+                }
+
+                setStatus('Bildirim izni verilmiş. Aboneliği tamamlamak için düğmeye bas.', 'info');
+                button.textContent = 'Bildirim aboneliğini tamamla';
+                return;
+            } catch (error) {
+                setStatus('Mevcut bildirim aboneliği doğrulanamadı. Düğmeye basarak yeniden dene.', 'error');
+            }
+        } else {
+            setStatus('Yeni bölüm bildirimleri için tarayıcı izni gerekir.', '');
+        }
+
+        button.disabled = false;
+    }
+
+    button.addEventListener('click', async function () {
+        if (Notification.permission === 'denied') {
+            setDeniedState();
+            return;
+        }
+
+        if (!vapidPublicKey) {
+            setStatus('Bildirimler şu anda yapılandırılmamış. Telegram kanalını kullanabilirsin.', 'error');
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = 'Bildirim izni bekleniyor…';
+
+        try {
+            var permission = Notification.permission;
+            if (permission === 'default') {
+                permission = await Notification.requestPermission();
+            }
+
+            if (permission !== 'granted') {
+                if (permission === 'denied') setDeniedState();
+                else {
+                    button.disabled = false;
+                    button.textContent = 'Tarayıcı bildirimlerini aç';
+                    setStatus('İzin isteği yanıtlanmadı. Hazır olduğunda yeniden deneyebilirsin.', 'info');
+                }
+                return;
+            }
+
+            button.textContent = 'Abonelik kaydediliyor…';
+            var registration = await registerWorker();
+            var subscription = await registration.pushManager.getSubscription();
+
+            if (!subscription) {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: base64UrlToUint8Array(vapidPublicKey)
+                });
+            }
+
+            await saveSubscription(subscription);
+            setEnabledState();
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Yeniden dene';
+            setStatus('Bildirimler etkinleştirilemedi. Bağlantını kontrol edip yeniden deneyebilirsin.', 'error');
+        }
+    });
+
+    initialize();
+})();

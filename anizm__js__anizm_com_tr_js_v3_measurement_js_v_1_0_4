@@ -1,0 +1,36 @@
+<!-- https://anizm.com.tr/js/v3-measurement.js?v=1.0.4
+  status=200 via=curl final=https://anizm.com.tr/js/v3-measurement.js?v=1.0.4 error=
+  content-type= location=
+  bytes=1367 -->
+(function () {
+    'use strict';
+
+    function loadScript(src, attributes = {}) {
+        if (document.querySelector(`script[src="${src}"]`)) return;
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.dataset.anizmAnalytics = 'true';
+        Object.entries(attributes).forEach(([name, value]) => script.setAttribute(name, value));
+        document.head.appendChild(script);
+    }
+
+    const hostname = window.location.hostname;
+    const trackingId = hostname.includes('anizle.co')
+        ? 'G-KRXDB5TG6Z'
+        : hostname.includes('puffytr.com')
+            ? 'G-TN70BNS6FC'
+            : 'G-1PWSNJXHCH';
+
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', trackingId, { send_page_view: true, transport_type: 'beacon' });
+    loadScript(`https://www.googletagmanager.com/gtag/js?id=${trackingId}`);
+
+    // Self-hosted Umami endpoint currently returns 404; re-enable after its path is fixed.
+    // loadScript('/sngtmub/s.js', { 'data-website-id': '8a88f19b-e23a-43f6-9fcd-2c874830180c' });
+    if (hostname === 'anizle.co') {
+        loadScript('https://analytics.ahrefs.com/analytics.js', { 'data-key': '+83PxSCMMq/W94x/zBZ8Qw' });
+    }
+})();

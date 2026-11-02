@@ -1,0 +1,382 @@
+<!-- https://anizm.com.tr/js/cookie-consent.js?v=1.0.5
+  status=200 via=curl final=https://anizm.com.tr/js/cookie-consent.js?v=1.0.5 error=
+  content-type= location=
+  bytes=14240 -->
+/* JavaScript dosyası: Çerez onay bildirimi için fonksiyonlar - Düzeltilmiş */
+// Script defer yüklendiği için belge hazırdır; banner'ı gereksiz yere geciktirme.
+initCookieBanner();
+
+// Banner başlatma ve kontrol fonksiyonu
+function initCookieBanner() {
+    let banner = document.querySelector('.cookie-consent-banner');
+    if (!banner) {
+        createCookieConsentBanner();
+        banner = document.querySelector('.cookie-consent-banner');
+    }
+
+    if (banner && banner.dataset.listenersAttached !== 'true') {
+        attachEventListeners();
+        banner.dataset.listenersAttached = 'true';
+    }
+
+    // Çerez kontrolü ve banner gösterimi
+    const consentLevel = getCookie('cookie_consent_level');
+    if (!consentLevel) {
+        showBanner();
+    }
+}
+
+function openCookieSettings() {
+    initCookieBanner();
+
+    const banner = document.querySelector('.cookie-consent-banner');
+    if (!banner) return;
+
+    let preferences = { preference: true, analytics: true, marketing: true };
+    try {
+        const savedPreferences = JSON.parse(getCookie('cookie_consent_preferences') || '{}');
+        if (savedPreferences && typeof savedPreferences === 'object') {
+            preferences = { ...preferences, ...savedPreferences };
+        }
+    } catch (e) {}
+
+    ['preference', 'analytics', 'marketing'].forEach(name => {
+        const checkbox = banner.querySelector(`#${name}_cookies`);
+        if (checkbox) checkbox.checked = preferences[name] !== false;
+    });
+
+    const settingsPanel = banner.querySelector('.cookie-settings');
+    if (settingsPanel) settingsPanel.style.display = 'block';
+    const customizeButton = banner.querySelector('.cookie-customize');
+    if (customizeButton) customizeButton.setAttribute('aria-expanded', 'true');
+    showBanner();
+}
+
+window.openCookieSettings = openCookieSettings;
+
+document.addEventListener('click', function(event) {
+    const trigger = event.target instanceof Element
+        ? event.target.closest('[data-cookie-preferences]')
+        : null;
+    if (!trigger) return;
+
+    event.preventDefault();
+    openCookieSettings();
+});
+
+// Banner'ı göster
+function showBanner() {
+    const banner = document.querySelector('.cookie-consent-banner');
+    if (banner) {
+        // Önce display: block, sonra active class ile animasyon
+        banner.style.display = 'block';
+        // Tarayıcının repaint yapmasını bekleyerek animasyonun çalışmasını sağlıyoruz
+        setTimeout(() => {
+            banner.classList.add('active');
+        }, 10);
+    }
+}
+
+// Event listener'ları ekle
+function attachEventListeners() {
+    // "Tümünü Kabul Et" butonu
+    const acceptAllButtons = document.querySelectorAll('.cookie-accept-all');
+    acceptAllButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            setCookieConsent('all');
+            hideCookieBanner();
+        });
+    });
+
+    // "Sadece Gerekli Çerezler" butonu
+    const rejectBtn = document.querySelector('.cookie-reject');
+    if (rejectBtn) {
+        rejectBtn.addEventListener('click', function() {
+            setCookieConsent('necessary');
+            hideCookieBanner();
+        });
+    }
+
+    // "Çerezleri Özelleştir" butonu
+    const customizeBtn = document.querySelector('.cookie-customize');
+    if (customizeBtn) {
+        customizeBtn.addEventListener('click', function() {
+            const settingsPanel = document.querySelector('.cookie-settings');
+            const banner = document.querySelector('.cookie-consent-banner');
+
+            if (settingsPanel) {
+                const isOpen = settingsPanel.style.display === 'block';
+                settingsPanel.style.display = isOpen ? 'none' : 'block';
+                customizeBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                if (banner) banner.style.opacity = isOpen ? '0.95' : '1';
+            }
+        });
+    }
+
+    // "Tercihleri Kaydet" butonu
+    const saveBtn = document.getElementById('save-preferences');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            const prefCookie = document.getElementById('preference_cookies');
+            const analyticsCookie = document.getElementById('analytics_cookies');
+            const marketingCookie = document.getElementById('marketing_cookies');
+
+            const preferences = {
+                necessary: true, // Her zaman gerekli
+                preference: prefCookie && prefCookie.checked,
+                analytics: analyticsCookie && analyticsCookie.checked,
+                marketing: marketingCookie && marketingCookie.checked
+            };
+
+            setCookieConsent('custom', preferences);
+            hideCookieBanner();
+        });
+    }
+}
+
+// Çerez bildirimi HTML yapısını oluştur
+function createCookieConsentBanner() {
+    const banner = document.createElement('div');
+    banner.className = 'cookie-consent-banner';
+    banner.setAttribute('role', 'region');
+    banner.setAttribute('aria-label', 'Çerez tercihleri');
+    banner.style.display = 'none'; // Başlangıçta gizli
+
+    // İçerik aynı kalacak
+    banner.innerHTML = `
+        <div class="cookie-consent-content">
+            <div class="cookie-heading">
+                <span class="cookie-heading-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M20.7 13.1A8.9 8.9 0 0 1 10.9 3.3a9 9 0 1 0 9.8 9.8Z"></path>
+                        <path d="M8 9h.01M12 13h.01M8.5 16.5h.01M15.5 8.5h.01"></path>
+                    </svg>
+                </span>
+                <div class="cookie-heading-copy">
+                    <span class="cookie-eyebrow">Anizm · Gizlilik</span>
+                    <h2>Çerez tercihlerin</h2>
+                </div>
+            </div>
+            <div class="cookie-text">
+                <p>Zorunlu çerezler sitenin çalışması için gereklidir. Diğer çerezler için tercihini seçebilirsin. <a href="/gizlilik-politikasi">Gizlilik politikamızı incele</a>.</p>
+            </div>
+            <div class="cookie-buttons">
+                <button type="button" class="cookie-btn cookie-accept-all">Tümünü kabul et</button>
+                <button type="button" class="cookie-btn cookie-reject">Sadece gerekli çerezler</button>
+                <button type="button" class="cookie-btn cookie-customize" aria-expanded="false" aria-controls="cookie-consent-settings">Tercihleri özelleştir</button>
+            </div>
+            <div class="cookie-settings" id="cookie-consent-settings" style="display: none;">
+                <div class="cookie-setting-item">
+                    <div>
+                        <strong>Gerekli Çerezler</strong>
+                        <p>Sitenin çalışması için gerekli olan temel çerezlerdir.</p>
+                    </div>
+                    <label class="toggle-switch required-cookie">
+                        <input class="cookie-toggle" type="checkbox" aria-label="Gerekli çerezler, her zaman etkin" checked disabled>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cookie-setting-item">
+                    <div>
+                        <strong>Tercih Çerezleri</strong>
+                        <p>Dil ve bölge gibi tercihlerinizi hatırlamak için kullanılır.</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input class="cookie-toggle" type="checkbox" id="preference_cookies" aria-label="Tercih çerezleri" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cookie-setting-item">
+                    <div>
+                        <strong>İstatistik Çerezleri</strong>
+                        <p>Google Analytics gibi hizmetler aracılığıyla site kullanımını analiz etmek için kullanılır.</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input class="cookie-toggle" type="checkbox" id="analytics_cookies" aria-label="İstatistik çerezleri" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cookie-setting-item">
+                    <div>
+                        <strong>Pazarlama Çerezleri</strong>
+                        <p>Reklamları kişiselleştirmek için kullanılabilir.</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input class="cookie-toggle" type="checkbox" id="marketing_cookies" aria-label="Pazarlama çerezleri" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cookie-settings-save">
+                    <button type="button" class="cookie-btn" id="save-preferences">Tercihleri kaydet</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(banner);
+}
+
+// Çerez bildirimini gizle
+function hideCookieBanner() {
+    const banner = document.querySelector('.cookie-consent-banner');
+    if (banner) {
+        banner.classList.remove('active');
+        // Animasyon için biraz bekle
+        setTimeout(function() {
+            banner.style.display = 'none';
+        }, 300);
+    }
+}
+
+// Çerez tercihlerini kaydet
+function setCookieConsent(level, preferences = null) {
+    try {
+        if (level === 'all') {
+            setCookie('cookie_consent_level', 'all', 365);
+            setCookie('cookie_consent_preferences', JSON.stringify({
+                necessary: true,
+                preference: true,
+                analytics: true,
+                marketing: true
+            }), 365);
+
+        } else if (level === 'necessary') {
+            setCookie('cookie_consent_level', 'necessary', 365);
+            setCookie('cookie_consent_preferences', JSON.stringify({
+                necessary: true,
+                preference: false,
+                analytics: false,
+                marketing: false
+            }), 365);
+
+        } else if (level === 'custom' && preferences) {
+            setCookie('cookie_consent_level', 'custom', 365);
+            setCookie('cookie_consent_preferences', JSON.stringify(preferences), 365);
+
+        }
+
+        // Başarılı mı kontrol et
+        const savedLevel = getCookie('cookie_consent_level');
+        if (!savedLevel) {
+            // Alternatif yöntem dene
+            forceSetCookie('cookie_consent_level', level);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Çerez oluştur - koruma sistemi düzeltilmiş sürüm
+function setCookie(name, value, days) {
+    try {
+        // Özel çerezleri koruma - popundr/popundr1 çerezlerini değiştirmeyelim
+        const protectedCookies = ['popundr', 'popundr1', 'popupunder', 'popupunder1', 'poundr1'];
+        const isProtected = protectedCookies.includes(name);
+
+        if (isProtected) {
+            // Korumalı çerezler için varsayılan süre (2 saat)
+            const twoHoursInMs = 2 * 60 * 60 * 1000; // 7,200,000 ms
+            const date = new Date();
+            date.setTime(date.getTime() + twoHoursInMs);
+            const expires = "; expires=" + date.toUTCString();
+
+            // Korumalı çerezler için 2 saatlik süre ile kaydet
+            const cookieValue = name + "=" + encodeURIComponent(value || "") + expires + "; path=/;";
+            document.cookie = cookieValue;
+
+            // Kontrolünü yap
+            setTimeout(() => {
+                const savedValue = getCookie(name);
+                if (!savedValue) {
+                    document.cookie = cookieValue;
+                }
+            }, 100);
+
+            return true;
+        }
+
+        // Normal çerezler için standart işlem
+        let expires = "";
+        if (days) {
+            // Günü saniyeye çevir, sonra milisaniyeye
+            const maxDays = 30; // Maksimum 30 gün
+            const safeDays = Math.min(days, maxDays);
+            const seconds = safeDays * 24 * 60 * 60;
+            const milliseconds = seconds * 1000;
+
+            const date = new Date();
+            date.setTime(date.getTime() + milliseconds);
+
+            // toUTCString ile en güvenilir şekilde tarih formatı
+            expires = "; expires=" + date.toUTCString();
+        }
+
+        // Cookie değerini oluştur
+        const cookieValue = name + "=" + encodeURIComponent(value || "") + expires + "; path=/;";
+        document.cookie = cookieValue;
+
+        // Cookie'nin başarıyla ayarlanıp ayarlanmadığını kontrol et
+        setTimeout(() => {
+            const savedValue = getCookie(name);
+            if (!savedValue) {
+                // Başarısız olursa tekrar dene - yedek strateji
+                document.cookie = cookieValue;
+            }
+        }, 100);
+
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Alternatif çerez oluşturma yöntemi
+function forceSetCookie(name, value) {
+    try {
+        // En basit form
+        document.cookie = name + "=" + encodeURIComponent(value || "");
+
+        // Bir de bu şekilde deneyelim
+        document.cookie = name + "=" + encodeURIComponent(value || "") + "; path=/;";
+
+        // LocalStorage'a da yedek olarak kaydet
+        try {
+            localStorage.setItem('cookie_backup_' + name, value);
+        } catch(e) {}
+
+        return true;
+    } catch(e) {
+        return false;
+    }
+}
+
+// Çerez değerini oku - iyileştirilmiş
+function getCookie(name) {
+    try {
+        // Normal yöntem
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) {
+                const value = decodeURIComponent(c.substring(nameEQ.length, c.length));
+                return value;
+            }
+        }
+
+        // LocalStorage'dan backup kontrolü
+        try {
+            const backupValue = localStorage.getItem('cookie_backup_' + name);
+            if (backupValue) {
+                return backupValue;
+            }
+        } catch(e) {}
+
+        return null;
+    } catch(e) {
+        return null;
+    }
+}

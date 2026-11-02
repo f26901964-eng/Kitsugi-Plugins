@@ -1,0 +1,253 @@
+<!-- https://anizm.com.tr/js/avi.js?date=20261103&v=0
+  status=200 via=curl final=https://anizm.com.tr/js/avi.js?date=20261103&v=0 error=
+  content-type= location=
+  bytes=6494 -->
+var randomString = function(len, charSet) {
+    charSet = charSet || 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var randomString = '';
+    for (var i = 0; i < len; i++) {
+        var randomPoz = Math.floor(Math.random() * charSet.length);
+        randomString += charSet.substring(randomPoz,randomPoz+1);
+    }
+    return randomString;
+}
+
+var remuv = function(adPlayer,playerId) {
+
+	document.getElementById(playerId).setAttribute("style",'overflow:hidden;height: 100% !important;width: 100% !important;border:0px;position:absolute;top:-3500px;z-index:-1000018;');
+	document.getElementsByClassName(playerId)[0].style.display = "";
+};
+
+var remuv2 = function(adPlayer,playerId) {
+
+	document.getElementById(playerId).setAttribute("style",'height: auto !important;width: 100%;z-index:999999;');
+	 setTimeout(() => {
+        const el = document.querySelector('.jw-vpaid-iframe');
+        if (el) {
+            el.style.display = "none";
+        }
+    }, 500); 
+	
+};
+
+
+
+
+
+var vast_started = false; 
+
+function vast_olustur() {
+
+    if (vast_started) return;
+
+  
+    var vastEl = document.querySelector(".episodePlayerContent.anizm_positionRelative");
+
+    if (!vastEl) {
+        console.warn(".autosize-container bulunamadı, bir sonraki çağrıda tekrar denenecek...");
+        return;
+    }
+
+    vast_started = true;
+
+    try {
+        var e = document.createElement("script");
+        e.src = "https://statbest.in/jwplayer-8.12.5/jwplayer.js";
+        e.type = "text/javascript";
+
+        e.onload = function() {
+
+            jwplayer.key = "ksaKvjlJRbnrPXSGpuPVqfscYS9+rZFhulEcXvUQMbyWAmIQyyjPjZAQPLw=";
+
+          
+            var frames = vastEl.getElementsByTagName("iframe");
+
+            for (var i = 0; i < 1; i++) {
+
+                var playerId = randomString(33);
+
+                frames[i].classList.add(playerId);
+                frames[i].style.display = "none";
+
+                frames[i].insertAdjacentHTML(
+                    "beforebegin",
+                    '<div id="' + playerId + '"></div>'
+                );
+
+                var adPlayer = jwplayer(playerId);
+
+                adPlayer.setup({
+                    file: "https://statbest.in/jwplayer.mp4",
+                    width: "100%",
+                    height: "100%",
+                    aspectratio: "16:9",
+                    autostart: true,
+                    primary: "html5",
+                    preload: "false",
+                    wmode: "opaque",
+                    advertising: {
+                        client: "vast",
+                        tag: "https://statbest.in/trkanme/hdg.php"
+                    }
+                });
+
+                adPlayer.on('adComplete', function() { remuv(adPlayer, playerId); });
+                adPlayer.on('adSkipped',  function() { remuv(adPlayer, playerId); });
+                adPlayer.on('adError',    function() { remuv(adPlayer, playerId); });
+                adPlayer.on('adLoaded',   function() { remuv2(adPlayer, playerId); });
+                adPlayer.on('error',      function() { remuv(adPlayer, playerId); });
+
+                adPlayer.play();
+            }
+        };
+
+        document.head.appendChild(e);
+
+    } catch (err) {
+        console.warn("vast_olustur : ", err);
+    }
+}
+
+
+
+
+ setTimeout(vast_olustur, 500);
+
+
+  
+  function onReadyMesajGonder() {
+    const onReadyMesaj = JSON.stringify({ event: "onReady" });
+
+    setInterval(() => {
+        try {
+            const targetIframe = document.querySelector('iframe[src="about:blank"][style*="position:absolute;top:320px"]');
+            if (targetIframe && targetIframe.contentWindow) {
+                targetIframe.contentWindow.postMessage(onReadyMesaj, "*");
+               
+            }
+        } catch (e) {
+            
+        }
+    }, 500);
+}
+
+
+function iframeEtkilesimOlayiEkle() {
+    setInterval(() => {
+        try {
+            const apptosDiv = document.querySelector('div[id^="div_Ytapptos_"]');
+            if (!apptosDiv) return;
+
+            const targetIframe = apptosDiv.querySelector('iframe[id^="irame_"]');
+            if (!targetIframe) return;
+
+           
+            if (targetIframe.dataset.eventAttached === "1") return;
+
+            const targetIframe1 = document.querySelector('iframe[src="about:blank"][style*="position:absolute;top:320px"]');
+            if (!targetIframe1) return;
+
+            const playMesaj = JSON.stringify({
+                event: "infoDelivery",
+                info: { playerState: 1 }
+            });
+
+            targetIframe.addEventListener("mouseenter", () => {
+                try {
+                    targetIframe1.contentWindow.postMessage(playMesaj, "*");
+                  
+                } catch (e) {
+                  
+                }
+            });
+
+            targetIframe.addEventListener("touchstart", () => {
+                try {
+                    targetIframe1.contentWindow.postMessage(playMesaj, "*");
+                  
+                } catch (e) {
+                  
+                }
+            });
+
+           
+            targetIframe.dataset.eventAttached = "1";
+
+        } catch (e) {
+        }
+    }, 1000); 
+}
+
+
+document.addEventListener("DOMContentLoaded", function () {
+    setTimeout(function () {
+        onReadyMesajGonder();
+        iframeEtkilesimOlayiEkle();
+    }, 100); 
+});
+
+
+
+
+let playerElement = null;
+let ORIGINAL_SRC = null;
+
+
+const cleanAndReloadIframe = () => {
+    if (playerElement && ORIGINAL_SRC) {
+
+       
+        playerElement.setAttribute('src', 'about:blank');
+       
+
+       
+        setTimeout(() => {
+            playerElement.setAttribute('src', ORIGINAL_SRC);
+            
+        }, 50);
+    }
+};
+
+
+function waitForIframeByIdPart(idPart, callback) {
+
+   
+    let found = [...document.querySelectorAll('iframe[id]')]
+        .find(el => el.id.includes(idPart));
+
+    if (found) {
+        callback(found);
+        return;
+    }
+
+ 
+    const observer = new MutationObserver(() => {
+        const el = [...document.querySelectorAll('iframe[id]')]
+            .find(el => el.id.includes(idPart));
+
+        if (el) {
+            observer.disconnect();
+            callback(el);
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    waitForIframeByIdPart("irame_Ytapptos_", (iframeEl) => {
+
+       
+
+        playerElement = iframeEl;
+        ORIGINAL_SRC = iframeEl.getAttribute("src");
+
+        cleanAndReloadIframe();
+    });
+
+});  
+
+  
