@@ -1,0 +1,82 @@
+### message12-home.html
+- uzunluk: 231823B
+- series: 16 bağlantı, 16 benzersiz
+    - /series/black-clover
+    - /series/crystal-lake
+    - /series/dexter-resurrection-c01
+    - /series/from-c04
+    - /series/gibi-c05
+    - /series/it-welcome-to-derry
+    - /series/kiyma-c08
+    - /series/mahsun-j-c19
+    - /series/mobland
+    - /series/nocturne
+- movies: 0 bağlantı, 0 benzersiz
+- bolum: 33 bağlantı, 33 benzersiz
+    - /bolum/cekic-ve-gul-bir-behzat-c-hikayesi-4x8
+    - /bolum/chicago-pd-14x2
+    - /bolum/chicago-pd-14x2?lang=altyazi
+    - /bolum/chicago-pd-14x2?lang=dublaj
+    - /bolum/daha-17-1x23
+    - /bolum/daha-17-1x23?lang=altyazi
+    - /bolum/daha-17-1x23?lang=dublaj
+    - /bolum/game-of-thrones-1x1-c10
+    - /bolum/gassal-4x1
+    - /bolum/konusanlar-7x5
+- diger: 16 bağlantı, 12 benzersiz
+    - /film-izle
+    - /forum
+    - /giris-yap
+    - /gizlilik-politikasi
+    - /hakkimizda
+    - /iletisim
+    - /kesfet
+    - /platform-bolumler
+    - /reklam-iletisim
+    - /trendler
+- sınıf adları: 42
+    `dp-ps-slot dc-root app sc wrap navl nl nic hbtn pbtn ann lk g4 tc fr dp-adreg banner-slot new-da-banner bsr bsw bsrch bara bchip lay3 s2 allb sideh epg seg on side sideh2 topc sr mono tn ec ecl trk dub g6 tt`
+- oynatıcı/akış izi: 0
+### message13-bolum.html
+- uzunluk: 136991B
+- series: 2 bağlantı, 1 benzersiz
+    - /series/gassal-c11
+- movies: 0 bağlantı, 0 benzersiz
+- bolum: 0 bağlantı, 0 benzersiz
+- diger: 11 bağlantı, 10 benzersiz
+    - /film-izle
+    - /forum
+    - /gizlilik-politikasi
+    - /hakkimizda
+    - /iletisim
+    - /kesfet
+    - /platform-bolumler
+    - /reklam-iletisim
+    - /yabanci-dizi-izle
+    - /yeni-eklenen-dizi-bolumler
+- sınıf adları: 45
+    `dp-ps-slot dc-root app sc wrap navl nl nic hbtn pbtn ann bc dp-adreg banner-slot new-da-banner dp-adband top dp-ad new-da-slot dp-hg dp-hg-item new-da-banner-wrap lite dp-adg dp-adg-item dp-adply side dp-ad-affiliate prow dply pads framed act2 nbtn bottom ptab seg on pbtn2 uAv lvAv mono uLk rpb lk`
+- oynatıcı/akış izi: 2
+    * <iframe data-player-frame="" title="Gassal 4. Sezon 1. Bölüm" allow="autoplay *; picture-in-picture *; encrypted-media *" allowFullScreen="" referrerPolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent">
+    * data-player="episode"
+### message14-arama.html
+- uzunluk: 91135B
+- series: 1 bağlantı, 1 benzersiz
+    - /series/nocturne
+- movies: 1 bağlantı, 1 benzersiz
+    - /movies/nocturnal
+- bolum: 0 bağlantı, 0 benzersiz
+- diger: 13 bağlantı, 13 benzersiz
+    - /apk-indir
+    - /film-izle
+    - /forum
+    - /gizlilik-politikasi
+    - /hakkimizda
+    - /iletisim
+    - /kesfet
+    - /koleksiyonlar
+    - /kullanim-kosullari
+    - /platform-bolumler
+- sınıf adları: 26
+    `dp-ps-slot dc-root app sc wrap navl nl nic hbtn pbtn ann mono bsw bsrch rx bara srOnly bchip seg on allb g6 tc fr tt lk`
+- oynatıcı/akış izi: 0

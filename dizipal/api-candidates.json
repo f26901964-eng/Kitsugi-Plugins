@@ -1,0 +1,9 @@
+[
+  "/api/mj",
+  "/api/auth/password",
+  "/api/account/collection",
+  "/api/account/delete",
+  "/api/account/profile",
+  "/api/account/avatar",
+  "/api/comments"
+]

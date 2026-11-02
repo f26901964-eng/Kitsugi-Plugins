@@ -1,0 +1,28 @@
+{
+  "kind": "episode",
+  "contentId": 400474,
+  "title": "The Simpsons 38. Sezon 5. Bölüm",
+  "poster": "https://file.cdnhipter.xyz/images/0/0/100/tt0096697-brand-1793000274.jpg",
+  "prerollImage": "https://file.cdnhipter.xyz/images/0/0/100/tt0096697-back-1793000274.jpg",
+  "sources": [
+    {
+      "label": "PUB+ · Türkçe Altyazı",
+      "quality": "1080P",
+      "href": "/bolum/the-simpsons-38x5",
+      "on": true,
+      "dub": false
+    }
+  ],
+  "language": "Türkçe Altyazı",
+  "dub": false,
+  "enc": {
+    "ciphertext": "YPaYqRKKoQcF12kdVijiJ+XEfBkYGXLyXGT1IvCnQRKhxp0eWUti6ZM7FkiH88EgiHIeRZUlQVn0FIl5UTV7Dq5JPZ4zrTgLb5OH5A62UOA=",
+    "iv": "2c027cd298f98b4ca21b429a67fab85b",
+    "salt": "ab873c0c277293d7c48a85883614d7a76bea2ba050e2860e7eb7c53dae40dda7f9d44b2365e5d114fe3a6e22d82f95843c57d3d89027d23524ec20787122e82d70d5f26996963619088125c17c508e86fd4a5beb87f9e676c8d077395ccd0e58e89b2ec8ce861515a0d7130e0dcb14a34bf706edf2fe7f22e5d671e4a69156648a788f7b4c8a8e6d442cf81e8294bedc85fc738fddff846e0fbd1dc322e170e61b359d9cacbb14228330988adb4d35a6ed7479a4428349c6fb61d93aabd7bd7448ef9d041c4f3c8ef8e3da8a1444739c3e31da60ff821bde4143ce5ce65faa197e84935f80999362754373005a9c59978b7f82a090ef9d2f78543b916c04e24b"
+  },
+  "k": "3hPn4uCjTVtfYWcjIcoJQ4cL1WWk1qxXI39egLYOmNv6IblA7eKJz68uU3eLzux1biZLCms0quEjTYniGv5z1JcKbNIsDQFSeIZOBZJz4is6pD7UyWDggWWzTLBQbHcQFpBQdClnuQaMNUHtLHTpzCvZy33p6I7wFBvL4fnXBYH84aUIyWGTRvM2G5cfoNf4705tO2kv",
+  "error": null,
+  "gate": null,
+  "loggedIn": false,
+  "resume": "0"
+}

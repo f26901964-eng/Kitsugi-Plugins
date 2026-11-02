@@ -1,0 +1,35 @@
+{
+  "kind": "episode",
+  "contentId": 386373,
+  "title": "Gassal 1. Sezon 1. Bölüm",
+  "poster": "https://file.cdnhipter.xyz/images/0/0/100/x7kijuttfdcmq4iar3lksbwrzaa--1735282549.jpg",
+  "prerollImage": "https://file.cdnhipter.xyz/images/0/0/100/x7kijuttfdcmq4iar3lksbwrzaa--1735282549.jpg",
+  "sources": [
+    {
+      "label": "PUB+ · Türkçe Altyazı",
+      "quality": "1080P",
+      "href": "/bolum/gassal-1x1-c09",
+      "on": true,
+      "dub": false
+    },
+    {
+      "label": "PUB+ · Türkçe Dublaj",
+      "quality": "1080P",
+      "href": "/bolum/gassal-1x1-c09?player=c9d269c6068df46ced5c81ba04b793fa",
+      "on": false,
+      "dub": true
+    }
+  ],
+  "language": "Türkçe Altyazı",
+  "dub": false,
+  "enc": {
+    "ciphertext": "dTRgsXnFfDgeB8jo4u1AsEYKdurqM1mt6Wi8TUzPRq/rrABIqqPrkKD1n4kpwqPDGJhM8tFCAX6u8ZKRoafKF7HXohcHj0QswBfjefo0Vvc=",
+    "iv": "39f798adcdd3370a017d9f7f5795db5f",
+    "salt": "d000566fbc91fa54d943eb631b0eb23fc95e6874df549816ee61d627c7159f6cb50e1381fcd12c327518a712675fb6d110afd5e96aea73834cc9ff57afe540aed337f38fa7c1e66e67bb7826e89efe4c13c6c1424664a48e635e4fafae1189a084ef0e2eb3c06dbd57b1bab9d59f46dd753f4accbc5e583007d4169620b1a268b2ea9f5d9e1eb9827867fdf052dc61c4c7ad942b0150609e0865d38156f0583a4773c7a67162f7046fdeafc173f3846cd6375df7ec813f8f7821aa245c2d3cf8ce2ade5e7941795b88f8502f226ef499b35360288d15d3ee1b07844216650c8f32cb279ee23401869f365fd3c3e83ab2bb3c38fd9f47e9e6fb9929fa489a06c3"
+  },
+  "k": "3hPn4uCjTVtfYWcjIcoJQ4cL1WWk1qxXI39egLYOmNv6IblA7eKJz68uU3eLzux1biZLCms0quEjTYniGv5z1JcKbNIsDQFSeIZOBZJz4is6pD7UyWDggWWzTLBQbHcQFpBQdClnuQaMNUHtLHTpzCvZy33p6I7wFBvL4fnXBYH84aUIyWGTRvM2G5cfoNf4705tO2kv",
+  "error": null,
+  "gate": null,
+  "loggedIn": false,
+  "resume": "0"
+}

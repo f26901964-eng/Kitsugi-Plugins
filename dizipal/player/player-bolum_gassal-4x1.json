@@ -1,0 +1,28 @@
+{
+  "kind": "episode",
+  "contentId": 400473,
+  "title": "Gassal 4. Sezon 1. Bölüm",
+  "poster": "https://file.cdnhipter.xyz/images/0/0/100/x7kijuttfdcmq4iar3lksbwrzaa--1735282549.jpg",
+  "prerollImage": "https://file.cdnhipter.xyz/images/0/0/100/x7kijuttfdcmq4iar3lksbwrzaa--1735282549.jpg",
+  "sources": [
+    {
+      "label": "PUB+ · Altyazısız",
+      "quality": "1080P",
+      "href": "/bolum/gassal-4x1",
+      "on": true,
+      "dub": false
+    }
+  ],
+  "language": "Altyazısız",
+  "dub": false,
+  "enc": {
+    "ciphertext": "XzmyD9Egf49rN3XBXD3nUHGTLgrihhzb/Ya1ZnC1jcBnMRuuqNxqM5NhBXO2ss2RMpbU/hRJK4F7ufb5MtDKaM4ustaPzYgeMic9gxjExVo=",
+    "iv": "131e416fb673f412906d2b496ec65965",
+    "salt": "993a14abf109f0d2b8a6d2e0a88b9e2ae3aac26ac0a8b01523e0875163f83178cb9b6f0f392867a8408cc01893972ed167d4a0b0a11b13f8732ffe1ecb4c4fbb7ba5a13ea73e9fbe93ea19ba3582e641256b743fd0808ff9ecce027d3840940384be330d81afb49122a471af7744bdfe7b113481e4122e998a4e2b3a47b5025c65c573c3c036aa5f288fbc4af00bb40dd84cac6dddc90f7ff5fa0d33ab007ee37d4882c1fa657254c4106976564b9a058f1c601ca745cd042bc49df53734d2ae2b44b8d31699ea42d864cde53ca6d0dfba6dd7fd70003aa75624e10c124b3ea09513683141cfc328b1a38bb6c97a380b05291065e2c2edb3ead54ba8275ef116"
+  },
+  "k": "3hPn4uCjTVtfYWcjIcoJQ4cL1WWk1qxXI39egLYOmNv6IblA7eKJz68uU3eLzux1biZLCms0quEjTYniGv5z1JcKbNIsDQFSeIZOBZJz4is6pD7UyWDggWWzTLBQbHcQFpBQdClnuQaMNUHtLHTpzCvZy33p6I7wFBvL4fnXBYH84aUIyWGTRvM2G5cfoNf4705tO2kv",
+  "error": null,
+  "gate": null,
+  "loggedIn": false,
+  "resume": "0"
+}
