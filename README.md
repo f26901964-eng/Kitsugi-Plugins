@@ -11,18 +11,26 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
-| Anime | **Anizm** | 21 (kaynak kodu; yayınlanması derlemeye bağlı) |
+| Anime | **Anizm** | 22 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Anime | **AnimeciX** | 24 |
-| Anime | **TrAnimeIzle** | 44 (kaynak kodu; yayınlanması derlemeye bağlı) |
+| Anime | **TrAnimeIzle** | 45 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Film / Dizi | **FilmMakinesi** | 72 |
 | Film / Dizi | **HDFilmCehennemi** | 63 |
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
-> **Anizm v21 (kaynak kodu):** Aincrad/OK.ru HLS master, SendVid MP4, YourUpload
-> Referer/başlık/ses meta verisi ve Google Drive onay/HTML yanıtları için düzeltmeler içerir.
-> Ayrıntı ve doğrulama sınırları: [`research/anizm-playback-fix-2026-11-02.md`](research/anizm-playback-fix-2026-11-02.md).
-> Bu sürüm henüz `builds` dalında yayımlanmadı; gerçek cihazda oynatma doğrulaması bekliyor.
+> **Anizm v22 (kaynak kodu):** yayımlanmış v21 taslağının üzerine Aincrad/OK.ru HLS
+> master, SendVid MP4, YourUpload başlık/ses meta verisi, Drive onay/HTML yanıtı ve
+> koşullu tekilleştirme düzeltmeleri ekler. Ayrıntı:
+> [`research/anizm-playback-fix-2026-11-02.md`](research/anizm-playback-fix-2026-11-02.md).
+> v22 henüz `builds` dalında yayımlanmadı; gerçek cihazda oynatma doğrulaması bekliyor.
+>
+> **TrAnimeIzle v45 (kaynak kodu):** eklenti çekirdeği sıfırdan, tek katman
+> olarak yeniden yazıldı. Captcha artık sitenin **kendi** IconCaptcha v2
+> protokolüyle (cID/rT=1/tM → ikonlar → rT=2 + pC) HTTP üzerinden çözülüyor ve
+> oturum çerezi **süreç düzeyinde** paylaşılıyor; `data`/`dt` sırası ters olan
+> detay tablosu, `data-slug` bölüm kartları ve `-2-sezon-` ekli adresler gerçek
+> dökümlerle doğrulandı. Ayrıntı: [`research/tranimeizle-v45-2026-11-02.md`](research/tranimeizle-v45-2026-11-02.md).
 >
 > **TrAnimeIzle v44 (kaynak kodu):** CAPTCHA ve kaynak zinciri için düzeltmeler içerir.
 > Bu sürümün cihazlara ulaşması için derlenip yayınlanması gerekir; canlı oynatma

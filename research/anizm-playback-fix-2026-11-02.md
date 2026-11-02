@@ -1,7 +1,9 @@
-# Anizm v21 — oynatma düzeltmeleri ve doğrulama durumu
+# Anizm v22 — oynatma düzeltmeleri ve doğrulama durumu
 
 **Tarih:** 2 Kasım 2026  
 **Kapsam:** `f26901964-eng/Kitsugi-Plugins`, çalışma dalı `arena/b9adaf81-kitsugi-plugins`  
+**Taban:** `main` üzerinde başka bir çalışma tarafından yayımlanmış Anizm v21. Bu dal v21’i tekrar yayımlamaz; v22 ek düzeltmelerini içerir.
+
 **Girdi:** Google Drive devir klasörü (`00_OKU_Kaynaklar_ve_Devir.md`, üç ekran görüntüsü, `anizm-v20-to-v21.patch`). Uygulama yaması yalnızca referans olarak okundu; bu depoya uygulanmadı.
 
 ## Kaynak bazında sonuç
@@ -31,4 +33,4 @@
 
 ## Yayın durumu
 
-**Yayımlanmadı.** Değişiklikler yalnızca çalışma dalındadır. `builds` dalına, `prebuilt/` klasörüne veya cihazlara dağıtım yapılmadı. Yayın için ayrı ve açık karar gerekir.
+**Bu dalın v22 değişiklikleri yayımlanmadı.** Tabandaki v21 daha önce yayımlanmıştı; v22 yalnızca çalışma dalındadır. `builds` dalına, `prebuilt/` klasörüne veya cihazlara dağıtım yapılmadı. Yayın için ayrı ve açık karar gerekir.

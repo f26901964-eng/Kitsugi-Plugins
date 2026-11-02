@@ -54,6 +54,9 @@ internal object TrAnimeIzleMatch {
         RegexOption.IGNORE_CASE
     )
 
+    /** URL slug'ındaki sezon eki: `…-2-sezon`, `…-sezon-2` (sitenin çok sezonlu adları). */
+    private val SEASON_SUFFIX = Regex("-(?:\\d{1,2}-sezon|sezon-\\d{1,2})$", RegexOption.IGNORE_CASE)
+
     // ------------------------------------------------------------------
     // Normalizasyon
     // ------------------------------------------------------------------
@@ -154,6 +157,22 @@ internal object TrAnimeIzleMatch {
     }
 
     /**
+     * Sezon eki **atılmış** seri adresi (`…-2-sezon-20-bolum-izle` →
+     * `/anime/…-izle`). [toSeriesUrl] birincil kabuldür; bu adres yalnızca
+     * birincil sayfa bölüm listesi vermezse denenir (ağ maliyeti: bir istek).
+     */
+    fun alternateSeriesUrl(url: String): String? {
+        val primary = toSeriesUrl(url) ?: return null
+        val host = primary.substringBeforeLast('/', "")
+        val last = primary.substringAfterLast('/')
+        val hadSuffix = last.endsWith("-izle", ignoreCase = true)
+        val slug = if (hadSuffix) last.dropLast("-izle".length) else last
+        val stripped = SEASON_SUFFIX.replace(slug, "").trim('-')
+        if (stripped.isEmpty() || stripped == slug) return null
+        return "$host/$stripped" + if (hadSuffix) "-izle" else ""
+    }
+
+    /**
      * Karşılaştırma anahtarı: bölüm eki atılmış, "izle"/"-hd" sonekleri temizlenmiş yol.
      * Kategori/liste sayfalarında da çalışır ("/animeizle/aksiyon-anime-izle-2").
      */
@@ -173,6 +192,9 @@ internal object TrAnimeIzleMatch {
             }
         }
         EPISODE_PATH.find(path)?.let { path = it.groupValues[1] }
+        // Sezon eki ("…-2-sezon") anahtara girmez: aynı serinin sezonları ve
+        // bölümleri tek anahtarda buluşur.
+        path = SEASON_SUFFIX.replace(path, "")
         return path.trim('-')
     }
 
