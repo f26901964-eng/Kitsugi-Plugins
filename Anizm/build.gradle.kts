@@ -19,6 +19,15 @@ cloudstream {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    // classes.jar yalnızca API sınıflarını içerir; ExtractorApiKt statik init
+    // sırasında tüm extractor örneklerini kurar. JVM testlerinde bu çalışma
+    // zamanı bağımlılıkları da gerekir (eklenti APK'sına girmez).
+    testImplementation("dev.whyoleg.cryptography:cryptography-core:0.6.0")
+    testImplementation("dev.whyoleg.cryptography:cryptography-provider-optimal:0.6.0")
+    testImplementation("com.fleeksoft.ksoup:ksoup:0.2.6")
+    testImplementation("io.ktor:ktor-http:3.5.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-io-core:0.9.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-datetime:0.8.0")
 }
 
 // CloudStream API derlemede compileOnly; JVM regresyon testlerinin de aynı
