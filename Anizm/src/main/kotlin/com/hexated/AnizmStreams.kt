@@ -1225,7 +1225,19 @@ internal class AnizmStreams(
         }
         val ref = AnizmPlaybackPolicy.header(extraHeaders.orEmpty(), "Referer")
             ?: referer.ifBlank { base() + "/" }
-        val headers = AnizmPlaybackPolicy.mergeHeaders(streamHeaders(ref), extraHeaders.orEmpty())
+        // Bazı CDN'ler (SendVid/vidcache/okcdn) embed Origin'i ister. Çözümleme
+        // yolu ne olursa olsun (yerel çözücü, generic extractor, doğrudan MP4)
+        // açık Origin verilmediyse Referer'ın origin'ini ekle; mevcut değeri asla
+        // değiştirme.
+        val originExtras = if (AnizmPlaybackPolicy.needsEmbedOrigin(url) &&
+            AnizmPlaybackPolicy.header(extraHeaders.orEmpty(), "Origin") == null
+        ) {
+            AnizmPlaybackPolicy.origin(ref)?.let { mapOf("Origin" to it) }.orEmpty()
+        } else emptyMap()
+        val headers = AnizmPlaybackPolicy.mergeHeaders(
+            streamHeaders(ref),
+            AnizmPlaybackPolicy.mergeHeaders(originExtras, extraHeaders.orEmpty())
+        )
         val link = newExtractorLink(
             source = pluginName,
             name = label.ifBlank { pluginName },

@@ -85,7 +85,8 @@ internal object AnizmPlaybackPolicy {
     fun isOkRuHost(url: String): Boolean = hostMatches(url, "ok.ru", "odnoklassniki.ru")
     fun isSendvidHost(url: String): Boolean = hostMatches(url, "sendvid.com")
     fun needsEmbedOrigin(url: String): Boolean =
-        isSendvidHost(url) || hostMatches(url, "vidcache.net", "yourupload.com")
+        isSendvidHost(url) || hostMatches(url, "vidcache.net", "yourupload.com") ||
+            hostMatches(url, "okcdn.ru", "ok.ru", "odnoklassniki.ru")
 
     fun queryParameter(url: String, name: String): String? = try {
         URI(url).rawQuery.orEmpty().split('&').firstOrNull {

@@ -26,6 +26,10 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: derleme-test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   Derle:
     runs-on: ubuntu-latest

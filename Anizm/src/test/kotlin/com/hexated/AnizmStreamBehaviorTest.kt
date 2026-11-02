@@ -100,6 +100,27 @@ class AnizmStreamBehaviorTest {
     }
 
     @Test
+    fun `okcdn generic extractor link gets embed origin from referer`() = runBlocking {
+        val link = newExtractorLink("Okru", "OK", "https://vd672.okcdn.ru/video.m3u8?sig=keep", ExtractorLinkType.M3U8) {
+            referer = "https://ok.ru/"
+        }
+        assertTrue(streams.emitExtractorLinks(listOf(link), "OK.ru", "https://anizm.example/episode", callback))
+        val result = out.single()
+        assertEquals("https://ok.ru/", result.referer)
+        assertEquals("https://ok.ru", AnizmPlaybackPolicy.header(result.headers, "Origin"))
+    }
+
+    @Test
+    fun `explicit origin is not overwritten by embed default`() = runBlocking {
+        val link = newExtractorLink("X", "X", "https://videos2.sendvid.com/a.mp4", ExtractorLinkType.VIDEO) {
+            referer = "https://sendvid.com/embed/a"
+            headers = mapOf("Origin" to "https://custom.example")
+        }
+        streams.emitExtractorLinks(listOf(link), "SendVid", "https://anizm.example/", callback)
+        assertEquals("https://custom.example", AnizmPlaybackPolicy.header(out.single().headers, "Origin"))
+    }
+
+    @Test
     fun `yourupload extractor metadata and every audio track survive`() = runBlocking {
         val audio = listOf(
             newAudioFile("https://cdn.example/tr.m4a") { headers = mapOf("Cookie" to "audio=1", "Referer" to "https://www.yourupload.com/embed/abc") },

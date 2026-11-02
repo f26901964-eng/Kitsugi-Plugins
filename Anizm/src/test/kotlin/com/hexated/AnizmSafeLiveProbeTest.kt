@@ -53,7 +53,8 @@ class AnizmSafeLiveProbeTest {
         val contentType: String?,
         val disposition: String?,
         val location: String?,
-        val finalUrl: String?
+        val finalUrl: String?,
+        val error: String? = null
     ) {
         val text: String get() = bytes.toString(Charsets.UTF_8)
     }
@@ -150,7 +151,7 @@ class AnizmSafeLiveProbeTest {
                 }
                 Resp(status, bytes, ctype, disp, loc, finalUrl)
             } catch (e: Exception) {
-                Resp(0, ByteArray(0), null, null, null, null)
+                Resp(0, ByteArray(0), null, null, null, null, e.javaClass.simpleName)
             } finally {
                 conn?.disconnect()
             }
@@ -225,7 +226,10 @@ class AnizmSafeLiveProbeTest {
                 mapOf("Referer" to link.referer, "User-Agent" to ua),
                 link.headers
             )
-            val r = request(url, link.referer, extra = headers, range = "bytes=0-65535", maxBytes = 65536)
+            val hlsHint = link.type == ExtractorLinkType.M3U8 ||
+                url.substringBefore('?').lowercase(Locale.ROOT).contains(".m3u8")
+            val r = request(url, link.referer, extra = headers,
+                range = if (hlsHint) null else "bytes=0-65535", maxBytes = 65536)
             val mime = r.contentType.orEmpty().substringBefore(';').trim().lowercase(Locale.ROOT)
             val text = r.bytes.toString(Charsets.UTF_8).trimStart('\uFEFF', ' ', '\t', '\r', '\n')
             val lower = text.lowercase(Locale.ROOT)
@@ -240,7 +244,8 @@ class AnizmSafeLiveProbeTest {
             }
             val audioGroups = if (kind == "hls-master") Regex("#EXT-X-MEDIA:", RegexOption.IGNORE_CASE).findAll(text).count() else 0
             val duration = mp4DurationSeconds(r.bytes)
-            val base = "status=${r.status} ctype=${mime.ifBlank { "-" }} kind=$kind bytes=${r.bytes.size} finalHost=${host(r.finalUrl)}"
+            val base = "status=${r.status} ctype=${mime.ifBlank { "-" }} kind=$kind bytes=${r.bytes.size} finalHost=${host(r.finalUrl)}" +
+                (r.error?.let { " error=$it" } ?: "")
             val extra = buildString {
                 if (audioGroups > 0) append(" audioGroups=$audioGroups")
                 if (duration != null) append(" mp4DurationSeconds=$duration")
@@ -253,7 +258,7 @@ class AnizmSafeLiveProbeTest {
             val child = master.lineSequence().map { it.trim() }
                 .firstOrNull { it.isNotEmpty() && !it.startsWith("#") } ?: return ""
             val childUrl = try { URI(masterUrl).resolve(child).toString() } catch (_: Exception) { return "" }
-            val r = request(childUrl, headers["Referer"], extra = headers, range = "bytes=0-4095", maxBytes = 4096)
+            val r = request(childUrl, headers["Referer"], extra = headers, maxBytes = 4096)
             val t = r.text.trimStart('\uFEFF', ' ', '\t', '\r', '\n').lowercase(Locale.ROOT)
             val kind = when {
                 r.status == 0 -> "network-error"
