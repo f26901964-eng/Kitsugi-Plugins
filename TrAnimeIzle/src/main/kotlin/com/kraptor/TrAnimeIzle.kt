@@ -180,18 +180,29 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
         var doc = Jsoup.parse(html, pageUrl)
 
         // Kart adresleri bölüm sayfasıdır (`/x-12-bolum-izle`). Seri sayfasına geç:
-        // önce sayfanın kendi breadcrumb'ı (birebir doğru adres), sonra slug kuralı.
+        // 1) sayfanın kendi breadcrumb'ı (birebir doğru adres),
+        // 2) slug kuralı, 3) sezon eki atılmış varyant.
+        // Bölüm listesi veren İLK aday kullanılır → normalde tek istek.
+        var resolved: TrDetail? = null
         if (TrAnimeIzleMatch.episodeFromUrl(pageUrl) != null) {
-            val series = doc.selectFirst("ol.breadcrumb a[href*='/anime/']")?.attr("href")
+            val breadcrumb = doc.selectFirst("ol.breadcrumb a[href*='/anime/']")?.attr("href")
                 ?.let { TrAnimeIzleSite.absolute(pageUrl, it) }
-                ?: TrAnimeIzleMatch.toSeriesUrl(pageUrl)
-            if (!series.isNullOrBlank() && series != pageUrl) {
-                val seriesHtml = get(series, "$mainUrl/")
-                if (!seriesHtml.isNullOrBlank()) {
-                    pageUrl = series
-                    html = seriesHtml
-                    doc = Jsoup.parse(html, pageUrl)
-                }
+            val candidates = listOfNotNull(
+                breadcrumb,
+                TrAnimeIzleMatch.toSeriesUrl(pageUrl),
+                TrAnimeIzleMatch.alternateSeriesUrl(pageUrl)
+            ).distinct().filter { it != pageUrl }
+
+            for (candidate in candidates) {
+                val candidateHtml = get(candidate, "$mainUrl/") ?: continue
+                val candidateDoc = Jsoup.parse(candidateHtml, candidate)
+                val candidateDetail = TrAnimeIzleSite.parseDetail(candidateDoc, "$mainUrl/", candidate)
+                if (candidateDetail.episodes.isEmpty()) continue
+                pageUrl = candidate
+                html = candidateHtml
+                doc = candidateDoc
+                resolved = candidateDetail
+                break
             }
         }
 
@@ -205,11 +216,13 @@ class TrAnimeIzle : MainAPI(), TrStreamHttp {
             }
         }
 
-        val detail = TrAnimeIzleSite.parseDetail(doc, "$mainUrl/", pageUrl)
+        val detail = resolved ?: TrAnimeIzleSite.parseDetail(doc, "$mainUrl/", pageUrl)
         val episodes = detail.episodes
+        // Film: site "Movie/Film" diyor ya da sayfada hiç bölüm yok. Tek bölümlü
+        // yeni bir seri film sayılmaz (yanlış sınıflandırma olurdu).
         val isFilm = detail.typeText?.let {
             it.contains("film", true) || it.contains("movie", true)
-        } == true || episodes.size <= 1
+        } == true || episodes.isEmpty()
 
         val episodeList = episodes.map { ep ->
             newEpisode(ep.url) {

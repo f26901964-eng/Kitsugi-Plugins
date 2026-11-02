@@ -131,7 +131,7 @@ internal object TrAnimeIzleMatch {
         val m = EPISODE_PATH.find(path) ?: return null
         val prefix = if (url.contains("://")) url.substringBefore("://") + "://" +
             url.substringAfter("://").substringBefore("/") else ""
-        val series = SEASON_SUFFIX.replace(m.groupValues[1].trim('-'), "").trim('-')
+        val series = m.groupValues[1].trim('-')
         if (series.isEmpty()) return null
         return if (prefix.isEmpty()) "/$series" else "$prefix/$series"
     }
@@ -150,12 +150,26 @@ internal object TrAnimeIzleMatch {
         val prefix = if (url.contains("://"))
             url.substringBefore("://") + "://" + url.substringAfter("://").substringBefore("/") else ""
         val last = pathOf(url).substringAfterLast('/')
-        val slug = SEASON_SUFFIX
-            .replace(last.substringBefore("-bolum").substringBeforeLast("-").trim('-'), "")
-            .trim('-')
+        val slug = last.substringBefore("-bolum").substringBeforeLast("-").trim('-')
         if (slug.isEmpty()) return null
         val path = "anime/$slug-izle"
         return if (prefix.isEmpty()) "/$path" else "$prefix/$path"
+    }
+
+    /**
+     * Sezon eki **atılmış** seri adresi (`…-2-sezon-20-bolum-izle` →
+     * `/anime/…-izle`). [toSeriesUrl] birincil kabuldür; bu adres yalnızca
+     * birincil sayfa bölüm listesi vermezse denenir (ağ maliyeti: bir istek).
+     */
+    fun alternateSeriesUrl(url: String): String? {
+        val primary = toSeriesUrl(url) ?: return null
+        val host = primary.substringBeforeLast('/', "")
+        val last = primary.substringAfterLast('/')
+        val hadSuffix = last.endsWith("-izle", ignoreCase = true)
+        val slug = if (hadSuffix) last.dropLast("-izle".length) else last
+        val stripped = SEASON_SUFFIX.replace(slug, "").trim('-')
+        if (stripped.isEmpty() || stripped == slug) return null
+        return "$host/$stripped" + if (hadSuffix) "-izle" else ""
     }
 
     /**
@@ -171,7 +185,6 @@ internal object TrAnimeIzleMatch {
         // Sayfalama son eki ("-2") — bölüm ekiyle karışmasın diye ÖNCE atılır.
         path = PAGINATION.replace(path, "")
         EPISODE_PATH.find(path)?.let { path = it.groupValues[1] }
-        path = SEASON_SUFFIX.replace(path, "")
         for (suffix in listOf("-anime-izle", "-izle-hd", "-izle")) {
             if (path.endsWith(suffix)) {
                 path = path.removeSuffix(suffix)
@@ -179,6 +192,9 @@ internal object TrAnimeIzleMatch {
             }
         }
         EPISODE_PATH.find(path)?.let { path = it.groupValues[1] }
+        // Sezon eki ("…-2-sezon") anahtara girmez: aynı serinin sezonları ve
+        // bölümleri tek anahtarda buluşur.
+        path = SEASON_SUFFIX.replace(path, "")
         return path.trim('-')
     }
 

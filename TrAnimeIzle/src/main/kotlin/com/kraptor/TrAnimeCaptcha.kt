@@ -83,10 +83,11 @@ internal object TrCaptcha {
     /**
      * "Farklı olan" ikonun kimliğini döndürür; ayırt edilemezse `null`.
      *
-     * 1. **MD5**: 4 aynı + 1 farklı → tek kalan kazanır (kesin yöntem).
-     * 2. Sunucu görsellere gürültü eklediyse boyut kümeleri denenir (kaba ama
-     *    işe yarar: aynı görsel aynı boyutta kodlanır).
-     * 3. Hiçbiri ayrışmazsa `null` — çağıran yeni bir captcha ister.
+     * Yalnızca MD5 gruplaması kullanılır (4 aynı + 1 farklı → tek kalan).
+     * Boyut/uzunluk gibi kaba ipuçları **kullanılmaz**: aynı ikon seti farklı
+     * boyutlarda kodlanabiliyor ve yanlış ikon seçmek oturumu işaretliyor
+     * (Aniyomi ve MyTV istemcileri de yalnızca MD5 kullanır).
+     * Gruplama ayrışmazsa `null` döner — çağıran yeni bir captcha ister.
      */
     fun oddOneOut(hashes: List<String>, icons: List<ByteArray?>): String? {
         if (hashes.size < 3 || hashes.size != icons.size) return null
@@ -96,11 +97,7 @@ internal object TrCaptcha {
         }
         if (pairs.size != hashes.size) return null
 
-        uniqueBy(pairs) { md5Hex(it.second) }?.let { return it }
-        for (bucket in listOf(16, 64, 256, 1024)) {
-            uniqueBy(pairs) { (it.second.size / bucket).toString() }?.let { return it }
-        }
-        return null
+        return uniqueBy(pairs) { md5Hex(it.second) }
     }
 
     private fun uniqueBy(
