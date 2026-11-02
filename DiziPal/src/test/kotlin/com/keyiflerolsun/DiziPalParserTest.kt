@@ -87,6 +87,19 @@ class DiziPalParserTest {
     }
 
     @Test
+    fun `film oynatıcısı kaynak listesiyle gelir`() {
+        val player = DiziPalParser.parsePlayer(fixture("player-movie-nocturnal.rsc.html"))
+
+        assertNotNull(player)
+        assertEquals("movie", player!!.kind)
+        assertEquals(17618L, player.contentId)
+        assertEquals(2, player.sources.size)
+        assertEquals("/movies/nocturnal?lang=2347", player.sources[1].href)
+        assertEquals(true, player.sources[1].dub)
+        assertEquals("//four.dplayer82.site/iframe.php?v=f56dce5b9aaf497f9f1696eab0745cca", DiziPalParser.decryptPlayer(player))
+    }
+
+    @Test
     fun `dizi künyesi ve türler okunur`() {
         val html = fixture("series-slots.rsc.html")
         val slots = DiziPalParser.parseSlots(html)

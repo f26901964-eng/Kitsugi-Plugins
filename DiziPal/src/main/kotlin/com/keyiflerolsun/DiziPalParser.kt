@@ -79,10 +79,28 @@ object DiziPalParser {
     /** Bölüm/film sayfasındaki `"player":{…}` nesnesini çıkarır. */
     fun parsePlayer(html: String): DiziPalPlayer? {
         val plain = unescapeRsc(html)
-        val key   = plain.indexOf("\"player\":{")
-        if (key < 0) return null
+        var index = 0
+        var first: DiziPalPlayer? = null
 
-        val block = jsonObjectAt(plain, key + "\"player\":".length) ?: return null
+        while (true) {
+            val key = plain.indexOf("\"player\":{", index)
+            if (key < 0) break
+
+            val parsed = parsePlayerAt(plain, key + "\"player\":".length)
+            if (parsed != null) {
+                // * Şifreli gövde taşıyan nesne gerçek oynatıcıdır; ilkini de yedek tut.
+                if (parsed.ciphertext != null && parsed.key != null) return parsed
+                if (first == null) first = parsed
+            }
+
+            index = key + 1
+        }
+
+        return first
+    }
+
+    private fun parsePlayerAt(plain: String, start: Int): DiziPalPlayer? {
+        val block = jsonObjectAt(plain, start) ?: return null
 
         val sourcesBlock = Regex("\"sources\":\\[").find(block)?.let { jsonArrayAt(block, it.range.last) } ?: "[]"
         val sources = Regex("\\{[^{}]*}").findAll(sourcesBlock).map { match ->

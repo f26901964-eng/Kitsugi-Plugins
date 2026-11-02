@@ -21,6 +21,7 @@ package com.keyiflerolsun
 
 import android.util.Log
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.*
 import okhttp3.Interceptor
@@ -195,7 +196,10 @@ class DiziPal : MainAPI() {
         val description = slots["mjOverview"]
         val year        = slots["mjYear"]?.trim()?.take(4)?.toIntOrNull()
         val tags        = DiziPalParser.parseGenres(html)
-        val duration    = Regex("\"min\":(\\d+)").find(DiziPalParser.unescapeRsc(html))?.groupValues?.get(1)?.toIntOrNull()
+        val plain       = DiziPalParser.unescapeRsc(html)
+        val duration    = Regex("\"min\":(\\d+)").find(plain)?.groupValues?.get(1)?.toIntOrNull()
+            ?: Regex("\"runtimeMin\":(\\d+)").find(plain)?.groupValues?.get(1)?.toIntOrNull()
+        val trailer     = Regex("\"trailerRaw\":\"([A-Za-z0-9_-]{6,})\"").find(plain)?.groupValues?.get(1)
 
         if (url.contains("/movies/")) {
             return newMovieLoadResponse(title, url, TvType.Movie, url) {
@@ -204,6 +208,7 @@ class DiziPal : MainAPI() {
                 this.year      = year
                 this.tags      = tags
                 this.duration  = duration
+                if (trailer != null) addTrailer("https://www.youtube.com/watch?v=$trailer")
             }
         }
 
@@ -224,6 +229,7 @@ class DiziPal : MainAPI() {
             this.year      = year
             this.tags      = tags
             this.duration  = duration
+            if (trailer != null) addTrailer("https://www.youtube.com/watch?v=$trailer")
         }
     }
 
@@ -278,7 +284,7 @@ class DiziPal : MainAPI() {
     ): Boolean {
         val playerUrl = if (target.startsWith("//")) "https:$target" else target
         val body = runCatching {
-            app.get(playerUrl, headers = getHeaders(referer), referer = referer, timeout = 60_000L).text
+            app.get(playerUrl, headers = getHeaders(referer), referer = referer, interceptor = interceptor, timeout = 60_000L).text
         }.getOrNull()
 
         if (body != null) {
@@ -295,7 +301,7 @@ class DiziPal : MainAPI() {
             if (nested != null) {
                 val nestedUrl  = fixUrl(nested)
                 val nestedBody = runCatching {
-                    app.get(nestedUrl, headers = getHeaders(playerUrl), referer = playerUrl, timeout = 60_000L).text
+                    app.get(nestedUrl, headers = getHeaders(playerUrl), referer = playerUrl, interceptor = interceptor, timeout = 60_000L).text
                 }.getOrNull()
 
                 if (nestedBody != null) {
