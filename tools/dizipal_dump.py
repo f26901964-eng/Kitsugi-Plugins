@@ -324,16 +324,89 @@ def digest(html: str, label: str) -> list[str]:
     return lines
 
 
+
+JS_KEYWORDS = (
+    "data-player-frame", "playerFrame", "iframe", "m3u8", "hls", "playlist",
+    "sources", "embed", "/api/mj", "action:", "subtitle", "altyazi", "dublaj",
+    "cdnhipter", "rapidvideo", "sibnet", "vidmoly", "voe", "uqload", "dood",
+)
+
+
+def js_findings(chunks_dir: str, limit_per_keyword: int = 25) -> str:
+    """JS parçalarında oynatıcı/akış izlerini topla (kanıt niteliğinde)."""
+    lines: list[str] = ["# JS bulguları", ""]
+    files = sorted(
+        os.path.join(chunks_dir, name) for name in os.listdir(chunks_dir)
+        if name.endswith(".js")
+    ) if os.path.isdir(chunks_dir) else []
+    lines.append(f"- parça sayısı: {len(files)}")
+    actions: list[str] = []
+    for path in files:
+        try:
+            body = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        for match in re.finditer(r'"action"\s*:\s*"([A-Za-z0-9_]+)"', body):
+            if match.group(1) not in actions:
+                actions.append(match.group(1))
+        for match in re.finditer(r'\b[a-zA-Z_$]{1,3}\("([a-z][A-Za-z0-9_]{4,40})",\[', body):
+            if match.group(1) not in actions:
+                actions.append(match.group(1))
+    lines += ["", "## /api/mj eylem adayları", ""]
+    lines += [f"- `{name}`" for name in sorted(actions)] or ["- (yok)"]
+    for keyword in JS_KEYWORDS:
+        hits: list[str] = []
+        for path in files:
+            body = open(path, encoding="utf-8", errors="replace").read()
+            for match in re.finditer(re.escape(keyword), body):
+                start = max(0, match.start() - 220)
+                snippet = body[start:match.start() + 320].replace("\n", " ")
+                snippet = re.sub(r"\s+", " ", snippet)
+                entry = f"`{os.path.basename(path)}`: …{snippet}…"
+                if entry not in hits:
+                    hits.append(entry)
+                if len(hits) >= limit_per_keyword:
+                    break
+            if len(hits) >= limit_per_keyword:
+                break
+        lines += ["", f"## {keyword} ({len(hits)})", ""]
+        lines += [f"- {hit}" for hit in hits] or ["- (yok)"]
+    return "\n".join(lines)
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dizipal canlı HTML dökümü")
     parser.add_argument("--base", default="https://dizipal1593.com")
     parser.add_argument("--fast", action="store_true", help="hızlı erişim matrisi")
-    parser.add_argument("--max-chunks", type=int, default=25)
+    parser.add_argument("--max-chunks", type=int, default=80)
     parser.add_argument("--query", default="Nocturne")
+    parser.add_argument("--only-chunks", default="",
+                        help="Virgülle ayrılmış parça yolları; verilirse yalnız onları çeker")
+    parser.add_argument("--skip-api", action="store_true",
+                        help="Aday API uçlarını deneme (site 403 döndüğünde zaman kaybı)")
+    parser.add_argument("--reuse", action="store_true",
+                        help="Diske yazılmış sayfaları yeniden çekme")
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     base = args.base.rstrip("/")
     os.makedirs(OUT, exist_ok=True)
+
+    if args.only_chunks:
+        chunk_dir = os.path.join(OUT, "chunks")
+        os.makedirs(chunk_dir, exist_ok=True)
+        for raw in args.only_chunks.split(","):
+            chunk = raw.strip()
+            if not chunk:
+                continue
+            if not chunk.startswith("/"):
+                chunk = "/_next/static/chunks/" + chunk
+            body = fetch_report(base + chunk, save_as="chunks/" + slugify(chunk))
+            if not body:
+                log(f"  ! {chunk} alınamadı")
+        report = js_findings(chunk_dir)
+        save("JS-FINDINGS.md", report)
+        print(report[:200000], flush=True)
+        return 0
 
     log(f"# Dizipal dökümü — {base}")
     log()
@@ -376,7 +449,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     for path, name in targets:
         url = base + path
         log(f"## {url}")
-        body = fetch_report(url, via=via, save_as=name)
+        cached = os.path.join(OUT, name)
+        if args.reuse and os.path.exists(cached) and os.path.getsize(cached) > 5000:
+            body = open(cached, encoding="utf-8", errors="replace").read()
+            log(f"  (yeniden kullanıldı: {cached}, {len(body)}B)")
+        else:
+            body = fetch_report(url, via=via, save_as=name)
         pages[name] = body
         if looks_like_site(body):
             routes = route_map(body)
@@ -411,6 +489,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         log(f"    - {candidate}")
 
     save("api-candidates.json", json.dumps(api_hits, indent=2, ensure_ascii=False))
+    save("JS-FINDINGS.md", js_findings(os.path.join(OUT, "chunks")))
 
     # ── Aday API uçlarını dene (bölüm sayfasından türetilen kimliklerle) ────
     log("\n## Aday uçların denenmesi")
@@ -420,6 +499,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     for candidate in api_hits:
         if "{id}" in candidate and ids:
             probe_urls.append(candidate.replace("{id}", ids[0]))
+    probe_urls = [] if args.skip_api else probe_urls
     for url in probe_urls[:16]:
         if not url.startswith("http"):
             url = base + url

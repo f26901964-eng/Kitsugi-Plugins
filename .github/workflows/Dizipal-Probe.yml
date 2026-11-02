@@ -44,6 +44,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Önceki dökümü tohumla
+        continue-on-error: true
+        run: |
+          git fetch -q origin dizipal-dump-data:refs/dumpbranch || true
+          git checkout refs/dumpbranch -- site-dump 2>/dev/null || true
+          ls site-dump/dizipal | head -20 || true
       - name: Erişim + tam döküm
         env:
           PYTHONPATH: .
@@ -53,7 +59,7 @@ jobs:
           python3 tools/dizipal_dump.py \
             --base "${{ inputs.base || 'https://dizipal1593.com' }}" \
             --query "${{ inputs.query || 'Nocturne' }}" \
-            --fast 2>&1 | tee site-dump/dump-log.txt || true
+            --reuse --skip-api --fast 2>&1 | tee site-dump/dump-log.txt || true
           echo "--- dosyalar ---"
           ls -la site-dump/dizipal | head -40 || true
       - name: Özet
