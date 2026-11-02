@@ -215,4 +215,27 @@ class DiziBoxPlayerParserTest {
         assertEquals("a-gentleman-in-moscow", DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/a-gentleman-in-moscow-hd-3/"))
         assertEquals("visionquest", DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/visionquest/"))
     }
+
+    @Test
+    fun readsRealEpisodePagePlayerMarkup() {
+        // Gerçek sayfadan (Drive dökümü message (9).txt) alınmış oynatıcı bölümü.
+        val episodePage = "https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/"
+        val document = Jsoup.parse(
+            """
+                <select class="woca-linkpages-dd selectBox" onchange="this.options[this.selectedIndex].value && (window.location = this.options[this.selectedIndex].value);"><option class='woca-current-page' href='https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/' selected='selected'>DBX Pro</option><option value='https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/2/'>Moly+</option><option value='https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/3/'>Odnok</option></select>
+                <div class="embed-responsive embed-responsive-16by9" id="video-area">
+                    <p><!--baslik:DBX Pro--><span class="embed-responsive-item video-wrapper"><iframe src="https://www.dizibox.live/player/king/king.php?v=7bc25b8e88c523e771f5b760bd366c013959790ca763595d7563def4972e32e7440ba70a69bab614dc49ab8ce7595d68dd925cb0659e496295afefddc2098e1b" width='600' height='350' frameborder='0' scrolling='no' allowfullscreen></iframe></span></p>
+                </div>
+            """.trimIndent(),
+            episodePage,
+        )
+
+        val iframes = DiziBoxPlayerParser.playerIframes(document, episodePage)
+        assertEquals(1, iframes.size)
+        assertTrue(iframes[0].startsWith("https://www.dizibox.live/player/king/king.php?v=7bc25b"))
+
+        val pages = DiziBoxPlayerParser.alternatePlayerPages(document, episodePage)
+        assertTrue(pages.contains("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/2/"))
+        assertTrue(pages.contains("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/3/"))
+    }
 }
