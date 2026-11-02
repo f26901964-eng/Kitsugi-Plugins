@@ -26,6 +26,8 @@ import com.lagradost.cloudstream3.utils.*
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.jsoup.Jsoup
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
@@ -170,7 +172,8 @@ class DiziPal : MainAPI() {
                         "x-requested-with" to "XMLHttpRequest"
                     )
                 ),
-                data    = """{"action":"searchContent","params":["${query.replace("\"", "\\\"")}"]}""",
+                requestBody = """{"action":"searchContent","params":["${query.replace("\"", "\\\"")}"]}"""
+                    .toRequestBody("application/json".toMediaType()),
                 referer = "$mainUrl/arama-yap?s=${URLEncoder.encode(query, "UTF-8")}",
             ).text
 
@@ -279,7 +282,7 @@ class DiziPal : MainAPI() {
         }.getOrNull()
 
         if (body != null) {
-            emitSubtitles(body, playerUrl, subtitleCallback)
+            emitSubtitles(body, subtitleCallback)
 
             val media = DiziPalParser.mediaUrls(body)
             if (media.isNotEmpty()) {
@@ -296,7 +299,7 @@ class DiziPal : MainAPI() {
                 }.getOrNull()
 
                 if (nestedBody != null) {
-                    emitSubtitles(nestedBody, nestedUrl, subtitleCallback)
+                    emitSubtitles(nestedBody, subtitleCallback)
 
                     val nestedMedia = DiziPalParser.mediaUrls(nestedBody) +
                         DiziPalParser.decodedBlobs(nestedBody).flatMap { DiziPalParser.mediaUrls(it) }
@@ -346,7 +349,7 @@ class DiziPal : MainAPI() {
         callback.invoke(buildLink(fixed, label, referer, ExtractorLinkType.M3U8))
     }
 
-    private fun buildLink(
+    private suspend fun buildLink(
         url: String,
         label: String,
         referer: String,
@@ -364,9 +367,9 @@ class DiziPal : MainAPI() {
         }
     }
 
-    private fun emitSubtitles(body: String, referer: String, subtitleCallback: (SubtitleFile) -> Unit) {
+    private fun emitSubtitles(body: String, subtitleCallback: (SubtitleFile) -> Unit) {
         DiziPalParser.subtitleTracks(body).forEach { (lang, url) ->
-            subtitleCallback.invoke(SubtitleFile(lang, fixUrl(url, referer)))
+            subtitleCallback.invoke(SubtitleFile(lang, fixUrl(url)))
         }
     }
 
