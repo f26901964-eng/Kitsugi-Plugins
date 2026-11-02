@@ -922,20 +922,11 @@ class Anizm : MainAPI(), AnizmHttp {
             headers = headers(referer, xhr = false) + mapOf("Range" to "bytes=0-262143"),
             timeout = 12L
         )
-        response.okhttpResponse.use { raw ->
-            // Range can be ignored. Peek only a small prefix and close the response;
-            // response.text would otherwise buffer an entire video on older NiceHttp.
-            val sample = if (raw.isSuccessful) raw.peekBody(4096).bytes() else ByteArray(0)
-            val kind = AnizmPlaybackPolicy.classifyDrive(
-                raw.code, raw.header("Content-Type"), raw.header("Content-Disposition"), sample
-            )
-            val body = if (kind == AnizmDriveKind.HTML) raw.peekBody(262144).string() else null
-            AnizmDriveResponse(kind, body)
-        }
+        inspectDriveResponse(response.okhttpResponse)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Log.w(LOG_TAG, "Drive probe hatası (${e.javaClass.simpleName}): ${url.take(100)}")
+        Log.w(LOG_TAG, "Drive probe hatası (${e.javaClass.simpleName})")
         AnizmDriveResponse(AnizmDriveKind.UNKNOWN)
     }
 
@@ -996,9 +987,7 @@ class Anizm : MainAPI(), AnizmHttp {
 
     companion object {
         private const val LOG_TAG = "hexated_Anizm"
-        private const val UA =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+        private const val UA = AnizmPlaybackPolicy.USER_AGENT
 
         private const val PLAYER_HOST = "https://anizmplayer.com"
 

@@ -11,7 +11,7 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Kategori | Eklenti | Sürüm |
 | --- | --- | --- |
 | Anime | **Anizium** | 25 |
-| Anime | **Anizm** | 5 |
+| Anime | **Anizm** | 22 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Anime | **AnimeciX** | 24 |
 | Anime | **TrAnimeIzle** | 45 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Film / Dizi | **FilmMakinesi** | 72 |
@@ -19,6 +19,16 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
+> **Anizm v22 (kaynak kodu):** yayımlanmış v21 taslağının üzerine Aincrad/OK.ru HLS
+> master, SendVid MP4, YourUpload başlık/ses meta verisi, Drive onay/HTML yanıtı ve
+> koşullu tekilleştirme düzeltmeleri ekler. Ayrıntı:
+> [`research/anizm-playback-fix-2026-11-02.md`](research/anizm-playback-fix-2026-11-02.md).
+> Yayındaki sürüm `builds/plugins.json` üzerinden doğrulanabilir; gerçek cihazda
+> oynatma doğrulaması bekliyor. Yayınlama yapmayan Derleme Testi (PR #64, koşu
+> 41491086855) Gradle birim testleri ve paket/manifest tutarlılığını doğruladı.
+> Güvenli canlı probda AoT 1. bölüm için Drive MP4 kaynakları 206 döndürdü;
+> üç SendVid akışında 5 sn'lik MP4 yanıtı alındı. Videolar cihazda oynatılmadı.
+>
 > **TrAnimeIzle v45 (kaynak kodu):** eklenti çekirdeği sıfırdan, tek katman
 > olarak yeniden yazıldı. Captcha artık sitenin **kendi** IconCaptcha v2
 > protokolüyle (cID/rT=1/tM → ikonlar → rT=2 + pC) HTTP üzerinden çözülüyor ve

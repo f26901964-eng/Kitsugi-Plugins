@@ -31,4 +31,55 @@ class AnizmPlaybackPolicyTest {
         assertFalse(AnizmPlaybackPolicy.isDriveDownload("https://drive.google.com/file/d/A/preview"))
         assertFalse(AnizmPlaybackPolicy.isDriveHost("https://drive.google.com.attacker.test/uc?id=A"))
     }
+
+    @Test
+    fun `explicit origin and cookie are never replaced by defaults`() {
+        val headers = AnizmPlaybackPolicy.mergeHeaders(
+            mapOf("Origin" to "https://default.example", "Cookie" to "default=1"),
+            mapOf("origin" to "https://host.example", "COOKIE" to "host=2")
+        )
+        assertEquals("https://host.example", AnizmPlaybackPolicy.header(headers, "Origin"))
+        assertEquals("host=2", AnizmPlaybackPolicy.header(headers, "Cookie"))
+        assertEquals(1, headers.keys.count { it.equals("origin", true) })
+        assertEquals(1, headers.keys.count { it.equals("cookie", true) })
+    }
+
+    @Test
+    fun `host matching rejects suffix and userinfo tricks`() {
+        assertFalse(AnizmPlaybackPolicy.isDriveHost("https://drive.google.com.attacker.test/uc"))
+        assertFalse(AnizmPlaybackPolicy.isDriveHost("https://attacker.test@drive.google.com/uc"))
+        assertFalse(AnizmPlaybackPolicy.isOkRuHost("https://notok.ru/video/1"))
+        assertFalse(AnizmPlaybackPolicy.isSendvidHost("https://sendvid.com.attacker.test/a"))
+        assertTrue(AnizmPlaybackPolicy.isOkRuHost("https://m.ok.ru/video/1"))
+        assertTrue(AnizmPlaybackPolicy.isSendvidHost("https://sendvid.com/embed/a"))
+    }
+
+    @Test
+    fun `drive streaming manifests are recognized even without file extension`() {
+        assertEquals(AnizmDriveKind.HLS, AnizmPlaybackPolicy.classifyDrive(
+            200, "application/octet-stream", null, "#EXTM3U\n#EXT-X-STREAM-INF\n".toByteArray()))
+        assertEquals(AnizmDriveKind.HLS, AnizmPlaybackPolicy.classifyDrive(
+            206, "application/vnd.apple.mpegurl", null, byteArrayOf()))
+        assertEquals(AnizmDriveKind.DASH, AnizmPlaybackPolicy.classifyDrive(
+            200, "application/dash+xml", null, "<MPD></MPD>".toByteArray()))
+    }
+
+    @Test
+    fun `small valid media is not dead and server errors remain uncertain`() {
+        assertEquals(AnizmDriveKind.MEDIA, AnizmPlaybackPolicy.classifyDrive(
+            200, "video/mp4", null, ByteArray(32)))
+        for (status in listOf(403, 408, 429, 500, 503)) {
+            assertEquals(AnizmDriveKind.UNKNOWN, AnizmPlaybackPolicy.classifyDrive(status, null, null, byteArrayOf()))
+        }
+        assertEquals(AnizmDriveKind.HTML, AnizmPlaybackPolicy.classifyDrive(
+            200, "application/octet-stream", "attachment", "\uFEFF <!-- notice --> <html>quota</html>".toByteArray()))
+    }
+
+    @Test
+    fun `sendvid embed identity is derived only from real host and id`() {
+        assertEquals("https://sendvid.com/embed/abc123", AnizmPlaybackPolicy.sendvidEmbed("https://sendvid.com/abc123.mp4"))
+        assertEquals("https://sendvid.com/embed/abc123", AnizmPlaybackPolicy.sendvidEmbed("https://sendvid.com/embed/abc123?x=1"))
+        assertNull(AnizmPlaybackPolicy.sendvidEmbed("https://sendvid.com.attacker.test/abc123"))
+        assertNull(AnizmPlaybackPolicy.sendvidEmbed("https://sendvid.com/playlist"))
+    }
 }

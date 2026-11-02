@@ -34,4 +34,26 @@ class AnizmDriveParsingTest {
         assertNull(streams.driveDownloadUrl("<form method='post' action='https://drive.google.com/uc'><input name='id' value='A'></form>", "https://drive.google.com/uc?id=A"))
         assertNull(streams.driveDownloadUrl("<form action='http://drive.google.com/uc'><input name='id' value='A'></form>", "https://drive.google.com/uc?id=A"))
     }
+
+    @Test
+    fun `form fields replace duplicate action query without losing unrelated parameters`() {
+        val html = """<form action='https://drive.usercontent.google.com/download?id=OLD&amp;keep=a%2Bb' method='GET'>
+          <input value='FILE123' name='id'><input name='confirm' value='t'>
+          <input name='uuid' value=''><input type='submit' name='ignored' value='yes'>
+        </form>"""
+        assertEquals(
+            "https://drive.usercontent.google.com/download?id=FILE123&keep=a%2Bb&confirm=t&uuid=",
+            streams.driveDownloadUrl(html, "https://drive.google.com/uc?id=FILE123")
+        )
+    }
+
+    @Test
+    fun `relative https form and confirmed anchor are accepted`() {
+        val form = "<form action='/uc?id=A'><input name='confirm' value='t'></form>"
+        assertEquals("https://drive.google.com/uc?id=A&confirm=t",
+            streams.driveDownloadUrl(form, "https://drive.google.com/file/d/A/view"))
+        val anchor = "<a href='https://drive.usercontent.google.com/download?id=A&amp;confirm=t&amp;uuid=u'>Download</a>"
+        assertEquals("https://drive.usercontent.google.com/download?id=A&confirm=t&uuid=u",
+            streams.driveDownloadUrl(anchor, "https://drive.google.com/"))
+    }
 }
