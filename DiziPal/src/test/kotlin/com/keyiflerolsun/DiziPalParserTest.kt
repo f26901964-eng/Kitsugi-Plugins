@@ -87,6 +87,21 @@ class DiziPalParserTest {
     }
 
     @Test
+    fun `dizi künyesi ve türler okunur`() {
+        val html = fixture("series-slots.rsc.html")
+        val slots = DiziPalParser.parseSlots(html)
+
+        assertEquals("Gassal", slots["title"])
+        assertEquals("2024", slots["mjYear"])
+        assertEquals("tabii", slots["mjPlatform"])
+        assertTrue(slots["mjPoster"]?.startsWith("https://images.cdnhipter.xyz/") == true)
+        assertTrue((slots["mjOverview"]?.length ?: 0) > 50)
+        assertTrue(slots["mjOverview"]!!.contains("Beni Kim Yıkayacak?"))
+
+        assertEquals(listOf("Komedi", "Dram"), DiziPalParser.parseGenres(html))
+    }
+
+    @Test
     fun `sayfalama adresleri okunur`() {
         val links = DiziPalParser.pageHrefs(fixture("feed-items.rsc.html"))
 
