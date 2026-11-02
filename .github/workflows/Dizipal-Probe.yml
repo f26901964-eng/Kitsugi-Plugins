@@ -115,9 +115,42 @@ jobs:
           name: build
           path: site-dump/
 
+  Oynatici:
+    name: Oynatıcı zinciri
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Şifre çözme bağımlılığı
+        run: python3 -m pip install --quiet cryptography || echo "cryptography kurulamadı (openssl yedeği)"
+      - name: Bölüm → şifre çözme → oynatıcı → m3u8
+        env:
+          PYTHONPATH: .
+          SITE_DUMP_DIR: site-dump
+        run: |
+          mkdir -p site-dump
+          python3 tools/dizipal_player_probe.py 2>&1 | tee site-dump/player-log.txt || true
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "## Oynatıcı probu"
+            echo '```'
+            head -c 12000 site-dump/player-log.txt 2>/dev/null || echo "(günlük yok)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player
+          path: site-dump/
+
   Yayin:
     name: Dal'a it
-    needs: [Dump, Derle]
+    needs: [Dump, Derle, Oynatici]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
