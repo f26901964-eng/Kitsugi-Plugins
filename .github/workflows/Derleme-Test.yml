@@ -258,6 +258,16 @@ jobs:
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/live-chain.md || true
           fi
 
+      - name: JDK 17 Ayarla
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android SDK Lisansları
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
       - name: Güvenli canlı Anizm probu (imzasız rapor)
         id: safe_live
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'anizm-safe-live-probe')
@@ -284,16 +294,6 @@ jobs:
             { echo "## Güvenli canlı Anizm probu"; echo; echo '```'; cat /tmp/safe-live.md; echo '```'; } > /tmp/safe-live-comment.md
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/safe-live-comment.md || true
           fi
-
-      - name: JDK 17 Ayarla
-        uses: actions/setup-java@v4.6.0
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Android SDK Lisansları
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
 
       - name: Etkin Eklentileri Derle
         id: build
