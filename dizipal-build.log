@@ -1,0 +1,42 @@
+Downloading https://services.gradle.org/distributions/gradle-8.12-bin.zip
+..................................................................................................................................
+Unzipping /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12-bin.zip to /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv
+Set executable permissions for: /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12/bin/gradle
+
+Welcome to Gradle 8.12!
+
+Here are the highlights of this release:
+ - Enhanced error and warning reporting with the Problems API
+ - File-system watching support on Alpine Linux
+ - Build and test Swift 6 libraries and apps
+
+For more details see https://docs.gradle.org/8.12/release-notes.html
+
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :AnimeciX
+Fetching JAR: cloudstream.jar
+
+> Task :DiziPal:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :DiziPal:preBuild UP-TO-DATE
+> Task :DiziPal:preDebugBuild UP-TO-DATE
+> Task :DiziPal:generateDebugResValues
+> Task :DiziPal:generateDebugResources
+> Task :DiziPal:packageDebugResources
+> Task :DiziPal:parseDebugLocalResources
+> Task :DiziPal:generateDebugRFile
+
+> Task :DiziPal:compileDebugKotlin
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/main/kotlin/com/keyiflerolsun/DiziPal.kt:230:24 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/main/kotlin/com/keyiflerolsun/DiziPal.kt:241:20 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
+
+> Task :DiziPal:compileDex
+Compiled dex to /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/build/intermediates/classes.dex
+
+> Task :DiziPal:generateManifest
+
+> Task :DiziPal:make
+Made CloudStream package at /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/build/DiziPal.cs3
+
+BUILD SUCCESSFUL in 1m 23s
+9 actionable tasks: 9 executed

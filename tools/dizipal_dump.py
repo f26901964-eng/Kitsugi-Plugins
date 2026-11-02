@@ -207,6 +207,94 @@ def api_candidates(text: str) -> list[str]:
     return found
 
 
+
+
+# ── Kullanıcı dökümleri (Google Drive) ──────────────────────────────────────
+# Site veri merkezi IP'lerine Cloudflare 403 döndüğü için runner'dan canlı HTML
+# alınamıyor. Kullanıcının kendi tarayıcısından (residans IP) alınmış ham HTML
+# dökümleri Drive'da duruyor; CI bunları indirip depoya iter, seçiciler oradan
+# ölçülür.
+DRIVE_FILES = {
+    "message12-home.html": "1RA7i5mQdMft5qLx4XCKGz4f-p3leFjJs",
+    "message13-bolum.html": "1gSxp9fsKM7Xgd2hkbIzzBHFmuJyFq2X9",
+    "message14-arama.html": "17KpqHfraV6G-Hpnh6OzO2cYms1fO3pro",
+}
+
+
+def fetch_drive_files(out_dir: str) -> dict[str, int]:
+    """Drive'daki kullanıcı dökümlerini indir (link paylaşımlı)."""
+    import http.cookiejar
+    import urllib.request
+
+    os.makedirs(out_dir, exist_ok=True)
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(jar),
+        urllib.request.HTTPRedirectHandler(),
+    )
+    opener.addheaders = [
+        ("User-Agent", tizle_reach.UA),
+        ("Accept", "text/html,application/xhtml+xml,text/plain,*/*"),
+        ("Accept-Language", "tr-TR,tr;q=0.9"),
+    ]
+    sizes: dict[str, int] = {}
+    for name, file_id in DRIVE_FILES.items():
+        url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download"
+        text = ""
+        try:
+            with opener.open(url, timeout=90) as response:
+                raw = response.read()
+                text = raw.decode("utf-8", errors="replace")
+            # Büyük dosyalarda Drive onay sayfası döndürür → confirm token'ı ile tekrar dene
+            if "confirm=" in text and "<html" in text[:400].lower():
+                match = re.search(r"confirm=([0-9A-Za-z_\-]+)", text)
+                if match:
+                    url2 = (f"https://drive.usercontent.google.com/download?id={file_id}"
+                            f"&export=download&confirm={match.group(1)}")
+                    with opener.open(url2, timeout=120) as response:
+                        text = response.read().decode("utf-8", errors="replace")
+        except Exception as error:  # pragma: no cover - ağ hatası
+            log(f"  Drive {name}: HATA {error}")
+            sizes[name] = -1
+            continue
+        path = os.path.join(out_dir, name)
+        with open(path, "w", encoding="utf-8", errors="replace") as handle:
+            handle.write(text)
+        sizes[name] = len(text)
+        log(f"  Drive {name}: {len(text)}B\n    → {path}")
+    return sizes
+
+
+def digest(html: str, label: str) -> list[str]:
+    """Bir sayfanın yapısal özeti: kart/bölüm bağlantıları, oynatıcı, sınıflar."""
+    lines = [f"### {label}"]
+    lines.append(f"- uzunluk: {len(html)}B")
+    for pattern, what in (
+        (r'href="(/series/[^"]+)"', "series"),
+        (r'href="(/movies/[^"]+)"', "movies"),
+        (r'href="(/bolum/[^"]+)"', "bolum"),
+        (r'href="(/[a-z0-9\-]+)"', "diger"),
+    ):
+        hits = re.findall(pattern, html or "")
+        unique = sorted(set(hits))
+        lines.append(f"- {what}: {len(hits)} bağlantı, {len(unique)} benzersiz")
+        for hit in unique[:10]:
+            lines.append(f"    - {hit}")
+    classes = re.findall(r'class="([^"]{1,160})"', html or "")
+    flat: list[str] = []
+    for chunk in classes:
+        for token in chunk.split():
+            if token not in flat:
+                flat.append(token)
+    lines.append(f"- sınıf adları: {len(flat)}")
+    lines.append("    `" + " ".join(flat[:80]) + "`")
+    nodes = node_report(html)
+    lines.append(f"- oynatıcı/akış izi: {len(nodes)}")
+    for node in nodes[:25]:
+        lines.append(f"    * {node}")
+    return lines
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dizipal canlı HTML dökümü")
     parser.add_argument("--base", default="https://dizipal1593.com")
@@ -292,6 +380,22 @@ def main(argv: Iterable[str] | None = None) -> int:
         if body:
             log(f"    gövde: {body[:200].replace(chr(10), ' ')}")
 
+    # ── Kullanıcı dökümleri (Drive) ve yapısal özet ─────────────────────────
+    log("## Drive dökümleri")
+    drive_sizes = fetch_drive_files(os.path.join(OUT, "drive"))
+    log("")
+    log("## Yapısal özet (Drive dökümleri)")
+    digest_lines: list[str] = []
+    for name in DRIVE_FILES:
+        path = os.path.join(OUT, "drive", name)
+        if not os.path.exists(path):
+            continue
+        body = open(path, encoding="utf-8", errors="replace").read()
+        digest_lines += digest(body, name)
+        for line in digest(body, name):
+            log(line)
+    save("DIGEST.md", "\n".join(digest_lines))
+
     # ── Özet ────────────────────────────────────────────────────────────────
     summary = [
         "# Dizipal döküm özeti",
@@ -305,6 +409,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     for name, body in pages.items():
         summary.append(f"- `{name}`: {len(body)}B — site içeriği: "
                        f"{'evet' if looks_like_site(body) else 'HAYIR'}")
+    summary += ["", "## Drive dökümleri", ""]
+    summary += [f"- `{name}`: {size}B" for name, size in drive_sizes.items()]
     summary += ["", "## API adayları", ""]
     summary += [f"- `{hit}`" for hit in api_hits] or ["- (yok)"]
     summary += ["", "## Konsol", "", "```", *LOG[-400:], "```", ""]
