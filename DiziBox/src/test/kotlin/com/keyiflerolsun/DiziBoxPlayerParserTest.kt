@@ -162,4 +162,80 @@ class DiziBoxPlayerParserTest {
             ),
         )
     }
+
+    @Test
+    fun readsLazyLoadedPlayerIframesAndPlayerMenuOptions() {
+        val document = Jsoup.parse(
+            """
+                <div id="Player">
+                    <iframe data-lazy-src="https://www.dizibox.live/player/king/king.php?v=lazy"></iframe>
+                </div>
+                <ul class="player-menu">
+                    <li data-src="/player/moly/moly.php?h=menu">Moly+</li>
+                    <li data-iframe="/embed/abc123">Odnok</li>
+                    <li data-src="https://www.dizibox.live/wp-content/uploads/afisler/poster.jpg">poster</li>
+                </ul>
+            """.trimIndent(),
+            episodeUrl,
+        )
+
+        assertEquals(
+            listOf("https://www.dizibox.live/player/king/king.php?v=lazy"),
+            DiziBoxPlayerParser.playerIframes(document, episodeUrl),
+        )
+        assertEquals(
+            listOf(
+                "https://www.dizibox.live/player/moly/moly.php?h=menu",
+                "https://www.dizibox.live/embed/abc123",
+            ),
+            DiziBoxPlayerParser.playerOptionUrls(document, episodeUrl),
+        )
+    }
+
+    @Test
+    fun scopesEpisodeListToTheLoadedSeriesAndIgnoresSidebarEpisodes() {
+        val document = Jsoup.parse(
+            """
+                <div class="episodes">
+                    <a href="https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/">1.Sezon 1.Bölüm</a>
+                    <a href="https://www.dizibox.live/visionquest-1-sezon-2-bolum-izle/">1.Sezon 2.Bölüm</a>
+                </div>
+                <aside>
+                    <a href="https://www.dizibox.live/other-show-3-sezon-4-bolum-izle/">Popüler</a>
+                </aside>
+            """.trimIndent(),
+            "https://www.dizibox.live/diziler/visionquest/",
+        )
+
+        val scoped = DiziBoxPlayerParser.episodeAnchors(document, "https://www.dizibox.live/diziler/visionquest/")
+        assertEquals(2, scoped.size)
+        assertEquals(1, scoped[0].season)
+        assertEquals(2, scoped[1].episode)
+
+        assertEquals("a-gentleman-in-moscow", DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/a-gentleman-in-moscow-hd-3/"))
+        assertEquals("visionquest", DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/visionquest/"))
+    }
+
+    @Test
+    fun readsRealEpisodePagePlayerMarkup() {
+        // Gerçek sayfadan (Drive dökümü message (9).txt) alınmış oynatıcı bölümü.
+        val episodePage = "https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/"
+        val document = Jsoup.parse(
+            """
+                <select class="woca-linkpages-dd selectBox" onchange="this.options[this.selectedIndex].value && (window.location = this.options[this.selectedIndex].value);"><option class='woca-current-page' href='https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/' selected='selected'>DBX Pro</option><option value='https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/2/'>Moly+</option><option value='https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/3/'>Odnok</option></select>
+                <div class="embed-responsive embed-responsive-16by9" id="video-area">
+                    <p><!--baslik:DBX Pro--><span class="embed-responsive-item video-wrapper"><iframe src="https://www.dizibox.live/player/king/king.php?v=7bc25b8e88c523e771f5b760bd366c013959790ca763595d7563def4972e32e7440ba70a69bab614dc49ab8ce7595d68dd925cb0659e496295afefddc2098e1b" width='600' height='350' frameborder='0' scrolling='no' allowfullscreen></iframe></span></p>
+                </div>
+            """.trimIndent(),
+            episodePage,
+        )
+
+        val iframes = DiziBoxPlayerParser.playerIframes(document, episodePage)
+        assertEquals(1, iframes.size)
+        assertTrue(iframes[0].startsWith("https://www.dizibox.live/player/king/king.php?v=7bc25b"))
+
+        val pages = DiziBoxPlayerParser.alternatePlayerPages(document, episodePage)
+        assertTrue(pages.contains("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/2/"))
+        assertTrue(pages.contains("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/3/"))
+    }
 }

@@ -75,7 +75,7 @@ object CryptoJS {
         cipher.init(Cipher.DECRYPT_MODE, keyS, IvParameterSpec(iv))
 
         val plainText = cipher.doFinal(cipherTextBytes)
-        return String(plainText)
+        return String(plainText, Charsets.UTF_8)
     }
 
     private fun evpkdf(password: ByteArray, keySize: Int, ivSize: Int, salt: ByteArray, resultKey: ByteArray, resultIv: ByteArray): ByteArray {

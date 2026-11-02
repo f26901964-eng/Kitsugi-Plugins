@@ -218,7 +218,7 @@ private fun Element.toMainPageResult(): SearchResponse? {
 
         // Tema değiştiyse ve grid-box yoksa slug kalıbından bölümleri topla.
         if (episodeList.isEmpty()) {
-            DiziBoxPlayerParser.episodeAnchors(document).forEach { anchor ->
+            DiziBoxPlayerParser.episodeAnchors(document, url).forEach { anchor ->
                 episodeList.add(newEpisode(anchor.url) {
                     this.name = "${anchor.season}. Sezon ${anchor.episode}. Bölüm"
                     this.season = anchor.season
@@ -400,122 +400,127 @@ private fun Element.toMainPageResult(): SearchResponse? {
         val playerCandidates = (listOf(resolvedUrl) +
             listOfNotNull(DiziBoxPlayerParser.molyStreamPlayerPageUrl(resolvedUrl))).distinct()
 
-        for ((candidateIndex, candidateUrl) in playerCandidates.withIndex()) {
-            if (candidateIndex > 0 && !visited.add(candidateUrl)) continue
+        // MolyStream embed sayfası bazen king.php'yi, bazen DiziBox ana adresini Referer
+        // bekliyor. Önce mevcut üst sayfa, olmazsa ana adres denenir.
+        val refererCandidates = if (isDiziBoxHost(resolvedUrl)) listOf(referer) else listOf(referer, mainUrl).distinct()
+        for (playerReferer in refererCandidates) {
+            for ((candidateIndex, candidateUrl) in playerCandidates.withIndex()) {
+                if (candidateIndex > 0 && !visited.add(candidateUrl)) continue
 
-            // king/moly/haydi sarmalayıcıları wmode=opaque enjeksiyonu bekliyor.
-            val playerUrl = DiziBoxPlayerParser.withWOpaque(candidateUrl)
+                // king/moly/haydi sarmalayıcıları wmode=opaque enjeksiyonu bekliyor.
+                val playerUrl = DiziBoxPlayerParser.withWOpaque(candidateUrl)
 
-            val playerHtml = try {
-                if (isDiziBoxHost(playerUrl)) {
-                    app.get(
-                        playerUrl,
-                        headers = playerRequestHeaders(referer),
-                        referer = referer,
-                        cookies = playerCookies,
-                        interceptor = interceptor,
-                    ).text
-                } else {
-                    // Preserve the actual parent page as Referer. In the observed
-                    // King -> MolyStream chain this is king.php, not the site root.
-                    app.get(
-                        playerUrl,
-                        headers = playerRequestHeaders(referer),
-                        referer = referer,
-                    ).text
+                val playerHtml = try {
+                    if (isDiziBoxHost(playerUrl)) {
+                        app.get(
+                            playerUrl,
+                            headers = playerRequestHeaders(playerReferer),
+                            referer = playerReferer,
+                            cookies = playerCookies,
+                            interceptor = interceptor,
+                        ).text
+                    } else {
+                        // Preserve the actual parent page as Referer. In the observed
+                        // King -> MolyStream chain this is king.php, not the site root.
+                        app.get(
+                            playerUrl,
+                            headers = playerRequestHeaders(playerReferer),
+                            referer = playerReferer,
+                        ).text
+                    }
+                } catch (exception: Exception) {
+                    Log.d("DZBX", "Player request failed: ${exception.message}")
+                    if (candidateIndex < playerCandidates.lastIndex) continue
+                    break
                 }
-            } catch (exception: Exception) {
-                Log.d("DZBX", "Player request failed: ${exception.message}")
-                if (candidateIndex < playerCandidates.lastIndex) continue
-                break
-            }
 
-            // Doğrudan `/embed/sheila/{id}` iframe'i HLS master listesi döndürebiliyor;
-            // listedeki tüm çözünürlük varyantları ayrı kaynak olarak üretilir.
-            if (DiziBoxPlayerParser.isHlsManifest(playerHtml)) {
-                emitPlaylist(playerHtml, playerUrl, playerUrl, callback)
-                return true
-            }
-
-            // Bazı MolyStream yanıtları playlist yerine düz HTTPS URL verir; hedefi
-            // aynı üst Referer ile HLS diye doğrula ve varyantlarını yay.
-            val directTarget = DiziBoxPlayerParser.plainHttpsTarget(playerHtml)
-            if (DiziBoxPlayerParser.isMolyStreamHost(playerUrl) && directTarget != null) {
-                val playlist = verifyMolyStream(directTarget, referer)
-                if (playlist != null) {
-                    emitPlaylist(playlist.body, playlist.url, referer, callback)
+                // Doğrudan `/embed/sheila/{id}` iframe'i HLS master listesi döndürebiliyor;
+                // listedeki tüm çözünürlük varyantları ayrı kaynak olarak üretilir.
+                if (DiziBoxPlayerParser.isHlsManifest(playerHtml)) {
+                    emitPlaylist(playerHtml, playerUrl, playerUrl, callback)
                     return true
                 }
-            }
 
-            val packedHtml = if (
-                playerUrl.contains("/player/moly/moly.php") ||
-                playerUrl.contains("/player/haydi.php")
-            ) decodePackedPlayerHtml(playerHtml) else playerHtml
-            val decodedPlayerHtml = decryptPlayerHtml(packedHtml)
-            val playerDocument = Jsoup.parse(decodedPlayerHtml, playerUrl)
-            var extracted = false
-
-            DiziBoxPlayerParser.subtitleTracks(decodedPlayerHtml).forEach { track ->
-                val subtitleUrl = DiziBoxPlayerParser.resolveUrl(track.url, playerUrl) ?: return@forEach
-                subtitleCallback.invoke(SubtitleFile(track.label, subtitleUrl))
-            }
-
-            DiziBoxPlayerParser.mediaSources(decodedPlayerHtml).forEach { source ->
-                val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
-                val sourceReferer = playerUrl
-
-                // sheila akışı doğrulanır ve master varyantlarının tamamı yayılır.
-                if (DiziBoxPlayerParser.isMolyStreamStreamUrl(mediaUrl)) {
-                    val playlist = verifyMolyStream(mediaUrl, sourceReferer) ?: return@forEach
-                    emitPlaylist(playlist.body, playlist.url, sourceReferer, callback)
-                    extracted = true
-                    return@forEach
+                // Bazı MolyStream yanıtları playlist yerine düz HTTPS URL verir; hedefi
+                // aynı üst Referer ile HLS diye doğrula ve varyantlarını yay.
+                val directTarget = DiziBoxPlayerParser.plainHttpsTarget(playerHtml)
+                if (DiziBoxPlayerParser.isMolyStreamHost(playerUrl) && directTarget != null) {
+                    val playlist = verifyMolyStream(directTarget, playerReferer)
+                    if (playlist != null) {
+                        emitPlaylist(playlist.body, playlist.url, playerReferer, callback)
+                        return true
+                    }
                 }
 
-                val linkName = source.label.takeIf { it.isNotBlank() }?.let { "$name - $it" } ?: name
-                val linkQuality = source.label.takeIf { it.isNotBlank() }
-                    ?.let { getQualityFromName(it) } ?: Qualities.Unknown.value
+                val packedHtml = if (
+                    playerUrl.contains("/player/moly/moly.php") ||
+                    playerUrl.contains("/player/haydi.php")
+                ) decodePackedPlayerHtml(playerHtml) else playerHtml
+                val decodedPlayerHtml = decryptPlayerHtml(packedHtml)
+                val playerDocument = Jsoup.parse(decodedPlayerHtml, playerUrl)
+                var extracted = false
 
-                when {
-                    DiziBoxPlayerParser.isHls(source) -> {
-                        emitHlsLink(mediaUrl, sourceReferer, linkName, linkQuality, callback)
+                DiziBoxPlayerParser.subtitleTracks(decodedPlayerHtml).forEach { track ->
+                    val subtitleUrl = DiziBoxPlayerParser.resolveUrl(track.url, playerUrl) ?: return@forEach
+                    subtitleCallback.invoke(SubtitleFile(track.label, subtitleUrl))
+                }
+
+                DiziBoxPlayerParser.mediaSources(decodedPlayerHtml).forEach { source ->
+                    val mediaUrl = DiziBoxPlayerParser.resolveUrl(source.url, playerUrl) ?: return@forEach
+                    val sourceReferer = playerUrl
+
+                    // sheila akışı doğrulanır ve master varyantlarının tamamı yayılır.
+                    if (DiziBoxPlayerParser.isMolyStreamStreamUrl(mediaUrl)) {
+                        val playlist = verifyMolyStream(mediaUrl, sourceReferer) ?: return@forEach
+                        emitPlaylist(playlist.body, playlist.url, sourceReferer, callback)
                         extracted = true
+                        return@forEach
                     }
-                    DiziBoxPlayerParser.isMp4(source) -> {
-                        callback.invoke(
-                            newExtractorLink(
-                                source = name,
-                                name = linkName,
-                                url = mediaUrl,
-                                type = ExtractorLinkType.VIDEO,
-                            ) {
-                                headers = mapOf(
-                                    "Referer" to sourceReferer,
-                                    "User-Agent" to playerUserAgent,
-                                )
-                                quality = linkQuality
-                            },
-                        )
-                        extracted = true
-                    }
-                    else -> {
-                        extracted = loadExtractor(mediaUrl, playerUrl, subtitleCallback, callback) || extracted
+
+                    val linkName = source.label.takeIf { it.isNotBlank() }?.let { "$name - $it" } ?: name
+                    val linkQuality = source.label.takeIf { it.isNotBlank() }
+                        ?.let { getQualityFromName(it) } ?: Qualities.Unknown.value
+
+                    when {
+                        DiziBoxPlayerParser.isHls(source) -> {
+                            emitHlsLink(mediaUrl, sourceReferer, linkName, linkQuality, callback)
+                            extracted = true
+                        }
+                        DiziBoxPlayerParser.isMp4(source) -> {
+                            callback.invoke(
+                                newExtractorLink(
+                                    source = name,
+                                    name = linkName,
+                                    url = mediaUrl,
+                                    type = ExtractorLinkType.VIDEO,
+                                ) {
+                                    headers = mapOf(
+                                        "Referer" to sourceReferer,
+                                        "User-Agent" to playerUserAgent,
+                                    )
+                                    quality = linkQuality
+                                },
+                            )
+                            extracted = true
+                        }
+                        else -> {
+                            extracted = loadExtractor(mediaUrl, playerUrl, subtitleCallback, callback) || extracted
+                        }
                     }
                 }
-            }
 
-            DiziBoxPlayerParser.nestedIframes(playerDocument, playerUrl).forEach { nestedFrame ->
-                if (nestedFrame == playerUrl) return@forEach
-                val found = if (DiziBoxPlayerParser.isSupportedPlayerUrl(nestedFrame, mainUrl)) {
-                    iframeDecode(playerUrl, nestedFrame, subtitleCallback, callback, visited, depth + 1)
-                } else {
-                    loadExtractor(nestedFrame, playerUrl, subtitleCallback, callback)
+                DiziBoxPlayerParser.nestedIframes(playerDocument, playerUrl).forEach { nestedFrame ->
+                    if (nestedFrame == playerUrl) return@forEach
+                    val found = if (DiziBoxPlayerParser.isSupportedPlayerUrl(nestedFrame, mainUrl)) {
+                        iframeDecode(playerUrl, nestedFrame, subtitleCallback, callback, visited, depth + 1)
+                    } else {
+                        loadExtractor(nestedFrame, playerUrl, subtitleCallback, callback)
+                    }
+                    extracted = found || extracted
                 }
-                extracted = found || extracted
-            }
 
-            if (extracted) return true
+                if (extracted) return true
+            }
         }
 
         return loadExtractor(resolvedUrl, referer, subtitleCallback, callback)
@@ -567,6 +572,12 @@ private fun Element.toMainPageResult(): SearchResponse? {
             DiziBoxPlayerParser.playerIframes(pageDocument, pageUrl).forEach { iframe ->
                 Log.d("DZBX", "iframe » $iframe")
                 iframeDecode(pageUrl, iframe, subtitleCallback, linkCallback, visitedFrames)
+            }
+
+            // Oynatıcı menüsü (DBX Pro / Moly+ / Odnok) adresleri ayrı sarmalayıcılar olabilir.
+            DiziBoxPlayerParser.playerOptionUrls(pageDocument, pageUrl).forEach { option ->
+                Log.d("DZBX", "player option » $option")
+                iframeDecode(pageUrl, option, subtitleCallback, linkCallback, visitedFrames)
             }
         }
 
