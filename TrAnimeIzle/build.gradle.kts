@@ -3,7 +3,7 @@ version = 45
 cloudstream {
     authors     = listOf("kraptor", "byayzen")
     language    = "tr"
-    description = "TrAnimeIzle anime arşivi: isim eşleştirmeli arama, ana sayfa kategorileri, Kitsu ile zenginleştirilmiş detay ve bölümler; tüm fansub/kalite kaynakları ve OpTraco/Hdvid/Hexload oynatıcı çözücüleri."
+    description = "TrAnimeIzle anime arşivi: isim eşleştirmeli arama, ana sayfa kategorileri, detay + bölüm listesi, captcha (bot kontrolü) otomatik çözümü; tüm fansub/kalite kaynakları ve OpTraco/Hdvid/Hexload oynatıcı çözücüleri."
 
     /**
      * Status int as the following:

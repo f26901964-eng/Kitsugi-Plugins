@@ -143,7 +143,7 @@ internal object TrAnimeIzleMatch {
      *   `/one-piece-1120-bolum-izle` → `/anime/one-piece-izle`
      * yani bölüm ekinden önceki slug'ın son sayısal parçası atılır ve `/anime/{slug}-izle`
      * üretilir. Arama/liste kartlarını bu adrese çevirmek, uygulamanın dizi sayfasını
-     * doğru açmasını (ve Kitsu eşleştirmesinin tutmasını) sağlar.
+     * doğru açmasını (ve uygulamanın başlık eşleştirmesinin tutmasını) sağlar.
      */
     fun toSeriesUrl(url: String): String? {
         if (episodeFromUrl(url) == null) return null
