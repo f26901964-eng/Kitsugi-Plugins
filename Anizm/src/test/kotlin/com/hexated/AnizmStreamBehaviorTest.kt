@@ -4,7 +4,7 @@ import com.lagradost.cloudstream3.AudioFile
 import com.lagradost.cloudstream3.newAudioFile
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
-import com.lagradost.cloudstream3.newExtractorLink
+import com.lagradost.cloudstream3.utils.newExtractorLink
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
