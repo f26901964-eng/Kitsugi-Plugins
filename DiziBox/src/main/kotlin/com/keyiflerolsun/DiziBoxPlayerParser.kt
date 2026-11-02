@@ -1,6 +1,7 @@
 package com.keyiflerolsun
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
@@ -251,10 +252,15 @@ internal object DiziBoxPlayerParser {
      */
     fun dwlsSearchResults(json: String): List<DwlsResult> {
         val root = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyList()
-        val results = root.path("results")
-        if (!results.isArray) return emptyList()
+        // Canlı tema şablonu searchResults[0].show_more kullanır: yanıt üst düzey bir dizidir.
+        // Eski/alternatif biçim { results: [...] } de kabul edilir.
+        val results = when {
+            root.isArray -> root
+            root.path("results").isArray -> root.path("results")
+            else -> return emptyList()
+        }
         return results.mapNotNull { node ->
-            val title = node.path("post_title").asText("").trim()
+            val title = Jsoup.parse(node.path("post_title").asText("")).text().trim()
             val permalink = node.path("permalink").asText("").trim()
             if (title.isBlank() || permalink.isBlank()) return@mapNotNull null
             DwlsResult(
