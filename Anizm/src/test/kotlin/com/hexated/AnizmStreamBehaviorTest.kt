@@ -153,7 +153,7 @@ class AnizmStreamBehaviorTest {
         val confirmed = "https://drive.usercontent.google.com/download?id=FILE123&export=download&confirm=new&uuid=keep"
         val finalUrl = "https://drive.usercontent.google.com/download?id=FILE123&confirm=new&signature=final"
         http.drive[original] = AnizmDriveResponse(AnizmDriveKind.HTML,
-            "<form action='https://drive.usercontent.google.com/download?id=OLD'><input name='id' value='FILE123'><input name='confirm' value='new'><input name='uuid' value='keep'></form>")
+            "<form action='https://drive.usercontent.google.com/download?id=OLD'><input name='id' value='FILE123'><input name='export' value='download'><input name='confirm' value='new'><input name='uuid' value='keep'></form>")
         http.drive[confirmed] = AnizmDriveResponse(AnizmDriveKind.MEDIA, finalUrl = finalUrl)
         assertTrue(resolve(original))
         assertEquals(finalUrl, out.single().url)
