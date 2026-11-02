@@ -23,11 +23,11 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 > master, SendVid MP4, YourUpload başlık/ses meta verisi, Drive onay/HTML yanıtı ve
 > koşullu tekilleştirme düzeltmeleri ekler. Ayrıntı:
 > [`research/anizm-playback-fix-2026-11-02.md`](research/anizm-playback-fix-2026-11-02.md).
-> v22 henüz `builds` dalında yayımlanmadı; gerçek cihazda oynatma doğrulaması bekliyor.
-> Yayınlama yapmayan Derleme Testi (PR #64, koşu 41491086855) başarılı: Gradle birim
-> testleri, paket ve manifest tutarlılığı geçti. Güvenli canlı probda AoT 1. bölüm
-> için Drive MP4 kaynakları 206 döndürdü; SendVid linkleri hosttan 5 sn hata klibi
-> döndürdü. Ayrıntı raporda.
+> Yayındaki sürüm `builds/plugins.json` üzerinden doğrulanabilir; gerçek cihazda
+> oynatma doğrulaması bekliyor. Yayınlama yapmayan Derleme Testi (PR #64, koşu
+> 41491086855) Gradle birim testleri ve paket/manifest tutarlılığını doğruladı.
+> Güvenli canlı probda AoT 1. bölüm için Drive MP4 kaynakları 206 döndürdü;
+> üç SendVid akışında 5 sn'lik MP4 yanıtı alındı. Videolar cihazda oynatılmadı.
 >
 > **TrAnimeIzle v45 (kaynak kodu):** eklenti çekirdeği sıfırdan, tek katman
 > olarak yeniden yazıldı. Captcha artık sitenin **kendi** IconCaptcha v2

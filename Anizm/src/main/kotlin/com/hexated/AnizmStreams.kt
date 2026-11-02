@@ -353,7 +353,14 @@ internal class AnizmStreams(
         }
         if (isOkRu(url) && resolveOkRu(url, label, callback)) return true
         if (isSibnet(url) && resolveSibnet(url, label, callback)) return true
-        if (AnizmPlaybackPolicy.isSendvidHost(url) && resolveSendvid(url, label, callback)) return true
+        if (AnizmPlaybackPolicy.isSendvidHost(url)) {
+            when (resolveSendvid(url, label, callback)) {
+                SendvidResult.RESOLVED -> return true
+                // Açık hata sayfası genel extractor/HTML tarayıcısına düşmemeli.
+                SendvidResult.UNAVAILABLE -> return false
+                SendvidResult.UNRESOLVED -> Unit // Belirsiz yanıtta diğer yollar denenebilir.
+            }
+        }
 
         // Gömülü "token blob" + /api/videos/<slug>/resolve (FireStream ve klonları).
         if (resolveTokenBlobPlayer(url, referer, label, callback)) return true
@@ -407,6 +414,8 @@ internal class AnizmStreams(
 
     private fun isOkRu(url: String): Boolean = AnizmPlaybackPolicy.isOkRuHost(url)
 
+    private enum class SendvidResult { RESOLVED, UNAVAILABLE, UNRESOLVED }
+
     /**
      * SendVid'in güncel MP4 sayfası. Üst akıştaki Sendvid extractor'ı yalnız HLS
      * meta alanını açıyor; `video_source` / `<source>` MP4 yolunu burada da okuyoruz.
@@ -416,9 +425,9 @@ internal class AnizmStreams(
         url: String,
         label: String,
         callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        val embed = AnizmPlaybackPolicy.sendvidEmbed(url) ?: return false
-        val page = http.get(embed, url) ?: return false
+    ): SendvidResult {
+        val embed = AnizmPlaybackPolicy.sendvidEmbed(url) ?: return SendvidResult.UNRESOLVED
+        val page = http.get(embed, url) ?: return SendvidResult.UNRESOLVED
         val doc = Jsoup.parse(page, embed)
         // Açık hata sayfası video diye yayınlanmaz. Bu karar kısa süre/boyut veya
         // 403'ten değil, sayfanın kendi hata metninden gelir.
@@ -427,7 +436,7 @@ internal class AnizmStreams(
         if (Regex("""temporarily unavailable|video (?:is )?unavailable|video not found|video removed|bu video(?:ya)? (?:şu an )?ulaşılamıyor|video bulunamadı""")
                 .containsMatchIn(errorText)) {
             Log.d(TAG, "sendvid: açık hata sayfası, medya yayınlanmadı")
-            return false
+            return SendvidResult.UNAVAILABLE
         }
         val candidates = buildList {
             for (selector in listOf(
@@ -449,7 +458,7 @@ internal class AnizmStreams(
                 extraHeaders = mapOf("Origin" to "https://sendvid.com"))
             found = true
         }
-        return found
+        return if (found) SendvidResult.RESOLVED else SendvidResult.UNRESOLVED
     }
 
     /**

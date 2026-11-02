@@ -94,14 +94,18 @@ class AnizmStreamBehaviorTest {
 
     @Test
     fun `sendvid explicit temporarily unavailable page is not emitted even with MP4 meta`() = runBlocking {
-        http.pages["https://sendvid.com/embed/unavail1"] = """
+        val errorPage = """
             <html><head><title>Video temporarily unavailable</title></head><body>
             <meta property="og:video:secure_url" content="https://sendvid.com/unavail1.mp4">
             <script>var video_source = "https://sendvid.com/unavail1.mp4";</script>
             </body></html>
         """.trimIndent()
+        http.pages["https://sendvid.com/embed/unavail1"] = errorPage
+        // Genel sayfa tarayıcısı devreye girerse buradaki MP4 yanlışlıkla yayınlanır.
+        http.pages["https://sendvid.com/unavail1"] = errorPage
         assertFalse(resolve("https://sendvid.com/unavail1"))
         assertTrue(out.isEmpty())
+        assertEquals(listOf("https://sendvid.com/embed/unavail1"), http.requests)
     }
 
     @Test
