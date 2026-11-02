@@ -1,6 +1,5 @@
 package com.keyiflerolsun
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -28,8 +27,6 @@ internal object DiziBoxPlayerParser {
     data class HlsVariant(val url: String, val height: Int)
     data class DwlsResult(val title: String, val url: String, val thumbnail: String)
     data class EpisodeAnchor(val url: String, val season: Int, val episode: Int)
-
-    private val mapper = ObjectMapper()
 
     private val aesDecryptCall = Regex(
         """CryptoJS\s*\.\s*AES\s*\.\s*decrypt\s*\(\s*(?:"([^"]+)"|'([^']+)')\s*,\s*(?:"([^"]*)"|'([^']*)')\s*\)""",
@@ -247,28 +244,61 @@ internal object DiziBoxPlayerParser {
             ?.let { resolveUrl(it, pageUrl) }
 
     /**
-     * Canlı tema aramayı `admin-ajax.php?action=dwls_search` XHR JSON'u ile yapar:
-     * `{ results: [ { post_title, permalink, attachment_thumbnail } ] }`.
+     * dwls_search yanıtı: düz JSON dizisi `[{post_title, permalink, attachment_thumbnail}, ...]`
+     * (şablon searchResults[0] kullanır). Eski biçim `{results:[...]}` da aynı nesneleri içerir.
+     * Jackson/ObjectMapper kullanılmaz: uygulama çalışma zamanında bu sınıf uyumsuzluk veriyordu
+     * (KTS-CSP-9110). Nesneler düz metin olarak taranır; yalnızca gerekli alanlar okunur.
      */
     fun dwlsSearchResults(json: String): List<DwlsResult> {
-        val root = runCatching { mapper.readTree(json) }.getOrNull() ?: return emptyList()
-        // Canlı tema şablonu searchResults[0].show_more kullanır: yanıt üst düzey bir dizidir.
-        // Eski/alternatif biçim { results: [...] } de kabul edilir.
-        val results = when {
-            root.isArray -> root
-            root.path("results").isArray -> root.path("results")
-            else -> return emptyList()
-        }
-        return results.mapNotNull { node ->
-            val title = Jsoup.parse(node.path("post_title").asText("")).text().trim()
-            val permalink = node.path("permalink").asText("").trim()
+        val trimmed = json.trimStart()
+        if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) return emptyList()
+        return Regex("\\{[^{}]*\\}").findAll(json).mapNotNull { match ->
+            val obj = match.value
+            val title = Jsoup.parse(jsonStringField(obj, "post_title").orEmpty()).text().trim()
+            val permalink = jsonStringField(obj, "permalink").orEmpty().trim()
             if (title.isBlank() || permalink.isBlank()) return@mapNotNull null
             DwlsResult(
                 title = title,
                 url = permalink.replace("\\/", "/"),
-                thumbnail = node.path("attachment_thumbnail").asText("").replace("\\/", "/"),
+                thumbnail = jsonStringField(obj, "attachment_thumbnail").orEmpty().replace("\\/", "/"),
             )
+        }.toList()
+    }
+
+    /** Bir nesnede `"key": "değer"` alanının (JSON kaçışları çözülmüş) değeri. */
+    private fun jsonStringField(obj: String, key: String): String? {
+        val pattern = Regex("\"" + Regex.escape(key) + "\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
+        val raw = pattern.find(obj)?.groupValues?.get(1) ?: return null
+        return unescapeJson(raw)
+    }
+
+    private fun unescapeJson(raw: String): String {
+        if (!raw.contains('\\')) return raw
+        val sb = StringBuilder(raw.length)
+        var i = 0
+        while (i < raw.length) {
+            val c = raw[i]
+            if (c != '\\' || i + 1 >= raw.length) {
+                sb.append(c)
+                i++
+                continue
+            }
+            when (val n = raw[i + 1]) {
+                'n' -> sb.append('\n')
+                't' -> sb.append('\t')
+                'r' -> sb.append('\r')
+                'b' -> sb.append('\b')
+                'f' -> sb.append('\u000C')
+                'u' -> {
+                    raw.substring(i + 2, minOf(i + 6, raw.length)).toIntOrNull(16)?.let { sb.append(it.toChar()) }
+                    i += 6
+                    continue
+                }
+                else -> sb.append(n) // \/ \" \\ ve diğerleri
+            }
+            i += 2
         }
+        return sb.toString()
     }
 
     /** dwls arama küçük resimleri 50x50 gelir; kartlarda kullanılan 200x290 sürümüne çevirir. */
