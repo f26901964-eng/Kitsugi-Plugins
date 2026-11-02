@@ -54,6 +54,9 @@ internal object TrAnimeIzleMatch {
         RegexOption.IGNORE_CASE
     )
 
+    /** URL slug'ındaki sezon eki: `…-2-sezon`, `…-sezon-2` (sitenin çok sezonlu adları). */
+    private val SEASON_SUFFIX = Regex("-(?:\\d{1,2}-sezon|sezon-\\d{1,2})$", RegexOption.IGNORE_CASE)
+
     // ------------------------------------------------------------------
     // Normalizasyon
     // ------------------------------------------------------------------
@@ -128,7 +131,7 @@ internal object TrAnimeIzleMatch {
         val m = EPISODE_PATH.find(path) ?: return null
         val prefix = if (url.contains("://")) url.substringBefore("://") + "://" +
             url.substringAfter("://").substringBefore("/") else ""
-        val series = m.groupValues[1].trim('-')
+        val series = SEASON_SUFFIX.replace(m.groupValues[1].trim('-'), "").trim('-')
         if (series.isEmpty()) return null
         return if (prefix.isEmpty()) "/$series" else "$prefix/$series"
     }
@@ -147,7 +150,9 @@ internal object TrAnimeIzleMatch {
         val prefix = if (url.contains("://"))
             url.substringBefore("://") + "://" + url.substringAfter("://").substringBefore("/") else ""
         val last = pathOf(url).substringAfterLast('/')
-        val slug = last.substringBefore("-bolum").substringBeforeLast("-").trim('-')
+        val slug = SEASON_SUFFIX
+            .replace(last.substringBefore("-bolum").substringBeforeLast("-").trim('-'), "")
+            .trim('-')
         if (slug.isEmpty()) return null
         val path = "anime/$slug-izle"
         return if (prefix.isEmpty()) "/$path" else "$prefix/$path"
@@ -166,6 +171,7 @@ internal object TrAnimeIzleMatch {
         // Sayfalama son eki ("-2") — bölüm ekiyle karışmasın diye ÖNCE atılır.
         path = PAGINATION.replace(path, "")
         EPISODE_PATH.find(path)?.let { path = it.groupValues[1] }
+        path = SEASON_SUFFIX.replace(path, "")
         for (suffix in listOf("-anime-izle", "-izle-hd", "-izle")) {
             if (path.endsWith(suffix)) {
                 path = path.removeSuffix(suffix)

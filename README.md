@@ -13,12 +13,19 @@ Depo **yalnızca aşağıdaki 8 kaynağı** yayınlar. Bunların dışındaki t�
 | Anime | **Anizium** | 25 |
 | Anime | **Anizm** | 5 |
 | Anime | **AnimeciX** | 24 |
-| Anime | **TrAnimeIzle** | 44 (kaynak kodu; yayınlanması derlemeye bağlı) |
+| Anime | **TrAnimeIzle** | 45 (kaynak kodu; yayınlanması derlemeye bağlı) |
 | Film / Dizi | **FilmMakinesi** | 72 |
 | Film / Dizi | **HDFilmCehennemi** | 63 |
 | Dizi | **DiziBox** | 27 |
 | Film / Dizi | **HDFilmİzle** | 11 |
 
+> **TrAnimeIzle v45 (kaynak kodu):** eklenti çekirdeği sıfırdan, tek katman
+> olarak yeniden yazıldı. Captcha artık sitenin **kendi** IconCaptcha v2
+> protokolüyle (cID/rT=1/tM → ikonlar → rT=2 + pC) HTTP üzerinden çözülüyor ve
+> oturum çerezi **süreç düzeyinde** paylaşılıyor; `data`/`dt` sırası ters olan
+> detay tablosu, `data-slug` bölüm kartları ve `-2-sezon-` ekli adresler gerçek
+> dökümlerle doğrulandı. Ayrıntı: [`research/tranimeizle-v45-2026-11-02.md`](research/tranimeizle-v45-2026-11-02.md).
+>
 > **TrAnimeIzle v44 (kaynak kodu):** CAPTCHA ve kaynak zinciri için düzeltmeler içerir.
 > Bu sürümün cihazlara ulaşması için derlenip yayınlanması gerekir; canlı oynatma
 > henüz doğrulanmamıştır.

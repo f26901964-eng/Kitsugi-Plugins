@@ -109,9 +109,16 @@ internal class TrAnimeIzleStreams(
         val fansubs = TrAnimeIzleSite.fansubsFrom(doc)
         Log.d(TAG, "episodeId=$episodeId fansub=${fansubs.size}")
 
+        // v45: episodeId yoksa `/api/fansubSources` çağrısı **0** ile gidip boş
+        // dönüyordu (sessiz başarısızlık). Artık çağrı atlanır ve yalnızca
+        // sayfada hazır duran kaynaklar denenir.
+        if (episodeId <= 0) {
+            Log.w(TAG, "episodeId bulunamadı — fansub API'si atlandı, sayfa kaynakları denenecek")
+        }
+
         // 1) Fansub → kaynak butonları (paralel, en fazla 4 eşzamanlı).
         val srcGate = AsyncGate(4)
-        val sources = coroutineScope {
+        val sources = if (episodeId <= 0) emptyList() else coroutineScope {
             fansubs.map { fansub ->
                 async {
                     srcGate.withPermit {
@@ -1269,10 +1276,10 @@ internal class TrAnimeIzleStreams(
 
         /** Tüm kaynak araması için üst sınır — kullanıcı bu süreden fazla beklemez. */
         /** Tek bir kaynak butonunun (sourcePlayer → iframe → akış) üst sınırı. */
-        private const val PER_ITEM_MS = 75_000L
+        private const val PER_ITEM_MS = 30_000L
 
         /** Tek bir kaynak butonunun çözüm bütçesi. */
-        private const val SOURCE_BUDGET_MS = 25_000L
+        private const val SOURCE_BUDGET_MS = 15_000L
 
         /** Sitede görülen video host'ları (oynatıcı gövdelerinde aranır). */
         private val EMBED_HOSTS = listOf(
