@@ -125,7 +125,7 @@ class AnizmStreamBehaviorTest {
 
     @Test
     fun `dedup distinguishes headers type audio and interceptor but suppresses exact duplicate`() = runBlocking {
-        fun link(referer: String, type: ExtractorLinkType = ExtractorLinkType.VIDEO,
+        suspend fun link(referer: String, type: ExtractorLinkType = ExtractorLinkType.VIDEO,
                  cookie: String = "a", audio: List<AudioFile> = emptyList(), data: String? = null) =
             newExtractorLink("X", "X", "https://cdn.example/video.mp4", type) {
                 this.referer = referer

@@ -21,6 +21,20 @@ dependencies {
     testImplementation("org.json:json:20240303")
 }
 
+// CloudStream API derlemede compileOnly; JVM regresyon testlerinin de aynı
+// sınıfları görmesi gerekir. Eklenti paketini etkilemez (yalnızca test classpath).
+afterEvaluate {
+    val cs = extensions.getByName("cloudstream") as com.lagradost.cloudstream3.gradle.CloudstreamExtension
+    cs.apkinfo?.jarFile?.let { dependencies.add("testImplementation", files(it)) }
+}
+
+android {
+    testOptions {
+        // android.util.Log gibi platform çağrıları ağsız testlerde no-op dönsün.
+        unitTests.isReturnDefaultValues = true
+    }
+}
+
 // Canlı prob (LiveChainProbeTest) çıktısı CI günlüğünde/PR yorumunda görünsün.
 tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach {
     testLogging {

@@ -6,8 +6,8 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
+import okio.BufferedSource
 import okio.ForwardingSource
-import okio.Source
 import okio.buffer
 import org.junit.Assert.*
 import org.junit.Test
@@ -28,7 +28,7 @@ class AnizmDriveResponseTest {
         val body = object : okhttp3.ResponseBody() {
             override fun contentType() = type.toMediaType()
             override fun contentLength() = size
-            override fun source(): Source = source.buffer()
+            override fun source(): BufferedSource = source.buffer()
         }
         return Response.Builder().request(Request.Builder().url("https://drive.usercontent.google.com/download?id=A").build())
             .protocol(Protocol.HTTP_1_1).code(200).message("OK").body(body).build()
