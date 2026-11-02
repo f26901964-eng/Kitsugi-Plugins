@@ -278,13 +278,10 @@ internal object DiziBoxPlayerParser {
      * `-sezon-N-bolum-M(-izle)` kalıbına uyan tüm çapaları toplar.
      */
     fun episodeAnchors(document: Document, seriesUrl: String? = null): List<EpisodeAnchor> {
-        val slug = Regex("""-sezon-(\d+)-bolum-(\d+)(?:-izle)?/?""", RegexOption.IGNORE_CASE)
         val all = LinkedHashMap<String, EpisodeAnchor>()
         document.select("a[href]").forEach { anchor ->
             val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }.trim()
-            val match = slug.find(href) ?: return@forEach
-            val season = match.groupValues[1].toIntOrNull() ?: return@forEach
-            val episode = match.groupValues[2].toIntOrNull() ?: return@forEach
+            val (season, episode) = episodeNumbers(href) ?: return@forEach
             all.putIfAbsent(href, EpisodeAnchor(href, season, episode))
         }
 
@@ -292,10 +289,31 @@ internal object DiziBoxPlayerParser {
         // de bulunur. Dizi adresi biliniyorsa yalnızca o dizinin bölüm slug'ına sahip olanları al.
         val base = seriesUrl?.let { seriesSlugBase(it) } ?: return all.values.toList()
         val own = all.values.filter { episode ->
-            episode.url.trimEnd('/').substringBefore('?').substringAfterLast('/').startsWith(base + "-", ignoreCase = true)
+            lastSegment(episode.url).startsWith(base + "-", ignoreCase = true)
         }
         return if (own.isNotEmpty()) own else all.values.toList()
     }
+
+    /**
+     * Güncel tema: `visionquest-1-sezon-1-bolum-izle` (sezon-bölüm sırası ÖNCE sezon numarası),
+     * eski tema: `...-sezon-1-bolum-2`. İkisi de (sezon, bölüm) çiftine çözülür.
+     */
+    private fun episodeNumbers(href: String): Pair<Int, Int>? {
+        val legacy = Regex("""-sezon-(\d+)-bolum-(\d+)(?:-izle)?/?""", RegexOption.IGNORE_CASE).find(href)
+        if (legacy != null) {
+            val season = legacy.groupValues[1].toIntOrNull() ?: return null
+            val episode = legacy.groupValues[2].toIntOrNull() ?: return null
+            return season to episode
+        }
+        val current = Regex("""(?:^|-)(\d+)-sezon-(\d+)-bolum(?:-|$)""", RegexOption.IGNORE_CASE)
+            .find(lastSegment(href)) ?: return null
+        val season = current.groupValues[1].toIntOrNull() ?: return null
+        val episode = current.groupValues[2].toIntOrNull() ?: return null
+        return season to episode
+    }
+
+    private fun lastSegment(url: String): String =
+        url.substringBefore('?').substringBefore('#').trimEnd('/').substringAfterLast('/')
 
     /** `/diziler/a-gentleman-in-moscow-hd-3/` → `a-gentleman-in-moscow` (bölüm slug'ının başı). */
     fun seriesSlugBase(seriesUrl: String): String? {

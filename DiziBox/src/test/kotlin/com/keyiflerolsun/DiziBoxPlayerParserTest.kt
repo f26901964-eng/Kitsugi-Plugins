@@ -208,9 +208,6 @@ class DiziBoxPlayerParserTest {
         )
 
         val scoped = DiziBoxPlayerParser.episodeAnchors(document, "https://www.dizibox.live/diziler/visionquest/")
-        println("DIAG base=" + DiziBoxPlayerParser.seriesSlugBase("https://www.dizibox.live/diziler/visionquest/"))
-        println("DIAG scoped=" + scoped.map { it.url + "|" + it.season + "|" + it.episode })
-        println("DIAG anchors=" + DiziBoxPlayerParser.episodeAnchors(document).map { it.url })
         assertEquals(2, scoped.size)
         assertEquals(1, scoped[0].season)
         assertEquals(2, scoped[1].episode)
