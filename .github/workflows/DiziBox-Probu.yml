@@ -1,0 +1,49 @@
+name: DiziBox Probu
+
+# DiziBox canlı isteklerini (ana sayfa, kategori, arama, dwls_search, bölüm)
+# GitHub runner'dan ölçer. Sonuç `probe-data` dalına yazılır.
+
+on:
+  push:
+    paths:
+      - "tools/dizibox_probe.py"
+      - ".github/workflows/DiziBox-Probu.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: DiziBox probu
+        run: |
+          set +e
+          python3 -u tools/dizibox_probe.py > /tmp/dizibox-probe.log 2>&1
+          echo "exit=$?"
+          cat /tmp/dizibox-probe.log
+          set -e
+
+      - name: Sonucu probe-data dalina yaz
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rm -rf /tmp/push && mkdir -p /tmp/push
+          cp -r research/dizibox-probe /tmp/push/ 2>/dev/null || true
+          cp /tmp/dizibox-probe.log /tmp/push/ 2>/dev/null || true
+          cd /tmp/push
+          git init -q
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git checkout -q -b probe-data
+          git add -A
+          git commit -qm "dizibox olcumu ${GITHUB_RUN_ID}"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:probe-data && echo "probe-data dalına yazıldı"

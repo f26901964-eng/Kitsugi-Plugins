@@ -33,13 +33,29 @@ class DiziBox : MainAPI() {
     private val cloudflareKiller by lazy { CloudflareKiller() }
     private val interceptor      by lazy { CloudflareInterceptor(cloudflareKiller) }
 
+    /**
+     * Cloudflare doğrulama sayfası çoğunlukla HTTP 403 ile gelir (503 değil) ve gövdesinde
+     * "challenge-platform" işareti taşır. Ölçümde (DiziBox-Probu) siteye giden tüm istekler
+     * bu biçimde 403 döndü; eski kontrol (yalnız 503) çözücüyü hiç tetiklemiyordu.
+     */
     class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller): Interceptor {
+        private val challengeMarkers = listOf(
+            "challenge-platform", "cf-chl", "cf_chl_opt", "Just a moment", "cf-browser-verification",
+        )
+
         override fun intercept(chain: Interceptor.Chain): Response {
             val request  = chain.request()
             val response = chain.proceed(request)
-            val doc      = Jsoup.parse(response.peekBody(10 * 1024).string())
+            val body     = response.peekBody(64 * 1024).string()
+            val doc      = Jsoup.parse(body)
 
-            if (response.code == 503 || doc.selectFirst("meta[name='cloudflare']") != null) {
+            val cloudflareMeta = doc.selectFirst("meta[name='cloudflare']") != null
+            val blocked        = response.code == 403 || response.code == 429 || response.code == 503
+            val challengeBody  = challengeMarkers.any { body.contains(it, ignoreCase = true) }
+            val mitigated      = response.header("cf-mitigated") == "challenge"
+            val fromCloudflare = response.header("server")?.equals("cloudflare", ignoreCase = true) == true
+
+            if (cloudflareMeta || (blocked && (mitigated || challengeBody || fromCloudflare))) {
                 return cloudflareKiller.intercept(chain)
             }
 
