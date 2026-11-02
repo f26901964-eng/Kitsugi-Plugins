@@ -258,6 +258,33 @@ jobs:
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/live-chain.md || true
           fi
 
+      - name: Güvenli canlı Anizm probu (imzasız rapor)
+        id: safe_live
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'anizm-safe-live-probe')
+        continue-on-error: true
+        env:
+          ANIZM_SAFE_LIVE: "1"
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :Anizm:testDebugUnitTest --tests "*AnizmSafeLiveProbeTest*" > /tmp/safe-live.log 2>&1
+          echo "safe-live exit=$?"
+          grep -a "\[SAFE-LIVE\]" /tmp/safe-live.log | sed 's/^.*\[SAFE-LIVE\]/[SAFE-LIVE]/' > /tmp/safe-live.md || true
+          if [ -s /tmp/safe-live.md ]; then
+            cat /tmp/safe-live.md
+          else
+            echo "[SAFE-LIVE] result=no-safe-output (ayrıntı CI logunda değil, yalnız güvenli özet beklenir)"
+          fi
+
+      - name: Güvenli canlı prob raporunu PR'a yaz
+        if: always() && steps.safe_live.outcome != 'skipped' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s /tmp/safe-live.md ]; then
+            { echo "## Güvenli canlı Anizm probu"; echo; echo '```'; cat /tmp/safe-live.md; echo '```'; } > /tmp/safe-live-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/safe-live-comment.md || true
+          fi
+
       - name: JDK 17 Ayarla
         uses: actions/setup-java@v4.6.0
         with:
