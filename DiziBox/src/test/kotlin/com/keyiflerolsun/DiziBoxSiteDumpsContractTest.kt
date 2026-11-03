@@ -190,6 +190,32 @@ class DiziBoxSiteDumpsContractTest {
     }
 
     @Test
+    fun sequentialMainPageIndexIsOneBasedForTheSite() {
+        // Kitsugi-Beta (`AddonExploreInline`, `CsPluginDiagnosticRunner`, `AddonFullScreenGridPage`)
+        // ilk sayfa için `page = 1`, sonraki sayfalar için `2, 3…` gönderir; `0` gelirse `1`'e sabitlenir.
+        assertEquals(1, DiziBoxPlayerParser.sequentialPageIndex(0))
+        assertEquals(1, DiziBoxPlayerParser.sequentialPageIndex(1))
+        assertEquals(2, DiziBoxPlayerParser.sequentialPageIndex(2))
+        assertEquals(5, DiziBoxPlayerParser.sequentialPageIndex(5))
+        assertEquals(
+            "https://www.dizibox.live/tum-bolumler/",
+            DiziBoxPlayerParser.buildMainPageUrl(
+                "https://www.dizibox.live/tum-bolumler/page/SAYFA/",
+                DiziBoxPlayerParser.sequentialPageIndex(1),
+            ),
+        )
+        assertEquals(
+            "https://www.dizibox.live/tum-bolumler/page/2/",
+            DiziBoxPlayerParser.buildMainPageUrl(
+                "https://www.dizibox.live/tum-bolumler/page/SAYFA/",
+                DiziBoxPlayerParser.sequentialPageIndex(2),
+            ),
+        )
+        assertTrue(DiziBoxPlayerParser.isCloudflareChallengeHtml("<title>Just a moment...</title>"))
+        assertFalse(DiziBoxPlayerParser.isCloudflareChallengeHtml("<title>DiziBox</title>"))
+    }
+
+    @Test
     fun searchPagePrioritizesSeriesCardsOverEpisodeMatches() {
         val searchUrl = "https://www.dizibox.live/search/visionquest/"
         val html = """

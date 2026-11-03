@@ -286,6 +286,23 @@ internal object DiziBoxPlayerParser {
      * 2+ sayfalarda `SAYFA` yer tutucusu sayfa numarasıyla değiştirilir. `#section` parçası
      * HTTP isteğine gönderilmez.
      */
+    /**
+     * Kitsugi-Beta (`AddonExploreInline`, `AddonExploreDialog`, `CsPluginDiagnosticRunner`,
+     * `AddonFullScreenGridPage`) ilk sayfa için `page = 1`, sonraki sayfalar için `2, 3…`
+     * gönderir; olası `0` çağrılarını da güvenle `1`'e sabitleriz (`1 -> /`, `2 -> /page/2/`).
+     */
+    fun sequentialPageIndex(page: Int): Int = page.coerceAtLeast(1)
+
+    /**
+     * Cloudflare doğrulama basamağı işaretlerini HTML gövdesi / başlığından tanır.
+     */
+    fun isCloudflareChallengeHtml(html: String, title: String = ""): Boolean {
+        val head = html.take(20_000)
+        return CHALLENGE_HINTS.any { marker ->
+            title.contains(marker, ignoreCase = true) || head.contains(marker, ignoreCase = true)
+        }
+    }
+
     fun buildMainPageUrl(templateUrl: String, page: Int): String {
         val withoutFragment = templateUrl.substringBefore('#')
         if (page <= 1) {
@@ -1655,6 +1672,14 @@ internal object DiziBoxPlayerParser {
         val match = regex.find(source) ?: return null
         return match.groupValues[1].ifBlank { match.groupValues[2] }
     }
+
+    internal val CHALLENGE_HINTS = listOf(
+        "Just a moment",
+        "challenge-platform",
+        "cf-browser-verification",
+        "cf_chl_opt",
+        "Enable JavaScript and cookies to continue",
+    )
 
     internal fun normalizedHost(url: String): String? =
         runCatching { URI(url).host?.lowercase(Locale.ROOT) }.getOrNull()

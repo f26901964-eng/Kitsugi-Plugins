@@ -4,6 +4,7 @@ package com.keyiflerolsun
 
 import android.util.Log
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
@@ -62,19 +63,41 @@ class DiziBox : MainAPI() {
 
     private fun networkInterceptor(): Interceptor = DiziBoxNetwork.interceptorFor(mainUrl)
 
+    private fun Document.failOnChallenge(url: String) {
+        val headHtml = runCatching { outerHtml().take(20_000) }.getOrDefault("")
+        val titleText = runCatching { title() }.getOrDefault("")
+        if (DiziBoxPlayerParser.isCloudflareChallengeHtml(headHtml, titleText)) {
+            Log.e(TAG, "Cloudflare basamağı: $url")
+            throw ErrorLoadingException(
+                "DiziBox Cloudflare doğrulaması istiyor (sayfa boş geldi). " +
+                    "Uygulama doğrulamayı geçemedi: $url",
+            )
+        }
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val apiPage = DiziBoxPlayerParser.sequentialPageIndex(page)
         val sectionId = DiziBoxPlayerParser.extractSectionFragment(request.data)
-        if (sectionId != null && page > 1) {
+        if (sectionId != null && apiPage > 1) {
             return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
         }
 
-        val url = DiziBoxPlayerParser.buildMainPageUrl(request.data, page)
-        val document = fetchDiziBoxDocument(url, cacheTime = 60)
+        val url = DiziBoxPlayerParser.buildMainPageUrl(request.data, apiPage)
+        // ! Önbellek yok: olası 403 Cloudflare basamağı 60 dk yapışmasın (`AddonExploreCache` zaten başarılı vitrini tutar).
+        val document = fetchDiziBoxDocument(url)
 
         val cards = DiziBoxPlayerParser.parseListingCards(document, url, sectionId)
             .map { it.toSearchResult() }
         val isHorizontal = request.name.contains("Bölüm", ignoreCase = true)
-        val hasNext = sectionId == null && cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, page)
+        val hasNext = sectionId == null && cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
+
+        if (cards.isEmpty()) {
+            document.failOnChallenge(url)
+            if (apiPage <= 1) {
+                Log.e(TAG, "liste boş: $url (başlık: ${runCatching { document.title() }.getOrDefault("-")})")
+                throw ErrorLoadingException("DiziBox: liste boş döndü → $url")
+            }
+        }
 
         return newHomePageResponse(
             HomePageList(request.name, cards, isHorizontalImages = isHorizontal),
@@ -167,6 +190,7 @@ class DiziBox : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val initialDoc = fetchDiziBoxDocument(url)
+        initialDoc.failOnChallenge(url)
 
         // Ana sayfadaki "Son Bölümler" kartları doğrudan bölüm sayfasına gider;
         // her bölüm sayfasındaki `#archive-box a.archive-title` ana dizi sayfasına yönlendirir.
@@ -1316,6 +1340,7 @@ internal object DiziBoxNetwork {
             "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
     private val fallbackCloudflareKiller by lazy { CloudflareKiller() }
+    private val cfFallbackLock = Any()
 
     fun diziboxCookies(nowMillis: Long = System.currentTimeMillis()): Map<String, String> = mapOf(
         "LockUser"      to "true",
@@ -1339,7 +1364,18 @@ internal object DiziBoxNetwork {
                         return outerChain.proceed(normalizeWireRequest(request, siteUrl))
                     }
                 }
-                fallbackCloudflareKiller.intercept(delegatedChain)
+                val initial = delegatedChain.proceed(outerChain.request())
+                val peek = runCatching { initial.peekBody(512L * 1024L).string() }.getOrNull().orEmpty()
+                val challenged = initial.code == 403 || initial.code == 503 ||
+                    DiziBoxPlayerParser.isCloudflareChallengeHtml(peek)
+                if (!challenged) {
+                    initial
+                } else {
+                    initial.close()
+                    synchronized(cfFallbackLock) {
+                        fallbackCloudflareKiller.intercept(delegatedChain)
+                    }
+                }
             }
         }
     }
