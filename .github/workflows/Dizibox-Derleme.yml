@@ -5,8 +5,7 @@ name: DiziBox Derleme
 
 on:
   push:
-    branches:
-      - arena/120db293-kitsugi-plugins
+    # ! Dal filtresi yok: hangi çalışma dalında DiziBox'a dokunulursa derleme dönsün.
     paths:
       - "DiziBox/**"
       - "tools/dizibox_probe.py"
