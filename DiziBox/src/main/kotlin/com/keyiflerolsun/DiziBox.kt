@@ -92,11 +92,14 @@ class DiziBox : MainAPI() {
         val hasNext = sectionId == null && cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
 
         if (cards.isEmpty()) {
+            // * Cloudflare basamağıysa hata fırlat (uygulama bunu "koruma" olarak sınıflandırır).
             document.failOnChallenge(url)
-            if (apiPage <= 1) {
-                Log.e(TAG, "liste boş: $url (başlık: ${runCatching { document.title() }.getOrDefault("-")})")
-                throw ErrorLoadingException("DiziBox: liste boş döndü → $url")
-            }
+
+            // ! Aksi hâlde SESSİZ boş satır döndür. Önceden burada da
+            //   `ErrorLoadingException` fırlatılıyordu; Kitsugi bunu sınıflandıramayıp
+            //   "Tanımlanamayan eklenti hatası (KTS-CSP-9108)" olarak gösteriyordu ve
+            //   tek bir boş kategori yüzünden Keşfet ekranının tamamı hata veriyordu.
+            Log.e(TAG, "liste boş: $url (başlık: ${runCatching { document.title() }.getOrDefault("-")})")
         }
 
         return newHomePageResponse(
