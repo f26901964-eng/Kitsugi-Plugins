@@ -1,0 +1,222 @@
+Downloading https://services.gradle.org/distributions/gradle-8.12-bin.zip
+..................................................................................................................................
+Unzipping /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12-bin.zip to /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv
+Set executable permissions for: /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12/bin/gradle
+
+Welcome to Gradle 8.12!
+
+Here are the highlights of this release:
+ - Enhanced error and warning reporting with the Problems API
+ - File-system watching support on Alpine Linux
+ - Build and test Swift 6 libraries and apps
+
+For more details see https://docs.gradle.org/8.12/release-notes.html
+
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :AnimeciX
+Fetching JAR: cloudstream.jar
+
+> Task :DiziBox:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :DiziBox:preBuild UP-TO-DATE
+> Task :DiziBox:preDebugBuild UP-TO-DATE
+> Task :DiziBox:generateDebugResValues
+> Task :DiziBox:generateDebugResources
+> Task :DiziBox:packageDebugResources
+> Task :DiziBox:preDebugUnitTestBuild UP-TO-DATE
+> Task :DiziBox:javaPreCompileDebug
+> Task :DiziBox:preReleaseBuild UP-TO-DATE
+> Task :DiziBox:javaPreCompileDebugUnitTest
+> Task :DiziBox:generateReleaseResValues
+> Task :DiziBox:generateReleaseResources
+> Task :DiziBox:packageReleaseResources
+> Task :DiziBox:preReleaseUnitTestBuild UP-TO-DATE
+> Task :DiziBox:javaPreCompileRelease
+> Task :DiziBox:parseDebugLocalResources
+> Task :DiziBox:parseReleaseLocalResources
+> Task :DiziBox:javaPreCompileReleaseUnitTest
+> Task :DiziBox:generateDebugRFile
+> Task :DiziBox:generateReleaseRFile
+> Task :DiziBox:generateDebugUnitTestStubRFile
+> Task :DiziBox:generateReleaseUnitTestStubRFile
+> Task :DiziBox:compileDebugKotlin
+> Task :DiziBox:compileReleaseKotlin
+
+> Task :DiziBox:compileDex
+Compiled dex to /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziBox/build/intermediates/classes.dex
+
+> Task :DiziBox:generateManifest
+
+> Task :DiziBox:make
+Made CloudStream package at /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziBox/build/DiziBox.cs3
+
+> Task :DiziBox:compileDebugJavaWithJavac NO-SOURCE
+> Task :DiziBox:processDebugJavaRes
+> Task :DiziBox:compileReleaseJavaWithJavac NO-SOURCE
+> Task :DiziBox:bundleLibRuntimeToJarDebug
+> Task :DiziBox:bundleLibCompileToJarRelease
+> Task :DiziBox:bundleLibCompileToJarDebug
+> Task :DiziBox:bundleLibRuntimeToJarRelease
+> Task :DiziBox:processReleaseJavaRes
+> Task :DiziBox:compileDebugUnitTestKotlin
+> Task :DiziBox:compileReleaseUnitTestKotlin
+> Task :DiziBox:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :DiziBox:processDebugUnitTestJavaRes
+
+> Task :DiziBox:testDebugUnitTest
+
+DiziBoxPlayerParserTest > doesNotInferMediaSourceKindFromItsUrl PASSED
+
+DiziBoxPlayerParserTest > scopesEpisodeListToTheLoadedSeriesAndIgnoresSidebarEpisodes PASSED
+
+DiziBoxPlayerParserTest > recognizesEncryptedPlayerPayloadAndHlsSources PASSED
+
+DiziBoxPlayerParserTest > readsLazyLoadedPlayerIframesAndPlayerMenuOptions PASSED
+
+DiziBoxPlayerParserTest > resolvesRelativeUrlsAndLimitsManualResolutionToObservedPlayers PASSED
+
+DiziBoxPlayerParserTest > keepsSheilaRouteForDirectRequestAndDerivesPlayerPageOnlyAsFallback PASSED
+
+DiziBoxPlayerParserTest > findsCurrentPlayerIframesAndAlternatePages PASSED
+
+DiziBoxPlayerParserTest > readsDwlsSearchAsTopLevelArrayAndWrappedResults PASSED
+
+DiziBoxPlayerParserTest > readsRealEpisodePagePlayerMarkup PASSED
+
+DiziBoxPlayerParserTest > extractsLabeledSubtitleTracksWithoutTreatingOtherVttTracksAsCaptions PASSED
+
+DiziBoxPlayerParserTest > preservesExplicitSourceKindAndFiltersCaptionSources PASSED
+
+DiziBoxPlayerParserTest > recognizesVerifiedHlsManifestAndPlainHttpsUrlResponses PASSED
+
+DiziBoxPlayerSourcesTest > archiveBoxLinkAndEpisodeAnchorFallbacks PASSED
+
+DiziBoxPlayerSourcesTest > fallbackMediaUrlsCoversPlaylistsSheilaAndMasterTxt PASSED
+
+DiziBoxPlayerSourcesTest > hlsVariantsEmitEveryResolutionAndResolveRelativeUris PASSED
+
+DiziBoxPlayerSourcesTest > wmodeOpaqueIsIdempotentAndScopedToWrapperPhp PASSED
+
+DiziBoxPlayerSourcesTest > dwlsSearchParsesAjaxJsonAndSkipsEmptyRows PASSED
+
+DiziBoxSiteDumpsContractTest > multiSeasonSeriesMarksOnlyNonHoverSeasonsAsInactiveAndUpscalesThumbnails PASSED
+
+DiziBoxSiteDumpsContractTest > searchPagePrioritizesSeriesCardsOverEpisodeMatches PASSED
+
+DiziBoxSiteDumpsContractTest > wireFixupRestoresIframeAndAjaxSecFetchHeadersOverCloudflareKillerDefaults PASSED
+
+DiziBoxSiteDumpsContractTest > sequentialMainPageIndexIsOneBasedForTheSite PASSED
+
+DiziBoxSiteDumpsContractTest > episodeVisionQuestDumpResolvesArchiveLinkPlayerTabsAndBlocksSidebarPollution PASSED
+
+DiziBoxSiteDumpsContractTest > cookieHeaderMergerEliminatesDuplicateLowercaseCookieAndPreservesClearance PASSED
+
+DiziBoxSiteDumpsContractTest > parsesOkRuSibnetMailRuVkMolyMirrorAndGeoBlockNotice PASSED
+
+DiziBoxSiteDumpsContractTest > homepageSectionSelectorAndGridBoxCardCoverageWorkOnRealDump PASSED
+
+DiziBoxSiteDumpsContractTest > pureJvmCryptoJsRoundtripAndWrapperUnpackersWorkWithoutAndroidRuntime PASSED
+
+DiziBoxSiteDumpsContractTest > mainPageUrlStripsPage1ToAvoidRedirectAndPreservesQueryParams PASSED
+
+DiziBoxSiteDumpsContractTest > homepageDumpExtractsEpisodeAndSeriesCardsWithoutFlagTrapOrHeaderLeak PASSED
+
+DiziBoxSiteDumpsContractTest > seriesVisionQuestDumpParsesFullMetadataActiveSeasonAndSkipsRedundantRefetch PASSED
+
+DiziBoxSiteDumpsContractTest > okRuPreservesQueryParametersForUnlistedVideosAndUsesUnifiedUserAgent PASSED
+
+DiziBoxSiteDumpsContractTest > btkBlockedMirrorsPrioritizeUnblockedWarmupDomainsWithoutCorruptingSubdomains PASSED
+
+LiveChainProbeTest > liveChain STANDARD_OUT
+    [LIVE] === DiziBox canlı ayrıştırıcı probu ===
+    [LIVE] https://www.dizibox.live/supernatural-1-sezon-1-bolum-hd-3-izle/ → 403 (7158B)
+    [LIVE] !! bölüm sayfası runner'dan erişilebilir değil (HTTP 403); iddia çalıştırılmadı
+
+LiveChainProbeTest > liveChain PASSED
+
+> Task :DiziBox:compileReleaseUnitTestJavaWithJavac NO-SOURCE
+> Task :DiziBox:processReleaseUnitTestJavaRes
+
+> Task :DiziBox:testReleaseUnitTest
+
+DiziBoxPlayerParserTest > doesNotInferMediaSourceKindFromItsUrl PASSED
+
+DiziBoxPlayerParserTest > scopesEpisodeListToTheLoadedSeriesAndIgnoresSidebarEpisodes PASSED
+
+DiziBoxPlayerParserTest > recognizesEncryptedPlayerPayloadAndHlsSources PASSED
+
+DiziBoxPlayerParserTest > readsLazyLoadedPlayerIframesAndPlayerMenuOptions PASSED
+
+DiziBoxPlayerParserTest > resolvesRelativeUrlsAndLimitsManualResolutionToObservedPlayers PASSED
+
+DiziBoxPlayerParserTest > keepsSheilaRouteForDirectRequestAndDerivesPlayerPageOnlyAsFallback PASSED
+
+DiziBoxPlayerParserTest > findsCurrentPlayerIframesAndAlternatePages PASSED
+
+DiziBoxPlayerParserTest > readsDwlsSearchAsTopLevelArrayAndWrappedResults PASSED
+
+DiziBoxPlayerParserTest > readsRealEpisodePagePlayerMarkup PASSED
+
+DiziBoxPlayerParserTest > extractsLabeledSubtitleTracksWithoutTreatingOtherVttTracksAsCaptions PASSED
+
+DiziBoxPlayerParserTest > preservesExplicitSourceKindAndFiltersCaptionSources PASSED
+
+DiziBoxPlayerParserTest > recognizesVerifiedHlsManifestAndPlainHttpsUrlResponses PASSED
+
+DiziBoxPlayerSourcesTest > archiveBoxLinkAndEpisodeAnchorFallbacks PASSED
+
+DiziBoxPlayerSourcesTest > fallbackMediaUrlsCoversPlaylistsSheilaAndMasterTxt PASSED
+
+DiziBoxPlayerSourcesTest > hlsVariantsEmitEveryResolutionAndResolveRelativeUris PASSED
+
+DiziBoxPlayerSourcesTest > wmodeOpaqueIsIdempotentAndScopedToWrapperPhp PASSED
+
+DiziBoxPlayerSourcesTest > dwlsSearchParsesAjaxJsonAndSkipsEmptyRows PASSED
+
+DiziBoxSiteDumpsContractTest > multiSeasonSeriesMarksOnlyNonHoverSeasonsAsInactiveAndUpscalesThumbnails PASSED
+
+DiziBoxSiteDumpsContractTest > searchPagePrioritizesSeriesCardsOverEpisodeMatches PASSED
+
+DiziBoxSiteDumpsContractTest > wireFixupRestoresIframeAndAjaxSecFetchHeadersOverCloudflareKillerDefaults PASSED
+
+DiziBoxSiteDumpsContractTest > sequentialMainPageIndexIsOneBasedForTheSite PASSED
+
+DiziBoxSiteDumpsContractTest > episodeVisionQuestDumpResolvesArchiveLinkPlayerTabsAndBlocksSidebarPollution PASSED
+
+DiziBoxSiteDumpsContractTest > cookieHeaderMergerEliminatesDuplicateLowercaseCookieAndPreservesClearance PASSED
+
+DiziBoxSiteDumpsContractTest > parsesOkRuSibnetMailRuVkMolyMirrorAndGeoBlockNotice PASSED
+
+DiziBoxSiteDumpsContractTest > homepageSectionSelectorAndGridBoxCardCoverageWorkOnRealDump PASSED
+
+DiziBoxSiteDumpsContractTest > pureJvmCryptoJsRoundtripAndWrapperUnpackersWorkWithoutAndroidRuntime PASSED
+
+DiziBoxSiteDumpsContractTest > mainPageUrlStripsPage1ToAvoidRedirectAndPreservesQueryParams PASSED
+
+DiziBoxSiteDumpsContractTest > homepageDumpExtractsEpisodeAndSeriesCardsWithoutFlagTrapOrHeaderLeak PASSED
+
+DiziBoxSiteDumpsContractTest > seriesVisionQuestDumpParsesFullMetadataActiveSeasonAndSkipsRedundantRefetch PASSED
+
+DiziBoxSiteDumpsContractTest > okRuPreservesQueryParametersForUnlistedVideosAndUsesUnifiedUserAgent PASSED
+
+DiziBoxSiteDumpsContractTest > btkBlockedMirrorsPrioritizeUnblockedWarmupDomainsWithoutCorruptingSubdomains PASSED
+
+LiveChainProbeTest > liveChain STANDARD_OUT
+    [LIVE] === DiziBox canlı ayrıştırıcı probu ===
+    [LIVE] https://www.dizibox.live/supernatural-1-sezon-1-bolum-hd-3-izle/ → 403 (7158B)
+    [LIVE] !! bölüm sayfası runner'dan erişilebilir değil (HTTP 403); iddia çalıştırılmadı
+
+LiveChainProbeTest > liveChain PASSED
+
+> Task :DiziBox:test
+
+[Incubating] Problems report is available at: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.12/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 1m 43s
+33 actionable tasks: 33 executed
