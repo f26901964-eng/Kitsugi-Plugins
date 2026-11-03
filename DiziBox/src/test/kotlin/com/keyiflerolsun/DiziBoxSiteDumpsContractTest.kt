@@ -392,7 +392,7 @@ class DiziBoxSiteDumpsContractTest {
             .add("cookie", "LockUser=false; stale=1;")
             .add("Cookie", "cf_clearance=clr_token_pad==; __cf_bm=bm_val_1=2;")
             .add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/149.0.0.0")
-            .add("User-Agent", DiziBoxNetwork.UNIFIED_USER_AGENT)
+            .add("User-Agent", DiziBoxWire.UNIFIED_USER_AGENT)
             .add("Referer", "https://www.dizibox.live/")
             .build()
 
@@ -401,7 +401,7 @@ class DiziBoxSiteDumpsContractTest {
             .headers(rawHeaders)
             .build()
 
-        val normalized = DiziBoxNetwork.normalizeWireRequest(req, "https://www.dizibox.live")
+        val normalized = DiziBoxWire.normalizeWireRequest(req, "https://www.dizibox.live")
 
         val cookieHeaders = normalized.headers.values("Cookie")
         assertEquals("Tel üzerinde yalnızca TEK Cookie başlığı bulunmalı", 1, cookieHeaders.size)
@@ -414,7 +414,7 @@ class DiziBoxSiteDumpsContractTest {
 
         val uaHeaders = normalized.headers.values("User-Agent")
         assertEquals("Tel üzerinde yalnızca TEK User-Agent başlığı bulunmalı", 1, uaHeaders.size)
-        assertEquals(DiziBoxNetwork.UNIFIED_USER_AGENT, uaHeaders.single())
+        assertEquals(DiziBoxWire.UNIFIED_USER_AGENT, uaHeaders.single())
     }
 
     @Test
@@ -428,7 +428,7 @@ class DiziBoxSiteDumpsContractTest {
             .header("sec-fetch-site", "none")
             .header("sec-fetch-user", "?1")
             .build()
-        val fixedWrapper = DiziBoxNetwork.normalizeWireRequest(wrapperReq, "https://www.dizibox.live")
+        val fixedWrapper = DiziBoxWire.normalizeWireRequest(wrapperReq, "https://www.dizibox.live")
         assertEquals("iframe", fixedWrapper.header("Sec-Fetch-Dest"))
         assertEquals("navigate", fixedWrapper.header("Sec-Fetch-Mode"))
         assertEquals("same-origin", fixedWrapper.header("Sec-Fetch-Site"))
@@ -441,7 +441,7 @@ class DiziBoxSiteDumpsContractTest {
             .header("X-Requested-With", "XMLHttpRequest")
             .header("upgrade-insecure-requests", "1")
             .build()
-        val fixedAjax = DiziBoxNetwork.normalizeWireRequest(ajaxReq, "https://www.dizibox.live")
+        val fixedAjax = DiziBoxWire.normalizeWireRequest(ajaxReq, "https://www.dizibox.live")
         assertEquals("empty", fixedAjax.header("Sec-Fetch-Dest"))
         assertEquals("cors", fixedAjax.header("Sec-Fetch-Mode"))
         assertEquals("same-origin", fixedAjax.header("Sec-Fetch-Site"))
@@ -453,7 +453,7 @@ class DiziBoxSiteDumpsContractTest {
             .header("Referer", "https://www.molystream.org/embed/abc123")
             .header("Cookie", "cf_clearance=moly_cf_ok;")
             .build()
-        val fixedMoly = DiziBoxNetwork.normalizeWireRequest(molyReq, "https://www.dizibox.live")
+        val fixedMoly = DiziBoxWire.normalizeWireRequest(molyReq, "https://www.dizibox.live")
         assertEquals("cf_clearance=moly_cf_ok", fixedMoly.header("Cookie"))
         assertEquals("empty", fixedMoly.header("Sec-Fetch-Dest"))
         assertEquals("cors", fixedMoly.header("Sec-Fetch-Mode"))
@@ -498,8 +498,8 @@ class DiziBoxSiteDumpsContractTest {
         )
         assertEquals("https://ok.ru/videoembed/18600675707439", candidates[1])
 
-        val streamHeaders = DiziBoxNetwork.buildStreamHeaders("https://ok.ru/")
-        assertEquals(DiziBoxNetwork.UNIFIED_USER_AGENT, streamHeaders["User-Agent"])
+        val streamHeaders = DiziBoxWire.buildStreamHeaders("https://ok.ru/")
+        assertEquals(DiziBoxWire.UNIFIED_USER_AGENT, streamHeaders["User-Agent"])
         assertEquals("https://ok.ru", streamHeaders["Origin"])
         assertTrue(DiziBoxPlayerParser.isClearlyDirectStreamUrl("https://vd637.okcdn.ru/video.m3u8?cmd=videoPlayerCdn&srcAg=CHROME_ANDROID"))
         assertFalse(DiziBoxPlayerParser.isClearlyDirectStreamUrl("https://vd637.okcdn.ru/?expires=1793700000&ct=0"))
