@@ -92,9 +92,14 @@ class DiziBoxPlayerSourcesTest {
 
     @Test
     fun wmodeOpaqueIsIdempotentAndScopedToWrapperPhp() {
+        // jquery.main.min.js: n + "?wmode=opaque&" + a (sorgunun başına ekler)
         assertEquals(
-            "https://www.dizibox.live/player/king/king.php?v=abc&wmode=opaque",
+            "https://www.dizibox.live/player/king/king.php?wmode=opaque&v=abc",
             DiziBoxPlayerParser.withWOpaque("https://www.dizibox.live/player/king/king.php?v=abc"),
+        )
+        assertEquals(
+            "https://www.dizibox.live/player/haydi.php?wmode=opaque",
+            DiziBoxPlayerParser.withWOpaque("https://www.dizibox.live/player/haydi.php"),
         )
         val already = "https://www.dizibox.live/player/moly/moly.php?wmode=opaque&h=xyz"
         assertEquals(already, DiziBoxPlayerParser.withWOpaque(already))
