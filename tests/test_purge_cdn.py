@@ -142,3 +142,29 @@ class MainExitCodeTests(unittest.TestCase):
 
     def test_strict_mode_keeps_old_red_behaviour(self):
         self.assertEqual(1, self._run(3, 1, argv=("--strict",)))
+
+
+class PurgeBudgetTests(unittest.TestCase):
+    def test_throttle_on_first_path_defers_the_rest(self):
+        calls = []
+        body = json.dumps({
+            "status": "finished",
+            "paths": {f"/gh/{purge_cdn.SLUG}@{purge_cdn.BRANCH}/repo.json":
+                      {"throttled": True, "throttlingReset": 5}},
+        }).encode()
+
+        def fake_get(url, timeout=30):
+            calls.append(url)
+            return 200, body
+
+        original_get, original_sleep = purge_cdn._get, purge_cdn.time.sleep
+        purge_cdn._get, purge_cdn.time.sleep = fake_get, lambda _: None
+        try:
+            failed = purge_cdn.purge(["repo.json", "plugins.json", "DiziPal.cs3"], attempts=3)
+        finally:
+            purge_cdn._get, purge_cdn.time.sleep = original_get, original_sleep
+
+        self.assertEqual(3, failed)
+        # Yalnız ilk yol denendi; iki yol ertelendi (3 deneme = 3 istek).
+        self.assertEqual(3, len(calls))
+        self.assertTrue(all("repo.json" in url for url in calls))
