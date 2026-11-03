@@ -46,6 +46,45 @@ class DiziBox : MainAPI() {
     private val cloudflareKiller by lazy { CloudflareKiller() }
 
     /**
+     * Depodaki diğer eklentilerin (DiziPal, Dizilla, DiziMom, CinemaCity...) kullandığı
+     * sarmalayıcı: killer YALNIZCA gövde gerçekten bir Cloudflare basamağıysa çağrılır.
+     *
+     * DiziBox önceden killer'ı doğrudan `interceptor` olarak veriyordu. Sayfa/arama
+     * istekleri `coroutineScope` içinde paralel atıldığı için aynı killer örneği eşzamanlı
+     * WebView doğrulamasına giriyor; bu, doğrulamayı bekleyen isteklerin asılı kalmasına
+     * (uygulamada "eklenti hiç çalışmıyor" görüntüsü) yol açabiliyordu. Artık killer
+     * yalnızca basamak görüldüğünde ve sırayla çalışır.
+     */
+    private val cloudflareInterceptor by lazy { CloudflareInterceptor(cloudflareKiller) }
+
+    class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller) : Interceptor {
+        private val lock = Any()
+
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val response = chain.proceed(chain.request())
+            val body = runCatching { response.peekBody(1024L * 512L).string() }.getOrNull()
+
+            val challenged = response.code == 403 || response.code == 503 ||
+                (body != null && CHALLENGE_MARKERS.any { body.contains(it, ignoreCase = true) })
+
+            if (!challenged) return response
+
+            // * Aynı anda tek doğrulama: paralel istekler WebView'i birbirine kilitlemesin.
+            return synchronized(lock) { cloudflareKiller.intercept(chain) }
+        }
+
+        private companion object {
+            val CHALLENGE_MARKERS = listOf(
+                "Just a moment",
+                "challenge-platform",
+                "cf-browser-verification",
+                "cf_chl_opt",
+                "Enable JavaScript and cookies to continue",
+            )
+        }
+    }
+
+    /**
      * Sitenin satır içi betiği (`LockUser=true`, `isTrustedUser=true`) ve `jquery.main.min.js`
      * içindeki 30 dakikalık `dbxu = Date.now()` çerez sözleşmesiyle uyumlu taze çerez kümesi.
      */
@@ -88,13 +127,16 @@ class DiziBox : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = DiziBoxPlayerParser.buildMainPageUrl(request.data, page)
-        val document = fetchDiziBoxDocument(url, cacheTime = 60)
+        // * `sequentialMainPage` açık: CloudStream 0'dan, WordPress 1'den sayar.
+        //   Önceden `page` doğrudan verildiği için 2. parça 1. sayfayı TEKRARLIYORDU.
+        val apiPage  = DiziBoxPlayerParser.sequentialPageIndex(page)
+        val url      = DiziBoxPlayerParser.buildMainPageUrl(request.data, apiPage)
+        val document = fetchDiziBoxDocument(url) // ! önbellek yok: 403 basamağı yapışmasın
 
         val cards = DiziBoxPlayerParser.parseListingCards(document, url)
             .map { it.toSearchResult() }
         val isHorizontal = request.name.contains("Bölüm", ignoreCase = true)
-        val hasNext = cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, page)
+        val hasNext = cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
 
         return newHomePageResponse(
             HomePageList(request.name, cards, isHorizontalImages = isHorizontal),
@@ -1093,7 +1135,7 @@ class DiziBox : MainAPI() {
             url,
             referer     = referer,
             cookies     = diziboxCookies(),
-            interceptor = cloudflareKiller,
+            interceptor = cloudflareInterceptor,
             cacheTime   = cacheTime,
         ).document
     } else {
@@ -1101,7 +1143,7 @@ class DiziBox : MainAPI() {
             url,
             referer     = referer,
             cookies     = diziboxCookies(),
-            interceptor = cloudflareKiller,
+            interceptor = cloudflareInterceptor,
         ).document
     }
 

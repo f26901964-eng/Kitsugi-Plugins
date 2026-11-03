@@ -144,6 +144,12 @@ internal object DiziBoxPlayerParser {
      * WordPress sayfalama kuralı: 1. sayfada `/page/1/` kullanılmaz (301 yönlendirmesini önler),
      * 2+ sayfalarda `SAYFA` yer tutucusu sayfa numarasıyla değiştirilir.
      */
+    /**
+     * CloudStream sıralı ana sayfada 0'dan sayar (`page = 0, 1, 2…`), site 1'den.
+     * Bu dönüşüm olmadan 2. parça 1. sayfayı tekrar gösteriyordu.
+     */
+    fun sequentialPageIndex(page: Int): Int = if (page < 1) 1 else page + 1
+
     fun buildMainPageUrl(templateUrl: String, page: Int): String {
         if (page <= 1) {
             val query = templateUrl.substringAfter('?', "")

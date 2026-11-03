@@ -188,6 +188,22 @@ class DiziBoxSiteDumpsContractTest {
     }
 
     @Test
+    fun sequentialMainPageIndexIsOneBasedForTheSite() {
+        // CloudStream sıralı ana sayfada 0'dan sayar; site 1'den. Dönüşüm olmadan
+        // 2. parça 1. sayfayı tekrar gösteriyordu (kullanıcı "tek sayfa" sanıyordu).
+        assertEquals(1, DiziBoxPlayerParser.sequentialPageIndex(0))
+        assertEquals(2, DiziBoxPlayerParser.sequentialPageIndex(1))
+        assertEquals(5, DiziBoxPlayerParser.sequentialPageIndex(4))
+        assertEquals(
+            "https://www.dizibox.live/tum-bolumler/page/2/",
+            DiziBoxPlayerParser.buildMainPageUrl(
+                "https://www.dizibox.live/tum-bolumler/page/SAYFA/",
+                DiziBoxPlayerParser.sequentialPageIndex(1),
+            ),
+        )
+    }
+
+    @Test
     fun searchPagePrioritizesSeriesCardsOverEpisodeMatches() {
         val searchUrl = "https://www.dizibox.live/search/visionquest/"
         val html = """
