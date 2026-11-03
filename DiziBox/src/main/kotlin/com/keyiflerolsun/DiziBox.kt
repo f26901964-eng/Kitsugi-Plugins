@@ -149,22 +149,44 @@ class DiziBox : MainAPI() {
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        // * `sequentialMainPage` açık: CloudStream 0'dan, WordPress 1'den sayar.
-        //   Önceden `page` doğrudan verildiği için 2. parça 1. sayfayı TEKRARLIYORDU.
-        val apiPage  = DiziBoxPlayerParser.sequentialPageIndex(page)
-        val url      = DiziBoxPlayerParser.buildMainPageUrl(request.data, apiPage)
-        val document = fetchDiziBoxDocument(url) // ! önbellek yok: 403 basamağı yapışmasın
+        // ! Sayfa numarası sözleşmesi (Kitsugi 2.4.x gözlemi):
+        //   * Kitsugi "Keşfet" ekranı BÜTÜN bölümler için `getMainPage(1, …)` çağırıyor,
+        //   * CloudStream sıralı ana sayfada 0'dan sayıyor.
+        //   Bu yüzden 0 ve 1 "ilk sayfa" kabul edilir; WordPress'in `/page/1/`
+        //   adresi 301 ürettiği için hiç kullanılmaz. (v41'deki `page + 1` dönüşümü
+        //   Kitsugi'de her bölümü 2. sayfaya düşürüyor, sayfası olmayan bölümlerde
+        //   listeyi boşaltıyordu.)
+        val apiPage = DiziBoxPlayerParser.mainPageIndex(page)
 
-        val cards = DiziBoxPlayerParser.parseListingCards(document, url)
-            .map { it.toSearchResult() }
-        val isHorizontal = request.name.contains("Bölüm", ignoreCase = true)
-        val hasNext = cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
+        var url      = DiziBoxPlayerParser.buildMainPageUrl(request.data, apiPage)
+        var document = fetchDiziBoxDocument(url) // ! önbellek yok: 403 basamağı yapışmasın
+        var cards    = DiziBoxPlayerParser.parseListingCards(document, url).map { it.toSearchResult() }
 
         if (cards.isEmpty()) {
+            // Cloudflare basamağıysa sessiz kalma: uygulama bunu "koruma" olarak sınıflandırır.
             document.failOnChallenge(url)
-            Log.e(TAG, "liste boş: $url (başlık: ${runCatching { document.title() }.getOrDefault("-")})")
-            throw ErrorLoadingException("DiziBox: liste boş döndü → $url")
+
+            // * Sayfa numarası uyuşmazlığına karşı kendini onaran yedek: ilk sayfayı dene.
+            val firstUrl = DiziBoxPlayerParser.buildMainPageUrl(request.data, 1)
+            if (firstUrl != url) {
+                val firstDoc = runCatching { fetchDiziBoxDocument(firstUrl) }.getOrNull()
+                if (firstDoc != null) {
+                    val firstCards = DiziBoxPlayerParser.parseListingCards(firstDoc, firstUrl)
+                        .map { it.toSearchResult() }
+                    if (firstCards.isNotEmpty()) {
+                        url = firstUrl
+                        document = firstDoc
+                        cards = firstCards
+                    }
+                }
+            }
+            if (cards.isEmpty()) {
+                Log.e(TAG, "liste boş: $url (başlık: ${runCatching { document.title() }.getOrDefault("-")})")
+            }
         }
+
+        val isHorizontal = request.name.contains("Bölüm", ignoreCase = true)
+        val hasNext = cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
 
         return newHomePageResponse(
             HomePageList(request.name, cards, isHorizontalImages = isHorizontal),

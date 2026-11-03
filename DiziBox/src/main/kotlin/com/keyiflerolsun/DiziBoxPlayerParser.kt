@@ -145,10 +145,13 @@ internal object DiziBoxPlayerParser {
      * 2+ sayfalarda `SAYFA` yer tutucusu sayfa numarasıyla değiştirilir.
      */
     /**
-     * CloudStream sıralı ana sayfada 0'dan sayar (`page = 0, 1, 2…`), site 1'den.
-     * Bu dönüşüm olmadan 2. parça 1. sayfayı tekrar gösteriyordu.
+     * Sayfa indeksini siteye çevirir: 0 ve 1 → **ilk sayfa**.
+     *
+     * CloudStream sıralı ana sayfa 0'dan, Kitsugi "Keşfet" ekranı 1'den başlıyor;
+     * ikisi de ilk sayfa demek. (Önceki `page + 1` dönüşümü Kitsugi'de her bölümü
+     * 2. sayfaya düşürüp, 2. sayfası olmayan bölümlerde listeyi boşaltıyordu.)
      */
-    fun sequentialPageIndex(page: Int): Int = if (page < 1) 1 else page + 1
+    fun mainPageIndex(page: Int): Int = if (page < 1) 1 else page
 
     fun buildMainPageUrl(templateUrl: String, page: Int): String {
         if (page <= 1) {

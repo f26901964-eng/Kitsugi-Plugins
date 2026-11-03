@@ -188,17 +188,24 @@ class DiziBoxSiteDumpsContractTest {
     }
 
     @Test
-    fun sequentialMainPageIndexIsOneBasedForTheSite() {
-        // CloudStream sıralı ana sayfada 0'dan sayar; site 1'den. Dönüşüm olmadan
-        // 2. parça 1. sayfayı tekrar gösteriyordu (kullanıcı "tek sayfa" sanıyordu).
-        assertEquals(1, DiziBoxPlayerParser.sequentialPageIndex(0))
-        assertEquals(2, DiziBoxPlayerParser.sequentialPageIndex(1))
-        assertEquals(5, DiziBoxPlayerParser.sequentialPageIndex(4))
+    fun mainPageIndexTreatsZeroAndOneAsTheFirstPage() {
+        // Kitsugi "Keşfet" `getMainPage(1, …)`, CloudStream sıralı ana sayfa 0'dan çağırır.
+        // İkisi de ilk sayfa olmalı; v41'deki `page + 1` Kitsugi'de listeyi boşaltıyordu.
+        assertEquals(1, DiziBoxPlayerParser.mainPageIndex(0))
+        assertEquals(1, DiziBoxPlayerParser.mainPageIndex(1))
+        assertEquals(3, DiziBoxPlayerParser.mainPageIndex(3))
         assertEquals(
-            "https://www.dizibox.live/tum-bolumler/page/2/",
+            "https://www.dizibox.live/tum-bolumler/",
             DiziBoxPlayerParser.buildMainPageUrl(
                 "https://www.dizibox.live/tum-bolumler/page/SAYFA/",
-                DiziBoxPlayerParser.sequentialPageIndex(1),
+                DiziBoxPlayerParser.mainPageIndex(1),
+            ),
+        )
+        assertEquals(
+            "https://www.dizibox.live/tum-bolumler/page/3/",
+            DiziBoxPlayerParser.buildMainPageUrl(
+                "https://www.dizibox.live/tum-bolumler/page/SAYFA/",
+                DiziBoxPlayerParser.mainPageIndex(3),
             ),
         )
     }
