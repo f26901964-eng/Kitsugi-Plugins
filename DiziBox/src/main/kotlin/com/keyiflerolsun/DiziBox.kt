@@ -129,6 +129,7 @@ class DiziBox : MainAPI() {
         val anchor = selectFirst("a.episode-card-title")
             ?: selectFirst("a.poster-title")
             ?: selectFirst("a.series-details")
+            ?: selectFirst("h3 a[href]")
             ?: selectFirst("a.figure-link[href]")
             ?: selectFirst("a.figure[href]")
             ?: selectFirst("a[href]")
@@ -175,7 +176,24 @@ class DiziBox : MainAPI() {
         // Canlı tema: arama admin-ajax dwls_search ile JSON döndürür (üst düzey dizi).
         ajaxSearch(query)?.let { if (it.isNotEmpty()) return it }
 
-        // Hata/boş yanıt durumunda klasik HTML aramasına düş.
+        // Yedek 1: /search/{sorgu}/ sayfası (en son çalışan DiziBox eklentisi bu yolu kullanıyor;
+        // sonuçlar article.detailed-article kartlarında, başlık h3 a içinde).
+        val slugQuery = query.trim().replace(" ", "+")
+        val slugResults = runCatching {
+            app.get(
+                "${mainUrl}/search/${slugQuery}/",
+                headers     = mapOf("Accept-Language" to "tr-TR,tr;q=0.9"),
+                cookies     = playerCookies,
+                interceptor = interceptor,
+            ).document
+        }.getOrNull()?.let { doc ->
+            doc.select("article.detailed-article, $cardSelector")
+                .mapNotNull { it.toCardResult() }
+                .distinctBy { it.url }
+        }
+        if (!slugResults.isNullOrEmpty()) return slugResults
+
+        // Yedek 2: klasik HTML aramasına düş.
         val document = app.get(
             "${mainUrl}/?s=${java.net.URLEncoder.encode(query, "UTF-8")}",
             cookies     = playerCookies,
