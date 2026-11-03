@@ -28,6 +28,22 @@ class DiziBoxSiteDumpsContractTest {
     // ────────── 1. Gerçek Site Dökümü Sözleşme Testleri (site-dumps/*.html) ──────────
 
     @Test
+    fun homepageShelvesMatchRealSiteSections() {
+        val url = "https://www.dizibox.live/"
+        val doc = Jsoup.parse(readSiteDump("homepage.html"), url)
+        val expected = DiziBoxPlayerParser.parseListingCards(doc, url, "recommended_series")
+        assertTrue(expected.any { it.title == "Harry Potter" && it.url.contains("/diziler/harry-potter") })
+        assertTrue(expected.all { !it.posterUrl.isNullOrBlank() && !it.isEpisode })
+        val popular = DiziBoxPlayerParser.parseListingCards(doc, url, "popular-episodes")
+        val latest = DiziBoxPlayerParser.parseListingCards(doc, url, "latest-episodes")
+        val legends = DiziBoxPlayerParser.parseListingCards(doc, url, "best-series")
+        assertTrue(popular.any { it.title.startsWith("Tracker") && it.isEpisode })
+        assertTrue(latest.any { it.title.startsWith("High Country") && it.isEpisode })
+        assertTrue(legends.any { it.title == "Friends" && !it.isEpisode })
+        assertFalse(popular.any { it.title.startsWith("High Country") })
+    }
+
+    @Test
     fun homepageDumpExtractsEpisodeAndSeriesCardsWithoutFlagTrapOrHeaderLeak() {
         val html = readSiteDump("homepage.html")
         val baseUrl = "https://www.dizibox.live/"

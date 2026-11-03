@@ -118,7 +118,7 @@ internal object DiziBoxPlayerParser {
         """(?:["'](?:srclang|language|lang)["']|\b(?:srclang|language|lang)\b)\s*:\s*(?:"([^"]*)"|'([^']*)')""",
         RegexOption.IGNORE_CASE,
     )
-    private val objectPattern = Regex("""\{[^{}]*}""")
+    private val objectPattern = Regex("""\{[^\{\}]*\}""")
     private val sourcesArray = Regex("""\bsources\s*:\s*\[""", RegexOption.IGNORE_CASE)
     private val knownPlayerPath = Regex(
         """/(?:player/)?(?:[a-z0-9_-]+/)?(?:king|moly|haydi|spidy|player)\.php$|/player/.+\.php$|/embed/""",
@@ -141,7 +141,7 @@ internal object DiziBoxPlayerParser {
     private const val CARD_SELECTOR =
         "article.article-series-poster, article.detailed-article, article.article-episode-card, " +
             "article.article-series-small-grid, article.article-episode-small-grid, " +
-            "article.grid-box, article.triple-box-article"
+            "article.grid-box, article.triple-box-article, #recommended_series > li"
 
     private val TURKISH_MONTHS = mapOf(
         "ocak" to 1, "oca" to 1,
@@ -338,7 +338,11 @@ internal object DiziBoxPlayerParser {
     ): List<ListingCard> {
         val cleanDoc = stripChrome(document)
         val rootElements = if (!sectionId.isNullOrBlank()) {
-            cleanDoc.select("section#$sectionId, #$sectionId")
+            when (sectionId) {
+                "popular-episodes" -> cleanDoc.select("section:has(h2:contains(Popüler Dizilerden Son Bölümler))")
+                "latest-episodes" -> cleanDoc.select("section:has(h2:contains(Yeni Eklenen Bölümler))")
+                else -> cleanDoc.select("section#$sectionId, #$sectionId")
+            }
         } else {
             null
         }
@@ -410,7 +414,9 @@ internal object DiziBoxPlayerParser {
         val anchorCleanText = anchor.clone().apply { select(".imdb, i, svg").remove() }.text()
 
         // Bölüm kartlarında title özniteliği ("Tracker 4.Sezon 5.Bölüm") temiz başlığı verir.
-        val titleCandidates = if (element.hasClass("article-episode-card")) {
+        val titleCandidates = if (element.parent()?.id() == "recommended_series") {
+            listOf(element.selectFirst(".baslik")?.text().orEmpty(), anchor.attr("title"), slugTitle(href))
+        } else if (element.hasClass("article-episode-card")) {
             listOf(anchor.attr("title"), anchorCleanText, posterImg?.attr("alt").orEmpty(), slugTitle(href))
         } else {
             listOf(anchorCleanText, anchor.attr("title"), posterImg?.attr("alt").orEmpty(), slugTitle(href))
@@ -1427,7 +1433,7 @@ internal object DiziBoxPlayerParser {
     fun dwlsSearchResults(json: String): List<DwlsResult> {
         val trimmed = json.trimStart()
         if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) return emptyList()
-        return Regex("""\{[^{}]*}""").findAll(json).mapNotNull { match ->
+        return Regex("""\{[^\{\}]*\}""").findAll(json).mapNotNull { match ->
             val obj = match.value
             val title = Jsoup.parse(jsonStringField(obj, "post_title").orEmpty()).text().trim()
             val permalink = jsonStringField(obj, "permalink").orEmpty().trim()
