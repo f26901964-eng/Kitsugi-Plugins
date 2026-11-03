@@ -1397,18 +1397,18 @@ internal object DiziBoxNetwork {
         )
 
         val builder = request.newBuilder()
-        builder.removeAll("Cookie")
+        builder.removeHeader("Cookie")
         if (!mergedCookie.isNullOrBlank()) {
             builder.header("Cookie", mergedCookie)
         }
 
-        builder.removeAll("User-Agent")
+        builder.removeHeader("User-Agent")
         builder.header("User-Agent", UNIFIED_USER_AGENT)
 
-        builder.removeAll("Sec-Fetch-Dest")
-        builder.removeAll("Sec-Fetch-Mode")
-        builder.removeAll("Sec-Fetch-Site")
-        builder.removeAll("Sec-Fetch-User")
+        builder.removeHeader("Sec-Fetch-Dest")
+        builder.removeHeader("Sec-Fetch-Mode")
+        builder.removeHeader("Sec-Fetch-Site")
+        builder.removeHeader("Sec-Fetch-User")
         builder.header("Sec-Fetch-Dest", fetchMeta.dest)
         builder.header("Sec-Fetch-Mode", fetchMeta.mode)
         builder.header("Sec-Fetch-Site", fetchMeta.site)
@@ -1416,7 +1416,7 @@ internal object DiziBoxNetwork {
             builder.header("Sec-Fetch-User", "?1")
         }
         if (!fetchMeta.includeUpgradeInsecure) {
-            builder.removeAll("Upgrade-Insecure-Requests")
+            builder.removeHeader("Upgrade-Insecure-Requests")
         }
 
         return builder.build()
