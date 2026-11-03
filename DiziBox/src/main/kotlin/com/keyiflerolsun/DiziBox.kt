@@ -87,15 +87,11 @@ class DiziBox : MainAPI() {
         }
     }
 
-    /**
-     * Sitenin satır içi betiği (`LockUser=true`, `isTrustedUser=true`) ve `jquery.main.min.js`
-     * içindeki 30 dakikalık `dbxu = Date.now()` çerez sözleşmesiyle uyumlu taze çerez kümesi.
-     */
-    private fun diziboxCookies(): Map<String, String> = mapOf(
-        "LockUser"      to "true",
-        "isTrustedUser" to "true",
-        "dbxu"          to System.currentTimeMillis().toString(),
-    )
+    // ! Elle yazılmış çerez gönderilmiyor (v43): `LockUser`/`isTrustedUser`/`dbxu`
+    //   çerezlerini sitenin kendi betiği üretiyor ve elle gönderilen küme, Cloudflare
+    //   doğrulamasının yazdığı `cf_clearance` çerezini gölgeleyebiliyordu. Çerezleri
+    //   istemcinin kendi kavanozu yönetiyor; `cf_clearance` böylece sonraki isteklerde
+    //   de geçerli kalıyor.
 
     override val mainPage = mainPageOf(
         "${mainUrl}/tum-bolumler/page/SAYFA/"              to "Son Bölümler",
@@ -225,9 +221,8 @@ class DiziBox : MainAPI() {
             app.get(
                 "$ajaxUrl?action=dwls_search&s=$encoded",
                 headers     = xhrHeaders,
-                cookies     = diziboxCookies(),
                 referer     = "$mainUrl/",
-                interceptor = cloudflareKiller,
+                interceptor = cloudflareInterceptor,
             ).text
         }.getOrNull()
         val getResults = getBody?.let { DiziBoxPlayerParser.dwlsSearchResults(it) }.orEmpty()
@@ -238,9 +233,8 @@ class DiziBox : MainAPI() {
                 ajaxUrl,
                 data        = mapOf("action" to "dwls_search", "s" to query),
                 headers     = xhrHeaders,
-                cookies     = diziboxCookies(),
                 referer     = "$mainUrl/",
-                interceptor = cloudflareKiller,
+                interceptor = cloudflareInterceptor,
             ).text
         }.getOrNull()
         val postResults = postBody?.let { DiziBoxPlayerParser.dwlsSearchResults(it) }.orEmpty()
@@ -527,7 +521,7 @@ class DiziBox : MainAPI() {
     /**
      * DiziBox'ın kendi `/player/.../{sarmalayici}.php` uç noktaları:
      * `jquery.main.min.js` kuralıyla `wmode=opaque` sorgu başına eklenir,
-     * `diziboxCookies()` + `cloudflareKiller` ile çekilir (özel UA gönderilmez!).
+     * `cloudflareInterceptor` ile çekilir (özel UA gönderilmez!).
      */
     private suspend fun resolveDiziBoxWrapper(
         url: String,
@@ -541,8 +535,7 @@ class DiziBox : MainAPI() {
         val rawHtml = app.get(
             wrapperUrl,
             referer     = referer,
-            cookies     = diziboxCookies(),
-            interceptor = cloudflareKiller,
+            interceptor = cloudflareInterceptor,
         ).text
 
         val decodedHtml = DiziBoxPlayerParser.decodeWrapperHtml(rawHtml)
@@ -621,7 +614,7 @@ class DiziBox : MainAPI() {
                         candidateEmbed,
                         headers     = buildStreamHeaders(parentRef),
                         referer     = parentRef,
-                        interceptor = cloudflareKiller,
+                        interceptor = cloudflareInterceptor,
                     ).text
                 }.getOrNull() ?: continue
 
@@ -659,7 +652,7 @@ class DiziBox : MainAPI() {
                 url,
                 headers     = buildStreamHeaders(embedReferer),
                 referer     = embedReferer,
-                interceptor = cloudflareKiller,
+                interceptor = cloudflareInterceptor,
             ).text
             when {
                 DiziBoxPlayerParser.isHlsManifest(body) -> VerifiedPlaylist(url, body)
@@ -669,7 +662,7 @@ class DiziBox : MainAPI() {
                         hopTarget,
                         headers     = buildStreamHeaders(embedReferer),
                         referer     = embedReferer,
-                        interceptor = cloudflareKiller,
+                        interceptor = cloudflareInterceptor,
                     ).text
                     hopBody.takeIf { DiziBoxPlayerParser.isHlsManifest(it) }
                         ?.let { VerifiedPlaylist(hopTarget, it) }
@@ -1167,7 +1160,6 @@ class DiziBox : MainAPI() {
         app.get(
             url,
             referer     = referer,
-            cookies     = diziboxCookies(),
             interceptor = cloudflareInterceptor,
             cacheTime   = cacheTime,
         ).document
@@ -1175,7 +1167,6 @@ class DiziBox : MainAPI() {
         app.get(
             url,
             referer     = referer,
-            cookies     = diziboxCookies(),
             interceptor = cloudflareInterceptor,
         ).document
     }
