@@ -33,6 +33,7 @@ jobs:
         env:
           LIVE_PROBE: "1"
         run: |
+          set -o pipefail
           chmod +x gradlew
           ./gradlew :DiziBox:make :DiziBox:test --stacktrace 2>&1 | tee build.log
       - name: Günlüğü dala it (sandbox artefakt indiremiyor)
