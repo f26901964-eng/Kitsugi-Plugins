@@ -1010,11 +1010,11 @@ internal object DiziBoxPlayerParser {
     fun parseOkRuStreams(body: String): List<OkRuStream> {
         if (body.isBlank()) return emptyList()
         val unescaped = body
-            .replace("&quot;", "\"")
             .replace("\\&quot;", "\"")
+            .replace("&quot;", "\"")
             .replace("&#34;", "\"")
             .replace("&amp;", "&")
-            .let { unescapeJson(it) }
+            .let { unescapeJson(unescapeJson(it)) }
             .replace("\\/", "/")
 
         val results = LinkedHashMap<String, OkRuStream>()
