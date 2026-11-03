@@ -117,3 +117,28 @@ class PurgeRetryTests(unittest.TestCase):
         self.assertEqual(0, failed)
         self.assertEqual(2, len(calls))
         self.assertEqual([5], slept)
+
+
+class MainExitCodeTests(unittest.TestCase):
+    """Purge/ayna gecikmesi yayın içeriğini etkilemiyorsa iş kırmızı olmamalı."""
+
+    def _run(self, failed, mirror_status, argv=()):
+        calls = {}
+        original = (purge_cdn.published_paths, purge_cdn.purge, purge_cdn.check, purge_cdn.sys.argv)
+        purge_cdn.published_paths = lambda: ["plugins.json"]
+        purge_cdn.purge = lambda paths, **kw: failed
+        purge_cdn.check = lambda: mirror_status
+        purge_cdn.sys.argv = ["purge_cdn.py", *argv]
+        try:
+            return purge_cdn.main()
+        finally:
+            (purge_cdn.published_paths, purge_cdn.purge, purge_cdn.check, purge_cdn.sys.argv) = original
+
+    def test_clean_publish_returns_success(self):
+        self.assertEqual(0, self._run(0, 0))
+
+    def test_throttled_purge_with_stale_mirror_is_warning_not_failure(self):
+        self.assertEqual(0, self._run(3, 1))
+
+    def test_strict_mode_keeps_old_red_behaviour(self):
+        self.assertEqual(1, self._run(3, 1, argv=("--strict",)))
