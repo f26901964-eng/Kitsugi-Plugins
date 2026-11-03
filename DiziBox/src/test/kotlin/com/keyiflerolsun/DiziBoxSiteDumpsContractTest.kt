@@ -51,7 +51,7 @@ class DiziBoxSiteDumpsContractTest {
         assertNotNull("Tracker bölüm kartı bulunmalı", trackerEp)
         assertEquals("Tracker 4.Sezon 5.Bölüm", trackerEp!!.title)
         assertEquals(
-            "https://www.dizibox.live/wp-content/uploads/kapaklar/tracker-220x140.jpg",
+            "https://www.dizibox.live/wp-content/uploads/afisler/tracker-220x140.jpg",
             trackerEp.posterUrl,
         )
         assertTrue(trackerEp.isEpisode)
@@ -98,16 +98,19 @@ class DiziBoxSiteDumpsContractTest {
 
         // Aktif 1. sezon zaten sayfada (`a.hover`); fazladan HTTP isteği atılmamalı!
         assertTrue("Pasif sezon listesi tek sezonlu dizide boş olmalı", detail.inactiveSeasonUrls.isEmpty())
-        assertEquals(listOf("https://www.dizibox.live/sezonlar/visionquest-1-sezon/"), detail.allSeasonUrls)
+        assertEquals(
+            listOf("https://www.dizibox.live/dizi/vision-quest/1-sezon-vision-quest/"),
+            detail.allSeasonUrls,
+        )
 
-        // 8 bölüm eksiksiz ve tarihli (14 Ekim 2026) ayrıştırılmalı
-        assertEquals(8, detail.activeEpisodes.size)
+        // 6 bölüm eksiksiz ve tarihli (14 Ekim 2026) ayrıştırılmalı
+        assertEquals(6, detail.activeEpisodes.size)
         val ep1 = detail.activeEpisodes.first()
         assertEquals("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/", ep1.url)
         assertEquals(1, ep1.season)
         assertEquals(1, ep1.episode)
         assertEquals(
-            "https://www.dizibox.live/wp-content/uploads/kapaklar/visionquest-300x81.jpg",
+            "https://www.dizibox.live/wp-content/uploads/afisler/visionquest-300x81.jpg",
             ep1.posterUrl,
         )
         assertNotNull(ep1.dateMillis)
@@ -156,7 +159,7 @@ class DiziBoxSiteDumpsContractTest {
         val fallback = DiziBoxPlayerParser.parseEpisodePageFallback(doc, episodeUrl)
         assertNotNull(fallback)
         assertEquals("VisionQuest", fallback!!.title)
-        assertEquals(8, fallback.activeEpisodes.size)
+        assertEquals(6, fallback.activeEpisodes.size)
     }
 
     // ────────── 2. Sayfalama, Arama ve Çok Sezonlu Dizi Sözleşmeleri ──────────

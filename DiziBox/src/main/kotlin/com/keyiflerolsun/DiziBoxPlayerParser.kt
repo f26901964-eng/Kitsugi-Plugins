@@ -117,7 +117,7 @@ internal object DiziBoxPlayerParser {
 
     private const val CHROME_SELECTOR =
         "#alphabetical-category, ul.alphabetical-category-list, aside, #sidebar, .sidebar, " +
-            ".box-sidebar, header, footer, #related-posts, #comments, .comments-area"
+            ".box-sidebar, #recommended-series, header, footer, #related-posts, #comments, .comments-area"
 
     private const val CARD_SELECTOR =
         "article.article-series-poster, article.detailed-article, article.article-episode-card, " +
