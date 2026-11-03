@@ -42,6 +42,19 @@ jobs:
           name: DiziBox-cs3
           path: DiziBox/build/DiziBox.cs3
           if-no-files-found: error
+      # Oturum dalında tek eklenti için doğrudan indirilebilir çıktı; ana yayın dalına dokunmaz.
+      - name: Eklenti dosyasını çalışma dalına ekle
+        if: github.ref == 'refs/heads/arena/1c52a2c6-kitsugi-plugins' && github.event_name == 'push'
+        run: |
+          mkdir -p artifacts
+          cp DiziBox/build/DiziBox.cs3 artifacts/DiziBox.cs3
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/DiziBox.cs3
+          if ! git diff --cached --quiet; then
+            git commit -m "Add built DiziBox plugin"
+            git push origin HEAD:arena/1c52a2c6-kitsugi-plugins
+          fi
       - name: Test sonuçlarını sakla
         if: always()
         uses: actions/upload-artifact@v4
