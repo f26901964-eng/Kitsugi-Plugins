@@ -108,12 +108,27 @@ def _throttle_wait(status, body):
     return reset
 
 
-def purge(paths, attempts=3, max_wait=90):
+def purge(paths, attempts=3, max_wait=45, budget=150):
+    """Yolları sırayla temizler; throttle varsa süre bütçesini aşmaz.
+
+    jsDelivr throttle'ı IP bazlı: ilk yol kısıtlandıysa diğerleri de kısıtlıdır.
+    Bu yüzden ilk yol denenirken kısıtlama görülürse kalan yollar "ertelendi"
+    sayılır — 11 dosya × 3 deneme × bekleme, iş akışını yarım saat bekletmesin.
+    """
     print(f"jsDelivr önbelleği temizleniyor ({len(paths)} dosya)...")
+    started = time.monotonic()
     failed = 0
-    for path in paths:
+    throttled = False
+
+    for index, path in enumerate(paths):
+        if throttled:
+            failed += 1
+            print(f"  ~ {path} (throttle nedeniyle ertelendi)")
+            continue
+
         url = PURGE.format(slug=SLUG, branch=BRANCH, path=urllib.parse.quote(path))
         ok, detail = False, "denenmedi"
+        saw_throttle = False
         for attempt in range(1, attempts + 1):
             status, body = _get(url, timeout=25)
             ok, detail = purge_response_succeeded(status, body, path)
@@ -122,12 +137,21 @@ def purge(paths, attempts=3, max_wait=90):
             wait = _throttle_wait(status, body)
             if not wait or attempt == attempts:
                 break
+            saw_throttle = True
+            if time.monotonic() - started > budget:
+                detail = f"{detail} (süre bütçesi aşıldı)"
+                break
             wait = min(wait, max_wait)
             print(f"    ! istek kısıtlandı; {wait} sn sonra tekrar (deneme {attempt + 1}/{attempts})")
             time.sleep(wait)
+
         if not ok:
             failed += 1
+            if index == 0 and saw_throttle:
+                throttled = True
+                print("    ! throttle IP bazlı; kalan dosyalar bu çalıştırmada erteleniyor")
         print(f"  {'✓' if ok else '✗'} {path} ({detail})")
+
     return failed
 
 
