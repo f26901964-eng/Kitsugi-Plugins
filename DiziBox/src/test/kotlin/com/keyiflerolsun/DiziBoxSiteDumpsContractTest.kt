@@ -1,5 +1,7 @@
 package com.keyiflerolsun
 
+import okhttp3.Headers
+import okhttp3.Request
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -352,5 +354,163 @@ class DiziBoxSiteDumpsContractTest {
             """<div id="video-area">DBX Pro kaynakları telif hakları sebebiyle şu anda sadece Türkiye ziyaretçilerine açıktır.</div>""",
         )
         assertTrue(DiziBoxPlayerParser.isGeoBlockedVideoArea(geoDoc))
+    }
+
+    // ────────── 4. Kitsugi Beta Çalışma Zamanı Regresyon Testleri (v41) ──────────
+
+    @Test
+    fun cookieHeaderMergerEliminatesDuplicateLowercaseCookieAndPreservesClearance() {
+        // NiceHttp küçük harfli "cookie" ve CloudflareKiller büyük harfli "Cookie" ürettiğinde
+        // tel üzerinde RFC 6265 §5.4 uyumlu TEK Cookie başlığı ve TEK User-Agent kalmalıdır.
+        val rawHeaders = Headers.Builder()
+            .add("cookie", "LockUser=false; stale=1;")
+            .add("Cookie", "cf_clearance=clr_token_pad==; __cf_bm=bm_val_1=2;")
+            .add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/149.0.0.0")
+            .add("User-Agent", DiziBoxNetwork.UNIFIED_USER_AGENT)
+            .add("Referer", "https://www.dizibox.live/")
+            .build()
+
+        val req = Request.Builder()
+            .url("https://www.dizibox.live/tum-bolumler/")
+            .headers(rawHeaders)
+            .build()
+
+        val normalized = DiziBoxNetwork.normalizeWireRequest(req, "https://www.dizibox.live")
+
+        val cookieHeaders = normalized.headers.values("Cookie")
+        assertEquals("Tel üzerinde yalnızca TEK Cookie başlığı bulunmalı", 1, cookieHeaders.size)
+        val cookieLine = cookieHeaders.single()
+        assertTrue(cookieLine.contains("cf_clearance=clr_token_pad=="))
+        assertTrue(cookieLine.contains("__cf_bm=bm_val_1=2"))
+        assertTrue(cookieLine.contains("LockUser=true"))
+        assertTrue(cookieLine.contains("isTrustedUser=true"))
+        assertTrue(cookieLine.contains("dbxu="))
+
+        val uaHeaders = normalized.headers.values("User-Agent")
+        assertEquals("Tel üzerinde yalnızca TEK User-Agent başlığı bulunmalı", 1, uaHeaders.size)
+        assertEquals(DiziBoxNetwork.UNIFIED_USER_AGENT, uaHeaders.single())
+    }
+
+    @Test
+    fun wireFixupRestoresIframeAndAjaxSecFetchHeadersOverCloudflareKillerDefaults() {
+        // 1) /player/king/king.php: CloudflareKiller document/none/?1 yazsa bile iframe/same-origin olmalı
+        val wrapperReq = Request.Builder()
+            .url("https://www.dizibox.live/player/king/king.php?wmode=opaque&v=abc")
+            .header("Referer", "https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/")
+            .header("sec-fetch-dest", "document")
+            .header("sec-fetch-mode", "navigate")
+            .header("sec-fetch-site", "none")
+            .header("sec-fetch-user", "?1")
+            .build()
+        val fixedWrapper = DiziBoxNetwork.normalizeWireRequest(wrapperReq, "https://www.dizibox.live")
+        assertEquals("iframe", fixedWrapper.header("Sec-Fetch-Dest"))
+        assertEquals("navigate", fixedWrapper.header("Sec-Fetch-Mode"))
+        assertEquals("same-origin", fixedWrapper.header("Sec-Fetch-Site"))
+        assertEquals(null, fixedWrapper.header("Sec-Fetch-User"))
+
+        // 2) admin-ajax.php XHR: empty/cors/same-origin olmalı ve Upgrade-Insecure-Requests silinmeli
+        val ajaxReq = Request.Builder()
+            .url("https://www.dizibox.live/wp-admin/admin-ajax.php?action=dwls_search&s=vision")
+            .header("Referer", "https://www.dizibox.live/")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .header("upgrade-insecure-requests", "1")
+            .build()
+        val fixedAjax = DiziBoxNetwork.normalizeWireRequest(ajaxReq, "https://www.dizibox.live")
+        assertEquals("empty", fixedAjax.header("Sec-Fetch-Dest"))
+        assertEquals("cors", fixedAjax.header("Sec-Fetch-Mode"))
+        assertEquals("same-origin", fixedAjax.header("Sec-Fetch-Site"))
+        assertEquals(null, fixedAjax.header("Upgrade-Insecure-Requests"))
+
+        // 3) Dış host (www.molystream.org) isteklerine dizibox LockUser/dbxu çerezleri sızmamalı
+        val molyReq = Request.Builder()
+            .url("https://www.molystream.org/embed/sheila/abc123")
+            .header("Referer", "https://www.molystream.org/embed/abc123")
+            .header("Cookie", "cf_clearance=moly_cf_ok;")
+            .build()
+        val fixedMoly = DiziBoxNetwork.normalizeWireRequest(molyReq, "https://www.dizibox.live")
+        assertEquals("cf_clearance=moly_cf_ok", fixedMoly.header("Cookie"))
+        assertEquals("empty", fixedMoly.header("Sec-Fetch-Dest"))
+        assertEquals("cors", fixedMoly.header("Sec-Fetch-Mode"))
+        assertEquals("same-origin", fixedMoly.header("Sec-Fetch-Site"))
+    }
+
+    @Test
+    fun btkBlockedMirrorsPrioritizeUnblockedWarmupDomainsWithoutCorruptingSubdomains() {
+        // 1) MolyStream: www.molystream.org her zaman BTK-engelli dbx.molystream.org'dan ÖNCE gelmeli
+        val sheilaPairs = DiziBoxPlayerParser.molyStreamSheilaCandidates(
+            "https://dbx.molystream.org/embed/sheila/ep99",
+            "https://dbx.molystream.org/embed/ep99",
+        )
+        assertEquals(
+            "https://www.molystream.org/embed/sheila/ep99" to "https://www.molystream.org/embed/ep99",
+            sheilaPairs.first(),
+        )
+        assertTrue(sheilaPairs.any { it.first == "https://dbx.molystream.org/embed/sheila/ep99" })
+
+        // 2) Vidmoly: yalın vidmoly.to -> vidmoly.net olmalı, ama ww547.vidmoly.to bozulmamalı
+        assertEquals(
+            "https://vidmoly.net/embed-k9x2m.html",
+            DiziBoxPlayerParser.normalizeEmbedUrl("https://vidmoly.to/embed-k9x2m.html"),
+        )
+        assertEquals(
+            "https://ww547.vidmoly.to/embed-k9x2m.html",
+            DiziBoxPlayerParser.normalizeEmbedUrl("https://ww547.vidmoly.to/embed-k9x2m.html"),
+        )
+        val vidmolyList = DiziBoxPlayerParser.vidmolyCandidates("https://vidmoly.to/embed-k9x2m.html")
+        assertEquals("https://vidmoly.net/embed-k9x2m.html", vidmolyList[0])
+        assertEquals("https://vidmoly.biz/embed-k9x2m.html", vidmolyList[1])
+        assertTrue(vidmolyList.contains("https://vidmoly.to/embed-k9x2m.html"))
+    }
+
+    @Test
+    fun okRuPreservesQueryParametersForUnlistedVideosAndUsesUnifiedUserAgent() {
+        val unlistedOkUrl = "http://ok.ru/video/18600675707439?st._aid=ExternalVideoWidget_open&tkn=abc123"
+        val candidates = DiziBoxPlayerParser.okRuEmbedUrls(unlistedOkUrl)
+        assertEquals(
+            "https://ok.ru/videoembed/18600675707439?st._aid=ExternalVideoWidget_open&tkn=abc123",
+            candidates[0],
+        )
+        assertEquals("https://ok.ru/videoembed/18600675707439", candidates[1])
+
+        val streamHeaders = DiziBoxNetwork.buildStreamHeaders("https://ok.ru/")
+        assertEquals(DiziBoxNetwork.UNIFIED_USER_AGENT, streamHeaders["User-Agent"])
+        assertEquals("https://ok.ru", streamHeaders["Origin"])
+        assertTrue(DiziBoxPlayerParser.isClearlyDirectStreamUrl("https://vd637.okcdn.ru/video.m3u8?cmd=videoPlayerCdn&srcAg=CHROME_ANDROID"))
+        assertFalse(DiziBoxPlayerParser.isClearlyDirectStreamUrl("https://vd637.okcdn.ru/?expires=1793700000&ct=0"))
+    }
+
+    @Test
+    fun homepageSectionSelectorAndGridBoxCardCoverageWorkOnRealDump() {
+        assertEquals(
+            "https://www.dizibox.live/",
+            DiziBoxPlayerParser.buildMainPageUrl("https://www.dizibox.live/#new-series", 1),
+        )
+        assertEquals(
+            "new-series",
+            DiziBoxPlayerParser.extractSectionFragment("https://www.dizibox.live/#new-series"),
+        )
+
+        val homeDoc = Jsoup.parse(readSiteDump("homepage.html"), "https://www.dizibox.live/")
+        val newSeriesCards = DiziBoxPlayerParser.parseListingCards(homeDoc, "https://www.dizibox.live/", "new-series")
+        assertEquals(6, newSeriesCards.size)
+        assertTrue(newSeriesCards.none { it.isEpisode })
+        assertEquals("VisionQuest", newSeriesCards.first().title)
+
+        val gridAndTripleHtml = """
+            <main>
+              <article class="grid-box">
+                <div class="box-image" style="background-image:url('/wp-content/uploads/afisler/ep-300x81.jpg')"></div>
+                <div class="post-title"><a class="season-episode" href="https://www.dizibox.live/visionquest-1-sezon-2-bolum-izle/">1. Sezon 2. Bölüm</a></div>
+              </article>
+              <article class="triple-box-article">
+                <a href="https://www.dizibox.live/diziler/lanterns/"><img src="/wp-content/uploads/afisler/lanterns-200x290.jpg" class="afis">Lanterns</a>
+              </article>
+            </main>
+        """.trimIndent()
+        val parsed = DiziBoxPlayerParser.parseListingCards(Jsoup.parse(gridAndTripleHtml, "https://www.dizibox.live/"), "https://www.dizibox.live/")
+        assertEquals(2, parsed.size)
+        assertTrue(parsed[0].isEpisode)
+        assertFalse(parsed[1].isEpisode)
+        assertEquals("Lanterns", parsed[1].title)
     }
 }
