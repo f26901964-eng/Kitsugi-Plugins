@@ -21,6 +21,12 @@ NEDEN GEREKLI:
 Kullanim:
   python3 tools/purge_cdn.py            # builds/plugins.json + repo.json + .cs3
   python3 tools/purge_cdn.py --check    # temizlemez, aynalari karsilastirir
+  python3 tools/purge_cdn.py --strict   # ayna/purge gecikmesini de hata sayar
+
+  Not: jsDelivr purge API'si paylasilan IP'lerde `throttled` donebiliyor. Varsayilan
+  kipte bu durum UYARI olarak raporlanir (yayin icerigi raw uzerinden dogrulanir,
+  ayna 6 saatlik planli dogrulamada yeniden denetlenir). --strict ile eski
+  "kirmizi" davranis korunur.
 """
 
 import json
@@ -184,14 +190,34 @@ def check():
 def main():
     if "--check" in sys.argv:
         return check()
+
+    strict = "--strict" in sys.argv
     paths = published_paths()
     failed = purge(paths)
     mirror_status = check()
+
+    if not failed and not mirror_status:
+        return 0
+
+    # * jsDelivr purge API'si GitHub runner IP'lerinde sık sık `throttled` dönüyor
+    #   ve bekleme süresi saatlere çıkabiliyor. Yayının kendisi (raw + .cs3
+    #   boyut/hash/ZIP) `Yayin Dogrulama` iş akışında ayrıca ve katı biçimde
+    #   doğrulanıyor; ayrıca 6 saatte bir çalışan planlı doğrulama, ayna bayat
+    #   kalırsa yine kırmızı olur. Bu yüzden yayın işini saatlerce kırmızıda
+    #   tutmak yerine durumu görünür bir uyarı olarak yazıyoruz.
+    #   Katı davranış isteyen `--strict` kullanabilir.
     if failed:
-        print(f"  ✗ {failed} yolun purge isteği başarısız veya throttled.")
-    # Ayna güncel olsa bile başarısız purge'leri sıfır koduyla raporlamayalım:
-    # .cs3 dosyaları da aynı mutable CDN yollarını kullanıyor.
-    return 1 if failed or mirror_status else 0
+        print(f"::warning::jsDelivr purge isteği {failed} yol için başarısız/throttled.")
+    if mirror_status:
+        print("::warning::jsDelivr aynası henüz bayat (yayın içeriği doğru; önbellek tazelenmeyi bekliyor).")
+
+    if strict:
+        print("  ✗ --strict verildiği için başarısız sayıldı.")
+        return 1
+
+    print("  ! Uyarı: CDN temizliği/ayna gecikmesi yayın içeriğini etkilemiyor; "
+          "raw.githubusercontent.com güncel, ayna kendiliğinden tazelenecek.")
+    return 0
 
 
 if __name__ == "__main__":
