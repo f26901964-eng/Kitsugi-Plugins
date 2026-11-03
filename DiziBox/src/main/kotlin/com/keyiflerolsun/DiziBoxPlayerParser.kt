@@ -10,7 +10,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * DiziBox sayfa/oynatıcı ayrıştırıcıları ve çoklu video kaynağı yardımcıları.
+ * DiziBox sayfa/oynatıcı ayrıştırıcıları, ağ oturum/başlık yardımcıları ve
+ * çoklu video kaynağı çözümleyicileri.
  *
  * Saf Kotlin + Jsoup olarak tutulur; Android veya CloudStream çalışma zamanı
  * sınıflarına bağımlı olmadığından tüm fonksiyonlar doğrudan JVM JUnit
@@ -72,6 +73,19 @@ internal object DiziBoxPlayerParser {
     data class MailRuStream(val url: String, val qualityLabel: String)
     data class VkStream(val url: String, val qualityLabel: String, val isHls: Boolean)
 
+    /**
+     * `CloudflareKiller` her isteğe `sec-fetch-dest: document` ve `sec-fetch-site: none`
+     * yazdığından, `/player/` PHP sarmalayıcıları ve XHR çağrıları için gerçek tarayıcı
+     * `Sec-Fetch-*` profilini geri yüklemek üzere kullanılan bağlam modeli.
+     */
+    data class FetchMetadataHeaders(
+        val dest: String,
+        val mode: String,
+        val site: String,
+        val includeUser: Boolean,
+        val includeUpgradeInsecure: Boolean,
+    )
+
     private val aesDecryptLiteral = Regex(
         """CryptoJS\s*\.\s*AES\s*\.\s*decrypt\s*\(\s*(?:"((?:\\.|[^"\\])+)"|'((?:\\.|[^'\\])+)')\s*,\s*(?:"([^"]*)"|'([^']*)')\s*(?:,\s*[^)]*)?\)""",
         RegexOption.IGNORE_CASE,
@@ -110,6 +124,10 @@ internal object DiziBoxPlayerParser {
         """/(?:player/)?(?:[a-z0-9_-]+/)?(?:king|moly|haydi|spidy|player)\.php$|/player/.+\.php$|/embed/""",
         RegexOption.IGNORE_CASE,
     )
+    private val diziboxPhpWrapperPath = Regex(
+        """/(?:player/)?(?:[a-z0-9_-]+/)?(?:king|moly|haydi|spidy|player)\.php$|/player/.+\.php$""",
+        RegexOption.IGNORE_CASE,
+    )
     private val adOrNonPlayerHost = Regex(
         """(?:^|\.)(?:googletagmanager\.com|google-analytics\.com|googlesyndication\.com|doubleclick\.net|google\.com|gstatic\.com|facebook\.com|connect\.facebook\.net|twitter\.com|x\.com|yandex\.ru|mc\.yandex\.ru|gravatar\.com|dizibox\.cc)$""",
         RegexOption.IGNORE_CASE,
@@ -119,9 +137,11 @@ internal object DiziBoxPlayerParser {
         "#alphabetical-category, ul.alphabetical-category-list, aside, #sidebar, .sidebar, " +
             ".box-sidebar, #recommended-series, header, footer, #related-posts, #comments, .comments-area"
 
+    /** `dbx18` temasının tüm dizi/bölüm kart sınıfları (`style.css?ver=3.71` denetimi). */
     private const val CARD_SELECTOR =
         "article.article-series-poster, article.detailed-article, article.article-episode-card, " +
-            "article.article-series-small-grid, article.article-episode-small-grid"
+            "article.article-series-small-grid, article.article-episode-small-grid, " +
+            "article.grid-box, article.triple-box-article"
 
     private val TURKISH_MONTHS = mapOf(
         "ocak" to 1, "oca" to 1,
@@ -138,28 +158,166 @@ internal object DiziBoxPlayerParser {
         "aralık" to 12, "aralik" to 12, "ara" to 12,
     )
 
+    // ────────── Oturum çerezi birleştirme & Sec-Fetch başlık düzeltme ──────────
+
+    /**
+     * `NiceHttp` küçük harfli `"cookie"` başlığı üretirken `CloudflareKiller` büyük harfli
+     * `"Cookie"` başlığı ekler ve `Request.cookies` yalnızca ilk `;` öncesini okur.
+     *
+     * Bu yardımcı mevcut tüm `Cookie` / `cookie` başlık değerlerini tam olarak ayrıştırır,
+     * `cf_clearance` / `__cf_bm` gibi koruma çerezlerini ezmeden `extraCookies` (`LockUser`,
+     * `isTrustedUser`, `dbxu`) ile birleştirir ve RFC 6265 §5.4 uyumlu TEK bir `Cookie`
+     * satırı döndürür.
+     */
+    fun mergeCookieHeaders(
+        existingCookieHeaders: List<String>,
+        extraCookies: Map<String, String> = emptyMap(),
+    ): String? {
+        val merged = LinkedHashMap<String, String>()
+        for (rawHeader in existingCookieHeaders) {
+            for (segment in rawHeader.split(';')) {
+                val trimmed = segment.trim()
+                if (trimmed.isEmpty()) continue
+                val eqIdx = trimmed.indexOf('=')
+                if (eqIdx <= 0) continue
+                val key = trimmed.substring(0, eqIdx).trim()
+                val value = trimmed.substring(eqIdx + 1).trim()
+                if (key.isNotEmpty() && value.isNotEmpty()) {
+                    merged[key] = value
+                }
+            }
+        }
+        for ((key, value) in extraCookies) {
+            val cleanKey = key.trim()
+            val cleanVal = value.trim()
+            if (cleanKey.isEmpty() || cleanVal.isEmpty()) continue
+            val isProtectionCookie = cleanKey.equals("cf_clearance", ignoreCase = true) ||
+                cleanKey.equals("__cf_bm", ignoreCase = true) ||
+                cleanKey.equals("_cfuvid", ignoreCase = true) ||
+                cleanKey.contains("waf", ignoreCase = true)
+            if (isProtectionCookie && !merged[cleanKey].isNullOrBlank()) continue
+            merged[cleanKey] = cleanVal
+        }
+        if (merged.isEmpty()) return null
+        return merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
+    }
+
+    /**
+     * İstek URL'si, `Referer` ve `X-Requested-With` bilgisine göre gerçek tarayıcı
+     * `Sec-Fetch-*` başlık kümesini hesaplar.
+     */
+    fun classifyFetchMetadata(
+        requestUrl: String,
+        refererUrl: String?,
+        isXmlHttpRequest: Boolean = false,
+    ): FetchMetadataHeaders {
+        val path = runCatching { URI(requestUrl).path.orEmpty() }.getOrDefault("")
+        val siteRelation = computeSecFetchSite(requestUrl, refererUrl)
+
+        val isAjaxOrManifest = isXmlHttpRequest ||
+            path.contains("admin-ajax.php", ignoreCase = true) ||
+            isMolyStreamStreamUrl(requestUrl) ||
+            path.endsWith(".m3u8", ignoreCase = true) ||
+            path.endsWith("master.txt", ignoreCase = true) ||
+            path.endsWith("playlist.txt", ignoreCase = true)
+
+        if (isAjaxOrManifest) {
+            return FetchMetadataHeaders(
+                dest = "empty",
+                mode = "cors",
+                site = if (siteRelation == "none") "same-origin" else siteRelation,
+                includeUser = false,
+                includeUpgradeInsecure = false,
+            )
+        }
+
+        val isIframeTarget = diziboxPhpWrapperPath.containsMatchIn(path) ||
+            path.contains("/embed", ignoreCase = true) ||
+            path.contains("/videoembed/", ignoreCase = true) ||
+            path.contains("shell.php", ignoreCase = true) ||
+            path.contains("video_ext.php", ignoreCase = true)
+
+        if (isIframeTarget) {
+            return FetchMetadataHeaders(
+                dest = "iframe",
+                mode = "navigate",
+                site = if (siteRelation == "none") "cross-site" else siteRelation,
+                includeUser = false,
+                includeUpgradeInsecure = true,
+            )
+        }
+
+        return FetchMetadataHeaders(
+            dest = "document",
+            mode = "navigate",
+            site = siteRelation,
+            includeUser = true,
+            includeUpgradeInsecure = true,
+        )
+    }
+
+    private fun computeSecFetchSite(requestUrl: String, refererUrl: String?): String {
+        if (refererUrl.isNullOrBlank()) return "none"
+        val reqUri = runCatching { URI(requestUrl) }.getOrNull() ?: return "none"
+        val refUri = runCatching { URI(refererUrl) }.getOrNull() ?: return "none"
+        val reqHost = reqUri.host?.lowercase(Locale.ROOT) ?: return "none"
+        val refHost = refUri.host?.lowercase(Locale.ROOT) ?: return "none"
+        val reqScheme = reqUri.scheme?.lowercase(Locale.ROOT).orEmpty()
+        val refScheme = refUri.scheme?.lowercase(Locale.ROOT).orEmpty()
+
+        if (reqScheme == refScheme && reqHost == refHost && reqUri.port == refUri.port) {
+            return "same-origin"
+        }
+        if ( reqScheme == refScheme && registrableDomain(reqHost) == registrableDomain(refHost)) {
+            return "same-site"
+        }
+        return "cross-site"
+    }
+
+    private fun registrableDomain(host: String): String {
+        val parts = host.trim('.').split('.')
+        return if (parts.size >= 2) "${parts[parts.size - 2]}.${parts.last()}" else host
+    }
+
     // ────────── Ana sayfa, kategori ve arama DOM ayrıştırıcıları ──────────
 
     /**
      * WordPress sayfalama kuralı: 1. sayfada `/page/1/` kullanılmaz (301 yönlendirmesini önler),
-     * 2+ sayfalarda `SAYFA` yer tutucusu sayfa numarasıyla değiştirilir.
+     * 2+ sayfalarda `SAYFA` yer tutucusu sayfa numarasıyla değiştirilir. `#section` parçası
+     * HTTP isteğine gönderilmez.
      */
     /**
-     * CloudStream sıralı ana sayfada 0'dan sayar (`page = 0, 1, 2…`), site 1'den.
-     * Bu dönüşüm olmadan 2. parça 1. sayfayı tekrar gösteriyordu.
+     * Kitsugi-Beta (`AddonExploreInline`, `AddonExploreDialog`, `CsPluginDiagnosticRunner`,
+     * `AddonFullScreenGridPage`) ilk sayfa için `page = 1`, sonraki sayfalar için `2, 3…`
+     * gönderir; olası `0` çağrılarını da güvenle `1`'e sabitleriz (`1 -> /`, `2 -> /page/2/`).
      */
-    fun sequentialPageIndex(page: Int): Int = if (page < 1) 1 else page + 1
+    fun sequentialPageIndex(page: Int): Int = page.coerceAtLeast(1)
+
+    /**
+     * Cloudflare doğrulama basamağı işaretlerini HTML gövdesi / başlığından tanır.
+     */
+    fun isCloudflareChallengeHtml(html: String, title: String = ""): Boolean {
+        val head = html.take(20_000)
+        return CHALLENGE_HINTS.any { marker ->
+            title.contains(marker, ignoreCase = true) || head.contains(marker, ignoreCase = true)
+        }
+    }
 
     fun buildMainPageUrl(templateUrl: String, page: Int): String {
+        val withoutFragment = templateUrl.substringBefore('#')
         if (page <= 1) {
-            val query = templateUrl.substringAfter('?', "")
-            val pathPart = templateUrl.substringBefore('?')
+            val query = withoutFragment.substringAfter('?', "")
+            val pathPart = withoutFragment.substringBefore('?')
                 .replace(Regex("""/page/SAYFA/?$"""), "/")
                 .replace(Regex("""(?<!:)//+"""), "/")
             return if (query.isNotEmpty()) "$pathPart?$query" else pathPart
         }
-        return templateUrl.replace("SAYFA", page.toString())
+        return withoutFragment.replace("SAYFA", page.toString())
     }
+
+    /** Şablon URL'deki `#new-series` gibi bölüm kimliğini döndürür; yoksa `null`. */
+    fun extractSectionFragment(templateUrl: String): String? =
+        templateUrl.substringAfter('#', "").trim().takeIf { it.isNotEmpty() }
 
     /**
      * Her sayfada bulunan ~750 KB A-Z başlık dizinini (`#alphabetical-category`, ~3.000 dizi)
@@ -173,12 +331,27 @@ internal object DiziBoxPlayerParser {
     }
 
     /** Ana sayfa / kategori / arşiv / bölüm listesi kartlarını ayrıştırır. */
-    fun parseListingCards(document: Document, pageUrl: String): List<ListingCard> {
+    fun parseListingCards(
+        document: Document,
+        pageUrl: String,
+        sectionId: String? = null,
+    ): List<ListingCard> {
         val cleanDoc = stripChrome(document)
+        val rootElements = if (!sectionId.isNullOrBlank()) {
+            cleanDoc.select("section#$sectionId, #$sectionId")
+        } else {
+            null
+        }
+        val cardElements = if (rootElements != null) {
+            if (rootElements.isEmpty()) emptyList() else rootElements.select(CARD_SELECTOR)
+        } else {
+            cleanDoc.select(CARD_SELECTOR)
+        }
+
         val seen = LinkedHashSet<String>()
         val results = mutableListOf<ListingCard>()
 
-        cleanDoc.select(CARD_SELECTOR).forEach { element ->
+        cardElements.forEach { element ->
             val card = parseCardElement(element, pageUrl) ?: return@forEach
             if (seen.add(card.url)) {
                 results += card
@@ -219,6 +392,7 @@ internal object DiziBoxPlayerParser {
     private fun parseCardElement(element: Element, pageUrl: String): ListingCard? {
         val anchor = element.selectFirst("a.episode-card-title[href]")
             ?: element.selectFirst("a.poster-title[href]")
+            ?: element.selectFirst("div.post-title a.season-episode[href]")
             ?: element.selectFirst("h3 a[href]")
             ?: element.selectFirst("h2 a[href]")
             ?: element.selectFirst("a.series-details[href]")
@@ -906,6 +1080,22 @@ internal object DiziBoxPlayerParser {
             cleanPath.endsWith(".mkv", ignoreCase = true)
     }
 
+    /**
+     * Kitsugi `CsStreamRunner.isClearlyDirectMediaUrl` ile birebir uyumlu doğrudan medya kontrolü:
+     * uzantısız URL'lerin embed kuyruğuna düşüp `Referer` kaybetmemesi için kontrol edilir.
+     */
+    fun isClearlyDirectStreamUrl(url: String): Boolean {
+        val lower = url.lowercase(Locale.ROOT)
+        val path = runCatching { URI(lower).path ?: lower }.getOrDefault(lower.substringBefore('?')).trimEnd('/')
+        if (path.endsWith(".m3u8") || path.endsWith(".mp4") || path.endsWith(".mpd") ||
+            path.endsWith(".mkv") || path.endsWith(".webm") || path.endsWith(".flv") ||
+            path.endsWith(".m4v") || path.endsWith(".mov") ||
+            path.endsWith("master.txt") || path.endsWith("playlist.txt")
+        ) return true
+        return lower.contains(".m3u8?") || lower.contains(".mp4?") || lower.contains(".mpd?") ||
+            lower.contains(".m3u8/") || lower.contains(".mp4/")
+    }
+
     // ────────── MolyStream / Vidmoly / OK.ru / Sibnet / Mail.ru / VK ──────────
 
     /**
@@ -925,7 +1115,7 @@ internal object DiziBoxPlayerParser {
         return url.replaceFirst(Regex("""/embed/sheila/""", RegexOption.IGNORE_CASE), "/embed/")
     }
 
-    /** `dbx.molystream.org` erişilemediğinde `www.molystream.org` yedek aynasını üretir. */
+    /** `dbx.molystream.org` <-> `www.molystream.org` karşıt aynasını üretir. */
     fun molyStreamMirrorUrl(url: String): String? {
         val host = normalizedHost(url) ?: return null
         return when {
@@ -935,6 +1125,42 @@ internal object DiziBoxPlayerParser {
                 url.replaceFirst(Regex("""www\.molystream\.org""", RegexOption.IGNORE_CASE), "dbx.molystream.org")
             else -> null
         }
+    }
+
+    /**
+     * Türkiye'de `dbx.molystream.org` BTK tarafından engellendiği ve Kitsugi `CsCfWarmupManager`
+     * yalnızca `www.molystream.org` için `cf_clearance` ısıttığı için her zaman ÖNCE
+     * `www.molystream.org` aynasını, ardından `dbx.molystream.org` / özgün hostu döndürür.
+     */
+    fun molyStreamEmbedCandidates(embedPageUrl: String): List<String> {
+        val host = normalizedHost(embedPageUrl) ?: return listOf(embedPageUrl)
+        val wwwVariant = replaceHost(embedPageUrl, host, "www.molystream.org")
+        val dbxVariant = replaceHost(embedPageUrl, host, "dbx.molystream.org")
+        return listOfNotNull(wwwVariant, embedPageUrl, dbxVariant).distinct()
+    }
+
+    /** `(sheilaUrl, matchingEmbedReferer)` çiftlerini `www.molystream.org` öncelikli sırayla döndürür. */
+    fun molyStreamSheilaCandidates(sheilaUrl: String, embedPageUrl: String): List<Pair<String, String>> {
+        val sheilaHost = normalizedHost(sheilaUrl) ?: return listOf(sheilaUrl to embedPageUrl)
+        val embedHost = normalizedHost(embedPageUrl) ?: sheilaHost
+        val pairs = LinkedHashMap<String, String>()
+
+        val wwwSheila = replaceHost(sheilaUrl, sheilaHost, "www.molystream.org")
+        val wwwEmbed = replaceHost(embedPageUrl, embedHost, "www.molystream.org")
+        pairs[wwwSheila] = wwwEmbed
+
+        pairs.putIfAbsent(sheilaUrl, embedPageUrl)
+
+        val dbxSheila = replaceHost(sheilaUrl, sheilaHost, "dbx.molystream.org")
+        val dbxEmbed = replaceHost(embedPageUrl, embedHost, "dbx.molystream.org")
+        pairs.putIfAbsent(dbxSheila, dbxEmbed)
+
+        return pairs.entries.map { it.key to it.value }
+    }
+
+    private fun replaceHost(url: String, oldHost: String, newHost: String): String {
+        if (oldHost.equals(newHost, ignoreCase = true)) return url
+        return url.replaceFirst(Regex(Regex.escape(oldHost), RegexOption.IGNORE_CASE), newHost)
     }
 
     fun isMolyStreamStreamUrl(url: String): Boolean {
@@ -977,7 +1203,11 @@ internal object DiziBoxPlayerParser {
             host == "vkvideo.ru" || host.endsWith(".vkvideo.ru")
     }
 
-    /** Bilinen taşınmış embed domainlerini ve kısa yolları kanonik oynatıcı adresine çevirir. */
+    /**
+     * Bilinen taşınmış/BTK-engelli embed domainlerini (`vidmoly.me`, `vidmoly.to`) kanonik
+     * oynatıcı adresine çevirir; numaralı alt alanlara (`ww547.vidmoly.to`) dokunmaz ve
+     * `ok.ru` sorgu parametrelerini eksiksiz korur.
+     */
     fun normalizeEmbedUrl(url: String): String {
         var normalized = if (url.startsWith("//")) "https:$url" else url.trim()
         val host = normalizedHost(normalized) ?: return normalized
@@ -990,24 +1220,60 @@ internal object DiziBoxPlayerParser {
                 val query = normalized.substringAfter('?', "")
                 normalized = if (query.isNotEmpty()) "$base?$query" else base
             }
-            if (host == "vidmoly.me") {
-                normalized = normalized.replaceFirst(Regex("""vidmoly\.me""", RegexOption.IGNORE_CASE), "vidmoly.net")
+            if (host in setOf("vidmoly.me", "www.vidmoly.me", "vidmoly.to", "www.vidmoly.to", "moly.to")) {
+                normalized = replaceHost(normalized, host, "vidmoly.net")
             }
         } else if (isOkRuHost(normalized)) {
             normalized = normalized
                 .replaceFirst(Regex("""^http://""", RegexOption.IGNORE_CASE), "https://")
                 .replace("/video/", "/videoembed/")
         } else if (host in setOf("dood.la", "dood.wf", "dood.pm", "dood.to", "dood.watch", "dood.sh", "dood.so")) {
-            normalized = normalized.replaceFirst(Regex(Regex.escape(host), RegexOption.IGNORE_CASE), "doodstream.com")
+            normalized = replaceHost(normalized, host, "doodstream.com")
         } else if (host in setOf("uqload.co", "uqload.com", "uqload.io", "uqload.to")) {
-            normalized = normalized.replaceFirst(Regex(Regex.escape(host), RegexOption.IGNORE_CASE), "uqload.vc")
+            normalized = replaceHost(normalized, host, "uqload.vc")
         }
         return normalized
+    }
+
+    /**
+     * Vidmoly ayna adaylarını Türkiye erişilebilirlik önceliğiyle üretir:
+     * numaralı `ww*.vidmoly.*` veya `vidmoly.biz` varsa korunur; BTK-engelli yalın
+     * `vidmoly.to` / `vidmoly.me` yerine önce `vidmoly.net` ve `vidmoly.biz` denenir.
+     */
+    fun vidmolyCandidates(rawUrl: String): List<String> {
+        val rawWithScheme = if (rawUrl.startsWith("//")) "https:$rawUrl" else rawUrl.trim()
+        val normalized = normalizeEmbedUrl(rawWithScheme)
+        val normHost = normalizedHost(normalized) ?: return listOf(normalized)
+        val rawHost = normalizedHost(rawWithScheme)
+
+        val candidates = LinkedHashSet<String>()
+        if (normHost.startsWith("ww") || normHost == "vidmoly.biz") {
+            candidates += normalized
+        }
+        candidates += replaceHost(normalized, normHost, "vidmoly.net")
+        candidates += replaceHost(normalized, normHost, "vidmoly.biz")
+        candidates += normalized
+        if (rawHost != null && !rawWithScheme.contains("/w/")) {
+            candidates += rawWithScheme
+        }
+        return candidates.toList()
     }
 
     fun okRuVideoId(url: String): String? =
         Regex("""(?:videoembed|video)/(\d{6,})""", RegexOption.IGNORE_CASE)
             .find(url)?.groupValues?.get(1)
+
+    /**
+     * `haydi.php` içinden çıkan gerçek `ok.ru` embed URL'sindeki sorgu parametrelerini ASLA
+     * silmez (liste dışı videolarda yalın `/videoembed/<id>` `"Video has not been found"` döner).
+     * Yalnızca ilk deneme başarısız olursa yalın `/videoembed/<id>` yedek olarak eklenir.
+     */
+    fun okRuEmbedUrls(url: String): List<String> {
+        val normalized = normalizeEmbedUrl(url)
+        val videoId = okRuVideoId(normalized)
+        val bareFallback = videoId?.let { "https://ok.ru/videoembed/$it" }
+        return listOfNotNull(normalized, bareFallback).distinct()
+    }
 
     /**
      * OK.ru (`Odnok`) hem `videoembed` HTML (`data-options` içinde `&quot;` / `\u0026` kaçışlı)
@@ -1025,7 +1291,8 @@ internal object DiziBoxPlayerParser {
 
         val results = LinkedHashMap<String, OkRuStream>()
 
-        for (hlsKey in listOf("ondemandHls", "hlsManifestUrl", "hlsMasterPlaylistUrl")) {
+        for (hlsKey in listOf("ondemandHls", "hlsManifestUrl", "hlsMasterPlaylistUrl", "ondemandDash")) {
+            if (hlsKey == "ondemandDash") continue
             Regex(""""$hlsKey"\s*:\s*"(https?:[^"]+)"""").findAll(unescaped).forEach { m ->
                 val hlsUrl = m.groupValues[1].trim()
                 if (hlsUrl.isNotBlank()) {
@@ -1406,6 +1673,14 @@ internal object DiziBoxPlayerParser {
         return match.groupValues[1].ifBlank { match.groupValues[2] }
     }
 
-    private fun normalizedHost(url: String): String? =
-        runCatching { URI(url).host?.lowercase() }.getOrNull()
+    internal val CHALLENGE_HINTS = listOf(
+        "Just a moment",
+        "challenge-platform",
+        "cf-browser-verification",
+        "cf_chl_opt",
+        "Enable JavaScript and cookies to continue",
+    )
+
+    internal fun normalizedHost(url: String): String? =
+        runCatching { URI(url).host?.lowercase(Locale.ROOT) }.getOrNull()
 }
