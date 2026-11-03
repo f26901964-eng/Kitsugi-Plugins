@@ -26,6 +26,7 @@ Kullanim:
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -79,13 +80,45 @@ def purge_response_succeeded(status, body, path):
     return True, "tum CDN saglayicilari temizlendi"
 
 
-def purge(paths):
+def _throttle_wait(status, body):
+    """jsDelivr throttle bilgisini saniye cinsinden döndürür (yoksa 0).
+
+    Purge API'si paylaşılan IP'lerde HTTP 200 + `throttled: true` dönebiliyor.
+    Bu durumda `throttlingReset` kadar bekleyip tekrar denemek gerekir; aksi
+    hâlde yayın işi, önbellek zaten tazelenmiş olsa da gereksiz yere kırmızı kalır.
+    """
+    if status != 200:
+        return 0
+    try:
+        payload = json.loads(body)
+    except Exception:  # noqa: BLE001
+        return 0
+    reset = 0
+    for result in (payload.get("paths") or {}).values():
+        if isinstance(result, dict) and result.get("throttled"):
+            value = result.get("throttlingReset")
+            if isinstance(value, (int, float)) and value > 0:
+                reset = max(reset, int(value))
+    return reset
+
+
+def purge(paths, attempts=3, max_wait=90):
     print(f"jsDelivr önbelleği temizleniyor ({len(paths)} dosya)...")
     failed = 0
     for path in paths:
         url = PURGE.format(slug=SLUG, branch=BRANCH, path=urllib.parse.quote(path))
-        status, body = _get(url, timeout=25)
-        ok, detail = purge_response_succeeded(status, body, path)
+        ok, detail = False, "denenmedi"
+        for attempt in range(1, attempts + 1):
+            status, body = _get(url, timeout=25)
+            ok, detail = purge_response_succeeded(status, body, path)
+            if ok:
+                break
+            wait = _throttle_wait(status, body)
+            if not wait or attempt == attempts:
+                break
+            wait = min(wait, max_wait)
+            print(f"    ! istek kısıtlandı; {wait} sn sonra tekrar (deneme {attempt + 1}/{attempts})")
+            time.sleep(wait)
         if not ok:
             failed += 1
         print(f"  {'✓' if ok else '✗'} {path} ({detail})")

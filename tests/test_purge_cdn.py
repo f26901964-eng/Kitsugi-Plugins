@@ -71,3 +71,49 @@ class PurgeResponseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThrottleWaitTests(unittest.TestCase):
+    def _body(self, result, path="plugins.json"):
+        key = f"/gh/{purge_cdn.SLUG}@{purge_cdn.BRANCH}/{path}"
+        return json.dumps({"status": "finished", "paths": {key: result}}).encode()
+
+    def test_throttled_response_reports_reset_seconds(self):
+        wait = purge_cdn._throttle_wait(200, self._body({"throttled": True, "throttlingReset": 89}))
+
+        self.assertEqual(89, wait)
+
+    def test_successful_purge_needs_no_wait(self):
+        wait = purge_cdn._throttle_wait(200, self._body({"throttled": False, "providers": {"CF": True}}))
+
+        self.assertEqual(0, wait)
+
+    def test_non_200_and_broken_json_need_no_wait(self):
+        self.assertEqual(0, purge_cdn._throttle_wait(429, b"{}"))
+        self.assertEqual(0, purge_cdn._throttle_wait(200, b"<html>"))
+
+
+class PurgeRetryTests(unittest.TestCase):
+    def test_throttled_attempt_is_retried_until_success(self):
+        bodies = [
+            (200, ThrottleWaitTests._body(self, {"throttled": True, "throttlingReset": 5})),
+            (200, ThrottleWaitTests._body(self, {"throttled": False, "providers": {"CF": True}})),
+        ]
+        calls = []
+
+        def fake_get(url, timeout=30):
+            calls.append(url)
+            return bodies[min(len(calls), len(bodies)) - 1]
+
+        slept = []
+        original_get, original_sleep = purge_cdn._get, purge_cdn.time.sleep
+        purge_cdn._get = fake_get
+        purge_cdn.time.sleep = slept.append
+        try:
+            failed = purge_cdn.purge(["plugins.json"], attempts=3)
+        finally:
+            purge_cdn._get, purge_cdn.time.sleep = original_get, original_sleep
+
+        self.assertEqual(0, failed)
+        self.assertEqual(2, len(calls))
+        self.assertEqual([5], slept)
