@@ -4,6 +4,7 @@ package com.keyiflerolsun
 
 import android.util.Log
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.ErrorLoadingException
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
@@ -128,6 +129,29 @@ class DiziBox : MainAPI() {
         "${mainUrl}/tur/yarisma/page/SAYFA/"               to "Yarışma",
     )
 
+    /**
+     * Sessiz "boş sayfa" yerine NE olduğunu söylemek için: Cloudflare basamağı mi,
+     * yoksa sayfa gerçekten mi boş? Kullanıcı ekranda boş liste gördüğünde sebebi
+     * anlaşılmıyordu; artık uygulama anlaşılır bir hata metni gösteriyor.
+     */
+    private fun Document.isCloudflareChallenge(): Boolean {
+        val head = runCatching { outerHtml().take(20_000) }.getOrDefault("")
+        val titleText = runCatching { title() }.getOrDefault("")
+        return CHALLENGE_HINTS.any {
+            titleText.contains(it, ignoreCase = true) || head.contains(it, ignoreCase = true)
+        }
+    }
+
+    private fun Document.failOnChallenge(url: String) {
+        if (isCloudflareChallenge()) {
+            Log.e(TAG, "Cloudflare basamağı: $url")
+            throw ErrorLoadingException(
+                "DiziBox Cloudflare doğrulaması istiyor (sayfa boş geldi). " +
+                    "Uygulama doğrulamayı geçemedi: $url",
+            )
+        }
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         // * `sequentialMainPage` açık: CloudStream 0'dan, WordPress 1'den sayar.
         //   Önceden `page` doğrudan verildiği için 2. parça 1. sayfayı TEKRARLIYORDU.
@@ -139,6 +163,12 @@ class DiziBox : MainAPI() {
             .map { it.toSearchResult() }
         val isHorizontal = request.name.contains("Bölüm", ignoreCase = true)
         val hasNext = cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
+
+        if (cards.isEmpty()) {
+            document.failOnChallenge(url)
+            Log.e(TAG, "liste boş: $url (başlık: ${runCatching { document.title() }.getOrDefault("-")})")
+            throw ErrorLoadingException("DiziBox: liste boş döndü → $url")
+        }
 
         return newHomePageResponse(
             HomePageList(request.name, cards, isHorizontalImages = isHorizontal),
@@ -229,6 +259,7 @@ class DiziBox : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val initialDoc = fetchDiziBoxDocument(url)
+        initialDoc.failOnChallenge(url)
 
         // Ana sayfadaki "Son Bölümler" kartları doğrudan bölüm sayfasına gider;
         // her bölüm sayfasındaki `#archive-box a.archive-title` ana dizi sayfasına yönlendirir.
@@ -1166,6 +1197,15 @@ class DiziBox : MainAPI() {
 
     companion object {
         private const val TAG = "DZBX"
+
+        /** Cloudflare basamağı işaretleri (sarmalayıcı ile aynı liste). */
+        private val CHALLENGE_HINTS = listOf(
+            "Just a moment",
+            "challenge-platform",
+            "cf-browser-verification",
+            "cf_chl_opt",
+            "Enable JavaScript and cookies to continue",
+        )
         private const val TAB_TIMEOUT_MS = 30_000L
 
         /**
