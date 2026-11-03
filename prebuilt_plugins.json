@@ -128,7 +128,7 @@
   {
     "url": "https://raw.githubusercontent.com/KitsugiBeta-dev/Kitsugi-Plugins/builds/DiziPal.cs3",
     "status": 1,
-    "version": 102,
+    "version": 104,
     "name": "DiziPal",
     "internalName": "DiziPal",
     "authors": [
@@ -136,7 +136,7 @@
       "muratcesmecioglu"
     ],
     "description": "Dizipal (dizipal1593.com): Next.js sözleşmesine göre yeniden yazıldı — trend/yeni bölüm/kategori listeleri, arama, dizi & film detayı, bölüm kaynakları ve şifreli oynatıcı çözümü.",
-    "fileSize": 29471,
+    "fileSize": 39366,
     "repositoryUrl": "https://github.com/f26901964-eng/Kitsugi-Plugins",
     "language": "tr",
     "tvTypes": [
@@ -145,7 +145,7 @@
     ],
     "iconUrl": "https://www.google.com/s2/favicons?domain=https://dizipal1593.com&sz=%size%",
     "apiVersion": 1,
-    "fileHash": "sha256-8af26d84991c1b65c848351b40c4761f1df621c3b26fc96862de8184dece5a5f"
+    "fileHash": "sha256-34fee24da3003761f90915b6771b3018832a82cb5aed9ab277fc52b6464f236f"
   },
   {
     "url": "https://raw.githubusercontent.com/Kraptor123/cs-kraptor/builds/DiziYou.cs3",
@@ -1425,7 +1425,7 @@
     "tvTypes": [
       "TvSeries"
     ],
-    "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://dizipal932.com&size=128",
+    "iconUrl": "https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://dizipal1593.com&size=128",
     "apiVersion": 1,
     "fileHash": "sha256-39f7d88afedf0f91fa6285cd200f229a0563fecfb3dee6808b091af901987518"
   },
