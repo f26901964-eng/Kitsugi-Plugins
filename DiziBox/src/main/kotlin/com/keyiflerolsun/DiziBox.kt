@@ -39,26 +39,17 @@ class DiziBox : MainAPI() {
     override var sequentialMainPageDelay       = 50L
     override var sequentialMainPageScrollDelay = 50L
 
-    /**
-     * Kitsugi keşfet ekranı (`AddonExploreInline` / `AddonExploreDialog`) `mainPage` içindeki
-     * tüm satırları sırayla çekip tamamlanınca yükleme göstergesini kapatır. 29 satır (~27.5 MB HTML)
-     * hem ekranı kilitliyor hem de Cloudflare hız sınırını tetikliyordu; en yüksek sinyalli 13
-     * vitrin ve kategori satırı seçildi.
-     */
+    // Ana sayfa vitrinleri doğrudan kaydedilmiş dbx18 HTML başlıklarına karşılık gelir.
     override val mainPage = mainPageOf(
-        "${mainUrl}/tum-bolumler/page/SAYFA/"              to "Son Bölümler",
-        "${mainUrl}/tum-bolumler/page/SAYFA/?tip=populer"  to "Popüler Bölümler",
-        "${mainUrl}/#new-series"                           to "Yeni Diziler",
-        "${mainUrl}/efsane-diziler/page/SAYFA/"            to "Efsane Diziler",
-        "${mainUrl}/dizi-arsivi/page/SAYFA/"               to "Dizi Arşivi",
-        "${mainUrl}/ulke/turkiye/page/SAYFA/"              to "Yerli Diziler",
-        "${mainUrl}/tur/aksiyon/page/SAYFA/"               to "Aksiyon",
-        "${mainUrl}/tur/bilimkurgu/page/SAYFA/"            to "Bilimkurgu",
-        "${mainUrl}/tur/drama/page/SAYFA/"                 to "Drama",
-        "${mainUrl}/tur/fantastik/page/SAYFA/"             to "Fantastik",
-        "${mainUrl}/tur/gerilim/page/SAYFA/"               to "Gerilim",
-        "${mainUrl}/tur/komedi/page/SAYFA/"                to "Komedi",
-        "${mainUrl}/tur/suc/page/SAYFA/"                   to "Suç",
+        "${mainUrl}/#recommended_series" to "Beklenen / Eklenen Diziler",
+        "${mainUrl}/#new-series" to "Dikkat Çeken Yeni Diziler",
+        "${mainUrl}/#popular-episodes" to "Popüler Dizilerden Son Bölümler",
+        "${mainUrl}/#latest-episodes" to "Yeni Eklenen Bölümler",
+        "${mainUrl}/#best-series" to "Efsane Diziler",
+        "${mainUrl}/tum-bolumler/page/SAYFA/" to "Tüm Bölümler",
+        "${mainUrl}/tum-bolumler/page/SAYFA/?tip=populer" to "Popüler Bölümler",
+        "${mainUrl}/efsane-diziler/page/SAYFA/" to "Efsane Diziler Arşivi",
+        "${mainUrl}/arsiv/?imdb=7" to "IMDb 7+ Diziler",
     )
 
     private fun networkInterceptor(): Interceptor = DiziBoxNetwork.interceptorFor(mainUrl)
@@ -78,7 +69,7 @@ class DiziBox : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val apiPage = DiziBoxPlayerParser.sequentialPageIndex(page)
         val sectionId = DiziBoxPlayerParser.extractSectionFragment(request.data)
-        if (sectionId != null && apiPage > 1) {
+        if ((sectionId != null || !request.data.contains("SAYFA")) && apiPage > 1) {
             return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
         }
 
@@ -89,7 +80,7 @@ class DiziBox : MainAPI() {
         val cards = DiziBoxPlayerParser.parseListingCards(document, url, sectionId)
             .map { it.toSearchResult() }
         val isHorizontal = request.name.contains("Bölüm", ignoreCase = true)
-        val hasNext = sectionId == null && cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
+        val hasNext = sectionId == null && request.data.contains("SAYFA") && cards.isNotEmpty() && DiziBoxPlayerParser.hasNextPage(document, apiPage)
 
         if (cards.isEmpty()) {
             // * Cloudflare basamağıysa hata fırlat (uygulama bunu "koruma" olarak sınıflandırır).
@@ -121,25 +112,22 @@ class DiziBox : MainAPI() {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
 
-        // 1) Canlı tema XHR araması (DavesWordPressLiveSearchConfig: minCharsToSearch = 3)
-        if (trimmed.length >= 3) {
-            ajaxSearch(trimmed)?.let { if (it.isNotEmpty()) return it }
-        }
-
         val encoded = URLEncoder.encode(trimmed, "UTF-8")
-
-        // 2) /search/{sorgu}/ sayfası (üstte diziler, altta bölümler; dizi kartları önceliklidir)
-        val searchPathUrl = "${mainUrl}/search/${encoded}/"
-        val slugHits = runCatching {
-            val doc = fetchDiziBoxDocument(searchPathUrl)
-            DiziBoxPlayerParser.parseSearchCards(doc, searchPathUrl).map { it.toSearchResult() }
-        }.getOrNull()
-        if (!slugHits.isNullOrEmpty()) return slugHits
-
-        // 3) Klasik WordPress /?s={sorgu} yedek araması
+        // Sitenin arama formu ve paylaşılan ekran görüntüsü WordPress ?s= adresini kullanıyor.
         val queryUrl = "${mainUrl}/?s=${encoded}"
-        val fallbackDoc = runCatching { fetchDiziBoxDocument(queryUrl) }.getOrNull() ?: return emptyList()
-        return DiziBoxPlayerParser.parseSearchCards(fallbackDoc, queryUrl).map { it.toSearchResult() }
+        val htmlResults = try {
+            val doc = fetchDiziBoxDocument(queryUrl)
+            doc.failOnChallenge(queryUrl)
+            DiziBoxPlayerParser.parseSearchCards(doc, queryUrl).map { it.toSearchResult() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ErrorLoadingException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (htmlResults.isNotEmpty()) return htmlResults
+        return if (trimmed.length >= 3) ajaxSearch(trimmed).orEmpty() else emptyList()
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)

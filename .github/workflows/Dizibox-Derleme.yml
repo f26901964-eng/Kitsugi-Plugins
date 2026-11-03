@@ -35,19 +35,22 @@ jobs:
           set -o pipefail
           chmod +x gradlew
           ./gradlew :DiziBox:make :DiziBox:test --stacktrace 2>&1 | tee build.log
-      - name: Günlüğü dala it (sandbox artefakt indiremiyor)
+      - name: DiziBox eklentisini sakla
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiziBox-cs3
+          path: DiziBox/build/DiziBox.cs3
+          if-no-files-found: error
+      - name: Test sonuçlarını sakla
         if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p /tmp/net/tests
-          cp build.log /tmp/net/ 2>/dev/null || true
-          cp -r DiziBox/build/test-results/test /tmp/net/tests/ 2>/dev/null || true
-          cd /tmp/net && git init -q && git config user.email "actions@github.com" && git config user.name "GitHub Actions"
-          git checkout -q -b dizibox-build-data
-          git add -A && git commit -qm "dizibox build ${GITHUB_RUN_ID}" || echo "değişiklik yok"
-          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:dizibox-build-data \
-            && echo "günlük dizibox-build-data dalına itildi"
+        uses: actions/upload-artifact@v4
+        with:
+          name: DiziBox-test-sonuclari
+          path: |
+            build.log
+            DiziBox/build/test-results/
+          if-no-files-found: warn
       - name: Özet
         if: always()
         run: |
