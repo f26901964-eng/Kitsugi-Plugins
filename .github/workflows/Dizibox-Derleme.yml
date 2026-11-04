@@ -45,6 +45,14 @@ jobs:
             echo "MAKE_RC=$MAKE_RC"
             echo "TEST_RC=$TEST_RC"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$TEST_RC" -ne 0 ]; then
+            # ! Log artefaktı API'den indirilemiyor; başarısız test adlarını ve
+            #   hata satırlarını doğrudan özet ekranına yaz.
+            echo "## Başarısız testler" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "FAILED|AssertionError|expected:|<[^>]*>" build.log | head -60 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ "$MAKE_RC" -ne 0 ] || [ "$TEST_RC" -ne 0 ]; then
             echo "::error::Gradle başarısız (make=$MAKE_RC, test=$TEST_RC)"
             exit 1
