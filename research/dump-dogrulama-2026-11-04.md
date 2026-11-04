@@ -442,3 +442,79 @@ eklemek, tam olarak bu raporun kaçındığı "varsayıma dayalı düzeltme" olu
 SPA'da bu değer HTML'de bulunmuyor (dump'ta 0 eşleşme) ⇒ **her zaman** bilinen sabit değere
 düşecek. Token sunucuda döndürülürse eklenti 403 alır ve `getSecure()` tek retry ile de kurtaramaz.
 Bu, dump olmadan çözülemez; HAR kaydı gerekiyor.
+
+---
+
+## 10. SONUÇ — her iki eklenti CI'da yeşil (2026-11-04)
+
+| Eklenti | Commit | Run | Sonuç |
+|---|---|---|---|
+| **DiziBox** | `7f75bfb` | `41872459142` | ✅ **BUILD SUCCESSFUL**, hata annotasyonu yok |
+| **DiziPal** | `98995b7` | — | ✅ **BUILD SUCCESSFUL**, **60 PASSED / 0 FAILED** |
+
+Statik simülasyonun yerini gerçek derleme aldı. Bu oturumda **üç gerçek hata** yalnızca
+derleyici/test tarafından yakalandı — hiçbiri elle yapılan dump analizinde görülmemişti:
+
+### 10.1 Derleyici hatası — `suspend Mutex` (DiziPal)
+
+```
+DiziPal.kt:439 Suspension functions can only be called within coroutine body
+DiziPal.kt:446 aynı
+```
+
+`Mutex.withLock` **suspend**'dir; ama CloudStream'in `loadExtractor` API'si **suspend olmayan**
+`(ExtractorLink) -> Unit` / `(SubtitleFile) -> Unit` bekler. Lambda tipini suspend yapmak
+API sözleşmesini bozar. Çözüm: kilitsiz `ConcurrentHashMap.newKeySet()` dedupe — amaç zaten
+karşılıklı dışlama değil, paralel kaynaklardan gelen **aynı linkin** iki kez iletilmemesiydi.
+
+### 10.2 Mantık hatası — `languageBadges` 0 rozet döndürüyordu (DiziBox)
+
+`isUsableImageUrl()` bir **poster** filtresidir ve `/altyazi.png` / `/dublaj.png` adreslerini
+**bilerek** reddeder (afiş yerine rozet ikonu seçilmesin diye). Ama `languageBadges()` tam da
+bu dosyaları arıyor ve aynı filtreyi kullanıyordu:
+
+```
+dump: 1 eşleşen img (altyazi.png) → filtre sonrası 0 → 0 rozet
+```
+
+Düzeltme: rozet seçiminde poster filtresi kullanılmıyor, yalnız `data:` şeması eleniyor.
+Simülasyon sonrası: **1 rozet, `Türkçe Altyazı`, `altyazi.png`** — testin beklediği değer.
+
+### 10.3 Tip hatası — `assertEquals("2008", detail.year)`
+
+`SeriesDetail.year` **`Int?`**. Kotlin'de `Int(2008) != String("2008")` ⇒ test **hiçbir zaman**
+geçemezdi. `assertEquals("Yayın yılı", 2008, detail.year)` olarak düzeltildi.
+
+### 10.4 Bayat test — uydurma `dbxu` çerezi
+
+`cookieHeaderMerger...` testi hâlâ `dbxu=` çerezini **bekliyordu**; oysa §1.2'de bu çerezin
+uydurma olduğu ölçülmüş ve koddan kaldırılmıştı. Test, çerezin **eklenmediğini** doğrulayan
+regresyon bekçisine çevrildi.
+
+### 10.5 `hasNextPage` yanlış pozitifi (DiziPal) — dump'tan yakalandı
+
+`pageHref` yok (4 dump'ta 0 eşleşme) ⇒ yedek yol metin işaretlerine bakıyordu. Ölçüm:
+
+| İşaret | Gerçekte nerede geçiyor | Sayfalama sinyali mi? |
+|---|---|---|
+| `Sonraki` | duyuru bandı: *"Sonraki adresimiz dizipal1595.com"* | ❌ **hayır** |
+| `daha fazla` | bölüm özeti: *"...daha fazla bilgi edinmektir"* | ❌ **hayır** |
+| `sayfa=`, `page=`, `rel="next"` | hiçbir dump'ta yok | — |
+
+Sonuç: `hasNextPage(html, 2)` **4 dump'un hepsinde `true`** dönüyordu → sonsuz sayfalama.
+Düzeltme: yalnız yapısal sinyaller (`sayfa=N`, `page=N`, `rel="next"`).
+Regresyon testi eklendi (`announcementBannerTextIsNotAPaginationSignal`) ve **geçti**.
+
+### 10.6 CI altyapı düzeltmeleri
+
+| Sorun | Etki | Düzeltme |
+|---|---|---|
+| `\| tee` + `pipefail` yok (DiziPal) | Gradle başarısızken adım **success** görünüyordu; Maven 409 hatası maskelendi | `PIPESTATUS` ile gerçek exit code |
+| Tek adımda `make` + `test` | hangi task'ın kırıldığı görünmüyordu | iki ayrı Gradle çağrısı, `MAKE_RC`/`TEST_RC` |
+| Log artefaktı API'den indirilemiyor | test hataları okunamıyordu | `::error::` annotasyonu ile yayınlama |
+
+### 10.7 Hâlâ doğrulanamayan
+
+- **AnimeciX**: gerçek derleme çalıştırılmadı (workflow yok). Kodu derlenmiş saymıyorum.
+- `resolveToken()` SPA'da `x-e-h`'yi HTML'de bulamaz (dump'ta 0) ⇒ her zaman sabit değere düşer.
+  HAR kaydı olmadan çözülemez.

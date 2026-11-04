@@ -1,3 +1,23 @@
+> ## ⚠️ BU BELGE KISMEN ÇÜRÜTÜLDÜ — 04.11.2026, aynı gün
+>
+> Bu rapor **yalnız 3 eski DiziBox dökümü + sentetik `.rsc.html` fixture'ları** ile yazıldı.
+> Aynı gün 12 **yeni** döküm alındı ve şu bulgular **geçersiz** çıktı:
+>
+> | Buradaki iddia | Gerçek (ölçüm) |
+> |---|---|
+> | `dbxu` çerezi gerekli | **UYDURMA** — 4 dökümde 0 eşleşme, koddan kaldırıldı |
+> | DiziPal domain `1593` | **`1594`** (yeni dökümler), ayrıca anons `1595`'e geçiş |
+> | DiziPal `pageHref` ile sayfalanır | `pageHref` **hiçbir dökümde yok** → yedek yol gerekli |
+> | DiziBox aramada bölüm kartları atılmalı | Yanlış: 30 kartın 29'u bölüm, **hepsi** değerli |
+>
+> **Geçerli kaynak:** [`dump-dogrulama-2026-11-04.md`](dump-dogrulama-2026-11-04.md)
+> — 12 döküm, her satırı ölçümle desteklenmiş ve **CI'da derlenip test edilmiş**.
+>
+> Aşağıdaki metin tarihsel kayıt olarak korunuyor; mimari analiz (bütçeler, akış
+> sıralaması) hâlâ okunabilir ama **sayısal iddialara güvenmeyin**.
+
+---
+
 # DiziBox · DiziPal — "sorunlu" teşhisi
 
 **Tarih:** 04.11.2026 · **Dal:** `arena/03f7617a-kitsugi-plugins`
