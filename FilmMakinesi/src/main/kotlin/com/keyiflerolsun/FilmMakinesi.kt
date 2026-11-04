@@ -301,22 +301,65 @@ private fun Element.toSearchResult(): SearchResponse? {
 
     /** /dizi/... sayfalarındaki bölüm bağlantılarını ayrıştırır. */
     private fun parseSeriesEpisodes(document: org.jsoup.nodes.Document): List<Episode> {
-        return document.select("a[href*='bolum'], div.episodes a, div.partlar a")
-            .mapNotNull { el ->
-                val href = fixUrlNull(el.attr("href")) ?: return@mapNotNull null
-                if (!href.contains("bolum") && !href.contains("/dizi/")) return@mapNotNull null
-                val epTitle = el.text().trim().ifBlank { el.attr("title").trim() }
-                val season  = Regex("""(\d+)\.\s*Sezon""").find(epTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-                // ! Genel sayı yakalama KULLANILMIYOR: "2. Sezon" başlığındaki 2'yi
-                // ! bölüm numarası sanıp yanlış eşleşmeye yol açıyordu.
-                val episode = Regex("""(\d+)\.\s*B[öo]l[üu]m""").find(epTitle)?.groupValues?.get(1)?.toIntOrNull() ?: 1
-                newEpisode(href) {
-                    this.name    = epTitle.ifBlank { "Bölüm" }
-                    this.season  = season
-                    this.episode = episode ?: 1
+        // ! GÜNCELLEME (2026-11-04): FilmMakinesi dizi sayfalarında yeni seçiciler (HDFilmCehennemi mantığı)
+        // ! 1) div.seasons-tab-content a (eski/yeni karışık)
+        // ! 2) div#seasonsTabs-tabContent div.card-list-item (SPA/yeni)
+        // ! 3) fallback: a[href*='/bolum-']
+        val episodes = when {
+            document.select("div.seasons-tab-content a").isNotEmpty() -> {
+                document.select("div.seasons-tab-content a").mapNotNull { el ->
+                    val epHref = fixUrlNull(el.attr("href")) ?: return@mapNotNull null
+                    if (!epHref.contains("bolum") && !epHref.contains("/dizi/")) return@mapNotNull null
+                    val epName = el.selectFirst("h4")?.text()?.trim() ?: el.text().trim().ifBlank { el.attr("title").trim() } ?: return@mapNotNull null
+                    val epEpisode = Regex("""(\d+)\. ?Bölüm""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                        ?: Regex("""bolum-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
+                    val epSeason = Regex("""(\d+)\. ?Sezon""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                        ?: Regex("""sezon-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                    newEpisode(epHref) {
+                        this.name = epName
+                        this.season = epSeason
+                        this.episode = epEpisode
+                    }
                 }
             }
-            .distinctBy { it.data }
+            document.select("div#seasonsTabs-tabContent div.card-list-item").isNotEmpty() -> {
+                document.select("div#seasonsTabs-tabContent div.card-list-item").mapNotNull { el ->
+                    val href = fixUrlNull(el.selectFirst("a")?.attr("href")) ?: return@mapNotNull null
+                    if (!href.contains("bolum") && !href.contains("/dizi/")) return@mapNotNull null
+                    val name = el.selectFirst("h3")?.text()?.trim() ?: return@mapNotNull null
+                    val epNum = name.substringAfter("Sezon ").substringBefore(". Bölüm").toIntOrNull()
+                        ?: Regex("""bolum-(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
+                    val season = el.parents().find { p -> p.id().startsWith("seasons-") || p.id() == "seasonsTabs-tabContent" }?.id()?.substringAfter("seasons-")?.toIntOrNull()
+                        ?: Regex("""sezon-(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                    newEpisode(href) {
+                        this.name = name
+                        this.season = season
+                        this.episode = epNum
+                    }
+                }
+            }
+            else -> {
+                // Genel fallback: sayfadaki tüm bölüm linkleri (SPA)
+                document.select("a[href*='bolum'], div.episodes a, div.partlar a, a[href*='/bolum-']").mapNotNull { el ->
+                    val epHref = fixUrlNull(el.attr("href")) ?: return@mapNotNull null
+                    if (!epHref.contains("bolum") && !epHref.contains("/dizi/")) return@mapNotNull null
+                    val epName = el.selectFirst("h4")?.text()?.trim()
+                        ?: el.selectFirst("h3")?.text()?.trim()
+                        ?: el.text().trim().ifBlank { el.attr("title").trim() } ?: return@mapNotNull null
+                    val epEpisode = Regex("""(\d+)\. ?Bölüm""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                        ?: Regex("""bolum-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull()
+                    val epSeason = Regex("""(\d+)\. ?Sezon""").find(epName)?.groupValues?.get(1)?.toIntOrNull()
+                        ?: Regex("""sezon-(\d+)""").find(epHref)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                    newEpisode(epHref) {
+                        this.name = epName
+                        this.season = epSeason
+                        this.episode = epEpisode
+                    }
+                }.distinctBy { it.data }
+            }
+        }.distinctBy { it.data }
+
+        return episodes
     }
 
     override suspend fun load(url: String): LoadResponse? {
@@ -334,7 +377,9 @@ private fun Element.toSearchResult(): SearchResponse? {
         ).document
 
         // ! Dizi sayfası mı? /dizi/ adresi veya bölüm bağlantıları varsa dizi.
-        val isSeries = url.contains("/dizi/") || parseSeriesEpisodes(document).isNotEmpty()
+        // ! GÜNCELLEME (2026-11-04): HDFilmCehennemi mantığıyla sezon/bölüm sekmeleri, aria-label, card-list-item kontrolü eklendi.
+        val isSeries = url.contains("/dizi/") ||
+            document.select("div.seasons-tab-content, nav#seasonsTabs, [aria-label*='Sezon'], [aria-label*='Season'], a[href*='bolum'], div.episodes a, div.partlar a, div#seasonsTabs-tabContent div.card-list-item").isNotEmpty()
         if (isSeries) {
             val seriesTitle = document.selectFirst("h1")?.text()?.trim()
                 ?: document.selectFirst("[property='og:title']")?.attr("content")?.trim()

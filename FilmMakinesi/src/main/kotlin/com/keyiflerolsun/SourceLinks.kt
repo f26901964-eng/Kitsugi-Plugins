@@ -77,7 +77,8 @@ internal object SourceLinks {
             if (el.hasClass("trailer-button") || el.closest(".trailer-button, .trailer") != null) continue
             out.putIfAbsent(url, Source(labelFor(el.text(), url), url, kindOf(url)))
         }
-        for (frame in document.select(".after-player iframe, #player-section iframe, .player--area iframe")) {
+        // ! GÜNCELLEME (2026-11-04): Dizi sayfalarındaki sezon/bölüm sekmeleri ve iframe kontrolleri eklendi (HDFilmCehennemi referanslı).
+        for (frame in document.select(".after-player iframe, #player-section iframe, .player--area iframe, div.seasons-tab-content iframe, div#seasonsTabs-tabContent iframe")) {
             val raw = frame.attr("data-src").ifBlank { frame.attr("src") }
             val url = normalize(raw, pageUrl) ?: continue
             out.putIfAbsent(url, Source(labelFor("", url), url, kindOf(url)))
