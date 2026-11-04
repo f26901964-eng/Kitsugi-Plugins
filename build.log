@@ -1,0 +1,227 @@
+Downloading https://services.gradle.org/distributions/gradle-8.12-bin.zip
+..................................................................................................................................
+Unzipping /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12-bin.zip to /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv
+Set executable permissions for: /home/runner/.gradle/wrapper/dists/gradle-8.12-bin/cetblhg4pflnnks72fxwobvgv/gradle-8.12/bin/gradle
+
+Welcome to Gradle 8.12!
+
+Here are the highlights of this release:
+ - Enhanced error and warning reporting with the Problems API
+ - File-system watching support on Alpine Linux
+ - Build and test Swift 6 libraries and apps
+
+For more details see https://docs.gradle.org/8.12/release-notes.html
+
+Starting a Gradle Daemon (subsequent builds will be faster)
+
+> Configure project :AnimeciX
+Fetching JAR: cloudstream.jar
+
+> Task :DiziPal:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :DiziPal:preBuild UP-TO-DATE
+> Task :DiziPal:preDebugBuild UP-TO-DATE
+> Task :DiziPal:generateDebugResValues
+> Task :DiziPal:generateDebugResources
+> Task :DiziPal:packageDebugResources
+> Task :DiziPal:parseDebugLocalResources
+> Task :DiziPal:generateDebugRFile
+
+> Task :DiziPal:compileDebugKotlin
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/main/kotlin/com/keyiflerolsun/DiziPal.kt:448:34 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/main/kotlin/com/keyiflerolsun/DiziPal.kt:562:37 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
+
+> Task :DiziPal:compileDex
+Compiled dex to /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/build/intermediates/classes.dex
+
+> Task :DiziPal:generateManifest
+
+> Task :DiziPal:make
+Made CloudStream package at /home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/build/DiziPal.cs3
+
+BUILD SUCCESSFUL in 1m 25s
+9 actionable tasks: 9 executed
+> Task :DiziPal:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :DiziPal:preBuild UP-TO-DATE
+> Task :DiziPal:preDebugBuild UP-TO-DATE
+> Task :DiziPal:generateDebugResValues UP-TO-DATE
+> Task :DiziPal:generateDebugResources UP-TO-DATE
+> Task :DiziPal:packageDebugResources UP-TO-DATE
+> Task :DiziPal:parseDebugLocalResources UP-TO-DATE
+> Task :DiziPal:generateDebugRFile UP-TO-DATE
+> Task :DiziPal:compileDebugKotlin UP-TO-DATE
+> Task :DiziPal:preDebugUnitTestBuild UP-TO-DATE
+> Task :DiziPal:javaPreCompileDebug
+> Task :DiziPal:compileDebugJavaWithJavac NO-SOURCE
+> Task :DiziPal:generateDebugUnitTestStubRFile
+> Task :DiziPal:javaPreCompileDebugUnitTest
+> Task :DiziPal:bundleLibRuntimeToJarDebug
+> Task :DiziPal:bundleLibCompileToJarDebug
+> Task :DiziPal:processDebugJavaRes
+> Task :DiziPal:preReleaseBuild UP-TO-DATE
+> Task :DiziPal:generateReleaseResValues
+> Task :DiziPal:generateReleaseResources
+> Task :DiziPal:packageReleaseResources
+> Task :DiziPal:preReleaseUnitTestBuild UP-TO-DATE
+> Task :DiziPal:parseReleaseLocalResources
+> Task :DiziPal:javaPreCompileRelease
+> Task :DiziPal:javaPreCompileReleaseUnitTest
+> Task :DiziPal:generateReleaseRFile
+> Task :DiziPal:generateReleaseUnitTestStubRFile
+
+> Task :DiziPal:compileDebugUnitTestKotlin
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/test/kotlin/com/keyiflerolsun/DiziPalParserTest.kt:18:22 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'java.lang.ClassLoader?'.
+
+> Task :DiziPal:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :DiziPal:processDebugUnitTestJavaRes
+
+> Task :DiziPal:compileReleaseKotlin
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/main/kotlin/com/keyiflerolsun/DiziPal.kt:448:34 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/main/kotlin/com/keyiflerolsun/DiziPal.kt:562:37 'constructor(lang: String, url: String): SubtitleFile' is deprecated. Use newSubtitleFile method.
+
+> Task :DiziPal:testDebugUnitTest
+
+DiziPalFreshDumpContractTest > freshSeriesPageHasAllSevenSeasonsAnd149Episodes PASSED
+
+DiziPalFreshDumpContractTest > freshDumpsConfirm1594AndAnnounce1595 PASSED
+
+DiziPalFreshDumpContractTest > hasNextPageIsFalseForPageOne PASSED
+
+DiziPalFreshDumpContractTest > pageHrefIsAbsentSoFallbackPaginationMustWork PASSED
+
+DiziPalFreshDumpContractTest > announcementBannerTextIsNotAPaginationSignal PASSED
+
+DiziPalFreshDumpContractTest > freshSeriesPageGenresParse PASSED
+
+DiziPalFreshDumpContractTest > freshEpisodePageExposesBothSubtitleAndDubSources PASSED
+
+DiziPalFreshDumpContractTest > freshEpisodePageDecryptsToRealPlayerUrl PASSED
+
+DiziPalFreshDumpContractTest > dubAndSubLabelsAreStructurallyDistinct PASSED
+
+DiziPalFreshDumpContractTest > searchResultsSurviveUnescaping PASSED
+
+DiziPalFreshDumpContractTest > homepageCardPatternStillWorksOnHomepage PASSED
+
+DiziPalFreshDumpContractTest > homepageUsesLangQueryForDubAndSubLinks PASSED
+
+DiziPalFreshDumpContractTest > homepageDomCardsExistForTheAnchorSelector PASSED
+
+DiziPalFreshDumpContractTest > freshSeriesPageSlotsAreComplete PASSED
+
+DiziPalFreshDumpContractTest > languageHintReadsQueryParameter PASSED
+
+DiziPalFreshDumpContractTest > freshSearchParsesStructuredResults PASSED
+
+DiziPalFreshDumpContractTest > legacyParseCardsPatternFailsOnSearchPage PASSED
+
+DiziPalParserTest > son bölümler akışı dizi adresine çevrilir PASSED
+
+DiziPalParserTest > base64 çözücü standart girdiyi çözer PASSED
+
+DiziPalParserTest > sayfalama adresleri okunur PASSED
+
+DiziPalParserTest > kart akışı başlık ve afiş verir PASSED
+
+DiziPalParserTest > reklam akışını atlar PASSED
+
+DiziPalParserTest > dizi künyesi ve türler okunur PASSED
+
+DiziPalParserTest > kaçışlı rsc metni çözülür PASSED
+
+DiziPalParserTest > film oynatıcısı kaynak listesiyle gelir PASSED
+
+DiziPalParserTest > oynatıcı html'inden m3u8 ve altyazı çıkar PASSED
+
+DiziPalParserTest > bozuk şifreli veri null döner PASSED
+
+DiziPalParserTest > oynatıcı nesnesi ayrıştırılır PASSED
+
+DiziPalParserTest > bölüm listesi sezon ve numaralarla gelir PASSED
+
+DiziPalParserTest > şifreli adres sitenin algoritmasıyla çözülür PASSED
+
+> Task :DiziPal:compileReleaseJavaWithJavac NO-SOURCE
+> Task :DiziPal:bundleLibRuntimeToJarRelease
+> Task :DiziPal:bundleLibCompileToJarRelease
+> Task :DiziPal:processReleaseJavaRes
+
+> Task :DiziPal:compileReleaseUnitTestKotlin
+w: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/DiziPal/src/test/kotlin/com/keyiflerolsun/DiziPalParserTest.kt:18:22 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'java.lang.ClassLoader?'.
+
+> Task :DiziPal:compileReleaseUnitTestJavaWithJavac NO-SOURCE
+> Task :DiziPal:processReleaseUnitTestJavaRes
+
+> Task :DiziPal:testReleaseUnitTest
+
+DiziPalFreshDumpContractTest > freshSeriesPageHasAllSevenSeasonsAnd149Episodes PASSED
+
+DiziPalFreshDumpContractTest > freshDumpsConfirm1594AndAnnounce1595 PASSED
+
+DiziPalFreshDumpContractTest > hasNextPageIsFalseForPageOne PASSED
+
+DiziPalFreshDumpContractTest > pageHrefIsAbsentSoFallbackPaginationMustWork PASSED
+
+DiziPalFreshDumpContractTest > announcementBannerTextIsNotAPaginationSignal PASSED
+
+DiziPalFreshDumpContractTest > freshSeriesPageGenresParse PASSED
+
+DiziPalFreshDumpContractTest > freshEpisodePageExposesBothSubtitleAndDubSources PASSED
+
+DiziPalFreshDumpContractTest > freshEpisodePageDecryptsToRealPlayerUrl PASSED
+
+DiziPalFreshDumpContractTest > dubAndSubLabelsAreStructurallyDistinct PASSED
+
+DiziPalFreshDumpContractTest > searchResultsSurviveUnescaping PASSED
+
+DiziPalFreshDumpContractTest > homepageCardPatternStillWorksOnHomepage PASSED
+
+DiziPalFreshDumpContractTest > homepageUsesLangQueryForDubAndSubLinks PASSED
+
+DiziPalFreshDumpContractTest > homepageDomCardsExistForTheAnchorSelector PASSED
+
+DiziPalFreshDumpContractTest > freshSeriesPageSlotsAreComplete PASSED
+
+DiziPalFreshDumpContractTest > languageHintReadsQueryParameter PASSED
+
+DiziPalFreshDumpContractTest > freshSearchParsesStructuredResults PASSED
+
+DiziPalFreshDumpContractTest > legacyParseCardsPatternFailsOnSearchPage PASSED
+
+DiziPalParserTest > son bölümler akışı dizi adresine çevrilir PASSED
+
+DiziPalParserTest > base64 çözücü standart girdiyi çözer PASSED
+
+DiziPalParserTest > sayfalama adresleri okunur PASSED
+
+DiziPalParserTest > kart akışı başlık ve afiş verir PASSED
+
+DiziPalParserTest > reklam akışını atlar PASSED
+
+DiziPalParserTest > dizi künyesi ve türler okunur PASSED
+
+DiziPalParserTest > kaçışlı rsc metni çözülür PASSED
+
+DiziPalParserTest > film oynatıcısı kaynak listesiyle gelir PASSED
+
+DiziPalParserTest > oynatıcı html'inden m3u8 ve altyazı çıkar PASSED
+
+DiziPalParserTest > bozuk şifreli veri null döner PASSED
+
+DiziPalParserTest > oynatıcı nesnesi ayrıştırılır PASSED
+
+DiziPalParserTest > bölüm listesi sezon ve numaralarla gelir PASSED
+
+DiziPalParserTest > şifreli adres sitenin algoritmasıyla çözülür PASSED
+
+> Task :DiziPal:test
+
+[Incubating] Problems report is available at: file:///home/runner/work/Kitsugi-Plugins/Kitsugi-Plugins/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.12/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 12s
+30 actionable tasks: 24 executed, 6 up-to-date
