@@ -418,7 +418,11 @@ class DiziPal : MainAPI() {
         } ?: rootHtml
 
         val payload = DiziPalParser.parsePlayer(sourceHtml) ?: return
-        val target  = DiziPalParser.decryptPlayer(payload) ?: run {
+
+        // ! `?: run { ...; return }` val başlatıcısında tip çıkarımını bozar;
+        //   ayrı ifadeye alındı.
+        val target = DiziPalParser.decryptPlayer(payload)
+        if (target == null) {
             Log.w("DZP", "şifre çözülemedi (${source.label ?: "-"}): $pageUrl")
             return
         }

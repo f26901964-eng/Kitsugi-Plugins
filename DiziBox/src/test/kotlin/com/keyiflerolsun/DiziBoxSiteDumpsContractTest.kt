@@ -232,7 +232,7 @@ class DiziBoxSiteDumpsContractTest {
     }
 
     @Test
-    fun searchPagePrioritizesSeriesCardsOverEpisodeMatches() {
+    fun searchPageReturnsSeriesFirstThenEpisodeMatches() {
         val searchUrl = "https://www.dizibox.live/search/visionquest/"
         val html = """
             <main>
@@ -250,8 +250,13 @@ class DiziBoxSiteDumpsContractTest {
             </main>
         """.trimIndent()
         val cards = DiziBoxPlayerParser.parseSearchCards(Jsoup.parse(html, searchUrl), searchUrl)
-        assertEquals(1, cards.size)
+        // ! 2026-11-04: bölüm kartları artık ATILMIYOR (gerçek aramada 30 kartın 29'u
+        // ! kayboluyordu). Sıra korunur: dizi kartı önce, bölüm kartları sonra.
+        assertEquals(2, cards.size)
         assertEquals("https://www.dizibox.live/diziler/visionquest/", cards[0].url)
+        assertFalse("Dizi kartı bölüm sayılmamalı", cards[0].isEpisode)
+        assertEquals("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/", cards[1].url)
+        assertTrue("Bölüm kartı bölüm sayılmalı", cards[1].isEpisode)
     }
 
     @Test

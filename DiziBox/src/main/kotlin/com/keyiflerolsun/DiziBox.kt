@@ -80,7 +80,7 @@ class DiziBox : MainAPI() {
 
         val url = DiziBoxPlayerParser.buildMainPageUrl(request.data, apiPage)
         // ! Önbellek yok: olası 403 Cloudflare basamağı 60 dk yapışmasın (`AddonExploreCache` zaten başarılı vitrini tutar).
-        val document = fetchDiziBoxDocument(url)
+        val document = fetchDiziBoxDocumentCached(url)
 
         val cards = DiziBoxPlayerParser.parseListingCards(document, url, sectionId)
             .map { it.toSearchResult() }
@@ -1300,6 +1300,31 @@ class DiziBox : MainAPI() {
         }
     }
 
+    /**
+     * Ana sayfa vitrinleri için **kısa ömürlü** belge önbelleği.
+     *
+     * `mainPageOf` içinde 7 satır aynı `${mainUrl}/` adresini (fragment farklı) hedefliyor.
+     * Önbellek olmadan her satır 1 MB'lık ana sayfayı yeniden indiriyordu — 7 tam istek.
+     * Cloudflare basamağının yapışmaması için ömür kısa (90 sn) ve yalnız başarılı
+     * ayrıştırmalar saklanır.
+     */
+    private val mainPageCache = mutableMapOf<String, Pair<Long, Document>>()
+
+    private suspend fun fetchDiziBoxDocumentCached(url: String): Document {
+        val now = System.currentTimeMillis()
+        mainPageCache[url]?.let { (at, doc) ->
+            if (now - at < MAIN_PAGE_CACHE_MS) return doc
+        }
+
+        val document = fetchDiziBoxDocument(url)
+        // ! `removeIf` API 24+ ister; harita küçük olduğu için elle temizlik yeterli.
+        mainPageCache.entries.filter { now - it.value.first >= MAIN_PAGE_CACHE_MS }
+            .map { it.key }
+            .forEach { mainPageCache.remove(it) }
+        mainPageCache[url] = now to document
+        return document
+    }
+
     private suspend fun fetchDiziBoxDocument(
         url: String,
         referer: String = "$mainUrl/",
@@ -1331,6 +1356,8 @@ class DiziBox : MainAPI() {
         private const val MIRROR_CANDIDATE_TIMEOUT_MS = 8_500L
         private const val EXTRACTOR_TIMEOUT_MS = 14_000L
         private const val SEASON_FETCH_TIMEOUT_MS = 10_000L
+        /** Ana sayfa vitrin önbelleği ömrü (7 satır aynı URL'i kullanıyor). */
+        private const val MAIN_PAGE_CACHE_MS = 90_000L
         private const val AJAX_SEARCH_TIMEOUT_MS = 7_500L
     }
 }

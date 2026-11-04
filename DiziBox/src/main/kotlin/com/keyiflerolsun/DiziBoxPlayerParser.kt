@@ -354,7 +354,8 @@ internal object DiziBoxPlayerParser {
 
         // ! `#recommended-series` ve `#translation-status` blokları `stripChrome()` ile
         // ! silindiği için CARD_SELECTOR hiçbir şey bulamıyor. Bu iki vitrin kendi
-        // ! bağlantı kalıbıyla ayrıştırılır (dump: 40 dizi / 10 bölüm).
+        // ! bağlantı kalıbıyla ayrıştırılır (ölçüm: 40 <a> → 20 tekil dizi,
+        // ! 10 <a> → 5 tekil bölüm). DİKKAT: burada `document` (silinmemiş) kullanılır.
         if (cardElements.isEmpty() && !sectionId.isNullOrBlank()) {
             return parseSimpleSectionLinks(document, pageUrl, sectionId)
         }

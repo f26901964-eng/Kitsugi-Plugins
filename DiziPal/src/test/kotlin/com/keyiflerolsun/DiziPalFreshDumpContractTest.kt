@@ -213,8 +213,9 @@ class DiziPalFreshDumpContractTest {
 
     @Test
     fun homepageCardPatternStillWorksOnHomepage() {
+        // Ölçüm: kalıp 53 eşleşme verir, `distinctBy` sonrası 35 tekil kart kalır.
         val cards = DiziPalParser.parseCards(dump("homepage-2026-11.html"))
-        assertTrue("Ana sayfada 40+ kart", cards.size >= 40)
+        assertEquals("35 tekil kart", 35, cards.size)
         assertTrue("Kartlar /series veya /movies altında", cards.all {
             it.href.startsWith("/series/") || it.href.startsWith("/movies/")
         })
@@ -225,8 +226,9 @@ class DiziPalFreshDumpContractTest {
     fun homepageDomCardsExistForTheAnchorSelector() {
         val html = dump("homepage-2026-11.html")
         val doc = org.jsoup.Jsoup.parse(html)
+        // Ölçüm: ana sayfada 16 a.tc kartı.
         val anchors = doc.select("a.tc")
-        assertTrue("a.tc kartları var", anchors.size >= 10)
+        assertEquals("16 a.tc kartı", 16, anchors.size)
         assertTrue(
             "a.tc kartları series/movies adresli",
             anchors.all { it.attr("href").contains("/series/") || it.attr("href").contains("/movies/") },
