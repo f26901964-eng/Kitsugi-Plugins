@@ -248,17 +248,22 @@ object DiziPalParser {
     // ── Sayfalama (pageHref yoksa) ────────────────────────────────────────────
 
     /**
-     * `pageHref` dizisi artık hiçbir sayfada yok (4 dump'ta 0 eşleşme). Bu yüzden
-     * sayfalama için iki sinyal birden aranır:
-     *  - `?sayfa=N` / `?page=N` bağlantısı,
-     *  - "Sonraki" / "Daha fazla" / `rel="next"` işaretleri.
+     * `pageHref` dizisi artık hiçbir sayfada yok (4 dump'ta 0 eşleşme).
+     *
+     * ! ESKİ SÜRÜM YANLIŞ POZİTİF VERİYORDU: işaret listesinde çıplak "Sonraki" /
+     * ! "Daha fazla" metni vardı. Oysa bu kelimeler **duyuru bandında** geçiyor:
+     * !   "Sonraki adresimiz dizipal1595.com olacaktır"
+     * ! Ölçüm (4 dump): `Sonraki` 2-3 kez var, `sayfa=`/`page=`/`rel="next"` **0**.
+     * ! Sonuç: hasNextPage her sayfada `true` dönüyordu → sonsuz sayfalama.
+     * ! Artık yalnız gerçek sayfalama sinyalleri aranır, metin işaretleri kaldırıldı.
      */
     fun hasNextPage(html: String, nextPage: Int): Boolean {
         if (nextPage < 2) return false
 
+        // * Yalnız yapısal (URL/rel) sinyaller — çıplak metin yok.
         val markers = listOf(
-            "sayfa=$nextPage", "page=$nextPage", "?sayfa=", "&sayfa=",
-            "rel=\"next\"", "rel='next'", "Sonraki", "sonraki", "Daha fazla", "daha fazla",
+            "sayfa=$nextPage", "page=$nextPage", "?sayfa=$nextPage", "&sayfa=$nextPage",
+            "rel=\"next\"", "rel='next'",
         )
         if (markers.any { html.contains(it) }) return true
 

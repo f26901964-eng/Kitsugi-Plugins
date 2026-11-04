@@ -199,9 +199,35 @@ class DiziPalFreshDumpContractTest {
             val html = dump(name)
             // ! Eski sözleşme: artık hiçbir sayfada yok.
             assertTrue("$name içinde pageHref OLMAMALI", DiziPalParser.pageHrefs(html).isEmpty())
-            // ! Yeni yedek yol çökmemeli.
-            DiziPalParser.hasNextPage(html, 2)
+            // ! Yedek yol yalnız yapısal sinyale bakmalı.
+            // ! DUYARI: duyuru bandındaki "Sonraki adresimiz dizipal1595.com"
+            // ! metni eskiden `true` döndürüyordu → sonsuz sayfalama.
+            assertFalse(
+                "$name içinde sayfalama işareti YOK, hasNextPage false olmalı",
+                DiziPalParser.hasNextPage(html, 2),
+            )
         }
+    }
+
+    @Test
+    fun announcementBannerTextIsNotAPaginationSignal() {
+        // ! Gerçek dump'tan alınmış duyuru bandı: "Sonraki adresimiz ..."
+        val banner = """
+            <div class="announce">
+              <span>Dizipal tekrar yenilendi 😎 Artık çok daha hızlı ve tarz.</span>
+              <span>Sonraki adresimiz dizipal1595.com olacaktır · t.ly/dizipalgiris</span>
+              <a href="/">Devam</a>
+            </div>
+        """.trimIndent()
+
+        assertFalse(
+            "duyuru bandı sayfalama sinyali sayılmamalı",
+            DiziPalParser.hasNextPage(banner, 2),
+        )
+        assertTrue(
+            "gerçek ?sayfa=2 bağlantısı hâlâ sinyal olmalı",
+            DiziPalParser.hasNextPage("""<a href="/diziler?sayfa=2">Sonraki</a>""", 2),
+        )
     }
 
     @Test

@@ -336,7 +336,7 @@ WebView gerektiren eklentiyi bu bayrakla tanır (izin/uyarı akışı). `Cloudfl
 
 ---
 
-## 4. AnimeciX — **yapı değişmiş, eklenti tamamen farklı bir API'ye yazılmış** ❌❌
+## 4. AnimeciX — dump yetersiz; 5 somut düzeltme yapıldı, API iddiası geri çekildi ⚠️
 
 ### 4.1 Dump'lar boş Angular kabuğu
 
@@ -363,7 +363,7 @@ WebView gerektiren eklentiyi bu bayrakla tanır (izin/uyarı akışı). `Cloudfl
 Site artık **Angular 18+ SPA** (`<app-root>`, `main-ZZ232L5W.js`, `modulepreload` chunk'ları).
 Sunucu tarafında içerik render edilmiyor; HTML'de **hiçbir veri yok**.
 
-### 4.2 Eklentinin dayandığı sözleşme **kalkmış**
+### 4.2 Eklentinin dayandığı sözleşme — **doğrulanamadı** (kalkmış DEĞİL)
 
 `AnimeciX.kt` şunlara dayanıyor:
 
@@ -393,66 +393,52 @@ https://animecix.tv/titles/11218/shangri-la-frontier/season/1/episode/50
 dış kaynak URL değişikliğini doğruluyor. Bu eklentiyi "düzeltmek" için **yeni API'nin keşfi** gerekir;
 dump'lar bu keşif için **yeterli veri içermiyor** (JS bundle'ları indirilmedi).
 
-### 4.3 `hasQuickSearch = false` — kriter 4'e doğrudan aykırı ❌
+### 4.3 DÜZELTİLDİ — `hasQuickSearch` artık `true` ✅
 
-`SearchViewModel.kt:233` → `(!isQuickSearch || a.hasQuickSearch)`. AnimeciX `false` olduğu için
-**hızlı aramada hiç sorgulanmıyor**. `quickSearch()` metodu var ama kapı kapalı. Tek satır: `true`.
+`SearchViewModel.kt:233` → `(!isQuickSearch || a.hasQuickSearch)`. AnimeciX `false` iken
+**hızlı aramada hiç sorgulanmıyordu**. Bu oturumda `true` yapıldı (`AnimeciX.kt:41`).
 
-### 4.4 `supportedTypes = { Anime }` + `tvType` kayması ⚠️
+### 4.4 DÜZELTİLDİ — film içeriği `newMovieLoadResponse` + `TvType.Movie` ✅
 
-Filmler `newTvSeriesLoadResponse(... TvType.Anime ...)` ile dönüyor (satır ~140). Film içeriği için
-`TvType.Movie` beklenir; `TvType.Anime` + `isMovie` ayrımı UI'da yanlış etiket üretir.
+Eski kod tüm içeriği `newTvSeriesLoadResponse(..., TvType.Anime, ...)` ile döndürüyordu.
+Artık `isMovie` ayrımı yapılıyor ve filmler `AnimeciX.kt:242`'de `newMovieLoadResponse` +
+`TvType.Movie` ile dönüyor.
 
----
+### 4.5 DÜZELTİLDİ — sabit token, canlı tokena çevrildi ✅
 
-## 5. Kullanıcı kriterleri × eklenti durumu (özet tablo)
+Eski: `X_E_H` sabit string. Yeni: `resolveToken()` (`AnimeciX.kt:60`) önce siteden regex ile
+canlı token okur, bulamazsa bilinen değere düşer (`cachedToken`, `@Volatile`).
+`getSecure()` (`:94`) 403 alırsa `refreshToken()` ile bir kez yeniden dener.
 
-| Kriter | DiziBox | DiziPal | AnimeciX |
-|---|---|---|---|
-| **1. Keşfet / ana sayfa** | ✅ 9 satır, 5 vitrin dolu (68 kart) | ⚠️ ilk sayfa dolu, **`pageHref` yok → sayfalama ölü** | ❌ dump boş kabuk; `/secure/*` doğrulanamıyor |
-| **2. Tüm video & kaynak** | ✅ 3 sekme + iframe + zincir; `dbxu` çöpü | ⚠️ 2 kaynak var, **sıralı çekim 240 s** | ❌ API yapısı değişmiş |
-| **3. Altyazı & dublaj** | ❌ bayrak var, **hiç okunmuyor** (dublaj yok) | ⚠️ `dub` ayrıştırılıyor ama yalnız **etiket metninde** | ❌ doğrulanamıyor |
-| **4. Arama** | ⚠️ çalışıyor ama **29/30 kart atılıyor** | ⚠️ 1 sonuç; `film`/`oyuncu` ve `r`/`g` yok | ❌ `hasQuickSearch=false` → hızlı aramada yok |
-| Domain | ✅ `www.dizibox.live` doğru | ❌ **1593 → 1594** | ⚠️ URL şeması değişmiş |
-| WebView | — | ❌ `usesWebView` bildirilmemiş | — |
+### 4.6 DÜZELTİLDİ — sayfalama `hasNext` + paralel sezon ✅
 
----
+- `hasNext` hiç verilmiyordu → Keşfet tek sayfada kalıyordu. Artık
+  `pagination.currentPage < pagination.lastPage` (`AnimeciX.kt:150`).
+- Sezonlar sıralı çekiliyordu (N sezon × N istek gecikmesi) → `async`/`awaitAll` ile paralel
+  (`AnimeciX.kt:202`).
+- Puan alanı hiç doldurulmuyordu → `toScore()` (`:178`) eklendi.
 
-## 6. Düzeltme sırası (etki / emek)
+### 4.7 GERİ ÇEKİLDİ — "eklenti tamamen farklı bir API'ye yazılmış" iddiası kanıtlanamadı ⚠️
 
-| # | Eklenti | Değişiklik | Dosya | Etki |
-|---|---|---|---|---|
-| **1** | DiziPal | `mainUrl` → `dizipal1594.com` + `domainCandidates` (1594→1595→1593) | `DiziPal.kt:41` | 🔴 ölü eklentiyi diriltir |
-| **2** | DiziBox | `parseSearchCards`: bölüm kartlarını da döndür | `DiziBoxPlayerParser.kt:373` | 🔴 arama %97 → %100 |
-| **3** | DiziPal | `loadLinks`: `sources` paralel (`async`+`withTimeoutOrNull(25s)`) | `DiziPal.kt:255` | 🔴 240 s → ~50 s |
-| **4** | DiziPal | `pageHref` yerine gerçek sayfalama sözleşmesi | `DiziPalParser.kt` + `DiziPal.kt:88` | 🟠 Keşfet sayfalama |
-| **5** | DiziBox | altyazı bayrağını oku → `SubtitleFile`/etiket | `DiziBoxPlayerParser.kt` yeni fonksiyon | 🟠 kriter 3 |
-| **6** | DiziPal | `dub` bayrağını `ExtractorLink` adına yapısal yaz | `DiziPal.kt:267` | 🟠 kriter 3 |
-| **7** | DiziPal | `results.dizi/film/oyuncu` ayrıştırıcısı | `DiziPalParser.kt` | 🟠 kriter 4 |
-| **8** | DiziPal | `override val usesWebView = true` | `DiziPal.kt:47` | 🟡 kararlılık |
-| **9** | DiziBox | `dbxu` çerezini kaldır | `DiziBoxWire.kt:21` | 🟡 risk azaltma |
-| **10** | DiziBox | `#recommended-series` vitrini ekle | `DiziBox.kt:43` | 🟡 Keşfet zenginliği |
-| **11** | AnimeciX | `hasQuickSearch = true` | `AnimeciX.kt:27` | 🟡 kriter 4 |
-| **12** | AnimeciX | yeni API keşfi (bundle analizi) — **ayrı iş** | — | 🔴 ama dump yetersiz |
+Önceki teşhis şuydu: *"`/secure/*` uç noktaları kalkmış, eklenti ölü bir API'ye yazılmış."*
 
----
+**Bu iddiayı geri çekiyorum.** Dayanağı yoktu:
 
-## 7. AnimeciX için gereken ek veri (kullanıcıdan istenecek)
+| Kanıt olarak sunulan | Gerçekte gösterdiği |
+|---|---|
+| 4 dump'ta `/secure` = 0 | SPA kabuğunda **hiçbir** API yolu yok (JS bundle indirilmedi) — `/secure`'ün kalktığını **göstermez** |
+| GitHub issue #4290'da `/titles/<id>/<slug>/…` | Yalnızca **sayfa** URL'i; XHR uç noktasını göstermez |
 
-Dump'lar boş kabuk olduğu için AnimeciX **doğrulanamaz**. Gereken:
+Angular SPA'lar tipik olarak `/secure/*` gibi JSON uç noktalarını **arka planda** çağırır ve
+bu yollar HTML'e hiç yazılmaz. Elimizdeki dump'lar (`main-ZZ232L5W.js` indirilmedi) bu soruyu
+**cevaplayamaz**. Kesin cevap için JS bundle'ı veya tarayıcı ağ kaydı (HAR) gerekir.
 
-1. `https://animecix.tv/main-ZZ232L5W.js` (+ `chunk-*.js`) — API uç noktaları ve `x-e-h` üretimi burada.
-2. Tarayıcı **DevTools → Network** kaydı: bir anime bölümü açarken oluşan XHR istekleri
-   (URL + istek başlıkları + yanıt gövdeleri).
-3. `chrome://inspect` / `view-source:` yerine **"Save page as → Webpage, complete"** (JS sonrası DOM
-   için DevTools → Elements → Copy outerHTML).
+Bu yüzden AnimeciX'te **tür (`mainPage`) satırı eklenmedi**: hangi rotanın yaşadığı ölçülmeden
+eklemek, tam olarak bu raporun kaçındığı "varsayıma dayalı düzeltme" olurdu.
 
----
+### 4.8 Açık kalan tek gerçek risk
 
-## 8. Yöntem notu
-
-- Tüm ayrıştırma testlerinde eklentinin **kendi seçici/regex mantığı** Python'a birebir portlandı
-  (aynı `CARD_SELECTOR`, aynı `parseCardElement` sırası, aynı `unescapeRsc`, aynı `jsonArrayAt`).
-- Kripto doğrulaması `hashlib.pbkdf2_hmac('sha512', …, 999, 32)` + `PyCryptodome AES.MODE_CBC` ile.
-- "0 eşleşme" iddiaları için **aynı kalıbın** daha zengin sayfada eşleştiği de gösterildi
-  (örn. `parseCards` ana sayfada 53, aramada 0 → kalıp bozuk değil, **hedef sayfa farklı**).
+`x-e-h` token üretimi istemci JS'inde. `resolveToken()` site ana sayfasında regex arıyor;
+SPA'da bu değer HTML'de bulunmuyor (dump'ta 0 eşleşme) ⇒ **her zaman** bilinen sabit değere
+düşecek. Token sunucuda döndürülürse eklenti 403 alır ve `getSecure()` tek retry ile de kurtaramaz.
+Bu, dump olmadan çözülemez; HAR kaydı gerekiyor.
