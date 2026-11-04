@@ -28,8 +28,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -367,7 +365,14 @@ class DiziPal : MainAPI() {
         // ! Eskiden kaynaklar TEK TEK (sıralı) çekiliyordu: 2 kaynak × 2 istek × 60 sn
         // ! = 240 sn, CloudStream'in 120 sn'lik loadLinks bütçesini aşıyordu. Artık
         // ! paralel; her kaynak kendi zaman kutusunda (SOURCE_TIMEOUT_MS).
-        val gate = Mutex()
+        // ! `Mutex.withLock` SUSPEND'dir; ama CloudStream'in `loadExtractor`'ı suspend
+        // ! olmayan `(SubtitleFile) -> Unit` / `(ExtractorLink) -> Unit` bekliyor.
+        // ! Bu yüzden suspend kilit kullanılamaz (derleme hatası: "Suspension functions
+        // ! can only be called within coroutine body"). Amaç zaten karşılıklı dışlama
+        // ! değil, PARALEL kaynaklardan gelen AYNI linkin iki kez iletilmemesiydi.
+        // ! `newKeySet()` bunu kilitsiz ve atomik yapar.
+        val emittedLinks     = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        val emittedSubtitles = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         val found = java.util.concurrent.atomic.AtomicBoolean(false)
 
         // ! `@Volatile` yerel değişkende derlenmez; bayrak atomik tutuluyor.
@@ -380,7 +385,7 @@ class DiziPal : MainAPI() {
             sources.map { source ->
                 async {
                     try {
-                        fetchOneSource(source, html, migrateUrl(data), gate, subtitleCallback, relay)
+                        fetchOneSource(source, html, migrateUrl(data), subtitleCallback, relay, emittedLinks, emittedSubtitles)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -406,9 +411,10 @@ class DiziPal : MainAPI() {
         source: DiziPalSource,
         rootHtml: String,
         pageUrl: String,
-        gate: Mutex,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit,
+        emittedLinks: MutableSet<String>,
+        emittedSubtitles: MutableSet<String>,
     ) {
         val sourceUrl = source.href?.let { fixUrl(migrateUrl(it)) }
 
@@ -435,15 +441,16 @@ class DiziPal : MainAPI() {
         val isDub       = declaredDub == true || langHint == "dublaj"
 
         // * Altyazı kaynağıysa oynatıcı sayfasından altyazı izlerini ayrıca topla.
+        // ! Kilitsiz dedupe: aynı altyazı/link farklı kaynaklardan gelebiliyor.
         val perSourceSubtitle: (SubtitleFile) -> Unit = { file ->
-            gate.withLock {
-                val lang = if (isDub) "dub" else "sub"
+            val lang = if (isDub) "dub" else "sub"
+            if (emittedSubtitles.add(file.url)) {
                 subtitleCallback(SubtitleFile(file.lang ?: lang, file.url))
             }
         }
 
         val linkRelay: (ExtractorLink) -> Unit = { link ->
-            gate.withLock { callback(link) }
+            if (emittedLinks.add(link.url)) callback(link)
         }
 
         withTimeoutOrNull(SOURCE_TIMEOUT_MS) {
