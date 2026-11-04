@@ -146,7 +146,8 @@ class DiziBoxFreshDumpContractTest {
         assertEquals("The Mentalist", detail.title.trim())
         assertEquals("7 sezon bulunmalı", 7, detail.allSeasonUrls.size)
         assertTrue("IMDb puanı okunmalı", detail.imdbScore?.startsWith("8") == true)
-        assertEquals("2008", detail.year)
+        // ! `SeriesDetail.year` Int? — String ile karşılaştırmak her zaman kırılır.
+        assertEquals("Yayın yılı", 2008, detail.year)
 
         // Aktif sezon (1) sayfada gömülü: 23 bölüm
         assertEquals("Aktif sezon 23 bölüm", 23, detail.activeEpisodes.size)

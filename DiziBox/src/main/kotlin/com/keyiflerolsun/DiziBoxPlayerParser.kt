@@ -835,9 +835,14 @@ internal object DiziBoxPlayerParser {
 
         document.select("img.subtitle-flag, img.language-flag, img[alt='Dil Seçeneği'], " +
             "div.language img, span.subtitle-flag img").forEach { img ->
+            // ! `isUsableImageUrl` POSTER filtresidir: `/altyazi.png` ve `/dublaj.png`
+            // ! adreslerini bilerek reddeder (afiş olarak seçilmesin diye). Rozet
+            // ! ikonları ise TAM OLARAK bu dosyalardır. Burada o filtre kullanılırsa
+            // ! hiçbir rozet bulunamaz (ölçüm: dump'ta 1 img → filtre sonrası 0).
             val src = resolveUrl(
                 listOf(img.attr("data-src"), img.attr("data-lazy-src"), img.attr("src"))
-                    .firstOrNull { isUsableImageUrl(it) } ?: return@forEach,
+                    .firstOrNull { !it.isNullOrBlank() && !it.startsWith("data:", ignoreCase = true) }
+                    ?: return@forEach,
                 pageUrl,
             ) ?: return@forEach
 

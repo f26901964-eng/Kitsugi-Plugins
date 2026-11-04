@@ -431,7 +431,12 @@ class DiziBoxSiteDumpsContractTest {
         assertTrue(cookieLine.contains("__cf_bm=bm_val_1=2"))
         assertTrue(cookieLine.contains("LockUser=true"))
         assertTrue(cookieLine.contains("isTrustedUser=true"))
-        assertTrue(cookieLine.contains("dbxu="))
+// ! `dbxu` UYDURMA bir çerezdi (4 dump'ta 0 eşleşme) ve koddan kaldırıldı.
+        //   Regresyon bekçisi: bir daha eklenmemeli.
+        assertFalse(
+            "uydurma 'dbxu' çerezi geri eklenmemeli",
+            cookieLine.contains("dbxu="),
+        )
 
         val uaHeaders = normalized.headers.values("User-Agent")
         assertEquals("Tel üzerinde yalnızca TEK User-Agent başlığı bulunmalı", 1, uaHeaders.size)
