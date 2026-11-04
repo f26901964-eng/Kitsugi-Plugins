@@ -86,7 +86,7 @@ class AnimeciX : MainAPI() {
     )
 
     /**
-     * `/secure/*` isteği; 403/boş yanıtta token'ı **bir kez** tazeleyip tekrar dener.
+     * `/secure` uç noktalarına istek; 403/boş yanıtta token'ı **bir kez** tazeleyip tekrar dener.
      *
      * ! Token süresi dolduğunda eklenti eskiden tamamen sessizce boş dönüyordu.
      * ! Artık tek bir tazeleme hakkı var; bu, token rotasyonunu kendi kendine atlatır.
