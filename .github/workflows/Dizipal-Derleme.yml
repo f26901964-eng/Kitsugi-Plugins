@@ -4,8 +4,7 @@ name: DiziPal Derleme
 
 on:
   push:
-    branches:
-      - arena/e43f167a-kitsugi-plugins
+    # ! Dal filtresi yok: hangi çalışma dalında DiziPal'a dokunulursa derleme dönsün.
     paths:
       - "DiziPal/**"
       - ".github/workflows/Dizipal-Derleme.yml"
@@ -30,7 +29,22 @@ jobs:
       - name: Derle ve test et
         run: |
           chmod +x gradlew
-          ./gradlew :DiziPal:make :DiziPal:test --stacktrace 2>&1 | tee build.log
+          # ! `pipefail` YOKTU: `| tee` yüzünden Gradle başarısız olsa bile adım
+          # ! "success" görünüyordu (exit code tee'den geliyordu). Maven 409 hatası
+          # ! bu yüzden maskelendi.
+          set +e
+          ./gradlew :DiziPal:make --stacktrace 2>&1 | tee build.log
+          MAKE_RC=${PIPESTATUS[0]}
+          ./gradlew :DiziPal:test --stacktrace 2>&1 | tee -a build.log
+          TEST_RC=${PIPESTATUS[0]}
+          {
+            echo "MAKE_RC=$MAKE_RC"
+            echo "TEST_RC=$TEST_RC"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MAKE_RC" -ne 0 ] || [ "$TEST_RC" -ne 0 ]; then
+            echo "::error::Gradle başarısız (make=$MAKE_RC, test=$TEST_RC)"
+            exit 1
+          fi
       - name: Günlüğü dala it (sandbox artefakt indiremiyor)
         if: always()
         env:

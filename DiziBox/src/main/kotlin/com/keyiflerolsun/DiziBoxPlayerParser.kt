@@ -352,6 +352,14 @@ internal object DiziBoxPlayerParser {
             cleanDoc.select(CARD_SELECTOR)
         }
 
+        // ! `#recommended-series` ve `#translation-status` blokları `stripChrome()` ile
+        // ! silindiği için CARD_SELECTOR hiçbir şey bulamıyor. Bu iki vitrin kendi
+        // ! bağlantı kalıbıyla ayrıştırılır (ölçüm: 40 <a> → 20 tekil dizi,
+        // ! 10 <a> → 5 tekil bölüm). DİKKAT: burada `document` (silinmemiş) kullanılır.
+        if (cardElements.isEmpty() && !sectionId.isNullOrBlank()) {
+            return parseSimpleSectionLinks(document, pageUrl, sectionId)
+        }
+
         val seen = LinkedHashSet<String>()
         val results = mutableListOf<ListingCard>()
 
@@ -365,15 +373,79 @@ internal object DiziBoxPlayerParser {
     }
 
     /**
+     * `#recommended-series` (40 dizi) ve `#translation-status` (10 bölüm) gibi
+     * **kart sınıfı taşımayan** basit bağlantı vitrinlerini ayrıştırır.
+     *
+     * `stripChrome()` bu blokları sildiği için `parseListingCards` içinde
+     * yalnızca "kart bulunamadıysa" yedeği olarak çağrılır.
+     */
+    fun parseSimpleSectionLinks(
+        document: Document,
+        pageUrl: String,
+        sectionId: String,
+    ): List<ListingCard> {
+        val root = when (sectionId) {
+            "popular-episodes" -> document.selectFirst("section:has(h2:contains(Popüler Dizilerden Son Bölümler))")
+            "latest-episodes"  -> document.selectFirst("section:has(h2:contains(Yeni Eklenen Bölümler))")
+            else               -> document.selectFirst("section#$sectionId, div#$sectionId, #$sectionId")
+        } ?: return emptyList()
+
+        val seen = LinkedHashSet<String>()
+        val results = mutableListOf<ListingCard>()
+
+        root.select("a[href]").forEach { anchor ->
+            val url = resolveUrl(anchor.attr("href"), pageUrl) ?: return@forEach
+            if (!seen.add(url)) return@forEach
+
+            val isEpisode = episodeNumbers(url) != null || url.contains("/bolum-")
+            val img = anchor.selectFirst("img")
+
+            // ! Bu iki vitrinde metin DÜĞÜMÜ yok; başlık `img[alt]` içinde
+            //   ("Severance", "Doc 3.Sezon 6.Bölüm"). `span` ilk okunduğunda
+            //   IMDb puanı ("8.7") başlık sanılıyordu.
+            val title = listOf(
+                anchor.attr("title"),
+                img?.attr("alt").orEmpty(),
+                anchor.selectFirst("strong, b, h3, h4, div.post-title")?.text().orEmpty(),
+                anchor.selectFirst("span:not(.imdb)")?.text().orEmpty(),
+                anchor.text(),
+            )
+                .map { it.replace(Regex("""\s+"""), " ").trim() }
+                .firstOrNull { it.isNotBlank() && !Regex("""^\d+(?:[.,]\d+)?$""").matches(it) }
+                ?: return@forEach
+
+            val rawImage = img?.let {
+                listOf(it.attr("data-src"), it.attr("data-lazy-src"), it.attr("src"))
+                    .firstOrNull { isUsableImageUrl(it) }
+            }?.let { resolveUrl(it, pageUrl) }
+
+            results += ListingCard(
+                title     = title,
+                url       = url,
+                posterUrl = rawImage?.let { if (isEpisode) it else upscaleThumbnail(it) },
+                isEpisode = isEpisode,
+            )
+        }
+
+        return results
+    }
+
+    /**
      * HTML arama sayfaları (`/search/<q>/`, `/?s=<q>`) üstte eşleşen dizileri
      * (`article.detailed-article`), altta ise `Dizi Bölümleri` başlığı altında tekil
-     * bölümleri (`article.article-episode-card`) listeler. Dizi eşleşmesi varsa
-     * yalnızca dizi kartları döndürülür; yalnızca dizi yoksa bölüm kartlarına düşülür.
+     * bölümleri (`article.article-episode-card`) listeler.
+     *
+     * ! ÖNEMLİ (2026-11-04 ölçümü): eskiden "dizi eşleşmesi varsa bölüm kartları
+     * ! TAMAMEN atılıyordu". `?s=the mentalist` sayfasında 1 dizi + 29 bölüm var;
+     * ! bu filtre yüzünden kullanıcı 30 sonucun yalnızca 1'ini görüyordu.
+     * ! Artık dizi kartları önce gelir, bölüm kartları da aynı listede döner.
      */
     fun parseSearchCards(document: Document, pageUrl: String): List<ListingCard> {
         val allCards = parseListingCards(document, pageUrl)
         val seriesCards = allCards.filterNot { it.isEpisode }
-        return if (seriesCards.isNotEmpty()) seriesCards else allCards
+        val episodeCards = allCards.filter { it.isEpisode }
+
+        return (seriesCards + episodeCards).distinctBy { it.url }
     }
 
     /** Sayfalama bağlantılarında `currentPage + 1` sayfasının varlığını denetler. */
@@ -747,6 +819,62 @@ internal object DiziBoxPlayerParser {
 
         return tabs.values.toList()
     }
+
+    /**
+     * Bölümün dil seçenekleri — altyazı / dublaj bayrakları.
+     *
+     * ! 2026-11-04 ölçümü: DiziBox bölüm sayfası bunu **yalnızca bir görselle**
+     * ! bildiriyor ve eklenti bunu HIÇ okumuyordu:
+     * !   `<img src='…/altyazi.png' alt='Dil Seçeneği' class='subtitle-flag noselect'>`
+     * ! Liste kartlarında da aynı bayrak (`language-flag`) bölüm bazında tekrar ediyor.
+     * ! DiziBox dublaj yayınlamıyor (4 dump'ta `dublaj.png` = 0); yine de bayrak
+     * ! görülürse "Dublaj" olarak raporlanır.
+     */
+    fun languageBadges(document: Document, pageUrl: String): List<LanguageBadge> {
+        val found = LinkedHashMap<String, LanguageBadge>()
+
+        document.select("img.subtitle-flag, img.language-flag, img[alt='Dil Seçeneği'], " +
+            "div.language img, span.subtitle-flag img").forEach { img ->
+            // ! `isUsableImageUrl` POSTER filtresidir: `/altyazi.png` ve `/dublaj.png`
+            // ! adreslerini bilerek reddeder (afiş olarak seçilmesin diye). Rozet
+            // ! ikonları ise TAM OLARAK bu dosyalardır. Burada o filtre kullanılırsa
+            // ! hiçbir rozet bulunamaz (ölçüm: dump'ta 1 img → filtre sonrası 0).
+            val src = resolveUrl(
+                listOf(img.attr("data-src"), img.attr("data-lazy-src"), img.attr("src"))
+                    .firstOrNull { !it.isNullOrBlank() && !it.startsWith("data:", ignoreCase = true) }
+                    ?: return@forEach,
+                pageUrl,
+            ) ?: return@forEach
+
+            val lower = src.lowercase(Locale.ROOT)
+            val label = when {
+                lower.contains("dublaj")                     -> "Türkçe Dublaj"
+                lower.contains("altyazi") || lower.contains("altyazı") -> "Türkçe Altyazı"
+                else                                         -> img.attr("alt").trim().ifBlank { null }
+            } ?: return@forEach
+
+            found.putIfAbsent(label, LanguageBadge(label = label, iconUrl = src))
+        }
+
+        // * Alternatif işaret: sayfada düz metin olarak geçen dil rozetleri.
+        val bodyText = document.selectFirst("#video-area, div.tv-overview, article")?.text().orEmpty()
+        if (found.isEmpty()) {
+            if (Regex("""(?i)\bdublaj\b""").containsMatchIn(bodyText)) {
+                found["Türkçe Dublaj"] = LanguageBadge("Türkçe Dublaj", null)
+            }
+            if (Regex("""(?i)\baltyaz[ıi]\b""").containsMatchIn(bodyText)) {
+                found["Türkçe Altyazı"] = LanguageBadge("Türkçe Altyazı", null)
+            }
+        }
+
+        return found.values.toList()
+    }
+
+    /** Bölümün dil seçeneği (altyazı/dublaj) rozeti. */
+    data class LanguageBadge(
+        val label: String,
+        val iconUrl: String? = null,
+    )
 
     /** `#video-area` içindeki `<!--baslik:DBX Pro-->` veya seçili option etiketini okur. */
     fun activePlayerLabel(document: Document): String? {

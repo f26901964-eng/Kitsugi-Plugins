@@ -232,7 +232,7 @@ class DiziBoxSiteDumpsContractTest {
     }
 
     @Test
-    fun searchPagePrioritizesSeriesCardsOverEpisodeMatches() {
+    fun searchPageReturnsSeriesFirstThenEpisodeMatches() {
         val searchUrl = "https://www.dizibox.live/search/visionquest/"
         val html = """
             <main>
@@ -250,8 +250,13 @@ class DiziBoxSiteDumpsContractTest {
             </main>
         """.trimIndent()
         val cards = DiziBoxPlayerParser.parseSearchCards(Jsoup.parse(html, searchUrl), searchUrl)
-        assertEquals(1, cards.size)
+        // ! 2026-11-04: bölüm kartları artık ATILMIYOR (gerçek aramada 30 kartın 29'u
+        // ! kayboluyordu). Sıra korunur: dizi kartı önce, bölüm kartları sonra.
+        assertEquals(2, cards.size)
         assertEquals("https://www.dizibox.live/diziler/visionquest/", cards[0].url)
+        assertFalse("Dizi kartı bölüm sayılmamalı", cards[0].isEpisode)
+        assertEquals("https://www.dizibox.live/visionquest-1-sezon-1-bolum-izle/", cards[1].url)
+        assertTrue("Bölüm kartı bölüm sayılmalı", cards[1].isEpisode)
     }
 
     @Test
@@ -426,7 +431,12 @@ class DiziBoxSiteDumpsContractTest {
         assertTrue(cookieLine.contains("__cf_bm=bm_val_1=2"))
         assertTrue(cookieLine.contains("LockUser=true"))
         assertTrue(cookieLine.contains("isTrustedUser=true"))
-        assertTrue(cookieLine.contains("dbxu="))
+// ! `dbxu` UYDURMA bir çerezdi (4 dump'ta 0 eşleşme) ve koddan kaldırıldı.
+        //   Regresyon bekçisi: bir daha eklenmemeli.
+        assertFalse(
+            "uydurma 'dbxu' çerezi geri eklenmemeli",
+            cookieLine.contains("dbxu="),
+        )
 
         val uaHeaders = normalized.headers.values("User-Agent")
         assertEquals("Tel üzerinde yalnızca TEK User-Agent başlığı bulunmalı", 1, uaHeaders.size)

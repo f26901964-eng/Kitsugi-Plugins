@@ -30,6 +30,9 @@ data class AnimeSearch(
     @JsonProperty("title_type") val titleType: String,
     @JsonProperty("name") val title: String,
     @JsonProperty("poster") val poster: String?,
+    // ! Kart üzerinde puan bilgisi de geliyor; önceden hiç okunmuyordu.
+    @JsonProperty("mal_vote_average") val rating: String? = null,
+    @JsonProperty("tmdb_vote_average") val tmdbVoteAverage: Double? = null,
 )
 
 data class Anime(
@@ -70,8 +73,8 @@ data class Credit(
 )
 
 data class Video(
-    @JsonProperty("episode_num") val episodeNum: Int?,
-    @JsonProperty("season_num") val seasonNum: Int?,
+    @JsonProperty("episode_num") val episodeNum: Int? = null,
+    @JsonProperty("season_num") val seasonNum: Int? = null,
     @JsonProperty("url") val url: String,
 )
 

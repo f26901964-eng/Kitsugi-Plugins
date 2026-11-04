@@ -32,9 +32,40 @@ jobs:
         env:
           LIVE_PROBE: "1"
         run: |
-          set -o pipefail
           chmod +x gradlew
-          ./gradlew :DiziBox:make :DiziBox:test --stacktrace 2>&1 | tee build.log
+          # ! Adımlar ayrı ayrı ölçülür: hangi Gradle task'ının kırıldığı
+          #    tek bakışta görünsün (tek satırda birleşince ayırt edilemiyordu).
+          set +e
+          ./gradlew :DiziBox:make --stacktrace 2>&1 | tee build.log
+          MAKE_RC=${PIPESTATUS[0]}
+          ./gradlew :DiziBox:test --stacktrace 2>&1 | tee -a build.log
+          TEST_RC=${PIPESTATUS[0]}
+          echo "MAKE_RC=$MAKE_RC TEST_RC=$TEST_RC"
+          {
+            echo "MAKE_RC=$MAKE_RC"
+            echo "TEST_RC=$TEST_RC"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$TEST_RC" -ne 0 ]; then
+            # ! Artefakt (zip/blob) bu ortamdan indirilemiyor; başarısız testleri
+            #   hem özet hem ::error:: annotasyonu olarak yayınla — annotasyon
+            #   GitHub API'sinden okunabiliyor.
+            echo "## Başarısız testler" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "FAILED|AssertionError|expected:|Caused by|Exception" build.log | head -60 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+            FAILED_LIST=$(grep -oE "[A-Za-z]+Test > [^ ]+ FAILED" build.log | head -12 || true)
+            if [ -z "$FAILED_LIST" ]; then
+              FAILED_LIST=$(grep -E "AssertionError|expected:" build.log | head -6 || true)
+            fi
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done <<< "$FAILED_LIST"
+          fi
+          if [ "$MAKE_RC" -ne 0 ] || [ "$TEST_RC" -ne 0 ]; then
+            echo "::error::Gradle başarısız (make=$MAKE_RC, test=$TEST_RC)"
+            exit 1
+          fi
       - name: DiziBox eklentisini sakla
         if: success()
         uses: actions/upload-artifact@v4

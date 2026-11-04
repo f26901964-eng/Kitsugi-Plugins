@@ -46,6 +46,11 @@ class DiziBox : MainAPI() {
         "${mainUrl}/#popular-episodes" to "Popüler Dizilerden Son Bölümler",
         "${mainUrl}/#latest-episodes" to "Yeni Eklenen Bölümler",
         "${mainUrl}/#best-series" to "Efsane Diziler",
+        // ! 2026-11 dump'ında 40 dizi içeren gerçek vitrin; `CHROME_SELECTOR` ile
+        //   silindiği için hiç görünmüyordu.
+        "${mainUrl}/#recommended-series" to "Önerilen Diziler",
+        // ! Çeviri Durumu bloğu: 10 bölümün altyazı çeviri durumu (dil verisi).
+        "${mainUrl}/#translation-status" to "Çeviri Durumu",
         "${mainUrl}/tum-bolumler/page/SAYFA/" to "Tüm Bölümler",
         "${mainUrl}/tum-bolumler/page/SAYFA/?tip=populer" to "Popüler Bölümler",
         "${mainUrl}/efsane-diziler/page/SAYFA/" to "Efsane Diziler Arşivi",
@@ -75,7 +80,7 @@ class DiziBox : MainAPI() {
 
         val url = DiziBoxPlayerParser.buildMainPageUrl(request.data, apiPage)
         // ! Önbellek yok: olası 403 Cloudflare basamağı 60 dk yapışmasın (`AddonExploreCache` zaten başarılı vitrini tutar).
-        val document = fetchDiziBoxDocument(url)
+        val document = fetchDiziBoxDocumentCached(url)
 
         val cards = DiziBoxPlayerParser.parseListingCards(document, url, sectionId)
             .map { it.toSearchResult() }
@@ -368,6 +373,14 @@ class DiziBox : MainAPI() {
             data to initialDoc
         }
 
+        // ! Bölümün altyazı/dublaj rozeti artık okunuyor (önceden hiç bakılmıyordu).
+        //   DiziBox altyazılı yabancı dizi arşivi: bayrak varsa "altyazılı" bilgisi
+        //   kaynak adına yazılır ve oynatıcıdan gelen altyazı izleri "tr" olarak etiketlenir.
+        val badges  = DiziBoxPlayerParser.languageBadges(mainDoc, episodeUrl)
+        val subTag  = badges.firstOrNull { it.label.contains("Altyazı", true) }?.label
+        val dubTag  = badges.firstOrNull { it.label.contains("Dublaj", true) }?.label
+        if (badges.isNotEmpty()) Log.d(TAG, "dil rozetleri: ${badges.joinToString { it.label }}")
+
         val tabs = DiziBoxPlayerParser.playerTabs(mainDoc, episodeUrl).take(10)
         val collector = LinkCollector(subtitleCallback, callback)
         val tabSemaphore = Semaphore(4)
@@ -377,7 +390,7 @@ class DiziBox : MainAPI() {
                 async {
                     tabSemaphore.withPermit {
                         withTimeoutOrNull(TAB_TIMEOUT_MS) {
-                            processPlayerTab(tab, episodeUrl, mainDoc, collector)
+                            processPlayerTab(tab, episodeUrl, mainDoc, collector, subTag, dubTag)
                         }
                     }
                 }
@@ -393,6 +406,8 @@ class DiziBox : MainAPI() {
         rootEpisodeUrl: String,
         rootDocument: Document,
         collector: LinkCollector,
+        subTag: String? = null,
+        dubTag: String? = null,
     ) {
         val pageDocument = if (tab.url == rootEpisodeUrl) {
             rootDocument
@@ -425,7 +440,14 @@ class DiziBox : MainAPI() {
                 resolvePlayerChain(
                     rawUrl    = candidateUrl,
                     referer   = tab.url,
-                    tabLabel  = tab.label,
+                    // ! Dil rozeti varsa kaynak adı onu taşısın: "DBX Pro · Altyazılı"
+                    tabLabel  = buildString {
+                        append(tab.label)
+                        when {
+                            dubTag != null -> append(" · ").append(dubTag)
+                            subTag != null -> append(" · ").append(subTag)
+                        }
+                    },
                     collector = collector,
                     visited   = visited,
                     depth     = 0,
@@ -1278,6 +1300,31 @@ class DiziBox : MainAPI() {
         }
     }
 
+    /**
+     * Ana sayfa vitrinleri için **kısa ömürlü** belge önbelleği.
+     *
+     * `mainPageOf` içinde 7 satır aynı `${mainUrl}/` adresini (fragment farklı) hedefliyor.
+     * Önbellek olmadan her satır 1 MB'lık ana sayfayı yeniden indiriyordu — 7 tam istek.
+     * Cloudflare basamağının yapışmaması için ömür kısa (90 sn) ve yalnız başarılı
+     * ayrıştırmalar saklanır.
+     */
+    private val mainPageCache = mutableMapOf<String, Pair<Long, Document>>()
+
+    private suspend fun fetchDiziBoxDocumentCached(url: String): Document {
+        val now = System.currentTimeMillis()
+        mainPageCache[url]?.let { (at, doc) ->
+            if (now - at < MAIN_PAGE_CACHE_MS) return doc
+        }
+
+        val document = fetchDiziBoxDocument(url)
+        // ! `removeIf` API 24+ ister; harita küçük olduğu için elle temizlik yeterli.
+        mainPageCache.entries.filter { now - it.value.first >= MAIN_PAGE_CACHE_MS }
+            .map { it.key }
+            .forEach { mainPageCache.remove(it) }
+        mainPageCache[url] = now to document
+        return document
+    }
+
     private suspend fun fetchDiziBoxDocument(
         url: String,
         referer: String = "$mainUrl/",
@@ -1309,6 +1356,8 @@ class DiziBox : MainAPI() {
         private const val MIRROR_CANDIDATE_TIMEOUT_MS = 8_500L
         private const val EXTRACTOR_TIMEOUT_MS = 14_000L
         private const val SEASON_FETCH_TIMEOUT_MS = 10_000L
+        /** Ana sayfa vitrin önbelleği ömrü (7 satır aynı URL'i kullanıyor). */
+        private const val MAIN_PAGE_CACHE_MS = 90_000L
         private const val AJAX_SEARCH_TIMEOUT_MS = 7_500L
     }
 }

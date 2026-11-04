@@ -23,6 +23,7 @@ data class DiziPalPlayer(
     val iv: String?,
     val salt: String?,
     val key: String?,
+    val dub: Boolean? = null,
 )
 
 data class DiziPalCard(
@@ -32,6 +33,14 @@ data class DiziPalCard(
     val year: Int?,
     val meta: String?,
     val isMovie: Boolean,
+    /** `results.*` ayrıştırıcısında dizi mi film mi oyuncu mu olduğu. */
+    val kind: String? = null,
+    /** IMDb benzeri puan (`r` alanı). */
+    val score: String? = null,
+    /** Tür etiketi (`g` alanı). */
+    val genre: String? = null,
+    /** "Dizi · 2008 · Suç" gibi hazır alt başlık (`sub` alanı). */
+    val subtitle: String? = null,
 )
 
 data class DiziPalEpisodeRef(

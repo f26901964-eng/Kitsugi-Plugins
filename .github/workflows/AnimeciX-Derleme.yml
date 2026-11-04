@@ -1,0 +1,71 @@
+name: AnimeciX Derleme
+
+# ! AnimeciX eklentisi bu oturuma kadar HİÇ derlenmemişti; "kod doğru" iddiası
+# ! yalnız statik okumaya dayanıyordu. Bu workflow sadece derler ve birim
+# ! testlerini koşar — siteye canlı istek atmaz (SPA dökümleri boş olduğu için
+# ! canlı prob zaten anlamsız).
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "AnimeciX/**"
+      - ".github/workflows/AnimeciX-Derleme.yml"
+  pull_request:
+    paths:
+      - "AnimeciX/**"
+  workflow_dispatch:
+
+jobs:
+  derle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: JDK 17
+        uses: actions/setup-java@v4.6.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Android SDK lisansları
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: Derle ve test et
+        run: |
+          chmod +x gradlew
+          # ! `| tee` + pipefail yok = Gradle kırılsa bile adım YEŞİL görünür.
+          #   DiziPal'de Maven 409 hatası tam olarak böyle maskelendi.
+          set +e
+          ./gradlew :AnimeciX:compileDebugKotlin --stacktrace 2>&1 | tee build.log
+          COMPILE_RC=${PIPESTATUS[0]}
+          ./gradlew :AnimeciX:make --stacktrace 2>&1 | tee -a build.log
+          MAKE_RC=${PIPESTATUS[0]}
+          ./gradlew :AnimeciX:test --stacktrace 2>&1 | tee -a build.log
+          TEST_RC=${PIPESTATUS[0]}
+
+          {
+            echo "COMPILE_RC=$COMPILE_RC"
+            echo "MAKE_RC=$MAKE_RC"
+            echo "TEST_RC=$TEST_RC"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$COMPILE_RC" -ne 0 ] || [ "$MAKE_RC" -ne 0 ] || [ "$TEST_RC" -ne 0 ]; then
+            # ! Artefakt indirilemiyor; hataları annotasyon olarak yayınla.
+            grep -E "^e: |FAILED|AssertionError|expected:|Caused by" build.log | head -40 \
+              | while IFS= read -r line; do echo "::error::$line"; done
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "^e: |FAILED|AssertionError|expected:" build.log | head -60 \
+              >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: AnimeciX eklentisini sakla
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnimeciX-cs3
+          path: AnimeciX/build/AnimeciX.cs3
+          if-no-files-found: warn

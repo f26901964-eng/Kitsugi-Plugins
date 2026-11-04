@@ -8,9 +8,21 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 
 // AnimeciX /secure/* uç noktalarının istediği şifreli başlık (site istemcisinden).
+// ! Son bilinen token. Canlı token alınamazsa yedek olarak kullanılır; asla tek başına
+// ! güvenilmez. `resolveToken()` her oturumda önce sayfadan okumayı dener.
 private const val X_E_H = "7Y2ozlO+QysR5w9Q6Tupmtvl9jJp7ThFH8SB+Lo7NvZjgjqRSqOgcT2v4ISM9sP10LmnlYI8WQ==.xrlyOBFS5BHjQ2Lk"
+
+/** Canlı token okuması için üst sınır; ana sayfa yavaşsa eklentiyi bekletmesin. */
+private const val TOKEN_TIMEOUT_MS = 8_000L
+
+/** Tek sezonun bölüm listesi için üst sınır (paralel çalıştığı için toplam büyümez). */
+private const val SEASON_TIMEOUT_MS = 15_000L
 
 // Sayfa gövdesinde bulunabilecek düz oynatma adresleri (m3u8 / mp4).
 private val STREAM_URL_REGEX = Regex("""(?i)https?://[^\s"'<>]+?(?:\.m3u8|\.mp4)(?:\?[^\s"'<>]*)?""")
@@ -23,7 +35,10 @@ class AnimeciX : MainAPI() {
     override var name                 = "AnimeciX"
     override val hasMainPage          = true
     override var lang                 = "tr"
-    override val hasQuickSearch       = false
+    // ! `SearchViewModel` hızlı aramada `hasQuickSearch=false` olan eklentileri
+    // ! TAMAMEN atlıyor (SearchViewModel.kt:233). `quickSearch()` zaten vardı ama
+    // ! kapı kapalı olduğu için AnimeciX arama ekranında hiç görünmüyordu.
+    override val hasQuickSearch       = true
     override val supportedTypes       = setOf(TvType.Anime)
 
     override var sequentialMainPage = true        // * https://recloudstream.github.io/dokka/-cloudstream/com.lagradost.cloudstream3/-main-a-p-i/index.html#-2049735995%2FProperties%2F101969414
@@ -37,11 +52,53 @@ class AnimeciX : MainAPI() {
     )
 
     // /secure/* uç noktaları "x-e-h" başlığı olmadan 403/boş dönüyor.
-    // Başlık tek yerde tutulur; arama, ana sayfa ve içerik istekleri aynı şeyi gönderir.
-    private fun secureHeaders() = mapOf(
-        "x-e-h"   to X_E_H,
-        "Referer" to "${mainUrl}/"
+    // ! Token SABİT DEĞİL: site onu ana sayfa/JS yükü içinde üretiyor ve döndürüyor.
+    // ! Burada sabit tutulduğu sürece token eskidiği anda eklenti tamamen ölüyordu.
+    // ! Önce canlı token denenir, bulunamazsa bilinen son değer kullanılır.
+    @Volatile private var cachedToken: String? = null
+
+    private suspend fun resolveToken(): String {
+        cachedToken?.let { return it }
+
+        val fromSite = runCatching {
+            withTimeoutOrNull(TOKEN_TIMEOUT_MS) {
+                val html = app.get(mainUrl, headers = mapOf("Referer" to "$mainUrl/")).text
+                Regex("""['"]x-e-h['"]\s*:\s*['"]([^'"]+)['"]""").find(html)?.groupValues?.get(1)
+            }
+        }.getOrNull()
+
+        val token = fromSite?.takeIf { it.isNotBlank() } ?: X_E_H
+        if (!fromSite.isNullOrBlank()) Log.d("ACX", "x-e-h canlı token alındı")
+        else Log.w("ACX", "x-e-h canlı token bulunamadı, bilinen değer kullanılıyor")
+        cachedToken = token
+        return token
+    }
+
+    /** Token'ı bir kez tazeler (403 alındığında çağrılır). */
+    private suspend fun refreshToken(): String {
+        cachedToken = null
+        return resolveToken()
+    }
+
+    private suspend fun secureHeaders(): Map<String, String> = mapOf(
+        "x-e-h"   to resolveToken(),
+        "Referer" to "$mainUrl/"
     )
+
+    /**
+     * `/secure` uç noktalarına istek; 403/boş yanıtta token'ı **bir kez** tazeleyip tekrar dener.
+     *
+     * ! Token süresi dolduğunda eklenti eskiden tamamen sessizce boş dönüyordu.
+     * ! Artık tek bir tazeleme hakkı var; bu, token rotasyonunu kendi kendine atlatır.
+     */
+    private suspend fun getSecure(url: String): String {
+        val first = app.get(url, headers = secureHeaders())
+        if (first.code != 403 && first.text.isNotBlank()) return first.text
+
+        Log.w("ACX", "secure istek başarısız (${first.code}), token tazeleniyor: $url")
+        val retry = app.get(url, headers = secureHeaders().plus("x-e-h" to refreshToken()))
+        return retry.text
+    }
 
     // data hem göreli (/secure/videos/...) hem de mutlak (https://animecix.tv/...)
     // gelebilir. Eski sürümler "$mainUrl/$data" ile birleştirdiği için mutlak
@@ -85,10 +142,13 @@ class AnimeciX : MainAPI() {
                     TvType.Anime
                 ) {
                     this.posterUrl = fixUrlNull(anime.poster)
+                    this.score     = anime.toScore()
                 }
             } ?: listOf()
-    
-            newHomePageResponse(request.name, home)
+
+            // ! Sayfalama verisi vardı ama `hasNext` hiç verilmiyordu → Keşfet tek sayfada kalıyordu.
+            val hasNext = response?.pagination?.let { it.currentPage < it.lastPage } ?: false
+            newHomePageResponse(request.name, home, hasNext = hasNext)
         }
     }
 
@@ -96,10 +156,11 @@ class AnimeciX : MainAPI() {
         // ! ÖNEMLİ: /secure/* uç noktaları "x-e-h" başlığı olmadan 403/boş dönüyor.
         // ! getMainPage ve load bu başlığı gönderiyordu, arama göndermiyordu —
         // ! bu yüzden eklenti arama sonuçlarında hep boş dönüyordu.
-        val response = app.get(
-            "${mainUrl}/secure/search/${query}?limit=20",
-            headers = secureHeaders()
-        ).parsedSafe<Search>() ?: return listOf()
+        // ! Sorgu URL'e gömülüyor; boşluk/özel karakter kaçırılmazsa 404 dönüyordu.
+        val encoded = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+        val response = runCatching {
+            mapper.readValue(getSecure("${mainUrl}/secure/search/$encoded?limit=30"), Search::class.java)
+        }.getOrNull() ?: return listOf()
 
         return response.results.map { anime ->
             newAnimeSearchResponse(
@@ -108,8 +169,18 @@ class AnimeciX : MainAPI() {
                 TvType.Anime
             ) {
                 this.posterUrl = fixUrlNull(anime.poster)
+                this.score     = anime.toScore()
             }
         }
+    }
+
+    /** MAL/TMDB puanını CloudStream `Score`'una çevirir; geçersizse null. */
+    private fun AnimeSearch.toScore(): Score? {
+        val mal = rating?.replace(',', '.')?.toDoubleOrNull()
+        if (mal != null && mal > 0) return Score.from10(mal)
+        val tmdb = tmdbVoteAverage
+        if (tmdb != null && tmdb > 0) return Score.from10(tmdb)
+        return null
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
@@ -123,21 +194,33 @@ class AnimeciX : MainAPI() {
         val titleId  = url.substringAfter("?titleId=")
 
         if (response.title.titleType == "anime") {
-            for (sezon in response.title.seasons) {
-                // Bölüm listesi de /secure/* altında; başlık gönderilmezse boş dönebiliyor.
-                // Tek sezonun hatası tüm bölüm listesini düşürmesin.
-                val sezonResponse = app.get(
-                    "${mainUrl}/secure/related-videos?episode=1&season=${sezon.number}&videoId=0&titleId=${titleId}",
-                    headers = secureHeaders()
-                ).parsedSafe<TitleVideos>() ?: continue
-                for (video in sezonResponse.videos) {
+            // ! Sezonlar SIRALI çekiliyordu: 4 sezon × ~3 sn = 12 sn+ ve tek sezonun
+            // ! yavaşlığı tüm bölüm listesini geciktiriyordu. Artık paralel.
+            val headers = secureHeaders()
+            val seasonLists = coroutineScope {
+                response.title.seasons.map { sezon ->
+                    async {
+                        runCatching {
+                            withTimeoutOrNull(SEASON_TIMEOUT_MS) {
+                                app.get(
+                                    "${mainUrl}/secure/related-videos?episode=1&season=${sezon.number}&videoId=0&titleId=${titleId}",
+                                    headers = headers,
+                                ).parsedSafe<TitleVideos>()?.videos.orEmpty()
+                            }.orEmpty()
+                        }.getOrDefault(emptyList())
+                    }
+                }.awaitAll()
+            }
+
+            seasonLists.flatten()
+                .sortedWith(compareBy({ it.seasonNum }, { it.episodeNum }))
+                .forEach { video ->
                     episodes.add(newEpisode(video.url) {
-                        this.name = "${video.seasonNum}. Sezon ${video.episodeNum}. Bölüm"
-                        this.season = video.seasonNum
+                        this.name    = "${video.seasonNum}. Sezon ${video.episodeNum}. Bölüm"
+                        this.season  = video.seasonNum
                         this.episode = video.episodeNum
                     })
                 }
-            }
         } else {
             if (response.title.videos.isNotEmpty()) {
                 episodes.add(newEpisode(response.title.videos.first().url) {
@@ -149,9 +232,31 @@ class AnimeciX : MainAPI() {
         }
 
 
+        val canonicalUrl = "${mainUrl}/secure/titles/${response.title.id}?titleId=${response.title.id}"
+        val titleType    = response.title.titleType?.lowercase()
+
+        // ! Filmler de `TvType.Anime` + dizi yanıtıyla dönüyordu; Kitsugi bunları dizi
+        // ! olarak etiketliyordu. `movie` tipi ayrı ele alınır.
+        if (titleType == "movie" || (titleType == null && response.title.seasons.isEmpty())) {
+            val videoUrl = response.title.videos.firstOrNull()?.url ?: url
+            return newMovieLoadResponse(
+                response.title.title,
+                canonicalUrl,
+                TvType.Movie,
+                videoUrl,
+            ) {
+                this.posterUrl = fixUrlNull(response.title.poster)
+                this.year      = response.title.year
+                this.plot      = response.title.description
+                this.tags      = response.title.tags.map { it.name }
+                addActors(response.title.actors.map { Actor(it.name, fixUrlNull(it.poster)) })
+                addTrailer(response.title.trailer)
+            }
+        }
+
         return newTvSeriesLoadResponse(
             response.title.title,
-            "${mainUrl}/secure/titles/${response.title.id}?titleId=${response.title.id}",
+            canonicalUrl,
             TvType.Anime,
             episodes
         ) {

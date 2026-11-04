@@ -24,6 +24,11 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.jsoup.Jsoup
@@ -33,12 +38,28 @@ import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
 class DiziPal : MainAPI() {
-    override var mainUrl              = "https://dizipal1593.com"
+    // ! Site adresi SÜRÜM NUMARALI ve sürekli değişiyor. 2026-11-04 dump'ında
+    // ! canonical = dizipal1594.com ve sitede "Sonraki adresimiz dizipal1595.com"
+    // ! duyurusu var. Tek adrese sabitlenince sürüm atladığı anda eklenti tamamen ölüyordu.
+    override var mainUrl              = "https://dizipal1594.com"
     override var name                 = "DiziPal"
     override val hasMainPage          = true
     override var lang                 = "tr"
     override val hasQuickSearch       = true
     override val supportedTypes       = setOf(TvType.TvSeries, TvType.Movie)
+
+    // ! CloudflareKiller WebView kullanıyor; CloudStream'in izin/uyarı akışı için bildirilmeli.
+    override val usesWebView          = true
+
+    /** Sürüm atlamalarına karşı aday listesi (yüksekten alçağa + sabit alan adları). */
+    private val domainCandidates = listOf(
+        "https://dizipal1595.com",
+        "https://dizipal1594.com",
+        "https://dizipal1596.com",
+        "https://dizipal1593.com",
+        "https://dizipal.com",
+    )
+    @Volatile private var domainResolved = false
 
     // ! Cloudflare: site zaman zaman "Just a moment" basamağı gösteriyor.
     private val cloudflareKiller by lazy { CloudflareKiller() }
@@ -76,7 +97,64 @@ class DiziPal : MainAPI() {
 
     private val pageHrefCache = mutableMapOf<String, List<String>>()
 
+    /**
+     * Sürüm numaralı alan adı listesini dolaşıp ayakta olanı `mainUrl`'e sabitler.
+     *
+     * Ölçüm (2026-11-04): dump'taki canonical `dizipal1594.com`; sitede
+     * "Sonraki adresimiz dizipal1595.com" duyurusu var. Sabit tek adres, sürüm
+     * atladığı anda eklentiyi tamamen öldürüyordu.
+     */
+    private suspend fun resolveDomain() {
+        if (domainResolved) return
+
+        for (candidate in domainCandidates) {
+            try {
+                // ! 5 aday × uzun timeout = Keşfet bütçesini yiyor; 8 sn yeterli.
+                val res = app.get(candidate, headers = getHeaders("$candidate/"), timeout = 8_000L)
+                if (!res.isSuccessful) continue
+
+                // Yönlendirme olmuşsa gerçek kaynağı kullan.
+                val pinned = runCatching {
+                    val uri = java.net.URI(res.url.toString())
+                    val scheme = uri.scheme ?: "https"
+                    "$scheme://${uri.host}"
+                }.getOrNull() ?: candidate
+
+                if (!looksLikeDizipal(res.text)) continue
+
+                mainUrl        = pinned.trimEnd('/')
+                domainResolved = true
+                Log.d("DZP", "domain sabitlendi: $mainUrl")
+                return
+            } catch (e: Exception) {
+                Log.d("DZP", "domain adayı olmadı: $candidate (${e.message})")
+            }
+        }
+
+        Log.w("DZP", "hiçbir domain ayakta değil, varsayılan kaldı: $mainUrl")
+    }
+
+    /** Dönen gövdenin gerçekten Dizipal olduğunu doğrular (park/askıya alma sayfalarını eler). */
+    private fun looksLikeDizipal(body: String): Boolean {
+        if (body.isBlank()) return false
+        val lower = body.lowercase()
+        val dead = listOf("domain is parked", "buy this domain", "bu alan adı satılık", "hesabı askıya")
+        if (dead.any { lower.contains(it) }) return false
+        return body.contains("dizipal", ignoreCase = true) ||
+            body.contains("/series/", ignoreCase = true) ||
+            body.contains("arama-yap", ignoreCase = true)
+    }
+
+    /** Eski sürüm adresindeki kayıtlı bağlantıyı çözülen alan adına taşır. */
+    private fun migrateUrl(url: String): String {
+        val host = runCatching { java.net.URI(url).host?.lowercase().orEmpty() }.getOrDefault("")
+        if (!host.contains("dizipal")) return url
+        return url.replaceFirst(Regex("""^https?://[^/]+"""), mainUrl)
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        resolveDomain()
+
         // * Sayfalama sunucunun verdiği `pageHref` dizisiyle yürür (tahmin yok).
         var links = pageHrefCache[request.data] ?: emptyList()
         var html  = ""
@@ -85,7 +163,7 @@ class DiziPal : MainAPI() {
             val target = links.getOrNull(page) ?: return newHomePageResponse(request.name, emptyList(), hasNext = false)
             html = fetch(fixUrl(target))
         } else {
-            html  = fetch(request.data)
+            html  = fetch(migrateUrl(request.data))
             links = DiziPalParser.pageHrefs(html)
             if (links.isNotEmpty()) pageHrefCache[request.data] = links
 
@@ -95,11 +173,17 @@ class DiziPal : MainAPI() {
             }
         }
 
-        return newHomePageResponse(
-            request.name,
-            parseListing(html),
-            hasNext = links.size > page + 1
-        )
+        val cards = parseListing(html)
+
+        // ! `pageHref` 2026-11 dump'ında HİÇ yok; o yol kapalıysa ?sayfa=N üzerinden yürü.
+        //   Aksi hâlde her satır ilk sayfada kilitli kalıyordu.
+        val hasNext = if (links.isNotEmpty()) {
+            links.size > page + 1
+        } else {
+            cards.isNotEmpty() && DiziPalParser.hasNextPage(html, page + 1)
+        }
+
+        return newHomePageResponse(request.name, cards, hasNext = hasNext)
     }
 
     /** Liste sayfası: önce DOM kartları (`a.tc`), sonra RSC akışları. */
@@ -143,18 +227,39 @@ class DiziPal : MainAPI() {
     private fun DiziPalCard.toSearchResponse(): SearchResponse {
         val url = fixUrl(href)
 
+        // ! Arama sonuçlarında puan (`r`) ve yıl da taşınıyor; önceden atılıyordu.
+        val score = score?.replace(',', '.')?.toDoubleOrNull()?.let { Score.from10(it) }
+
         return if (isMovie) {
-            newMovieSearchResponse(title, url, TvType.Movie) { this.posterUrl = fixUrlNull(poster) }
+            newMovieSearchResponse(title, url, TvType.Movie) {
+                this.posterUrl = fixUrlNull(poster)
+                this.year      = this@toSearchResponse.year
+                this.score     = score
+            }
         } else {
-            newTvSeriesSearchResponse(title, url, TvType.TvSeries) { this.posterUrl = fixUrlNull(poster) }
+            newTvSeriesSearchResponse(title, url, TvType.TvSeries) {
+                this.posterUrl = fixUrlNull(poster)
+                this.year      = this@toSearchResponse.year
+                this.score     = score
+            }
         }
     }
 
     // ── Arama ────────────────────────────────────────────────────────────────
 
     override suspend fun search(query: String): List<SearchResponse> {
+        resolveDomain()
+
         val url  = "${mainUrl}/arama-yap?s=${URLEncoder.encode(query, "UTF-8")}"
-        val hits = parseListing(fetch(url))
+        val html = fetch(url)
+
+        // ! Arama sayfası RSC'de `results.dizi / results.film / results.oyuncu` adlı
+        // ! ÜÇ ayrı dizi taşıyor; `parseCards` kalıbı bu alan sırasını yakalayamıyor.
+        // ! Önce yapısal ayrıştırıcı, sonra DOM kartları, en son genel kalıp.
+        val structured = DiziPalParser.parseSearchResults(html).map { it.toSearchResponse() }
+        if (structured.isNotEmpty()) return structured
+
+        val hits = parseListing(html)
         if (hits.isNotEmpty()) return hits
 
         // * Son çare: sitenin kendi RPC ucu (POST /api/mj) — sayfa boş dönerse.
@@ -188,7 +293,9 @@ class DiziPal : MainAPI() {
     // ── Detay ────────────────────────────────────────────────────────────────
 
     override suspend fun load(url: String): LoadResponse? {
-        val html  = fetch(url)
+        resolveDomain()
+
+        val html  = fetch(migrateUrl(url))
         val slots = DiziPalParser.parseSlots(html)
 
         val title = slots["title"] ?: slots["mjTitle"] ?: Jsoup.parse(html).selectFirst("h1")?.text() ?: return null
@@ -201,8 +308,10 @@ class DiziPal : MainAPI() {
             ?: Regex("\"runtimeMin\":(\\d+)").find(plain)?.groupValues?.get(1)?.toIntOrNull()
         val trailer     = Regex("\"trailerRaw\":\"([A-Za-z0-9_-]{6,})\"").find(plain)?.groupValues?.get(1)
 
-        if (url.contains("/movies/")) {
-            return newMovieLoadResponse(title, url, TvType.Movie, url) {
+        val canonical = migrateUrl(url)
+
+        if (canonical.contains("/movies/")) {
+            return newMovieLoadResponse(title, canonical, TvType.Movie, canonical) {
                 this.posterUrl = poster
                 this.plot      = description
                 this.year      = year
@@ -221,9 +330,9 @@ class DiziPal : MainAPI() {
             }
         }
 
-        if (episodes.isEmpty()) Log.w("DZP", "bölüm listesi boş: $url")
+        if (episodes.isEmpty()) Log.w("DZP", "bölüm listesi boş: $canonical")
 
-        return newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+        return newTvSeriesLoadResponse(title, canonical, TvType.TvSeries, episodes) {
             this.posterUrl = poster
             this.plot      = description
             this.year      = year
@@ -241,37 +350,112 @@ class DiziPal : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val html   = fetch(data)
+        resolveDomain()
+
+        val html   = fetch(migrateUrl(data))
         val player = DiziPalParser.parsePlayer(html)
 
         if (player == null) {
             Log.w("DZP", "player nesnesi yok: $data")
-            return fallbackExtractor(data, "$mainUrl/", subtitleCallback, callback)
+            return fallbackExtractor(migrateUrl(data), "$mainUrl/", subtitleCallback, callback)
         }
 
-        var found   = false
         val sources = player.sources.ifEmpty { listOf(DiziPalSource(null, null, null, null)) }
 
-        for (source in sources) {
-            val sourceUrl  = source.href?.let { fixUrl(it) }
-            val sourceHtml = if (sourceUrl == null || sourceUrl == data) html
-                             else runCatching { fetch(sourceUrl, referer = data) }.getOrNull() ?: html
-            val payload    = DiziPalParser.parsePlayer(sourceHtml) ?: player
+        // ! Eskiden kaynaklar TEK TEK (sıralı) çekiliyordu: 2 kaynak × 2 istek × 60 sn
+        // ! = 240 sn, CloudStream'in 120 sn'lik loadLinks bütçesini aşıyordu. Artık
+        // ! paralel; her kaynak kendi zaman kutusunda (SOURCE_TIMEOUT_MS).
+        // ! `Mutex.withLock` SUSPEND'dir; ama CloudStream'in `loadExtractor`'ı suspend
+        // ! olmayan `(SubtitleFile) -> Unit` / `(ExtractorLink) -> Unit` bekliyor.
+        // ! Bu yüzden suspend kilit kullanılamaz (derleme hatası: "Suspension functions
+        // ! can only be called within coroutine body"). Amaç zaten karşılıklı dışlama
+        // ! değil, PARALEL kaynaklardan gelen AYNI linkin iki kez iletilmemesiydi.
+        // ! `newKeySet()` bunu kilitsiz ve atomik yapar.
+        val emittedLinks     = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        val emittedSubtitles = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        val found = java.util.concurrent.atomic.AtomicBoolean(false)
 
-            val target = DiziPalParser.decryptPlayer(payload)
-            if (target == null) {
-                Log.w("DZP", "şifre çözülemedi (${source.label ?: "-"}): $data")
-                continue
-            }
-
-            val label = listOfNotNull(source.quality, source.label ?: payload.language)
-                .joinToString(" ")
-                .ifBlank { "Dizipal" }
-
-            if (extractFromPlayer(target, label, data, subtitleCallback, callback)) found = true
+        // ! `@Volatile` yerel değişkende derlenmez; bayrak atomik tutuluyor.
+        val relay: (ExtractorLink) -> Unit = { link ->
+            found.set(true)
+            callback(link)
         }
 
-        return found
+        coroutineScope {
+            sources.map { source ->
+                async {
+                    try {
+                        fetchOneSource(source, html, migrateUrl(data), subtitleCallback, relay, emittedLinks, emittedSubtitles)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w("DZP", "kaynak hatası (${source.label ?: "-"}): ${e.message}")
+                    }
+                }
+            }.awaitAll()
+        }
+
+        if (!found.get()) Log.w("DZP", "hiçbir kaynak çözülemedi: $data")
+        return found.get()
+    }
+
+    /**
+     * Tek bir `sources[]` girdisini çözer.
+     *
+     * Altyazı/dublaj bilgisi artık serbest metin etiketin içinde kaybolmuyor:
+     * `dub` bayrağı kaynak adının **başında** yapısal olarak yer alır
+     * (`Dublaj · 1080P`, `Altyazı · 1080P`) ve altyazı kaynağı için ayrıca
+     * `SubtitleFile` üretilir.
+     */
+    private suspend fun fetchOneSource(
+        source: DiziPalSource,
+        rootHtml: String,
+        pageUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+        emittedLinks: MutableSet<String>,
+        emittedSubtitles: MutableSet<String>,
+    ) {
+        val sourceUrl = source.href?.let { fixUrl(migrateUrl(it)) }
+
+        val sourceHtml = withTimeoutOrNull(SOURCE_TIMEOUT_MS) {
+            if (sourceUrl == null || sourceUrl == pageUrl) rootHtml
+            else runCatching { fetch(sourceUrl, referer = pageUrl) }.getOrNull() ?: rootHtml
+        } ?: rootHtml
+
+        val payload = DiziPalParser.parsePlayer(sourceHtml) ?: return
+
+        // ! `?: run { ...; return }` val başlatıcısında tip çıkarımını bozar;
+        //   ayrı ifadeye alındı.
+        val target = DiziPalParser.decryptPlayer(payload)
+        if (target == null) {
+            Log.w("DZP", "şifre çözülemedi (${source.label ?: "-"}): $pageUrl")
+            return
+        }
+
+        val label = DiziPalParser.sourceLabel(source, payload.language)
+
+        // ? Dublaj/altyazı bayrağı: `?lang=dublaj` / `?lang=altyazi` bağlantıları da yakalanır.
+        val declaredDub = source.dub ?: payload.dub
+        val langHint    = DiziPalParser.languageHint(source.href, source.label, payload.language)
+        val isDub       = declaredDub == true || langHint == "dublaj"
+
+        // * Altyazı kaynağıysa oynatıcı sayfasından altyazı izlerini ayrıca topla.
+        // ! Kilitsiz dedupe: aynı altyazı/link farklı kaynaklardan gelebiliyor.
+        val perSourceSubtitle: (SubtitleFile) -> Unit = { file ->
+            val lang = if (isDub) "dub" else "sub"
+            if (emittedSubtitles.add(file.url)) {
+                subtitleCallback(SubtitleFile(file.lang ?: lang, file.url))
+            }
+        }
+
+        val linkRelay: (ExtractorLink) -> Unit = { link ->
+            if (emittedLinks.add(link.url)) callback(link)
+        }
+
+        withTimeoutOrNull(SOURCE_TIMEOUT_MS) {
+            extractFromPlayer(target, label, pageUrl, perSourceSubtitle, linkRelay)
+        }
     }
 
     /** Oynatıcı adresini açar: m3u8 → altyazı → (yoksa) extractor katmanı. */
@@ -403,18 +587,26 @@ class DiziPal : MainAPI() {
         else -> Qualities.Unknown.value
     }
 
-    private suspend fun fetch(url: String, referer: String = "$mainUrl/"): String {
+    private suspend fun fetch(
+        url: String,
+        referer: String = "$mainUrl/",
+        // ! 60 sn'lik tek istek tüm loadLinks bütçesini yiyordu; çağıran kısaltabilir.
+        timeout: Long = 60_000L,
+    ): String {
         return app.get(
             url,
             headers     = getHeaders(referer),
             referer     = referer,
             interceptor = interceptor,
-            timeout     = 60_000L,
+            timeout     = timeout,
         ).text
     }
 
     companion object {
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+
+        /** Kaynak başına zaman kutusu; paralel çalıştığı için toplam bütçeyi şişirmez. */
+        private const val SOURCE_TIMEOUT_MS = 25_000L
 
         private fun getHeaders(referer: String): Map<String, String> = mapOf(
             "Accept"          to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
