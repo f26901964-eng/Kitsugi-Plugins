@@ -451,6 +451,10 @@ Bu, dump olmadan çözülemez; HAR kaydı gerekiyor.
 |---|---|---|---|
 | **DiziBox** | `7f75bfb` | `41872459142` | ✅ **BUILD SUCCESSFUL**, hata annotasyonu yok |
 | **DiziPal** | `98995b7` | — | ✅ **BUILD SUCCESSFUL**, **60 PASSED / 0 FAILED** |
+| **AnimeciX** | `8499ca2` | `41873588566` | ✅ **BUILD SUCCESSFUL**, `.cs3` üretildi |
+
+**Üç eklenti de gerçek Gradle derlemesinden geçti.** Bundan önce AnimeciX hiç
+derlenmemişti; ilk derleme **sözdizimi hatası** verdi (aşağıda §10.8).
 
 Statik simülasyonun yerini gerçek derleme aldı. Bu oturumda **üç gerçek hata** yalnızca
 derleyici/test tarafından yakalandı — hiçbiri elle yapılan dump analizinde görülmemişti:
@@ -515,6 +519,36 @@ Regresyon testi eklendi (`announcementBannerTextIsNotAPaginationSignal`) ve **ge
 
 ### 10.7 Hâlâ doğrulanamayan
 
-- **AnimeciX**: gerçek derleme çalıştırılmadı (workflow yok). Kodu derlenmiş saymıyorum.
-- `resolveToken()` SPA'da `x-e-h`'yi HTML'de bulamaz (dump'ta 0) ⇒ her zaman sabit değere düşer.
-  HAR kaydı olmadan çözülemez.
+- **AnimeciX'in ÇALIŞMA ZAMANI davranışı**: derleme ✅, ama siteye canlı istek atılmadı.
+  SPA dökümlerinde içerik yok (`<app-root>` boş), dolayısıyla `/secure/*` uç noktalarının
+  hâlâ yaşadığını **doğrulayamıyorum**. §4.7'de bu iddiayı bu yüzden geri çekmiştim.
+- `resolveToken()`: SPA'da `x-e-h` HTML'de **yok** (dökümde 0 eşleşme) ⇒ her zaman sabit
+  değere düşecek. Sunucu token'ı döndürürse eklenti 403 alır ve tek retry kurtaramaz.
+  **HAR kaydı veya JS bundle'ı olmadan çözülemez.**
+- **Anizm / TrAnimeIzle**: kapsam dışı, yalnız teşhis. Kodları değiştirilmedi.
+
+### 10.8 Derleyici hatası — KDoc içinde `/*` (AnimeciX)
+
+```
+AnimeciX.kt:383 Syntax error: Unclosed comment.
+AnimeciX.kt:86  Syntax error: Missing '}'.
+```
+
+**Kotlin blok yorumları iç içe geçer** (Java/C'nin aksine). Şu KDoc satırı:
+
+```
+ * `/secure/*` isteği; 403/boş yanıtta token'ı bir kez tazeleyip tekrar dener.
+         ^^ yeni bir blok yorum AÇIYOR
+```
+
+`/secure/*` dizisindeki `/*` ikinci bir yorum başlatıyor; dıştaki `/**` hiç kapanmıyor,
+dosyanın geri kalanı yorum sayılıyor. Bu yüzden derleyici hem "unclosed comment"
+hem de "missing }" veriyor.
+
+Tüm repoda (`*/src/**/*.kt`, 200+ dosya) taranan **tek** riskli satır buydu; düzeltildi.
+Bu hata **statik denge tarayıcımın kaçırdığı** türdendi: parantez/süslü sayıları
+dengeliydi, sorun yorum sözdizimindeydi.
+
+> **Ders:** "parantezler dengeli" ≠ "derlenir". Bu oturumda üç eklentinin üçünde de
+> yalnız derleyicinin yakaladığı hatalar çıktı (suspend lambda, poster filtresi,
+> iç içe yorum). Statik simülasyon **davranışı** doğrular, **derlenebilirliği** doğrulamaz.
