@@ -46,12 +46,21 @@ jobs:
             echo "TEST_RC=$TEST_RC"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$TEST_RC" -ne 0 ]; then
-            # ! Log artefaktı API'den indirilemiyor; başarısız test adlarını ve
-            #   hata satırlarını doğrudan özet ekranına yaz.
+            # ! Artefakt (zip/blob) bu ortamdan indirilemiyor; başarısız testleri
+            #   hem özet hem ::error:: annotasyonu olarak yayınla — annotasyon
+            #   GitHub API'sinden okunabiliyor.
             echo "## Başarısız testler" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
-            grep -E "FAILED|AssertionError|expected:|<[^>]*>" build.log | head -60 >> "$GITHUB_STEP_SUMMARY" || true
+            grep -E "FAILED|AssertionError|expected:|Caused by|Exception" build.log | head -60 >> "$GITHUB_STEP_SUMMARY" || true
             echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+            FAILED_LIST=$(grep -oE "[A-Za-z]+Test > [^ ]+ FAILED" build.log | head -12 || true)
+            if [ -z "$FAILED_LIST" ]; then
+              FAILED_LIST=$(grep -E "AssertionError|expected:" build.log | head -6 || true)
+            fi
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done <<< "$FAILED_LIST"
           fi
           if [ "$MAKE_RC" -ne 0 ] || [ "$TEST_RC" -ne 0 ]; then
             echo "::error::Gradle başarısız (make=$MAKE_RC, test=$TEST_RC)"
