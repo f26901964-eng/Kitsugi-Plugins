@@ -46,6 +46,11 @@ class DiziBox : MainAPI() {
         "${mainUrl}/#popular-episodes" to "Popüler Dizilerden Son Bölümler",
         "${mainUrl}/#latest-episodes" to "Yeni Eklenen Bölümler",
         "${mainUrl}/#best-series" to "Efsane Diziler",
+        // ! 2026-11 dump'ında 40 dizi içeren gerçek vitrin; `CHROME_SELECTOR` ile
+        //   silindiği için hiç görünmüyordu.
+        "${mainUrl}/#recommended-series" to "Önerilen Diziler",
+        // ! Çeviri Durumu bloğu: 10 bölümün altyazı çeviri durumu (dil verisi).
+        "${mainUrl}/#translation-status" to "Çeviri Durumu",
         "${mainUrl}/tum-bolumler/page/SAYFA/" to "Tüm Bölümler",
         "${mainUrl}/tum-bolumler/page/SAYFA/?tip=populer" to "Popüler Bölümler",
         "${mainUrl}/efsane-diziler/page/SAYFA/" to "Efsane Diziler Arşivi",
@@ -368,6 +373,14 @@ class DiziBox : MainAPI() {
             data to initialDoc
         }
 
+        // ! Bölümün altyazı/dublaj rozeti artık okunuyor (önceden hiç bakılmıyordu).
+        //   DiziBox altyazılı yabancı dizi arşivi: bayrak varsa "altyazılı" bilgisi
+        //   kaynak adına yazılır ve oynatıcıdan gelen altyazı izleri "tr" olarak etiketlenir.
+        val badges  = DiziBoxPlayerParser.languageBadges(mainDoc, episodeUrl)
+        val subTag  = badges.firstOrNull { it.label.contains("Altyazı", true) }?.label
+        val dubTag  = badges.firstOrNull { it.label.contains("Dublaj", true) }?.label
+        if (badges.isNotEmpty()) Log.d(TAG, "dil rozetleri: ${badges.joinToString { it.label }}")
+
         val tabs = DiziBoxPlayerParser.playerTabs(mainDoc, episodeUrl).take(10)
         val collector = LinkCollector(subtitleCallback, callback)
         val tabSemaphore = Semaphore(4)
@@ -377,7 +390,7 @@ class DiziBox : MainAPI() {
                 async {
                     tabSemaphore.withPermit {
                         withTimeoutOrNull(TAB_TIMEOUT_MS) {
-                            processPlayerTab(tab, episodeUrl, mainDoc, collector)
+                            processPlayerTab(tab, episodeUrl, mainDoc, collector, subTag, dubTag)
                         }
                     }
                 }
@@ -393,6 +406,8 @@ class DiziBox : MainAPI() {
         rootEpisodeUrl: String,
         rootDocument: Document,
         collector: LinkCollector,
+        subTag: String? = null,
+        dubTag: String? = null,
     ) {
         val pageDocument = if (tab.url == rootEpisodeUrl) {
             rootDocument
@@ -425,7 +440,14 @@ class DiziBox : MainAPI() {
                 resolvePlayerChain(
                     rawUrl    = candidateUrl,
                     referer   = tab.url,
-                    tabLabel  = tab.label,
+                    // ! Dil rozeti varsa kaynak adı onu taşısın: "DBX Pro · Altyazılı"
+                    tabLabel  = buildString {
+                        append(tab.label)
+                        when {
+                            dubTag != null -> append(" · ").append(dubTag)
+                            subTag != null -> append(" · ").append(subTag)
+                        }
+                    },
                     collector = collector,
                     visited   = visited,
                     depth     = 0,

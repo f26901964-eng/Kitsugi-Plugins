@@ -125,7 +125,147 @@ object DiziPalParser {
             iv         = stringField(enc, "iv"),
             salt       = stringField(enc, "salt"),
             key        = stringField(block, "k"),
+            // ! `dub` alanı `"enc"` nesnesinden ÖNCE geliyor; `stringField` gövdenin
+            // ! tamamında aradığı için burada ayrıca okunuyor.
+            dub        = Regex("\"dub\":(true|false)").find(
+                block.substringBefore("\"enc\":{"),
+            )?.groupValues?.get(1)?.toBooleanStrictOrNull(),
         )
+    }
+
+    // ── Arama sonuçları (`results.dizi / film / oyuncu`) ─────────────────────
+
+    /**
+     * Arama sayfasının RSC yükündeki `results` nesnesini ayrıştırır.
+     *
+     * Ölçüm (2026-11-04, `search-the-mentalist.html`): arama sayfası kartları
+     * `{"id":"dizi-8797","kind":"dizi","t":"The Mentalist","year":2008,"g":"Suç",
+     *   "img":…,"r":"8.2","meta":"2008 · Suç","sub":"Dizi · 2008 · Suç",
+     *   "href":"/series/the-mentalist"}` biçiminde ve **`t` her zaman `href`'ten
+     * ÖNCE değil** — bu yüzden `parseCards()` kalıbı bu sayfada 0 eşleşme veriyordu.
+     *
+     * `dizi`, `film` ve `oyuncu` ayrı dizilerdir; üçü de döndürülür.
+     */
+    fun parseSearchResults(html: String): List<DiziPalCard> {
+        val plain = unescapeRsc(html)
+        val key   = plain.indexOf("\"results\":{")
+        if (key < 0) return emptyList()
+
+        val block = jsonObjectAt(plain, key + "\"results\":".length) ?: return emptyList()
+        val cards = mutableListOf<DiziPalCard>()
+
+        for (bucket in listOf("dizi", "film", "oyuncu")) {
+            val bucketKey = "\"$bucket\":["
+            var index     = 0
+
+            while (true) {
+                val found = block.indexOf(bucketKey, index)
+                if (found < 0) break
+
+                val array = jsonArrayAt(block, found + bucketKey.length - 1)
+                if (array == null) {
+                    index = found + 1
+                    continue
+                }
+
+                Regex("\\{[^{}]*}").findAll(array).forEach { match ->
+                    val row  = match.value
+                    val href = stringField(row, "href") ?: return@forEach
+                    if (!href.contains("/series/") && !href.contains("/movies/")) return@forEach
+
+                    val title = stringField(row, "t") ?: stringField(row, "name") ?: return@forEach
+
+                    cards.add(
+                        DiziPalCard(
+                            title    = title,
+                            href     = href,
+                            poster   = stringField(row, "img") ?: stringField(row, "thumb"),
+                            year     = Regex("\"year\":(\\d{4})").find(row)?.groupValues?.get(1)?.toIntOrNull()
+                                ?: Regex("(19|20)\\d{2}").find(stringField(row, "meta").orEmpty())
+                                    ?.value?.toIntOrNull(),
+                            meta     = stringField(row, "meta"),
+                            isMovie  = href.contains("/movies/"),
+                            kind     = stringField(row, "kind") ?: bucket,
+                            score    = stringField(row, "r"),
+                            genre    = stringField(row, "g"),
+                            subtitle = stringField(row, "sub"),
+                        ),
+                    )
+                }
+
+                index = found + bucketKey.length
+            }
+        }
+
+        return cards.distinctBy { it.href }
+    }
+
+    // ── Kaynak etiketi / dil çıkarımı ─────────────────────────────────────────
+
+    /**
+     * Kaynağın görünen adı. Altyazı/dublaj bilgisi **en başta** ve yapısal olarak
+     * yer alır: `Dublaj · 1080P`, `Altyazı · 1080P`, `Altyazı · Dizipal`.
+     *
+     * Ölçüm: `sources[].dub` alanı gerçek (dump'ta 2 kaynak: biri `dub:false`,
+     * biri `dub:true`); `label` alanı da "PUB+ · Türkçe Dublaj" biçiminde.
+     */
+    fun sourceLabel(source: DiziPalSource, playerLanguage: String?): String {
+        val kind = when {
+            source.dub == true                                   -> "Dublaj"
+            source.dub == false                                  -> "Altyazı"
+            languageHint(source.href, source.label, playerLanguage) == "dublaj" -> "Dublaj"
+            languageHint(source.href, source.label, playerLanguage) == "altyazi" -> "Altyazı"
+            else                                                 -> null
+        }
+
+        // ? Etiketteki ham "Türkçe Dublaj" / "Türkçe Altyazı" ifadesi tekrarlanmasın.
+        val cleanLabel = source.label
+            ?.replace(Regex("""(?i)\s*[·|\-]?\s*türkçe\s*(dublaj|altyazı|altyazi)\s*"""), " ")
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+        val quality = source.quality?.trim()?.takeIf { it.isNotBlank() }
+
+        return listOfNotNull(kind, quality ?: cleanLabel ?: playerLanguage?.trim()?.takeIf { it.isNotBlank() })
+            .joinToString(" · ")
+            .ifBlank { "Dizipal" }
+    }
+
+    /** `?lang=dublaj` / `?lang=altyazi`, etiket metni ve oynatıcı dili → "dublaj"/"altyazi"/null. */
+    fun languageHint(href: String?, label: String?, playerLanguage: String?): String? {
+        val hrefLang = href?.substringAfter("lang=", "")?.substringBefore('&')?.trim()?.lowercase()
+        if (hrefLang == "dublaj" || hrefLang == "altyazi") return hrefLang
+
+        val haystack = listOfNotNull(label, playerLanguage).joinToString(" ").lowercase()
+        return when {
+            haystack.contains("dublaj") -> "dublaj"
+            haystack.contains("altyaz") -> "altyazi"
+            else                        -> null
+        }
+    }
+
+    // ── Sayfalama (pageHref yoksa) ────────────────────────────────────────────
+
+    /**
+     * `pageHref` dizisi artık hiçbir sayfada yok (4 dump'ta 0 eşleşme). Bu yüzden
+     * sayfalama için iki sinyal birden aranır:
+     *  - `?sayfa=N` / `?page=N` bağlantısı,
+     *  - "Sonraki" / "Daha fazla" / `rel="next"` işaretleri.
+     */
+    fun hasNextPage(html: String, nextPage: Int): Boolean {
+        if (nextPage < 2) return false
+
+        val markers = listOf(
+            "sayfa=$nextPage", "page=$nextPage", "?sayfa=", "&sayfa=",
+            "rel=\"next\"", "rel='next'", "Sonraki", "sonraki", "Daha fazla", "daha fazla",
+        )
+        if (markers.any { html.contains(it) }) return true
+
+        // RSC içinde `"page":N` / `"currentPage":N` sayaçları da kabul edilir.
+        val plain = unescapeRsc(html)
+        return Regex("\"(?:page|currentPage|pageNo)\":\\s*$nextPage\\b").containsMatchIn(plain) ||
+            Regex("\"hasMore\":true").containsMatchIn(plain)
     }
 
     /**

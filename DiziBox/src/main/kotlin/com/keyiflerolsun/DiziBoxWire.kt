@@ -14,10 +14,22 @@ internal object DiziBoxWire {
         "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
-    fun diziboxCookies(nowMillis: Long = System.currentTimeMillis()): Map<String, String> = mapOf(
+    /**
+     * Sitenin kendi head betiğinin set ettiği çerezler (2026-11-04 dump doğrulaması):
+     *
+     * ```js
+     * "true"!=getCookie("isTrustedUser") && (
+     *     setCookie("LockUser","true",1),
+     *     setCookie("isTrustedUser","true",30)
+     * );
+     * ```
+     *
+     * ! `dbxu` çerezi sitede YOK (4 dump'ta 0 eşleşme). Elle uydurulmuş bir değerdi;
+     * ! sunucunun bilinmeyen çerezi bot işareti sayma riski yüzünden kaldırıldı.
+     */
+    fun diziboxCookies(): Map<String, String> = mapOf(
         "LockUser"      to "true",
         "isTrustedUser" to "true",
-        "dbxu"          to nowMillis.toString(),
     )
 
     fun normalizeWireRequest(request: Request, siteUrl: String): Request {

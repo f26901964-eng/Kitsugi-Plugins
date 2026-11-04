@@ -4,8 +4,7 @@ name: DiziPal Derleme
 
 on:
   push:
-    branches:
-      - arena/e43f167a-kitsugi-plugins
+    # ! Dal filtresi yok: hangi çalışma dalında DiziPal'a dokunulursa derleme dönsün.
     paths:
       - "DiziPal/**"
       - ".github/workflows/Dizipal-Derleme.yml"
