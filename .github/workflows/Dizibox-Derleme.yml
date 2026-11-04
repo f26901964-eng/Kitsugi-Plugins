@@ -32,9 +32,23 @@ jobs:
         env:
           LIVE_PROBE: "1"
         run: |
-          set -o pipefail
           chmod +x gradlew
-          ./gradlew :DiziBox:make :DiziBox:test --stacktrace 2>&1 | tee build.log
+          # ! Adımlar ayrı ayrı ölçülür: hangi Gradle task'ının kırıldığı
+          #    tek bakışta görünsün (tek satırda birleşince ayırt edilemiyordu).
+          set +e
+          ./gradlew :DiziBox:make --stacktrace 2>&1 | tee build.log
+          MAKE_RC=${PIPESTATUS[0]}
+          ./gradlew :DiziBox:test --stacktrace 2>&1 | tee -a build.log
+          TEST_RC=${PIPESTATUS[0]}
+          echo "MAKE_RC=$MAKE_RC TEST_RC=$TEST_RC"
+          {
+            echo "MAKE_RC=$MAKE_RC"
+            echo "TEST_RC=$TEST_RC"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MAKE_RC" -ne 0 ] || [ "$TEST_RC" -ne 0 ]; then
+            echo "::error::Gradle başarısız (make=$MAKE_RC, test=$TEST_RC)"
+            exit 1
+          fi
       - name: DiziBox eklentisini sakla
         if: success()
         uses: actions/upload-artifact@v4
