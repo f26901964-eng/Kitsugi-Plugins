@@ -70,58 +70,23 @@ Ve **hiçbir eklentide** şunlar yok (repo genelinde `grep` ile doğrulandı):
 
 ## 2. Bulgu listesi (önem sırasıyla)
 
-### B1 — FilmMakinesi: dizi sayfası "film" sanılıyor → bölüm listesi 0 → veri yok
-**Kanıt:** `FilmMakinesi/src/main/kotlin/.../FilmMakinesi.kt:381-393` ve gerçek
-döküm `src/test/resources/live/fm_page_episode.html`.
+### B1 — FilmMakinesi *(GERİ ÇEKİLDİ — yanlış teşhis)*
+İlk raporda "dizi sayfası film sanılıyor" yazmıştım. **Kendi dökümünle test ettim,
+iddia yanlış.** `load()` içindeki `a[href*='bolum']` seçicisi
+`fm_page_episode.html` dökümünde **eşleşiyor** (43 link) ⇒ `isSeries = true`,
+bölüm listesi üretiliyor. Senin düzelttiğin hâli çalışıyor.
 
-`load()` diziyi şu koşulla tanıyor:
+Yine de dökümden ölçülen **iki küçük kusur** duruyor (blocker değil, kozmetik):
 
-```kotlin
-val isSeries = url.contains("/dizi/") ||
-    document.select("div.seasons-tab-content, nav#seasonsTabs, [aria-label*='Sezon'],
-                     [aria-label*='Season'], a[href*='bolum'], div.episodes a,
-                     div.partlar a, div#seasonsTabs-tabContent div.card-list-item").isNotEmpty()
-```
+| # | Kusur | Döküm kanıtı |
+| --- | --- | --- |
+| B1a | Bölüm adı `.ep-title` yerine tüm `<a>` metninden alınıyor → `"25 Ekim 2024 / 22 dk / 1. Sezon / 2. Bölüm Tapped Out"` | `class="ep-title"` ×42, `class="ep-details"` ×42 |
+| B1b | "Sonraki" ve "Dizi Anasayfası" düğmeleri de bölüm sayılıyor → 43 link, 42 gerçek bölüm | `<a href="…bolum-2/" class="btn btn-default ">… Sonraki</a>` |
 
-Gerçek dökümde **hiçbiri yok**:
-
-| seçici | dökümde |
-| --- | --- |
-| `div.seasons-tab-content` | 0 |
-| `nav#seasonsTabs` | 0 |
-| `[aria-label*='Sezon']` | 0 |
-| `div.episodes a` / `div.partlar a` | 0 |
-| `card-list-item` | 0 |
-| bölüm linki | **43** (yalnızca `a[href*='bolum']` yakalıyor) |
-
-`isSeries` yalnızca **URL'de `/dizi/` varsa** doğru dönüyor. Arama sonuçları
-`/dizi/…` ürettiği için çoğu zaman kurtarıyor; ama:
-- arama sonucu **bölüm sayfası** (`/dizi/x/sezon-1/bolum-1/`) dönerse, ya da
-- site adresi başka biçimde (`/sezon-…`, kısa link) verirse
-
-`isSeries = false` olur → **`newMovieLoadResponse(..., pageUrl)`** üretilir →
-oynatıcı `loadLinks`'e **HTML sayfası** gider, embed yok → kullanıcı "dizinin
-video verisi gelmiyor" der. **Film** sayfalarında `data-video_url` dökümde var
-(`fm_page_film.html`: 3 adet) → o yüzden "filmler çalışıyor, diziler
-çalışmıyor" semptomu **birebir** bununla örtüşüyor.
-
-**İkinci hata (aynı dosyada):** `parseSeriesEpisodes()` sıralaması yanlış —
-ilk iki dal (`div.seasons-tab-content`, `card-list-item`) sitenin **güncel**
-temasıyla uyuşmuyor; gerçek yapı `ul#sezonTab` + `div.tab-pane#tab-sezon-N` +
-`a.item-ep > .ep-title / .ep-details`. Mevcut fallback tüm `<a>` metnini
-bölüm adı yapıyor:
-
-```
-name = "25 Ekim 2024 / 22 dk / 1. Sezon / 2. Bölüm Tapped Out"
-```
-
-Doğru ayrıştırma (dökümden ölçüldü): `.ep-title` → `1. Sezon / 2. Bölüm`,
-`.ep-details` → `Tapped Out` → `name = "S1B2 · Tapped Out"`.
-Ayrıca sayfadaki **"Sonraki" ve "Dizi Anasayfası"** düğmeleri de
-`a[href*='bolum']` / `/dizi/` koşulunu geçip **hayalet bölüm** olarak listeye
-giriyor (43 link → 42 gerçek bölüm).
-
----
+`parseSeriesEpisodes()` ayrıca ölü seçicilerle başlıyor
+(`div.seasons-tab-content`, `card-list-item` → dökümde **0**), her çağrıda
+boşuna iki `select()` harcıyor. Gerçek yapı:
+`ul#sezonTab` → `div#tab-sezon-N` → `a.item-ep`.
 
 ### B2 — AnimeciX: hızlı aramada hiç çağrılmıyor + tek kırılgan token
 **Kanıt:** `AnimeciX.kt:27` `hasQuickSearch = false`; `SearchViewModel.kt:233`.
@@ -227,19 +192,19 @@ ekranlarda (AniList, kütüphane, öneriler) de çalışır.
 
 | # | Eklenti | Sorun | Etki | Zorluk |
 | --- | --- | --- | --- | --- |
-| 1 | FilmMakinesi | B1 dizi tespiti + bölüm adları + hayalet bölüm | **yüksek** (senin şikâyetin) | düşük |
-| 2 | AnimeciX | B2 `hasQuickSearch` + token + paralel `loadLinks` | yüksek | orta |
-| 3 | HDFilmIzle | B3 paralel çözüm | yüksek | düşük |
-| 4 | AnimeciX | B4 domain yedeği | orta | orta |
-| 5 | DiziPal / DiziBox | B4 domain yedeği | orta | orta |
-| 6 | Anizm / TrAnimeIzle / HDFilmCehennemi | ID gömme (B5) | orta | düşük |
-| 7 | TrAnimeIzle | B7 CAPTCHA bütçesi | düşük-orta | orta |
+| 1 | AnimeciX | B2 hasQuickSearch + token + paralel loadLinks | **yüksek** | orta |
+| 2 | HDFilmIzle | B3 oynatıcılar sıralı | yüksek | düşük |
+| 3 | AnimeciX / DiziPal / DiziBox | B4 domain yedeği yok | yüksek | orta |
+| 4 | Anizm | B8 katalog + çözücü boşlukları | orta | orta |
+| 5 | TrAnimeIzle | B7 captcha bütçesi + loadLinks fırlatma | orta | orta |
+| 6 | Tümü | B5 ID gömme (sync) | orta | düşük |
+| 7 | FilmMakinesi | B1a/B1b kozmetik | düşük | düşük |
 | 8 | Anizium | B6 dex-only | — | (kaynak yok) |
 
-**#1, #2, #3 tek başına senin tarif ettiğin üç şikâyeti kapatıyor:**
-- "FilmMakinesi dizileri vermiyor" → #1
-- "AnimeciX kaynak değiştirince / hızlı aramada tıkanıyor" → #2
-- "HDFilmIzle takılıyor" → #3
+**FilmMakinesi çalışıyor (doğrulandı).** Kalan şikâyetlerin karşılığı:
+- "AnimeciX veri sunamıyor, hızlı aramada yok" → #1
+- "HDFilmIzle takılıyor" → #2
+- "Site adresi değişince eklenti tamamen ölüyor" → #3
 
 Hangisinden başlamamı istersen söyle; kaynak dosyaları elimde, düzeltmeyi
 bu dalda yapıp testleri de ekleyebilirim.
